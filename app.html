@@ -13,36 +13,50 @@
         box-shadow: 0 0 0 2px rgba(45, 125, 210, 0.35);
       }
       #loading { font-family: "Microsoft YaHei", sans-serif; text-align: center; padding: 3rem; color: #666; }
+      #boot-error:empty { display: none; }
     </style>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   </head>
   <body>
+    <div id="boot-error"></div>
     <div id="root"><div id="loading">正在加载泓森拓创科技…</div></div>
     <script>
       (async function boot() {
-        var root = document.getElementById("root");
+        var errEl = document.getElementById("boot-error");
         function showErr(msg) {
-          root.innerHTML = "<pre style=\"padding:24px;color:#b91c1c;font:13px/1.5 sans-serif;white-space:pre-wrap\">加载失败：\\n" + msg + "</pre>";
+          errEl.textContent = "加载失败：\n" + msg;
+          errEl.style.cssText = "padding:24px;color:#b91c1c;font:13px/1.5 sans-serif;white-space:pre-wrap";
         }
-        window.addEventListener("error", function (e) {
-          showErr(e.message || String(e));
-        });
-        var files = [
-          "src/LogisticsModule.browser.jsx",
-          "src/ProductionModule.browser.jsx",
-          "src/ToolsModule.browser.jsx",
-          "src/App.browser.jsx",
-        ];
+
+        function prepareRoot() {
+          document.getElementById("root").replaceChildren();
+        }
+
         try {
+          // GitHub Pages：优先加载预编译 bundle（无运行时 Babel，更稳定）
+          var bundleRes = await fetch("app.bundle.js?v=2");
+          if (bundleRes.ok) {
+            var js = await bundleRes.text();
+            prepareRoot();
+            (0, eval)(js);
+            return;
+          }
+
+          // 本地开发：运行时拉取 .browser.jsx 并 Babel 编译
+          var files = [
+            "src/LogisticsModule.browser.jsx",
+            "src/ProductionModule.browser.jsx",
+            "src/ToolsModule.browser.jsx",
+            "src/App.browser.jsx",
+          ];
           var chunks = [];
           for (var i = 0; i < files.length; i++) {
             var file = files[i];
             var res = await fetch(file);
             if (!res.ok) throw new Error(file + " HTTP " + res.status);
             var code = await res.text();
-            // 合并为单文件执行，共享 inp / daysDiff 等 helpers；去掉后续文件重复的 React 解构与 import
             if (i > 0) code = code.replace(/^const \{ useState[^}]+\} = React;\s*\r?\n/m, "");
             code = code.replace(/^import .+;\s*\r?\n/gm, "");
             code = code.replace(/^export default /gm, "");
@@ -51,6 +65,7 @@
           }
           var bundled = chunks.join("\n\n");
           var compiled = Babel.transform(bundled, { presets: ["react"], filename: "ops-center.bundle.jsx" }).code;
+          prepareRoot();
           (0, eval)(compiled);
         } catch (e) {
           showErr(e.message || String(e));

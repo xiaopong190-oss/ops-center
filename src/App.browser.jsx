@@ -213,5 +213,9 @@ function App() {
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<App />);
+if (!window.__OPS_CENTER_MOUNTED__) {
+  window.__OPS_CENTER_MOUNTED__ = true;
+  const mountEl = document.getElementById("root");
+  mountEl.replaceChildren();
+  ReactDOM.createRoot(mountEl).render(<App />);
+}

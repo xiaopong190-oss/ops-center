@@ -46,6 +46,10 @@ function copyDir(src, dest) {
 console.log("==> sync browser jsx");
 execSync("node sync-browser.mjs", { cwd: root, stdio: "inherit" });
 
+console.log("==> build precompiled app.bundle.js");
+execSync("npm install --no-audit --no-fund", { cwd: root, stdio: "inherit" });
+execSync("node deploy/build-browser-bundle.mjs", { cwd: root, stdio: "inherit" });
+
 console.log("==> pack disk-cleaner zip (optional)");
 try {
   execSync(
@@ -70,6 +74,8 @@ const staticFiles = [
 for (const f of staticFiles) {
   copyFile(path.join(root, f), path.join(out, f));
 }
+
+copyFile(path.join(root, "app.bundle.js"), path.join(out, "app.bundle.js"));
 
 // GitHub Pages 默认入口
 copyFile(path.join(root, "app.html"), path.join(out, "index.html"));

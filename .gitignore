@@ -5,6 +5,7 @@ Thumbs.db
 
 # 本地生成（CI 会重新 build）
 docs/
+app.bundle.js
 
 # 密钥与本地配置
 .env

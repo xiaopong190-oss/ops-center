@@ -86,7 +86,7 @@ const appBrowser =
   app.slice(sharedEnd)
     .replace(/^export default function App/m, "function App")
     .trimEnd() +
-  "\n\nconst root = ReactDOM.createRoot(document.getElementById(\"root\"));\nroot.render(<App />);\n";
+  "\n\nif (!window.__OPS_CENTER_MOUNTED__) {\n  window.__OPS_CENTER_MOUNTED__ = true;\n  const mountEl = document.getElementById(\"root\");\n  mountEl.replaceChildren();\n  ReactDOM.createRoot(mountEl).render(<App />);\n}\n";
 fs.writeFileSync(path.join(dir, "App.browser.jsx"), appBrowser);
 
 console.log("sync-browser ok");

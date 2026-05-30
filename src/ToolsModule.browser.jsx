@@ -3,6 +3,18 @@
 // ─── TOOLS MODULE ──────────────────────────────────────────────────────
 // 新窗口：url/openUrl  |  可换链：configurableUrl: true  |  内嵌：target: "inline"  |  组件：component
 // runtime: "local" = 本机 Windows 工具（云端仅下载，不在服务器执行）
+
+const URL_STORAGE_PREFIX = "ops-center-tool-url-";
+const NAME_STORAGE_PREFIX = "ops-center-tool-name-";
+
+const toolUrl = (tool, customUrls = {}) => {
+  if (tool.configurableUrl) return customUrls[tool.id] || tool.defaultUrl || "";
+  return tool.url || tool.openUrl;
+};
+
+const toolDisplayName = (tool, customNames = {}) =>
+  (tool.configurableUrl && customNames[tool.id]) ? customNames[tool.id] : tool.name;
+
 const TOOL_CATALOG = [
   { id: "fba-profit", name: "FBA 利润计算器", desc: "全链路利润：体积重、尺寸分档、头程 / 佣金 / 退货", icon: "💰", category: "FBA", openUrl: "fba-profit-calculator.html" },
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },

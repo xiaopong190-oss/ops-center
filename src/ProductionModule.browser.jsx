@@ -250,7 +250,7 @@ function ProductGroup({ product, name, batches, onEdit }) {
   );
 }
 
-export function ProductionPanel() {
+function ProductionPanel() {
   const [items, setItems] = useState(INIT_PROD.map(b => ({ ...b, stage: normalizeStage(b.stage) })));
   const [nid, setNid] = useState(6);
   const [modal, setModal] = useState(null);

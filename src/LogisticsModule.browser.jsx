@@ -631,7 +631,7 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
     </div>
   );
 }
-export function LogisticsPanel() {
+function LogisticsPanel() {
   const [items, setItems] = useState(INIT_LOGISTICS);
   const [nid, setNid] = useState(4);
   const [modal, setModal] = useState(null);

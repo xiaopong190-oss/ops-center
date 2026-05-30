@@ -181,7 +181,7 @@ function SettingsMenu({ onSelect }) {
   );
 }
 
-export default function App() {
+function App() {
   const [tab, setTab] = useState("logistics");
   const [dark, setDark] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState(null);

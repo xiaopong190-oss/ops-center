@@ -21,7 +21,7 @@ function toBrowser(src, { exportName, stripUtilsThrough = null }) {
     }
   }
   if (exportName) {
-    out = out.replace(new RegExp(`^export function ${exportName}`), `function ${exportName}`);
+    out = out.replace(new RegExp(`^export function ${exportName}`, "m"), `function ${exportName}`);
   }
   return out;
 }
@@ -84,7 +84,7 @@ const sharedEnd = app.indexOf("// ─── TASK MODULE");
 const appBrowser =
   "// LogisticsModule.browser.jsx loads shared helpers + GlobalConfig first.\n\n" +
   app.slice(sharedEnd)
-    .replace(/^export default function App/, "function App")
+    .replace(/^export default function App/m, "function App")
     .trimEnd() +
   "\n\nconst root = ReactDOM.createRoot(document.getElementById(\"root\"));\nroot.render(<App />);\n";
 fs.writeFileSync(path.join(dir, "App.browser.jsx"), appBrowser);

@@ -183,7 +183,7 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
   );
 }
 
-export function ToolsPanel() {
+function ToolsPanel() {
   const [customUrls, setCustomUrls] = useState(loadCustomUrls);
   const [customNames, setCustomNames] = useState(loadCustomNames);
   const [inlineTool, setInlineTool] = useState(null);

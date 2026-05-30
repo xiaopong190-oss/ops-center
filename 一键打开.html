@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>泓森拓创科技</title>
+    <style>
+      body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; max-width: 520px; margin: 3rem auto; padding: 0 1.5rem; color: #333; line-height: 1.7; }
+      h1 { font-size: 1.35rem; margin-bottom: 0.5rem; }
+      .box { background: #f0f7ff; border: 1px solid #c5ddf5; border-radius: 10px; padding: 1rem 1.2rem; margin: 1.2rem 0; }
+      code { background: #eee; padding: 2px 6px; border-radius: 4px; }
+      a { color: #2d7dd2; }
+      #status { color: #666; font-size: 0.95rem; }
+    </style>
+  </head>
+  <body>
+    <h1>泓森拓创科技</h1>
+    <p id="status">正在检测本地服务…</p>
+    <div class="box" id="help" style="display:none">
+      <p><strong>请按以下步骤打开：</strong></p>
+      <ol>
+        <li>打开文件夹 <code>D:\Projects\ops-center</code></li>
+        <li>双击 <strong>打开界面.bat</strong>（或 <strong>启动运营中心.vbs</strong>）</li>
+        <li>保持弹出的黑色窗口不要关闭</li>
+      </ol>
+      <p>浏览器会自动打开界面。无需安装 Node.js。</p>
+    </div>
+    <script>
+      fetch("http://127.0.0.1:8765/打开界面.html", { mode: "no-cors" })
+        .then(function () { window.location.href = "http://127.0.0.1:8765/打开界面.html"; })
+        .catch(function () {
+          document.getElementById("status").textContent = "本地服务未运行。";
+          document.getElementById("help").style.display = "block";
+        });
+      setTimeout(function () {
+        if (document.getElementById("help").style.display !== "block") return;
+      }, 1500);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+node_modules
+dist
+.DS_Store
+Thumbs.db
+
+# 本地生成（CI 会重新 build）
+docs/
+
+# 密钥与本地配置
+.env
+.env.*
+*.log
+start.log
+
+# 编辑器
+.idea
+.vscode
+
+# 可选：FBA 大文件若未复制到仓库，取消下行注释
+# fba-profit-calculator.html
+# fba-warehouse-tool.html

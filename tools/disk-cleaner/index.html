@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>C 盘垃圾清理</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card: #fff;
+      --border: #e2e8f0;
+      --text: #1a202c;
+      --muted: #64748b;
+      --primary: #2d7dd2;
+      --ok: #2e7d32;
+      --warn: #e65100;
+      --danger: #c62828;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      margin-right: 6px;
+      font-weight: 600;
+    }
+    .badge-local { background: #fce4ec; color: var(--danger); }
+    .badge-cloud { background: #e3f2fd; color: #1565c0; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    .card h2 { font-size: 15px; margin: 0 0 10px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    button, .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      text-align: left;
+      width: 100%;
+    }
+    button:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(45,125,210,.12); }
+    .primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .primary:hover { filter: brightness(1.05); }
+    .note { font-size: 12px; color: var(--muted); }
+    ul { margin: 8px 0 0 18px; padding: 0; font-size: 13px; }
+    li { margin: 4px 0; }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    #log {
+      margin-top: 12px;
+      padding: 12px;
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 10px;
+      font-size: 12px;
+      font-family: Consolas, monospace;
+      white-space: pre-wrap;
+      min-height: 48px;
+      display: none;
+    }
+    #log.show { display: block; }
+    a.download {
+      display: inline-block;
+      margin-top: 8px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    a.download:hover { text-decoration: underline; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🧹 C 盘垃圾清理</h1>
+    <p class="sub">
+      <span id="modeBadge" class="badge badge-local">检测中…</span>
+      清理 2345 / 360 / 鲁大师等残留，保护 QQ、微信、百度网盘、WPS
+    </p>
+
+    <div id="localPanel" class="card hidden">
+      <h2>本机操作</h2>
+      <p class="note">通过本地运营中心服务器启动，将在新窗口中运行 PowerShell（先预览，确认后再删）。</p>
+      <div class="grid" style="margin-top:12px">
+        <button type="button" class="primary" data-action="scan">扫描并生成报告</button>
+        <button type="button" data-action="preview">预览可清理项</button>
+        <button type="button" data-action="cleanup">一键清理（交互确认）</button>
+        <button type="button" data-action="folder">打开工具文件夹</button>
+      </div>
+    </div>
+
+    <div id="cloudPanel" class="card hidden">
+      <h2>下载 Windows 便携版</h2>
+      <p class="note">此工具必须在员工自己的 Windows 电脑上运行，云端服务器无法代替清理本机 C 盘。</p>
+      <a class="download" href="../../packages/disk-cleaner-win.zip">下载 disk-cleaner-win.zip</a>
+      <ol class="note" style="margin-top:12px;padding-left:18px">
+        <li>下载并解压 zip</li>
+        <li>双击「一键清理.bat」</li>
+        <li>先预览，输入 Y 后再删除</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>会清理什么</h2>
+      <ul>
+        <li>2345、360、鲁大师、猎豹 AI、ksoftmgr 等残留目录</li>
+        <li class="warn">可选：卸载金山毒霸 / 联想管家后的 kingsoft、Lenovo 目录</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2 class="ok">不会触碰</h2>
+      <ul>
+        <li>Tencent（QQ / 微信 / 微信输入法）</li>
+        <li>百度网盘相关目录</li>
+        <li>WPS Office、Cursor、飞书、剪映</li>
+      </ul>
+    </div>
+
+    <div id="log"></div>
+  </div>
+
+  <script>
+    (function () {
+      var logEl = document.getElementById("log");
+      var localPanel = document.getElementById("localPanel");
+      var cloudPanel = document.getElementById("cloudPanel");
+      var modeBadge = document.getElementById("modeBadge");
+
+      function log(msg) {
+        logEl.textContent = msg;
+        logEl.classList.add("show");
+      }
+
+      function setMode(isLocal) {
+        if (isLocal) {
+          modeBadge.textContent = "本机模式";
+          modeBadge.className = "badge badge-local";
+          localPanel.classList.remove("hidden");
+          cloudPanel.classList.add("hidden");
+        } else {
+          modeBadge.textContent = "云端 / 远程模式";
+          modeBadge.className = "badge badge-cloud";
+          localPanel.classList.add("hidden");
+          cloudPanel.classList.remove("hidden");
+        }
+      }
+
+      function launch(action) {
+        log("正在启动…");
+        fetch("/api/disk-cleaner/launch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: action })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.ok) log(data.message || "已启动，请查看弹出的 PowerShell 窗口。");
+            else log("失败: " + (data.error || "未知错误"));
+          })
+          .catch(function (e) {
+            log("无法连接本地 API。请确认通过 run.bat 启动运营中心，或使用下方下载包。\n" + e);
+            cloudPanel.classList.remove("hidden");
+          });
+      }
+
+      fetch("/api/disk-cleaner/status")
+        .then(function (r) { return r.json(); })
+        .then(function (data) { setMode(!!data.localServer); })
+        .catch(function () {
+          var host = location.hostname;
+          setMode(host === "127.0.0.1" || host === "localhost");
+        });
+
+      document.querySelectorAll("[data-action]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          launch(btn.getAttribute("data-action"));
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

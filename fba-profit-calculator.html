@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>亚马逊 FBA 全链路利润计算器</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+:root{
+  --bg:#0c0d10;--bg2:#13141a;--bg3:#1a1b23;--bg4:#21222d;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --text:#e2e4f0;--text2:#8085a0;--text3:#454760;
+  --amber:#f0a500;--amber2:rgba(240,165,0,0.10);--amber3:rgba(240,165,0,0.22);
+  --green:#2ecc7e;--green2:rgba(46,204,126,0.10);
+  --red:#ff5a5a;--red2:rgba(255,90,90,0.10);
+  --blue:#5b8dee;--purple:#a78bfa;
+  --r:10px;--font:'Noto Sans SC',sans-serif;--mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;min-height:100vh}
+.hdr{display:flex;align-items:center;gap:14px;padding:14px 28px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.hdr-logo{background:var(--amber);color:#000;font-family:var(--mono);font-weight:700;font-size:15px;width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.hdr-t{font-size:14px;font-weight:700}
+.hdr-s{font-size:11px;color:var(--text2);margin-top:1px}
+.hdr-tag{margin-left:auto;font-size:11px;font-family:var(--mono);padding:3px 10px;border-radius:20px;background:var(--amber2);border:1px solid var(--amber3);color:var(--amber);white-space:nowrap}
+.wrap{display:grid;grid-template-columns:440px 1fr;min-height:calc(100vh - 53px)}
+.lpanel{background:var(--bg2);border-right:1px solid var(--border);padding:20px 22px 60px;overflow-y:auto}
+.rpanel{padding:22px 26px 60px;overflow-y:auto}
+.sec{margin-bottom:20px}
+.sec-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid var(--border)}
+.sec-icon{font-size:14px}
+.sec-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text2)}
+.sec-badge{margin-left:auto;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:4px;background:var(--amber2);color:var(--amber);border:1px solid var(--amber3)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.field{margin-bottom:9px}
+label{display:block;font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:500}
+input[type=number],select{
+  width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;
+  color:var(--text);font-size:13px;font-family:var(--font);padding:7px 10px;
+  outline:none;transition:border-color .15s;appearance:none;-webkit-appearance:none
+}
+input[type=number]:focus,select:focus{border-color:var(--amber)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23505580' d='M5 7L0 2h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;padding-right:26px}
+select option{background:var(--bg3)}
+.wu{display:flex}
+.wu input{border-radius:6px 0 0 6px;border-right:none;flex:1}
+.wu .ul{display:flex;align-items:center;background:var(--bg4);border:1px solid var(--border2);border-radius:0 6px 6px 0;padding:0 9px;font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap}
+.tg{display:flex;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;overflow:hidden}
+.tg-btn{flex:1;padding:7px 4px;font-size:12px;cursor:pointer;border:none;background:transparent;color:var(--text2);font-family:var(--font);transition:all .15s;white-space:nowrap}
+.tg-btn.on{background:var(--amber);color:#000;font-weight:700}
+.ibox{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:9px 12px}
+.irow{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;font-size:12px}
+.irow:last-child{margin-bottom:0}
+.ilbl{color:var(--text3)}
+.ival{font-family:var(--mono);color:var(--amber)}
+.ival.ok{color:var(--green)}
+.ival.warn{color:var(--amber)}
+.ival.info{color:var(--blue)}
+.tip{font-size:11px;color:var(--text3);margin-top:4px;line-height:1.55}
+.r-title{font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.r-title .sub{font-size:11px;color:var(--text3);font-weight:400;font-family:var(--mono)}
+.sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:16px}
+.sc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:13px 15px;position:relative;overflow:hidden}
+.sc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--amber)}
+.sc.g::after{background:var(--green)}
+.sc.b::after{background:var(--blue)}
+.sc.r::after{background:var(--red)}
+.sc.p::after{background:var(--purple)}
+.sc-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
+.sc-val{font-size:24px;font-weight:700;font-family:var(--mono);color:var(--amber)}
+.sc.g .sc-val{color:var(--green)}
+.sc.b .sc-val{color:var(--blue)}
+.sc.r .sc-val{color:var(--red)}
+.sc.p .sc-val{color:var(--purple)}
+.sc-sub{font-size:11px;color:var(--text2);margin-top:4px}
+.alert{padding:9px 13px;border-radius:6px;font-size:12px;margin-bottom:13px;line-height:1.6}
+.a-warn{background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.2);color:var(--amber)}
+.a-bad{background:var(--red2);border:1px solid rgba(255,90,90,.22);color:var(--red)}
+.a-ok{background:var(--green2);border:1px solid rgba(46,204,126,.2);color:var(--green)}
+.tc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
+.tc-hdr{display:flex;align-items:center;gap:7px;padding:10px 15px;border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em}
+.tdot{width:5px;height:5px;border-radius:50%}
+.tr{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 15px;border-bottom:1px solid var(--border);font-size:13px}
+.tr:last-child{border-bottom:none}
+.tr.tot{background:var(--bg3)}
+.tr-n{color:var(--text2);line-height:1.4}
+.tr-n b{color:var(--text);font-weight:500}
+.tr-n small{display:block;font-size:10px;color:var(--text3);margin-top:1px}
+.tr-v{font-family:var(--mono);font-size:12px;text-align:right;flex-shrink:0}
+.tr-v.neg{color:var(--red)}
+.tr-v.pos{color:var(--green)}
+.tr-v.neu{color:var(--text)}
+.pct{font-size:10px;color:var(--text3);margin-left:4px}
+.pbar-wrap{background:var(--bg3);border-radius:3px;height:5px;overflow:hidden;margin:3px 0 1px}
+.pbar{height:100%;border-radius:3px;transition:width .4s ease}
+.be-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px}
+.bec{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.bec-lbl{font-size:10px;color:var(--text3);margin-bottom:5px;line-height:1.5}
+.bec-val{font-size:20px;font-weight:700;font-family:var(--mono);color:var(--amber)}
+.bec-sub{font-size:10px;color:var(--text2);margin-top:3px}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}.lpanel{border-right:none;border-bottom:1px solid var(--border)}.sum-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-logo">P</div>
+  <div>
+    <div class="hdr-t">亚马逊 FBA 全链路利润计算器</div>
+    <div class="hdr-s">体积重自动计算 · 尺寸自动分档 · 头程 / 佣金 / 退货全覆盖</div>
+  </div>
+  <div class="hdr-tag">Amazon US · 2025–2026</div>
+</div>
+
+<div class="wrap">
+<div class="lpanel">
+
+  <!-- 1. 商品与定价 -->
+  <div class="sec">
+    <div class="sec-hdr"><span class="sec-icon">🏷️</span><span class="sec-title">商品与定价</span></div>
+    <div class="row2">
+      <div class="field">
+        <label>采购成本（每件）</label>
+        <div class="wu"><input type="number" id="cogs" value="8" min="0" step="0.01" oninput="calc()"><div class="ul">USD</div></div>
+      </div>
+      <div class="field">
+        <label>Listing 售价</label>
+        <div class="wu"><input type="number" id="price" value="29.99" min="0" step="0.01" oninput="calc()"><div class="ul">USD</div></div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>月销量</label>
+        <div class="wu"><input type="number" id="monthly_sales" value="100" min="1" step="1" oninput="calc()"><div class="ul">件/月</div></div>
+      </div>
+      <div class="field">
+        <label>商品类型</label>
+        <select id="prod_type" onchange="calc()">
+          <option value="standard">普通商品</option>
+          <option value="apparel">服装类</option>
+          <option value="hazmat">危险品</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 商品尺寸与重量 -->
+  <div class="sec">
+    <div class="sec-hdr">
+      <span class="sec-icon">📐</span>
+      <span class="sec-title">商品尺寸与重量</span>
+      <span class="sec-badge">自动判断分段</span>
+    </div>
+    <div class="tip" style="margin-bottom:8px">填写含包装后尺寸，体积重 = 长×宽×高(cm) ÷ 6000，自动取实重与体积重的较大值</div>
+    <div class="row3">
+      <div class="field">
+        <label>长（cm）</label>
+        <input type="number" id="dim_l" value="30" min="0" step="0.1" oninput="calc()">
+      </div>
+      <div class="field">
+        <label>宽（cm）</label>
+        <input type="number" id="dim_w" value="20" min="0" step="0.1" oninput="calc()">
+      </div>
+      <div class="field">
+        <label>高（cm）</label>
+        <input type="number" id="dim_h" value="10" min="0" step="0.1" oninput="calc()">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>实际重量（含包装）</label>
+        <div class="wu"><input type="number" id="actual_g" value="500" min="0" step="1" oninput="calc()"><div class="ul">克</div></div>
+      </div>
+      <div class="field">
+        <label>季节 / 时期</label>
+        <select id="season" onchange="calc()">
+          <option value="offpeak">非旺季（25/1–10/14）</option>
+          <option value="peak">旺季（25/10–26/1）</option>
+          <option value="new26">2026 新费率</option>
+        </select>
+      </div>
+    </div>
+    <div class="ibox">
+      <div class="irow"><span class="ilbl">体积重（L×W×H÷6000）</span><span class="ival" id="d_vw">—</span></div>
+      <div class="irow"><span class="ilbl">计费重量（取较大值）</span><span class="ival info" id="d_bw">—</span></div>
+      <div class="irow"><span class="ilbl">自动判断尺寸分段</span><span class="ival warn" id="d_seg">—</span></div>
+      <div class="irow"><span class="ilbl">FBA 配送费</span><span class="ival ok" id="d_fba">—</span></div>
+    </div>
+  </div>
+
+  <!-- 3. 头程运费 -->
+  <div class="sec">
+    <div class="sec-hdr"><span class="sec-icon">🚢</span><span class="sec-title">头程运费</span></div>
+    <div class="field">
+      <div class="tg" id="tg_f">
+        <button class="tg-btn" onclick="setF('air')">✈️ 空运</button>
+        <button class="tg-btn on" onclick="setF('sea')">🚢 海运</button>
+        <button class="tg-btn" onclick="setF('express')">⚡ 快递</button>
+        <button class="tg-btn" onclick="setF('manual')">✏️ 手动</button>
+      </div>
+    </div>
+    <div id="f_auto">
+      <div class="row2" style="margin-top:8px">
+        <div class="field">
+          <label id="f_rate_lbl">海运费率</label>
+          <div class="wu"><input type="number" id="f_rate" value="3.5" min="0" step="0.1" oninput="calc()"><div class="ul">$/kg</div></div>
+        </div>
+        <div class="field">
+          <label>头程计费重量（自动）</label>
+          <div class="ibox" style="padding:7px 10px"><span class="ival" id="d_fw">—</span><span class="tip" style="margin:0"> kg</span></div>
+        </div>
+      </div>
+      <div class="tip" id="f_tip">🚢 海运参考 $2–6/kg · 头程体积重 = 长×宽×高(cm) ÷ 6000</div>
+    </div>
+    <div id="f_manual" style="display:none;margin-top:8px">
+      <div class="field">
+        <label>每件头程费用（手动）</label>
+        <div class="wu"><input type="number" id="f_manual_v" value="2" min="0" step="0.01" oninput="calc()"><div class="ul">USD</div></div>
+      </div>
+    </div>
+    <div class="ibox" style="margin-top:8px">
+      <div class="irow"><span class="ilbl">每件头程费用</span><span class="ival" id="d_freight_fee">—</span></div>
+    </div>
+  </div>
+
+  <!-- 4. 亚马逊佣金 -->
+  <div class="sec">
+    <div class="sec-hdr"><span class="sec-icon">💸</span><span class="sec-title">亚马逊佣金（Referral Fee）</span></div>
+    <div class="field">
+      <label>品类（自动带入佣金比例）</label>
+      <select id="ref_cat" onchange="calc()">
+        <option value="0.15">大多数品类 — 15%</option>
+        <option value="0.08">消费电子 Consumer Electronics — 8%</option>
+        <option value="0.12">服装鞋帽 Clothing &amp; Accessories — 12%</option>
+        <option value="0.17">健康美容 Health &amp; Beauty — 17%</option>
+        <option value="0.15">玩具游戏 Toys &amp; Games — 15%</option>
+        <option value="0.06">个人电脑 Computers — 6%</option>
+        <option value="0.08">手机 Cell Phones — 8%</option>
+        <option value="0.15">厨房家居 Home &amp; Kitchen — 15%</option>
+        <option value="0.12">工业科学 Industrial &amp; Scientific — 12%</option>
+        <option value="0.15">运动户外 Sports &amp; Outdoors — 15%</option>
+        <option value="0.15">宠物用品 Pet Supplies — 15%</option>
+        <option value="0.15">办公用品 Office Products — 15%</option>
+        <option value="0.08">汽车配件 Automotive — 8%</option>
+        <option value="0.15">美妆 Beauty — 15%</option>
+      </select>
+    </div>
+    <div class="ibox">
+      <div class="irow"><span class="ilbl">佣金比例</span><span class="ival" id="d_rr">—</span></div>
+      <div class="irow"><span class="ilbl">每件佣金金额</span><span class="ival" id="d_rf">—</span></div>
+    </div>
+    <div class="tip" style="margin-top:6px">💡 以亚马逊卖家平台官方费率为准，部分品类有最低佣金限制</div>
+  </div>
+
+  <!-- 5. 其他费用 -->
+  <div class="sec">
+    <div class="sec-hdr"><span class="sec-icon">📋</span><span class="sec-title">其他费用（每件）</span></div>
+    <div class="row3">
+      <div class="field">
+        <label>月仓储费</label>
+        <div class="wu"><input type="number" id="storage" value="0.3" min="0" step="0.01" oninput="calc()"><div class="ul">USD</div></div>
+        <div class="tip">旺季约×3</div>
+      </div>
+      <div class="field">
+        <label>广告/PPC</label>
+        <div class="wu"><input type="number" id="ppc" value="2" min="0" step="0.01" oninput="calc()"><div class="ul">USD</div></div>
+        <div class="tip">总预算÷月销量</div>
+      </div>
+      <div class="field">
+        <label>其他杂费</label>
+        <div class="wu"><input type="number" id="misc" value="0.5" min="0" step="0.01" oninput="calc()"><div class="ul">USD</div></div>
+        <div class="tip">贴标/质检等</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 退货 -->
+  <div class="sec">
+    <div class="sec-hdr"><span class="sec-icon">↩️</span><span class="sec-title">退货设置</span></div>
+    <div class="row3">
+      <div class="field">
+        <label>退货率</label>
+        <div class="wu"><input type="number" id="rr" value="3" min="0" max="100" step="0.1" oninput="calc()"><div class="ul">%</div></div>
+        <div class="tip">服装可 15–30%</div>
+      </div>
+      <div class="field">
+        <label>退货处理费</label>
+        <div class="wu"><input type="number" id="rf" value="5" min="0" step="0.1" oninput="calc()"><div class="ul">$/件</div></div>
+        <div class="tip">FBA+损耗</div>
+      </div>
+      <div class="field">
+        <label>残值回收率</label>
+        <div class="wu"><input type="number" id="rcv" value="30" min="0" max="100" step="1" oninput="calc()"><div class="ul">%</div></div>
+        <div class="tip">可二次出售%</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /lpanel -->
+
+<div class="rpanel">
+  <div class="r-title">利润分析 <span class="sub" id="r_sub">—</span></div>
+  <div id="alert_area"></div>
+
+  <div class="sum-grid">
+    <div class="sc">
+      <div class="sc-lbl">每件净利润</div>
+      <div class="sc-val" id="s_profit">—</div>
+      <div class="sc-sub" id="s_profit_s">—</div>
+    </div>
+    <div class="sc g">
+      <div class="sc-lbl">净利润率</div>
+      <div class="sc-val" id="s_margin">—</div>
+      <div class="sc-sub" id="s_margin_s">—</div>
+    </div>
+    <div class="sc b">
+      <div class="sc-lbl">月净利润</div>
+      <div class="sc-val" id="s_monthly">—</div>
+      <div class="sc-sub" id="s_monthly_s">—</div>
+    </div>
+    <div class="sc p">
+      <div class="sc-lbl">ROI</div>
+      <div class="sc-val" id="s_roi">—</div>
+      <div class="sc-sub">净利 ÷ 总成本</div>
+    </div>
+    <div class="sc r">
+      <div class="sc-lbl">保本售价</div>
+      <div class="sc-val" id="s_be">—</div>
+      <div class="sc-sub">低于此价即亏损</div>
+    </div>
+    <div class="sc g">
+      <div class="sc-lbl">可降价空间</div>
+      <div class="sc-val" id="s_hr">—</div>
+      <div class="sc-sub">距保本价距离</div>
+    </div>
+  </div>
+
+  <div class="tc" style="margin-bottom:14px">
+    <div class="tc-hdr"><div class="tdot" style="background:var(--amber)"></div>售价构成分布（每件）</div>
+    <div style="padding:12px 15px 14px" id="pbar_sec"></div>
+  </div>
+
+  <div class="r-title" style="margin-top:4px">成本明细 <span class="sub">每件 USD</span></div>
+  <div class="tc">
+    <div class="tc-hdr"><div class="tdot" style="background:var(--red)"></div>支出拆解</div>
+    <div id="cost_rows"></div>
+  </div>
+
+  <div class="r-title" style="margin-top:4px">保本分析</div>
+  <div class="be-grid">
+    <div class="bec">
+      <div class="bec-lbl">保本售价（利润率 = 0%）</div>
+      <div class="bec-val" id="be0">—</div>
+      <div class="bec-sub" id="be0s">—</div>
+    </div>
+    <div class="bec">
+      <div class="bec-lbl">达到 20% 利润率的最低售价</div>
+      <div class="bec-val" id="be20">—</div>
+      <div class="bec-sub" id="be20s">—</div>
+    </div>
+    <div class="bec">
+      <div class="bec-lbl">达到 30% 利润率的最低售价</div>
+      <div class="bec-val" id="be30">—</div>
+      <div class="bec-sub" id="be30s">—</div>
+    </div>
+    <div class="bec">
+      <div class="bec-lbl">最高可承受采购成本（当前售价保本）</div>
+      <div class="bec-val" id="be_cogs">—</div>
+      <div class="bec-sub">超出此价即亏损</div>
+    </div>
+  </div>
+
+  <div class="r-title">月度汇总</div>
+  <div class="tc">
+    <div class="tc-hdr"><div class="tdot" style="background:var(--green)"></div>按月销量估算</div>
+    <div id="monthly_rows"></div>
+  </div>
+</div>
+</div>
+
+<script>
+// ─── FBA 费率表 ───────────────────────────────────────────
+const FBA={
+  offpeak:{
+    small_std:[
+      {oz:2,l:2.29,m:3.06,h:3.06},{oz:4,l:2.38,m:3.15,h:3.15},{oz:6,l:2.47,m:3.24,h:3.24},
+      {oz:8,l:2.56,m:3.33,h:3.33},{oz:10,l:2.66,m:3.43,h:3.43},{oz:12,l:2.76,m:3.53,h:3.53},
+      {oz:14,l:2.83,m:3.60,h:3.60},{oz:16,l:2.88,m:3.65,h:3.65}
+    ],
+    large_std:[
+      {oz:4,l:2.91,m:3.68,h:3.68},{oz:8,l:3.13,m:3.90,h:3.90},{oz:12,l:3.38,m:4.15,h:4.15},
+      {oz:16,l:3.78,m:4.55,h:4.55},{lb:1.25,l:4.22,m:4.99,h:4.99},{lb:1.5,l:4.60,m:5.37,h:5.37},
+      {lb:1.75,l:4.75,m:5.52,h:5.52},{lb:2,l:5.00,m:5.77,h:5.77},{lb:2.25,l:5.10,m:5.87,h:5.87},
+      {lb:2.5,l:5.28,m:6.05,h:6.05},{lb:2.75,l:5.44,m:6.21,h:6.21},{lb:3,l:5.85,m:6.62,h:6.62},
+      {cont:true,bl:6.15,bm:6.92,bh:6.92,p4:0.08,from:3}
+    ],
+    small_over:{l:{b:8.84,p:0.38},m:{b:9.61,p:0.38},h:{b:9.61,p:0.38},from:1},
+    large_over:{l:{b:8.84,p:0.38},m:{b:9.61,p:0.38},h:{b:9.61,p:0.38},from:1},
+    xl0:{l:{b:25.56,p:0.38},m:{b:26.33,p:0.38},h:{b:26.33,p:0.38},from:1},
+    xl50:{l:{b:39.35,p:0.75},m:{b:40.12,p:0.75},h:{b:40.12,p:0.75},from:51},
+    xl70:{l:{b:54.04,p:0.75},m:{b:54.81,p:0.75},h:{b:54.81,p:0.75},from:71},
+    xl150:{l:{b:194.18,p:0.19},m:{b:194.95,p:0.19},h:{b:194.95,p:0.19},from:151}
+  },
+  peak:{
+    small_std:[
+      {oz:2,l:2.48,m:3.25,h:3.25},{oz:4,l:2.57,m:3.34,h:3.34},{oz:6,l:2.67,m:3.44,h:3.44},
+      {oz:8,l:2.76,m:3.53,h:3.53},{oz:10,l:2.87,m:3.64,h:3.64},{oz:12,l:2.97,m:3.74,h:3.74},
+      {oz:14,l:3.05,m:3.82,h:3.82},{oz:16,l:3.10,m:3.87,h:3.87}
+    ],
+    large_std:[
+      {oz:4,l:3.15,m:3.92,h:3.92},{oz:8,l:3.39,m:4.16,h:4.16},{oz:12,l:3.66,m:4.43,h:4.43},
+      {oz:16,l:4.07,m:4.84,h:4.84},{lb:1.25,l:4.52,m:5.29,h:5.29},{lb:1.5,l:4.91,m:5.68,h:5.68},
+      {lb:1.75,l:5.07,m:5.84,h:5.84},{lb:2,l:5.33,m:6.10,h:6.10},{lb:2.25,l:5.47,m:6.24,h:6.24},
+      {lb:2.5,l:5.67,m:6.44,h:6.44},{lb:2.75,l:5.84,m:6.61,h:6.61},{lb:3,l:6.26,m:7.03,h:7.03},
+      {cont:true,bl:6.69,bm:7.46,bh:7.46,p4:0.08,from:3}
+    ],
+    small_over:{l:{b:9.88,p:0.38},m:{b:10.65,p:0.38},h:{b:10.65,p:0.38},from:1},
+    large_over:{l:{b:9.88,p:0.38},m:{b:10.65,p:0.38},h:{b:10.65,p:0.38},from:1},
+    xl0:{l:{b:28.29,p:0.38},m:{b:29.06,p:0.38},h:{b:29.06,p:0.38},from:1},
+    xl50:{l:{b:42.16,p:0.75},m:{b:42.93,p:0.75},h:{b:42.93,p:0.75},from:51},
+    xl70:{l:{b:58.46,p:0.75},m:{b:59.23,p:0.75},h:{b:59.23,p:0.75},from:71},
+    xl150:{l:{b:202.69,p:0.19},m:{b:203.46,p:0.19},h:{b:203.46,p:0.19},from:151}
+  },
+  new26:{
+    small_std:[
+      {oz:2,l:2.43,m:3.32,h:3.58},{oz:4,l:2.49,m:3.42,h:3.68},{oz:6,l:2.56,m:3.45,h:3.71},
+      {oz:8,l:2.66,m:3.54,h:3.80},{oz:10,l:2.77,m:3.68,h:3.94},{oz:12,l:2.82,m:3.78,h:4.04},
+      {oz:14,l:2.92,m:3.91,h:4.17},{oz:16,l:2.95,m:3.96,h:4.22}
+    ],
+    large_std:[
+      {oz:4,l:2.91,m:3.73,h:3.99},{oz:8,l:3.13,m:3.95,h:4.21},{oz:12,l:3.38,m:4.20,h:4.46},
+      {oz:16,l:3.78,m:4.60,h:4.86},{lb:1.25,l:4.22,m:5.04,h:5.30},{lb:1.5,l:4.60,m:5.42,h:5.68},
+      {lb:1.75,l:4.75,m:5.57,h:5.83},{lb:2,l:5.00,m:5.82,h:6.08},{lb:2.25,l:5.10,m:5.92,h:6.18},
+      {lb:2.5,l:5.28,m:6.10,h:6.36},{lb:2.75,l:5.44,m:6.26,h:6.52},{lb:3,l:5.85,m:6.67,h:6.93},
+      {cont:true,bl:6.15,bm:6.97,bh:7.23,p4:0.08,from:3}
+    ],
+    small_over:{l:{b:6.78,p:0.38},m:{b:7.55,p:0.38},h:{b:7.55,p:0.38},from:1},
+    large_over:{l:{b:8.58,p:0.38},m:{b:9.35,p:0.38},h:{b:9.35,p:0.38},from:1},
+    xl0:{l:{b:25.56,p:0.38},m:{b:26.33,p:0.38},h:{b:26.33,p:0.38},from:1},
+    xl50:{l:{b:36.55,p:0.75},m:{b:37.32,p:0.75},h:{b:37.32,p:0.75},from:51},
+    xl70:{l:{b:50.55,p:0.75},m:{b:51.32,p:0.75},h:{b:51.32,p:0.75},from:71},
+    xl150:{l:{b:194.18,p:0.19},m:{b:194.95,p:0.19},h:{b:194.95,p:0.19},from:151}
+  }
+};
+
+const SEG_NAMES={
+  small_std:'小号标准尺寸',large_std:'大号标准尺寸',
+  small_over:'小号大件',large_over:'大号大件',
+  xl0:'超大件 0–50lb',xl50:'超大件 50–70lb',xl70:'超大件 70–150lb',xl150:'超大件 >150lb'
+};
+
+// ─── 单位换算 ─────────────────────────────────────────────
+const gToLb=g=>g/453.592;
+const gToOz=g=>g/28.3495;
+const cmToIn=c=>c/2.54;
+
+// ─── 自动判断尺寸分段 ─────────────────────────────────────
+function detectSeg(lCm,wCm,hCm,actualG){
+  const dims=[cmToIn(lCm),cmToIn(wCm),cmToIn(hCm)].sort((a,b)=>b-a);
+  const [longest,median,shortest]=dims;
+  const weightLb=gToLb(actualG);
+  const weightOz=gToOz(actualG);
+  const girth=2*(median+shortest);
+  if(weightOz<=16&&longest<=15&&median<=12&&shortest<=0.75) return 'small_std';
+  if(weightLb<=20&&longest<=18&&median<=14&&shortest<=8)    return 'large_std';
+  if(weightLb<=70&&longest<=60&&median<=30)                  return 'small_over';
+  if(weightLb<=150&&longest<=96&&(longest+girth)<=130)       return 'large_over';
+  if(weightLb<=50)  return 'xl0';
+  if(weightLb<=70)  return 'xl50';
+  if(weightLb<=150) return 'xl70';
+  return 'xl150';
+}
+
+// ─── FBA 费用计算 ─────────────────────────────────────────
+function getFBA(seg,season,billingG,price){
+  const pk=price<10?'l':price<=50?'m':'h';
+  const s=FBA[season];
+  if(!s||!s[seg]) return 0;
+  const d=s[seg];
+  const oz=gToOz(billingG);
+  const lb=gToLb(billingG);
+
+  if(seg==='small_std'||seg==='large_std'){
+    for(const r of d){
+      if(r.oz!==undefined){if(oz<=r.oz) return r[pk];}
+      else if(r.lb!==undefined){if(lb<=r.lb) return r[pk];}
+      else if(r.cont){
+        const base={l:r.bl,m:r.bm,h:r.bh}[pk];
+        const extra4=Math.ceil((lb-r.from)*16/4);
+        return +(base+Math.max(0,extra4)*r.p4).toFixed(2);
+      }
+    }
+    return 0;
+  } else {
+    const r=d[pk];
+    const fromLb=d.from||1;
+    return +(r.b+Math.max(0,lb-fromLb)*r.p).toFixed(2);
+  }
+}
+
+// ─── 头程模式 ─────────────────────────────────────────────
+let fMode='sea';
+function setF(m){
+  fMode=m;
+  ['air','sea','express','manual'].forEach((v,i)=>
+    document.querySelectorAll('#tg_f .tg-btn')[i].classList.toggle('on',v===m));
+  document.getElementById('f_auto').style.display=m==='manual'?'none':'block';
+  document.getElementById('f_manual').style.display=m==='manual'?'block':'none';
+  const rateInput=document.getElementById('f_rate');
+  const tips={air:'✈️ 空运参考 $6–15/kg',sea:'🚢 海运参考 $2–6/kg',express:'⚡ 快递参考 $15–25/kg'};
+  const defaults={air:9,sea:3.5,express:18};
+  if(m!=='manual'){
+    document.getElementById('f_rate_lbl').textContent={air:'空运费率',sea:'海运费率',express:'快递费率'}[m]||'费率';
+    document.getElementById('f_tip').textContent=(tips[m]||'')+' · 头程体积重 = 长×宽×高(cm) ÷ 6000';
+    rateInput.value=defaults[m]||3.5;
+  }
+  calc();
+}
+
+// ─── 主计算 ────────────────────────────────────────────────
+function calc(){
+  const price=+document.getElementById('price').value||0;
+  const cogs=+document.getElementById('cogs').value||0;
+  const lCm=+document.getElementById('dim_l').value||0;
+  const wCm=+document.getElementById('dim_w').value||0;
+  const hCm=+document.getElementById('dim_h').value||0;
+  const actualG=+document.getElementById('actual_g').value||0;
+  const season=document.getElementById('season').value;
+  const sales=+document.getElementById('monthly_sales').value||1;
+  const refRate=+document.getElementById('ref_cat').value||0.15;
+  const storage=+document.getElementById('storage').value||0;
+  const ppc=+document.getElementById('ppc').value||0;
+  const misc=+document.getElementById('misc').value||0;
+  const returnRate=(+document.getElementById('rr').value||0)/100;
+  const returnFee=+document.getElementById('rf').value||0;
+  const recoverRate=(+document.getElementById('rcv').value||0)/100;
+
+  // 体积重 & 计费重量
+  const volKg=(lCm*wCm*hCm)/6000;
+  const actualKg=actualG/1000;
+  const billingKg=Math.max(volKg,actualKg);
+  const billingG=billingKg*1000;
+  const isVol=billingKg===volKg&&volKg>actualKg;
+
+  // 尺寸分段（按实际重量判断归档，但FBA费用用计费重量）
+  const seg=detectSeg(lCm,wCm,hCm,actualG);
+
+  // FBA
+  const fbaFee=getFBA(seg,season,billingG,price);
+
+  // 头程
+  let freight=0;
+  if(fMode==='manual'){
+    freight=+document.getElementById('f_manual_v').value||0;
+  } else {
+    freight=(+document.getElementById('f_rate').value||0)*billingKg;
+  }
+
+  // 佣金
+  const refFee=price*refRate;
+
+  // 退货摊销
+  const returnCost=returnRate*(returnFee+cogs*(1-recoverRate));
+
+  // 总成本 & 利润
+  const totalCost=cogs+freight+fbaFee+refFee+storage+ppc+misc+returnCost;
+  const profit=price-totalCost;
+  const margin=price>0?profit/price:0;
+  const roi=totalCost>0?profit/totalCost:0;
+  const monthlyProfit=profit*sales;
+
+  // 保本价公式：P(1-refRate) = fixedCost  ⟹  P = fixedCost/(1-refRate)
+  const fixedCost=cogs+freight+fbaFee+storage+ppc+misc+returnCost;
+  const den=1-refRate;
+  const bePrice=den>0?fixedCost/den:Infinity;
+  const be20=den>0.2?fixedCost/(den-0.2):Infinity;
+  const be30=den>0.3?fixedCost/(den-0.3):Infinity;
+  // 最高可承受采购价：P(1-refRate) - freight - fba - storage - ppc - misc - rr*returnFee = cogs*(1+rr*(1-recov))
+  const numC=price*den-freight-fbaFee-storage-ppc-misc-returnRate*returnFee;
+  const denC=1+returnRate*(1-recoverRate);
+  const maxCogs=denC>0?numC/denC:0;
+
+  // ── 信息框更新 ──
+  document.getElementById('d_vw').textContent=volKg.toFixed(3)+' kg';
+  document.getElementById('d_bw').textContent=billingKg.toFixed(3)+' kg  '+(isVol?'← 取体积重':'← 取实重');
+  document.getElementById('d_seg').textContent=SEG_NAMES[seg];
+  document.getElementById('d_fba').textContent='$'+fbaFee.toFixed(2);
+  document.getElementById('d_fw').textContent=billingKg.toFixed(3);
+  document.getElementById('d_freight_fee').textContent='$'+freight.toFixed(2);
+  document.getElementById('d_rr').textContent=(refRate*100).toFixed(0)+'%';
+  document.getElementById('d_rf').textContent='$'+refFee.toFixed(2);
+
+  // ── Subtitle ──
+  document.getElementById('r_sub').textContent=
+    `$${price.toFixed(2)} 售价 · $${totalCost.toFixed(2)} 总成本 · ${SEG_NAMES[seg]}`;
+
+  // ── Alert ──
+  const aa=document.getElementById('alert_area');
+  if(margin<0){
+    aa.innerHTML=`<div class="alert a-bad">⚠️ 当前定价亏损，每件亏 $${Math.abs(profit).toFixed(2)}。保本价为 $${bePrice.toFixed(2)}，建议提升售价或压缩采购/头程成本。</div>`;
+  } else if(margin<0.10){
+    aa.innerHTML=`<div class="alert a-warn">⚡ 利润率偏低（${(margin*100).toFixed(1)}%），广告或退货浮动可能导致亏损，建议目标利润率 ≥ 20%。</div>`;
+  } else if(margin>=0.25){
+    aa.innerHTML=`<div class="alert a-ok">✓ 利润健康（${(margin*100).toFixed(1)}%），还有 $${profit.toFixed(2)} 的降价空间，价格竞争力较强。</div>`;
+  } else {
+    aa.innerHTML='';
+  }
+
+  // ── Summary cards ──
+  const pe=document.getElementById('s_profit');
+  pe.textContent=(profit>=0?'+':'−')+' $'+Math.abs(profit).toFixed(2);
+  pe.style.color=profit>=0?'var(--green)':'var(--red)';
+  document.getElementById('s_profit_s').textContent=`利润率 ${(margin*100).toFixed(1)}%`;
+
+  const me=document.getElementById('s_margin');
+  me.textContent=(margin*100).toFixed(1)+'%';
+  me.style.color=margin>=0.2?'var(--green)':margin>=0.1?'var(--amber)':'var(--red)';
+  document.getElementById('s_margin_s').textContent=margin>=0.2?'✓ 健康':margin>=0.1?'⚡ 偏低':'⚠ 过低';
+
+  document.getElementById('s_monthly').textContent=(monthlyProfit>=0?'+':'−')+' $'+Math.abs(monthlyProfit).toFixed(0);
+  document.getElementById('s_monthly_s').textContent=`月销${sales}件 · 年≈$${Math.abs(monthlyProfit*12).toFixed(0)}`;
+
+  const roiEl=document.getElementById('s_roi');
+  roiEl.textContent=(roi*100).toFixed(1)+'%';
+  roiEl.style.color=roi>=0.2?'var(--green)':roi>=0.1?'var(--amber)':'var(--red)';
+
+  document.getElementById('s_be').textContent=isFinite(bePrice)?'$'+bePrice.toFixed(2):'N/A';
+
+  const hre=document.getElementById('s_hr');
+  hre.textContent=(profit>=0?'−':'+')+' $'+Math.abs(profit).toFixed(2);
+  hre.style.color=profit>=0?'var(--green)':'var(--red)';
+
+  // ── 进度条 ──
+  const bars=[
+    {l:'净利润',v:Math.max(profit,0),c:'#2ecc7e'},
+    {l:'采购成本',v:cogs,c:'#ff5a5a'},
+    {l:'头程运费',v:freight,c:'#ff8a65'},
+    {l:'FBA 配送费',v:fbaFee,c:'#f0a500'},
+    {l:'亚马逊佣金',v:refFee,c:'#5b8dee'},
+    {l:'广告 PPC',v:ppc,c:'#a78bfa'},
+    {l:'仓储+杂费',v:storage+misc,c:'#4ecdc4'},
+    {l:'退货摊销',v:returnCost,c:'#ff9f43'},
+  ];
+  let ph='';
+  for(const b of bars){
+    if(b.v<0.001) continue;
+    const pct=price>0?Math.min(b.v/price*100,100):0;
+    ph+=`<div style="margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:2px">
+        <span>${b.l}</span>
+        <span style="font-family:var(--mono)">$${b.v.toFixed(2)} <span style="color:var(--text3)">${pct.toFixed(1)}%</span></span>
+      </div>
+      <div class="pbar-wrap"><div class="pbar" style="width:${pct}%;background:${b.c}"></div></div>
+    </div>`;
+  }
+  document.getElementById('pbar_sec').innerHTML=ph;
+
+  // ── 成本明细 ──
+  const items=[
+    {n:'采购成本 (COGS)',v:cogs},
+    {n:'头程运费',v:freight,s:`计费重 ${billingKg.toFixed(3)}kg × $${fMode!=='manual'?(document.getElementById('f_rate').value||0):'手动'}/kg`},
+    {n:'FBA 配送费',v:fbaFee,s:SEG_NAMES[seg]},
+    {n:'亚马逊佣金',v:refFee,s:`${(refRate*100).toFixed(0)}% × $${price.toFixed(2)}`},
+    {n:'月仓储费',v:storage},
+    {n:'广告/PPC',v:ppc},
+    {n:'其他杂费',v:misc},
+    {n:'退货摊销',v:returnCost,s:`退货率${(returnRate*100).toFixed(1)}%，处理$${returnFee}，回收${(recoverRate*100).toFixed(0)}%`},
+  ];
+  let ch='';
+  for(const c of items){
+    if(c.v<0.001) continue;
+    const pct=price>0?(c.v/price*100).toFixed(1):'0';
+    ch+=`<div class="tr">
+      <span class="tr-n"><b>${c.n}</b>${c.s?`<small>${c.s}</small>`:''}</span>
+      <span class="tr-v neg">−$${c.v.toFixed(2)}<span class="pct">${pct}%</span></span>
+    </div>`;
+  }
+  ch+=`<div class="tr tot"><span class="tr-n"><b>总成本</b></span><span class="tr-v neg">−$${totalCost.toFixed(2)}<span class="pct">${price>0?(totalCost/price*100).toFixed(1):0}%</span></span></div>`;
+  ch+=`<div class="tr tot"><span class="tr-n"><b>每件净利润</b></span><span class="tr-v ${profit>=0?'pos':'neg'}">${profit>=0?'+':'−'}$${Math.abs(profit).toFixed(2)}<span class="pct">${(Math.abs(margin)*100).toFixed(1)}%</span></span></div>`;
+  document.getElementById('cost_rows').innerHTML=ch;
+
+  // ── 保本分析 ──
+  const fmt=v=>isFinite(v)&&v<99999?'$'+v.toFixed(2):'不可达';
+  document.getElementById('be0').textContent=fmt(bePrice);
+  document.getElementById('be0s').textContent=isFinite(bePrice)?`当前 $${price.toFixed(2)}，高出 $${Math.max(price-bePrice,0).toFixed(2)}`:'';
+  document.getElementById('be20').textContent=fmt(be20);
+  document.getElementById('be20s').textContent=isFinite(be20)&&be20<99999?`需${be20>price?'提价':'降价'} $${Math.abs(price-be20).toFixed(2)}`:'需大幅降本';
+  document.getElementById('be30').textContent=fmt(be30);
+  document.getElementById('be30s').textContent=isFinite(be30)&&be30<99999?`需售价至少 $${be30.toFixed(2)}`:'需大幅降本';
+  document.getElementById('be_cogs').textContent=maxCogs>0?'$'+maxCogs.toFixed(2):'亏损';
+
+  // ── 月度汇总 ──
+  const mItems=[
+    {l:'月总营收',v:price*sales,c:'neu'},
+    {l:'月采购成本',v:-(cogs*sales),c:'neg'},
+    {l:'月头程运费',v:-(freight*sales),c:'neg'},
+    {l:'月 FBA 费',v:-(fbaFee*sales),c:'neg'},
+    {l:'月广告预算',v:-(ppc*sales),c:'neg'},
+    {l:'月总成本',v:-(totalCost*sales),c:'neg'},
+    {l:'月净利润',v:monthlyProfit,c:monthlyProfit>=0?'pos':'neg'},
+    {l:'年净利润（估算）',v:monthlyProfit*12,c:monthlyProfit>=0?'pos':'neg'},
+    {l:'月预计退货件数',v:sales*returnRate,c:'neu',unit:'件'},
+  ];
+  let mh='';
+  for(const r of mItems){
+    const d=r.unit?r.v.toFixed(1)+' 件':(r.v>=0?'+':'−')+' $'+Math.abs(r.v).toFixed(2);
+    mh+=`<div class="tr"><span class="tr-n"><b>${r.l}</b></span><span class="tr-v ${r.c}">${d}</span></div>`;
+  }
+  document.getElementById('monthly_rows').innerHTML=mh;
+}
+
+calc();
+</script>
+</body>
+</html>

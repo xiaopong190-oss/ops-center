@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>泓森拓创科技</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body, #root { margin: 0; min-height: 100%; }
+      body { -webkit-font-smoothing: antialiased; }
+      button, input, select, textarea { outline: none; }
+      button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+        box-shadow: 0 0 0 2px rgba(45, 125, 210, 0.35);
+      }
+      #loading { font-family: "Microsoft YaHei", sans-serif; text-align: center; padding: 3rem; color: #666; }
+    </style>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body>
+    <div id="root"><div id="loading">正在加载泓森拓创科技…</div></div>
+    <script>
+      (async function boot() {
+        var root = document.getElementById("root");
+        function showErr(msg) {
+          root.innerHTML = "<pre style=\"padding:24px;color:#b91c1c;font:13px/1.5 sans-serif;white-space:pre-wrap\">加载失败：\\n" + msg + "</pre>";
+        }
+        window.addEventListener("error", function (e) {
+          showErr(e.message || String(e));
+        });
+        var files = [
+          "src/LogisticsModule.browser.jsx",
+          "src/ProductionModule.browser.jsx",
+          "src/ToolsModule.browser.jsx",
+          "src/App.browser.jsx",
+        ];
+        try {
+          var chunks = [];
+          for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            var res = await fetch(file);
+            if (!res.ok) throw new Error(file + " HTTP " + res.status);
+            var code = await res.text();
+            // 合并为单文件执行，共享 inp / daysDiff 等 helpers；去掉后续文件重复的 React 解构
+            if (i > 0) code = code.replace(/^const \{ useState[^}]+\} = React;\s*\r?\n/m, "");
+            chunks.push(code);
+          }
+          var bundled = chunks.join("\n\n");
+          var compiled = Babel.transform(bundled, { presets: ["react"], filename: "ops-center.bundle.jsx" }).code;
+          (0, eval)(compiled);
+        } catch (e) {
+          showErr(e.message || String(e));
+        }
+      })();
+    </script>
+  </body>
+</html>

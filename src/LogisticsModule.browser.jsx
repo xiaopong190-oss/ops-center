@@ -1,5 +1,4 @@
 const { useState, useRef, useEffect } = React;
-import { OwnerField, ownerFilterEntries, RoleBadge, getStaffRole } from "./GlobalConfig.jsx";
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);

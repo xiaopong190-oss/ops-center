@@ -9,8 +9,9 @@ function toBrowser(src, { exportName, stripUtilsThrough = null }) {
   let out = src
     .replace(/^import \{ useState, useRef \} from "react";\r?\n/, "const { useState, useRef, useEffect } = React;\n")
     .replace(/^import \{ useState \} from "react";\r?\n/, "const { useState, useEffect } = React;\n")
-    .replace(/^import \{ OwnerField, ownerFilterOptions \} from "\.\/GlobalConfig\.jsx";\r?\n/, "")
-    .replace(/^import \{ OwnerField, ownerFilterEntries, RoleBadge, getStaffRole \} from "\.\/GlobalConfig\.jsx";\r?\n/, "");
+    .replace(/import \{ OwnerField, ownerFilterOptions \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
+    .replace(/import \{ OwnerField, ownerFilterEntries, RoleBadge, getStaffRole \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
+    .replace(/import \{ GlobalSettingsModal, OwnerField, useGlobalConfig, getStaffRole, RoleBadge \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "");
   if (stripUtilsThrough) {
     const idx = out.indexOf(stripUtilsThrough);
     if (idx >= 0) {

@@ -42,8 +42,9 @@
             var res = await fetch(file);
             if (!res.ok) throw new Error(file + " HTTP " + res.status);
             var code = await res.text();
-            // 合并为单文件执行，共享 inp / daysDiff 等 helpers；去掉后续文件重复的 React 解构
+            // 合并为单文件执行，共享 inp / daysDiff 等 helpers；去掉后续文件重复的 React 解构与 import
             if (i > 0) code = code.replace(/^const \{ useState[^}]+\} = React;\s*\r?\n/m, "");
+            code = code.replace(/^import .+;\s*\r?\n/gm, "");
             chunks.push(code);
           }
           var bundled = chunks.join("\n\n");

@@ -38,12 +38,36 @@ const openToolUrl = (url) => {
   return true;
 };
 
+const downloadToolPackage = (tool) => {
+  const url = resolveToolUrl(tool.downloadUrl);
+  if (!url) return false;
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = tool.downloadName || "";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  return true;
+};
+
 const TOOL_CATALOG = [
   { id: "fba-profit", name: "FBA 利润计算器", desc: "全链路利润：体积重、尺寸分档、头程 / 佣金 / 退货", icon: "💰", category: "FBA", openUrl: "fba-profit-calculator.html" },
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },
   { id: "amazon-tracker", name: "亚马逊推广追踪", desc: "精铺/精品 · 月度规划 · 投入产出分析", icon: "📦", category: "运营", url: "https://guangdongperfect2024-ctrl.github.io/amazon-tracker/" },
   { id: "online-doc", name: "在线文档", desc: "金山 / 钉钉 / 飞书等在线文档，链接可随时更换", icon: "📄", category: "运营", configurableUrl: true, defaultUrl: "https://www.kdocs.cn/l/cuP9MuR9zUkN?R=L1MvMTE=" },
-  { id: "mailwatch", name: "MailWatch 邮件分析", desc: "一键打开：未运行时自动启动服务，再在新窗口打开界面", icon: "📧", category: "运营", runtime: "local", autoLaunch: true, defaultUrl: "http://127.0.0.1:8000", openUrl: "tools/mailwatch/index.html" },
+  {
+    id: "mailwatch",
+    name: "MailWatch 邮件分析",
+    desc: "亚马逊邮件 AI 分析 · 解压后双击「启动 MailWatch.bat」；本机 run.bat 可一键打开",
+    icon: "📧",
+    category: "运营",
+    runtime: "local",
+    autoLaunch: true,
+    defaultUrl: "http://127.0.0.1:8000",
+    downloadUrl: "packages/mailwatch-win.zip",
+    downloadName: "mailwatch-win.zip",
+  },
   { id: "disk-cleaner", name: "C 盘垃圾清理", desc: "扫描并清理 2345 / 360 / 鲁大师等残留；保护 QQ、微信、百度网盘、WPS", icon: "🧹", category: "系统", runtime: "local", target: "inline", openUrl: "tools/disk-cleaner/index.html", downloadUrl: "packages/disk-cleaner-win.zip" },
 ];
 
@@ -77,17 +101,8 @@ const lblSm = { display: "block", fontSize: 10, color: "var(--tm)", marginBottom
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-async function openMailWatch(tool, customUrls = {}) {
-  const launcher = resolveToolUrl(tool.openUrl || "tools/mailwatch/index.html");
+async function openMailWatch(tool) {
   const appUrl = tool.defaultUrl || "http://127.0.0.1:8000";
-
-  // 云端无法启动本机服务：同步打开说明页，避免弹窗被拦截
-  if (!isLocalOpsServer()) {
-    openToolUrl(launcher);
-    return;
-  }
-
-  // 本机：先同步开空白页，再异步启动服务后跳转，避免 popup blocker
   const tab = window.open("about:blank", "_blank", "noopener,noreferrer");
   let target = appUrl;
   try {
@@ -108,7 +123,7 @@ async function openMailWatch(tool, customUrls = {}) {
         }
       }
     }
-  } catch { /* 非 run.bat 环境：打开启动页 */ target = launcher; }
+  } catch { /* ignore */ }
   if (tab) tab.location.href = target;
   else openToolUrl(target);
 }
@@ -154,6 +169,7 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
           </span>
           <span style={badge("#f3f4f6", "#666")}>{tool.category}</span>
           {tool.runtime === "local" && <span style={badge("#fce4ec", "#c62828")}>本机工具</span>}
+          {tool.downloadUrl && !isLocalOpsServer() && <span style={badge("#e8eaf6", "#3949ab")}>下载</span>}
           {configurable && <span style={badge("#fff3e0", "#e65100")}>可编辑</span>}
           {href && inline && <span style={badge("#e8f5e9", "#2e7d32")}>内嵌</span>}
           {href && !inline && !configurable && <span style={badge("#dceeff", "#1a4e8a")}>新窗口</span>}
@@ -306,8 +322,12 @@ export function ToolsPanel() {
 
   const handleToolClick = (t) => {
     if (editingId) return;
-    if (t.autoLaunch) {
-      openMailWatch(t, customUrls);
+    if (t.autoLaunch && isLocalOpsServer()) {
+      openMailWatch(t);
+      return;
+    }
+    if (t.downloadUrl && !isLocalOpsServer()) {
+      downloadToolPackage(t);
       return;
     }
     const url = toolUrl(t, customUrls);
@@ -401,8 +421,8 @@ export function ToolsPanel() {
       )}
       <div style={{ marginTop: "1.5rem", padding: "10px 14px", borderRadius: 10, background: "var(--bg)", border: "1px dashed var(--border)", fontSize: 11, color: "var(--tm)", lineHeight: 1.6 }}>
         「在线文档」点击卡片或链接即可打开；要改名称/链接请点右侧 ✎。<br />
-        「MailWatch 邮件分析」在本机 run.bat 下可自动启动；云端会打开说明页，邮件分析须在本机 Windows 运行。<br />
-        「C 盘垃圾清理」标记为本机工具：云端门户提供下载包，须在员工 Windows 电脑上运行。
+        「MailWatch 邮件分析」在云端点击即下载安装包；本机 run.bat 下一键打开。<br />
+        「C 盘垃圾清理」云端可下载 zip，解压后在 Windows 本机运行。<br />
       </div>
     </div>
   );

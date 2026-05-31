@@ -60,6 +60,16 @@ try {
   console.warn("disk-cleaner zip skipped");
 }
 
+console.log("==> pack mailwatch zip (optional)");
+try {
+  execSync(
+    'powershell -NoProfile -ExecutionPolicy Bypass -File "deploy/pack-mailwatch.ps1"',
+    { cwd: root, stdio: "inherit" }
+  );
+} catch {
+  console.warn("mailwatch zip skipped");
+}
+
 console.log("==> build docs/");
 rmrf(out);
 mkdirp(out);

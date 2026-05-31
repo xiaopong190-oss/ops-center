@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "sync:browser": "node sync-browser.mjs",
+    "pack:mailwatch": "powershell -NoProfile -ExecutionPolicy Bypass -File deploy/pack-mailwatch.ps1",
     "pack:pages": "node deploy/build-pages.mjs"
   },
   "dependencies": {

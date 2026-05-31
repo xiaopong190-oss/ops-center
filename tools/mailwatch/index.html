@@ -3,162 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MailWatch 邮件分析</title>
+  <title>下载 MailWatch</title>
   <style>
-    :root {
-      --bg: #f4f6f9;
-      --card: #fff;
-      --border: #e2e8f0;
-      --text: #1a202c;
-      --muted: #64748b;
-      --primary: #2d7dd2;
-      --warn: #b45309;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      padding: 20px;
-    }
-    .wrap { max-width: 640px; margin: 0 auto; }
-    h1 { font-size: 22px; margin: 0 0 6px; }
-    .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px 20px;
-      margin-bottom: 14px;
-    }
-    .alert {
-      background: #fff7ed;
-      border: 1px solid #fed7aa;
-      color: var(--warn);
-      border-radius: 10px;
-      padding: 12px 14px;
-      font-size: 13px;
-      margin-bottom: 14px;
-      line-height: 1.55;
-    }
-    button {
-      appearance: none;
-      border: none;
-      background: var(--primary);
-      color: #fff;
-      border-radius: 10px;
-      padding: 14px 18px;
-      font-size: 15px;
-      cursor: pointer;
-      font-family: inherit;
-      width: 100%;
-      font-weight: 600;
-    }
-    button:hover { filter: brightness(1.05); }
-    button:disabled { opacity: 0.6; cursor: wait; }
-    .note { font-size: 12px; color: var(--muted); margin-top: 12px; }
-    #log {
-      margin-top: 12px;
-      padding: 12px;
-      background: #0f172a;
-      color: #e2e8f0;
-      border-radius: 10px;
-      font-size: 12px;
-      font-family: Consolas, monospace;
-      white-space: pre-wrap;
-      display: none;
-    }
-    #log.show { display: block; }
-    code { font-family: Consolas, monospace; font-size: 12px; }
+    body { font-family: "Microsoft YaHei", sans-serif; max-width: 520px; margin: 48px auto; padding: 0 16px; line-height: 1.6; color: #333; }
+    a.btn { display: inline-block; margin-top: 12px; background: #2d7dd2; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; }
+    .note { font-size: 13px; color: #666; margin-top: 16px; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>📧 MailWatch 邮件分析</h1>
-    <p class="sub">本机一键启动邮件分析服务</p>
-
-    <div id="cloudNote" class="alert" style="display:none">
-      当前是<strong>云端网页</strong>，无法从这里直接启动 MailWatch。<br />
-      请在 Windows 电脑上运行运营中心的 <code>run.bat</code>，再在「工具 → MailWatch」中打开；或在本机浏览器访问 <code>http://127.0.0.1:8765</code>。
-    </div>
-
-    <div class="card">
-      <button type="button" id="btnOpen">打开 MailWatch ↗</button>
-      <p class="note">首次启动会弹出 MailWatch 命令行窗口，请勿关闭。默认路径：<code>D:\Projects\mailwatch</code></p>
-    </div>
-
-    <div id="log"></div>
-  </div>
-
+  <h1>📧 MailWatch 邮件分析</h1>
+  <p>请下载 Windows 安装包，解压后双击 <strong>启动 MailWatch.bat</strong>。</p>
+  <a class="btn" id="dl" href="../../packages/mailwatch-win.zip" download="mailwatch-win.zip">下载 mailwatch-win.zip</a>
+  <p class="note">若已安装运营中心，在本机运行 <code>run.bat</code> 后，可在「工具 → MailWatch」一键打开。</p>
   <script>
-    (function () {
-      var APP_URL = "http://127.0.0.1:8000";
-      var btn = document.getElementById("btnOpen");
-      var logEl = document.getElementById("log");
-      var cloudNote = document.getElementById("cloudNote");
-      var isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-
-      if (!isLocal) {
-        cloudNote.style.display = "block";
-        btn.textContent = "尝试打开本机 MailWatch（通常不可用）";
-      }
-
-      function log(msg) {
-        logEl.textContent = msg;
-        logEl.classList.add("show");
-      }
-
-      function sleep(ms) {
-        return new Promise(function (r) { setTimeout(r, ms); });
-      }
-
-      async function openMailWatch() {
-        var tab = window.open("about:blank", "_blank", "noopener,noreferrer");
-        var target = APP_URL;
-        btn.disabled = true;
-        log("正在准备…");
-
-        if (!isLocal) {
-          if (tab) tab.location.href = APP_URL;
-          log("已尝试打开 " + APP_URL + "。若无法访问，请在本机运行 run.bat。");
-          btn.disabled = false;
-          return;
-        }
-
-        try {
-          var statusRes = await fetch("/api/mailwatch/status");
-          if (statusRes.ok) {
-            var status = await statusRes.json();
-            if (status.appUrl) target = status.appUrl;
-            if (!status.running) {
-              log("正在启动 MailWatch 服务…");
-              await fetch("/api/mailwatch/launch", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "start" })
-              });
-              for (var i = 0; i < 20; i++) {
-                await sleep(1500);
-                var next = await fetch("/api/mailwatch/status").then(function (r) { return r.json(); }).catch(function () { return null; });
-                if (next && next.running) break;
-                log("等待服务就绪… (" + (i + 1) + "/20)");
-              }
-            }
-          }
-        } catch (e) {
-          log("无法连接本地 API，将直接尝试打开浏览器。");
-        }
-
-        if (tab) tab.location.href = target;
-        else window.open(target, "_blank", "noopener,noreferrer");
-        log("已打开 MailWatch。若页面空白，请稍等几秒后刷新。");
-        btn.disabled = false;
-      }
-
-      btn.addEventListener("click", openMailWatch);
-    })();
+    if (location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+      document.getElementById("dl").click();
+    }
   </script>
 </body>
 </html>

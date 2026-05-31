@@ -211,6 +211,7 @@ function SettingsMenu({ onSelect }) {
   );
 }
 
+const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
@@ -224,19 +225,12 @@ function readAuthSession() {
 
 function LoginScreen({ onSuccess }) {
   const [password, setPassword] = useState("");
-  const [userName, setUserName] = useState(() => getCurrentUser().name !== "访客" ? getCurrentUser().name : "");
   const [error, setError] = useState("");
-  const staffNames = getStaffNames();
 
   const submit = (e) => {
     e.preventDefault();
-    const name = userName.trim();
-    if (!name) {
-      setError("请选择或填写您的姓名");
-      return;
-    }
     if (password === APP_PASSWORD) {
-      setCurrentUser({ id: name, name });
+      setCurrentUser({ id: APP_ORG_NAME, name: APP_ORG_NAME });
       try { sessionStorage.setItem(AUTH_SESSION_KEY, "1"); } catch { /* ignore */ }
       onSuccess();
       return;
@@ -247,18 +241,8 @@ function LoginScreen({ onSuccess }) {
   return (
     <div style={{ minHeight: "100vh", background: "#f8f8f6", color: "#111", fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
       <form onSubmit={submit} style={{ width: "100%", maxWidth: 360, background: "#fff", border: "1px solid #e5e5e5", borderRadius: 16, padding: "1.75rem 1.5rem", boxShadow: "0 12px 40px rgba(0,0,0,0.06)" }}>
-        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>泓森拓创科技</div>
-        <div style={{ fontSize: 12, color: "#888", marginBottom: 18, lineHeight: 1.55 }}>请输入姓名与访问密码后进入运营中心</div>
-        <label style={{ display: "block", fontSize: 11, color: "#888", marginBottom: 6, fontWeight: 500 }}>您的姓名</label>
-        <input
-          list="login-staff"
-          value={userName}
-          onChange={e => { setUserName(e.target.value); if (error) setError(""); }}
-          placeholder="选择或输入姓名…"
-          autoFocus
-          style={{ width: "100%", fontSize: 14, padding: "10px 12px", border: "1px solid #e5e5e5", borderRadius: 10, fontFamily: "inherit", marginBottom: 12 }}
-        />
-        <datalist id="login-staff">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{APP_ORG_NAME}</div>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 18, lineHeight: 1.55 }}>请输入团队访问密码后进入运营中心</div>
         <label style={{ display: "block", fontSize: 11, color: "#888", marginBottom: 6, fontWeight: 500 }}>访问密码</label>
         <input
           type="password"

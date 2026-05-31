@@ -36,7 +36,7 @@
 
         try {
           // GitHub Pages：优先加载预编译 bundle（无运行时 Babel，更稳定）
-          var bundleRes = await fetch("app.bundle.js?v=4");
+          var bundleRes = await fetch("app.bundle.js?v=5");
           if (bundleRes.ok) {
             var js = await bundleRes.text();
             prepareRoot();

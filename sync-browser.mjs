@@ -7,10 +7,14 @@ const dir = path.join(root, "src");
 
 function toBrowser(src, { exportName, stripUtilsThrough = null }) {
   let out = src
-    .replace(/^import \{ useState, useRef \} from "react";\r?\n/, "const { useState, useRef, useEffect } = React;\n")
-    .replace(/^import \{ useState \} from "react";\r?\n/, "const { useState, useEffect } = React;\n")
+    .replace(/^import \{ useState, useRef \} from "react";\r?\n/, "const { useState, useRef, useEffect, useCallback, createContext, useContext } = React;\n")
+    .replace(/^import \{ useState, useEffect \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
+    .replace(/^import \{ useState \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
+    .replace(/import \{[^}]+\} from "\.\/utils\/storage\.js";\r?\n/g, "")
+    .replace(/import \{[^}]+\} from "\.\/context\/UserContext\.jsx";\r?\n/g, "")
     .replace(/import \{ OwnerField, ownerFilterOptions \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
     .replace(/import \{ OwnerField, ownerFilterEntries, RoleBadge, getStaffRole \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
+    .replace(/import \{ GlobalSettingsModal, OwnerField, useGlobalConfig, getStaffRole, RoleBadge, getStaffNames \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
     .replace(/import \{ GlobalSettingsModal, OwnerField, useGlobalConfig, getStaffRole, RoleBadge \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "");
   if (stripUtilsThrough) {
     const idx = out.indexOf(stripUtilsThrough);
@@ -24,6 +28,26 @@ function toBrowser(src, { exportName, stripUtilsThrough = null }) {
     out = out.replace(new RegExp(`^export function ${exportName}`, "m"), `function ${exportName}`);
   }
   return out;
+}
+
+function storageBrowserBlock() {
+  let storage = fs.readFileSync(path.join(dir, "utils/storage.js"), "utf8");
+  storage = storage
+    .replace(/^import \{[^}]+\} from "react";\r?\n\r?\n/, "")
+    .replace(/^export /gm, "");
+  let userCtx = fs.readFileSync(path.join(dir, "context/UserContext.jsx"), "utf8");
+  userCtx = userCtx
+    .replace(/^import \{[^}]+\} from "react";\r?\n/, "")
+    .replace(/^import \{ getCurrentUser \} from "\.\.\/utils\/storage\.js";\r?\n\r?\n/, "")
+    .replace(/^export const UserContext/gm, "const UserContext")
+    .replace(/^export function useCurrentUser/gm, "function useCurrentUser");
+  return (
+    "// ─── STORAGE (shared / private) ─────────────────────────────────────\n" +
+    storage.trim() +
+    "\n\n// ─── USER CONTEXT ───────────────────────────────────────────────────\n" +
+    userCtx.trim() +
+    "\n\n"
+  );
 }
 
 function globalConfigBrowserBlock() {
@@ -58,7 +82,7 @@ function injectGlobalConfig(logisticsBrowser) {
   const marker = "// ─── LOGISTICS MODULE";
   const idx = logisticsBrowser.indexOf(marker);
   if (idx < 0) return logisticsBrowser;
-  return logisticsBrowser.slice(0, idx) + globalConfigBrowserBlock() + "\n" + logisticsBrowser.slice(idx);
+  return logisticsBrowser.slice(0, idx) + storageBrowserBlock() + globalConfigBrowserBlock() + "\n" + logisticsBrowser.slice(idx);
 }
 
 const log = fs.readFileSync(path.join(dir, "LogisticsModule.jsx"), "utf8");
@@ -79,11 +103,24 @@ fs.writeFileSync(
   toBrowser(tools, { exportName: "ToolsPanel", stripUtilsThrough: "// ─── TOOLS MODULE" })
 );
 
+const agents = fs.readFileSync(path.join(dir, "AgentsModule.jsx"), "utf8");
+fs.writeFileSync(
+  path.join(dir, "AgentsModule.browser.jsx"),
+  toBrowser(agents, { exportName: "AgentsPanel", stripUtilsThrough: "// ─── AI AGENTS MODULE" })
+);
+
+const home = fs.readFileSync(path.join(dir, "HomeModule.jsx"), "utf8");
+fs.writeFileSync(
+  path.join(dir, "HomeModule.browser.jsx"),
+  toBrowser(home, { exportName: "HomePanel" })
+);
+
 const app = fs.readFileSync(path.join(dir, "App.jsx"), "utf8");
 const sharedEnd = app.indexOf("// ─── TASK MODULE");
 const appBrowser =
-  "// LogisticsModule.browser.jsx loads shared helpers + GlobalConfig first.\n\n" +
+  "// LogisticsModule.browser.jsx loads storage + GlobalConfig first.\n\n" +
   app.slice(sharedEnd)
+    .replace(/^import .+\r?\n/gm, "")
     .replace(/^export default function App/m, "function App")
     .trimEnd() +
   "\n\nif (!window.__OPS_CENTER_MOUNTED__) {\n  window.__OPS_CENTER_MOUNTED__ = true;\n  const mountEl = document.getElementById(\"root\");\n  mountEl.replaceChildren();\n  ReactDOM.createRoot(mountEl).render(<App />);\n}\n";

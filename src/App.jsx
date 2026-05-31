@@ -2,7 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { LogisticsPanel } from "./LogisticsModule.jsx";
 import { ProductionPanel } from "./ProductionModule.jsx";
 import { ToolsPanel } from "./ToolsModule.jsx";
-import { GlobalSettingsModal, OwnerField, useGlobalConfig, getStaffRole, RoleBadge } from "./GlobalConfig.jsx";
+import { AgentsPanel } from "./AgentsModule.jsx";
+import { HomePanel } from "./HomeModule.jsx";
+import { GlobalSettingsModal, OwnerField, useGlobalConfig, getStaffRole, RoleBadge, getStaffNames } from "./GlobalConfig.jsx";
+import { UserContext } from "./context/UserContext.jsx";
+import { getCurrentUser, setCurrentUser, useSharedList, SharedMetaLine } from "./utils/storage.js";
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
@@ -130,18 +134,23 @@ function TaskCard({ task, onClick }) {
 }
 
 function TasksPanel() {
-  const [tasks, setTasks] = useState(INIT_TASKS);
-  const [nid, setNid] = useState(7);
+  const { items: tasks, meta, persist } = useSharedList("tasks", INIT_TASKS);
   const [filter, setFilter] = useState("all");
   const [modal, setModal] = useState(null);
+  const nextId = () => Math.max(0, ...tasks.map(t => t.id || 0)) + 1;
   const counts = { all: tasks.length, over: tasks.filter(taskIsOverdue).length, blocked: tasks.filter(t => taskStatusOf(t) === "blocked").length, inprog: tasks.filter(t => taskStatusOf(t) === "inprog").length, done: tasks.filter(t => taskStatusOf(t) === "done").length };
   const sortO = { over: 0, blocked: 1, inprog: 2, done: 3 };
   let vis = filter === "all" ? tasks : filter === "over" ? tasks.filter(taskIsOverdue) : tasks.filter(t => taskStatusOf(t) === filter);
   vis = [...vis].sort((a, b) => (sortO[taskStatusOf(a)] || 2) - (sortO[taskStatusOf(b)] || 2));
-  const save = (t) => { if (t.id) setTasks(tasks.map(x => x.id === t.id ? t : x)); else { setTasks([...tasks, { ...t, id: nid }]); setNid(nid + 1); } setModal(null); };
+  const save = (t) => {
+    if (t.id) persist(tasks.map(x => x.id === t.id ? t : x));
+    else persist([...tasks, { ...t, id: nextId() }]);
+    setModal(null);
+  };
   const tabs = [{ key: "all", label: "全部", nc: "var(--text)" }, { key: "over", label: "逾期", nc: "#e55" }, { key: "blocked", label: "受阻", nc: "#c07000" }, { key: "inprog", label: "进行中", nc: "#2d7dd2" }, { key: "done", label: "已完成", nc: "#2d9e52" }];
   return (
     <div>
+      <SharedMetaLine meta={meta} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, marginRight: 12 }}>
           {tabs.map(f => <div key={f.key} onClick={() => setFilter(f.key)} style={{ background: "var(--card)", border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer" }}>
@@ -154,18 +163,18 @@ function TasksPanel() {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {vis.length ? vis.map(t => <TaskCard key={t.id} task={t} onClick={() => setModal({ ...t, nodes: t.nodes ? t.nodes.map(n => ({ ...n })) : [] })} />) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无任务</div>}
       </div>
-      {modal && <TaskModal task={modal} tasks={tasks} onSave={save} onClose={() => setModal(null)} onDelete={() => { setTasks(tasks.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      {modal && <TaskModal task={modal} tasks={tasks} onSave={save} onClose={() => setModal(null)} onDelete={() => { persist(tasks.filter(x => x.id !== modal.id)); setModal(null); }} />}
     </div>
   );
 }
 
-const TABS = [{ key: "tasks", label: "任务跟进" }, { key: "logistics", label: "物流头程" }, { key: "production", label: "精品生产" }, { key: "tools", label: "工具" }];
+const TABS = [{ key: "home", label: "首页" }, { key: "tasks", label: "任务跟进" }, { key: "logistics", label: "物流头程" }, { key: "production", label: "精品生产" }, { key: "tools", label: "工具" }, { key: "agents", label: "AI 智能体" }];
 
 function BrandLogo({ size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden style={{ flexShrink: 0, display: "block" }}>
       <rect x="1" y="1" width="30" height="30" rx="7" fill="#1a1d24" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
-      <path d="M10 10 L22 22 M22 10 L10 22" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+      <text x="16" y="22" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="700" fontFamily="'PingFang SC','Microsoft YaHei',system-ui,sans-serif">H</text>
     </svg>
   );
 }
@@ -202,13 +211,83 @@ function SettingsMenu({ onSelect }) {
   );
 }
 
+const APP_PASSWORD = "X888888";
+const AUTH_SESSION_KEY = "ops-center-auth";
+
+function readAuthSession() {
+  try {
+    return sessionStorage.getItem(AUTH_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function LoginScreen({ onSuccess }) {
+  const [password, setPassword] = useState("");
+  const [userName, setUserName] = useState(() => getCurrentUser().name !== "访客" ? getCurrentUser().name : "");
+  const [error, setError] = useState("");
+  const staffNames = getStaffNames();
+
+  const submit = (e) => {
+    e.preventDefault();
+    const name = userName.trim();
+    if (!name) {
+      setError("请选择或填写您的姓名");
+      return;
+    }
+    if (password === APP_PASSWORD) {
+      setCurrentUser({ id: name, name });
+      try { sessionStorage.setItem(AUTH_SESSION_KEY, "1"); } catch { /* ignore */ }
+      onSuccess();
+      return;
+    }
+    setError("密码错误，请重试");
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f8f8f6", color: "#111", fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
+      <form onSubmit={submit} style={{ width: "100%", maxWidth: 360, background: "#fff", border: "1px solid #e5e5e5", borderRadius: 16, padding: "1.75rem 1.5rem", boxShadow: "0 12px 40px rgba(0,0,0,0.06)" }}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>泓森拓创科技</div>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 18, lineHeight: 1.55 }}>请输入姓名与访问密码后进入运营中心</div>
+        <label style={{ display: "block", fontSize: 11, color: "#888", marginBottom: 6, fontWeight: 500 }}>您的姓名</label>
+        <input
+          list="login-staff"
+          value={userName}
+          onChange={e => { setUserName(e.target.value); if (error) setError(""); }}
+          placeholder="选择或输入姓名…"
+          autoFocus
+          style={{ width: "100%", fontSize: 14, padding: "10px 12px", border: "1px solid #e5e5e5", borderRadius: 10, fontFamily: "inherit", marginBottom: 12 }}
+        />
+        <datalist id="login-staff">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
+        <label style={{ display: "block", fontSize: 11, color: "#888", marginBottom: 6, fontWeight: 500 }}>访问密码</label>
+        <input
+          type="password"
+          value={password}
+          onChange={e => { setPassword(e.target.value); if (error) setError(""); }}
+          placeholder="请输入密码"
+          autoFocus
+          style={{ width: "100%", fontSize: 14, padding: "10px 12px", border: `1px solid ${error ? "#e57373" : "#e5e5e5"}`, borderRadius: 10, fontFamily: "inherit", marginBottom: error ? 8 : 16 }}
+        />
+        {error && <div style={{ fontSize: 12, color: "#c62828", marginBottom: 12 }}>{error}</div>}
+        <button type="submit" style={{ width: "100%", background: "#2d7dd2", border: "none", borderRadius: 10, padding: "10px 14px", fontSize: 14, cursor: "pointer", fontFamily: "inherit", color: "#fff", fontWeight: 600 }}>进入</button>
+      </form>
+    </div>
+  );
+}
+
 export default function App() {
-  const [tab, setTab] = useState("logistics");
+  const [authed, setAuthed] = useState(readAuthSession);
+  const [currentUser, setCurrentUserState] = useState(() => getCurrentUser());
+  const [tab, setTab] = useState("home");
   const [dark, setDark] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState(null);
   const { version: configVersion } = useGlobalConfig();
   const css = { "--bg": dark ? "#111" : "#f8f8f6", "--card": dark ? "#1c1c1c" : "#fff", "--border": dark ? "#2a2a2a" : "#e5e5e5", "--text": dark ? "#eee" : "#111", "--tm": dark ? "#777" : "#888" };
+  if (!authed) {
+    return <LoginScreen onSuccess={() => { setCurrentUserState(getCurrentUser()); setAuthed(true); }} />;
+  }
   return (
+    <UserContext.Provider value={currentUser}>
     <div style={{ ...css, minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif" }}>
       <div style={{ maxWidth: 820, margin: "0 auto", padding: "1.5rem 1rem" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
@@ -224,13 +303,16 @@ export default function App() {
         <div style={{ display: "flex", gap: 4, marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
           {TABS.map(t => (<button key={t.key} onClick={() => setTab(t.key)} style={{ background: "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent", padding: "8px 18px", fontSize: 13, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? "#2d7dd2" : "var(--tm)", cursor: "pointer", fontFamily: "inherit", marginBottom: -1 }}>{t.label}</button>))}
         </div>
+        {tab === "home" && <HomePanel userId={currentUser.id} />}
         {tab === "tasks" && <TasksPanel key={configVersion} />}
         {tab === "logistics" && <LogisticsPanel key={configVersion} />}
         {tab === "production" && <ProductionPanel key={configVersion} />}
         {tab === "tools" && <ToolsPanel />}
+        {tab === "agents" && <AgentsPanel />}
       </div>
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
     </div>
+    </UserContext.Provider>
   );
 }
 

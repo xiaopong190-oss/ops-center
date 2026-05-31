@@ -1,0 +1,35 @@
+name: Sync Amazon News
+
+on:
+  schedule:
+    # 北京时间 08:00 ≈ UTC 00:00
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch latest Amazon RSS
+        run: node sync-amazon-news.mjs --force
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add amazon-news.json
+          if git diff --staged --quiet; then
+            echo "No news changes"
+          else
+            git commit -m "chore: sync amazon news RSS"
+            git push
+          fi

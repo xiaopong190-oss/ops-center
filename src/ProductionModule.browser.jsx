@@ -217,6 +217,7 @@ function ProdBatchCard({ item, onClick }) {
         {qc && <span style={badge(qc.bg, qc.c)}>QC {item.qcResult}</span>}
         {openExcs.length > 0 && <span style={badge("#fee2e2", "#b91c1c")}>⚠ {openExcs.length} 异常</span>}
         {item.qty && <span style={{ fontSize: 11, color: "var(--tm)" }}>{item.qty}</span>}
+        {item.updatedAt && <span style={{ fontSize: 10, color: "var(--tm)" }}>更新 {formatSharedTime(item.updatedAt)}</span>}
       </div>
       {openExcs.map((ex, i) => (
         <div key={i} onClick={e => e.stopPropagation()} style={{ marginTop: 7, padding: "6px 10px", background: "#fff8e6", color: "#7a4a00", borderRadius: 7, fontSize: 11, lineHeight: 1.5, borderLeft: "3px solid #e09000" }}>
@@ -251,8 +252,7 @@ function ProductGroup({ product, name, batches, onEdit }) {
 }
 
 function ProductionPanel() {
-  const [items, setItems] = useState(INIT_PROD.map(b => ({ ...b, stage: normalizeStage(b.stage) })));
-  const [nid, setNid] = useState(6);
+  const { items, meta, persist } = useSharedList("production", INIT_PROD.map(b => ({ ...b, stage: normalizeStage(b.stage) })));
   const [modal, setModal] = useState(null);
   const [tabFilter, setTabFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
@@ -303,7 +303,12 @@ function ProductionPanel() {
     qcMethod: "自检", qcCompany: "", qcDate: "", qcResult: "", qcReportNo: "", qcNote: "",
     stage: "立项", note: "", exceptions: [],
   };
-  const save = (t) => { if (t.id) setItems(items.map(x => x.id === t.id ? t : x)); else { setItems([...items, { ...t, id: nid }]); setNid(nid + 1); } setModal(null); };
+  const save = (t) => {
+    const now = Date.now();
+    if (t.id) persist(items.map(x => x.id === t.id ? { ...t, updatedAt: now } : x));
+    else persist([...items, { ...t, id: Math.max(0, ...items.map(x => x.id || 0)) + 1, updatedAt: now }]);
+    setModal(null);
+  };
   const clone = (b) => ({ ...b, exceptions: (b.exceptions || []).map(e => ({ ...e })) });
 
   const tabs = [
@@ -317,6 +322,7 @@ function ProductionPanel() {
 
   return (
     <div>
+      <SharedMetaLine meta={meta} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 7, flex: 1, minWidth: 320 }}>
           {tabs.map(f => (

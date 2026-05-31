@@ -10,14 +10,60 @@ const badge = (bg, color, extra = {}) => ({ fontSize: 10, padding: "2px 8px", bo
 
 const URL_STORAGE_PREFIX = "ops-center-tool-url-";
 const NAME_STORAGE_PREFIX = "ops-center-tool-name-";
+const ONLINE_DOCS_KEY = "ops-center-online-docs";
+
+const DEFAULT_ONLINE_DOC = {
+  id: "online-doc-default",
+  name: "在线文档",
+  url: "https://www.kdocs.cn/l/cuP9MuR9zUkN?R=L1MvMTE=",
+  desc: "金山 / 钉钉 / 飞书等在线文档，链接可随时更换",
+  icon: "📄",
+};
+
+const loadOnlineDocs = () => {
+  try {
+    const raw = localStorage.getItem(ONLINE_DOCS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    }
+  } catch { /* ignore */ }
+  const legacyUrl = localStorage.getItem(URL_STORAGE_PREFIX + "online-doc");
+  const legacyName = localStorage.getItem(NAME_STORAGE_PREFIX + "online-doc");
+  const docs = [{
+    ...DEFAULT_ONLINE_DOC,
+    name: legacyName || DEFAULT_ONLINE_DOC.name,
+    url: legacyUrl || DEFAULT_ONLINE_DOC.url,
+  }];
+  saveOnlineDocs(docs);
+  return docs;
+};
+
+const saveOnlineDocs = (docs) => {
+  try { localStorage.setItem(ONLINE_DOCS_KEY, JSON.stringify(docs)); } catch { /* ignore */ }
+};
+
+const onlineDocToTool = (doc) => ({
+  id: doc.id,
+  name: doc.name || "在线文档",
+  desc: doc.desc || DEFAULT_ONLINE_DOC.desc,
+  icon: doc.icon || "📄",
+  category: "运营",
+  configurableUrl: true,
+  defaultUrl: doc.url || "",
+  isOnlineDoc: true,
+});
 
 const toolUrl = (tool, customUrls = {}) => {
+  if (tool.isOnlineDoc) return tool.defaultUrl || "";
   if (tool.configurableUrl) return customUrls[tool.id] || tool.defaultUrl || "";
   return tool.url || tool.openUrl;
 };
 
-const toolDisplayName = (tool, customNames = {}) =>
-  (tool.configurableUrl && customNames[tool.id]) ? customNames[tool.id] : tool.name;
+const toolDisplayName = (tool, customNames = {}) => {
+  if (tool.isOnlineDoc) return tool.name;
+  return (tool.configurableUrl && customNames[tool.id]) ? customNames[tool.id] : tool.name;
+};
 
 const isLocalOpsServer = () =>
   location.hostname === "localhost" || location.hostname === "127.0.0.1";
@@ -51,11 +97,334 @@ const downloadToolPackage = (tool) => {
   return true;
 };
 
+const UNIT_CATALOG = {
+  mass: {
+    label: "质量",
+    base: "kg",
+    groups: [
+      { name: "公制", units: [
+        { id: "t", name: "吨", sym: "t", factor: 1000 },
+        { id: "kg", name: "千克", sym: "kg", factor: 1 },
+        { id: "g", name: "克", sym: "g", factor: 0.001 },
+        { id: "mg", name: "毫克", sym: "mg", factor: 1e-6 },
+      ]},
+      { name: "英制", units: [
+        { id: "lb", name: "磅", sym: "lb", factor: 0.45359237 },
+        { id: "oz", name: "盎司", sym: "oz", factor: 0.028349523125 },
+      ]},
+    ],
+    defaults: { left: "kg", right: "lb", leftVal: "1" },
+  },
+  length: {
+    label: "长度",
+    base: "m",
+    groups: [
+      { name: "公制", units: [
+        { id: "km", name: "千米", sym: "km", factor: 1000 },
+        { id: "m", name: "米", sym: "m", factor: 1 },
+        { id: "cm", name: "厘米", sym: "cm", factor: 0.01 },
+        { id: "mm", name: "毫米", sym: "mm", factor: 0.001 },
+      ]},
+      { name: "英制", units: [
+        { id: "mile", name: "英里", sym: "mi", factor: 1609.344 },
+        { id: "ft", name: "英尺", sym: "ft", factor: 0.3048 },
+        { id: "in", name: "英寸", sym: "in", factor: 0.0254 },
+      ]},
+    ],
+    defaults: { left: "m", right: "cm", leftVal: "1" },
+  },
+};
+
+const allUnits = (cat) => UNIT_CATALOG[cat].groups.flatMap(g => g.units);
+const findUnit = (cat, id) => allUnits(cat).find(u => u.id === id);
+
+const fmtConvNum = (n, summary = false) => {
+  if (!Number.isFinite(n)) return "";
+  const abs = Math.abs(n);
+  if (summary) {
+    if (abs >= 100) return Number(n.toFixed(2)).toString();
+    if (abs >= 1) return Number(n.toFixed(4)).toString();
+    return Number(n.toPrecision(4)).toString();
+  }
+  if (abs === 0) return "0";
+  if (abs >= 10000) return Number(n.toFixed(2)).toString();
+  if (abs >= 1) return Number(n.toFixed(6)).toString();
+  if (abs >= 0.0001) return Number(n.toPrecision(8)).toString();
+  return n.toExponential(4);
+};
+
+const convert = (val, fromId, toId, cat) => {
+  const from = findUnit(cat, fromId);
+  const to = findUnit(cat, toId);
+  if (!from || !to) return "";
+  const n = parseFloat(val);
+  if (val.trim() === "" || !Number.isFinite(n)) return "";
+  return fmtConvNum(n * from.factor / to.factor);
+};
+
+const unitLabel = (u) => u ? `${u.name}(${u.sym})` : "";
+
+function UnitPicker({ cat, selected, onSelect, onClose }) {
+  const cfg = UNIT_CATALOG[cat];
+  return (
+    <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", background: "var(--card)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+        {cfg.groups.map(g => (
+          <div key={g.name} style={{ padding: "10px 12px", borderRight: g.name === cfg.groups[0]?.name ? "1px solid var(--border)" : "none" }}>
+            <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, fontWeight: 600 }}>{g.name}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {g.units.map(u => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => { onSelect(u.id); onClose(); }}
+                  style={{
+                    textAlign: "left",
+                    background: selected === u.id ? "rgba(45,125,210,0.12)" : "transparent",
+                    color: selected === u.id ? "#2d7dd2" : "var(--text)",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "7px 10px",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontWeight: selected === u.id ? 600 : 400,
+                  }}
+                >
+                  {unitLabel(u)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UnitConverterTool() {
+  const [cat, setCat] = useState("mass");
+  const [leftUnit, setLeftUnit] = useState("kg");
+  const [rightUnit, setRightUnit] = useState("lb");
+  const [leftVal, setLeftVal] = useState("1");
+  const [rightVal, setRightVal] = useState("2.2046");
+  const [picker, setPicker] = useState(null);
+
+  const applyDefaults = (nextCat) => {
+    const d = UNIT_CATALOG[nextCat].defaults;
+    setLeftUnit(d.left);
+    setRightUnit(d.right);
+    setLeftVal(d.leftVal);
+    setRightVal(convert(d.leftVal, d.left, d.right, nextCat));
+    setPicker(null);
+  };
+
+  const switchCat = (nextCat) => {
+    setCat(nextCat);
+    applyDefaults(nextCat);
+  };
+
+  const onLeftVal = (v) => {
+    setLeftVal(v);
+    setRightVal(convert(v, leftUnit, rightUnit, cat));
+  };
+
+  const onRightVal = (v) => {
+    setRightVal(v);
+    setLeftVal(convert(v, rightUnit, leftUnit, cat));
+  };
+
+  const onLeftUnit = (id) => {
+    setLeftUnit(id);
+    setRightVal(convert(leftVal, id, rightUnit, cat));
+  };
+
+  const onRightUnit = (id) => {
+    setRightUnit(id);
+    setRightVal(convert(leftVal, leftUnit, id, cat));
+  };
+
+  const swap = () => {
+    setLeftUnit(rightUnit);
+    setRightUnit(leftUnit);
+    setLeftVal(rightVal);
+    setRightVal(leftVal);
+    setPicker(null);
+  };
+
+  const leftU = findUnit(cat, leftUnit);
+  const rightU = findUnit(cat, rightUnit);
+  const ratio = leftU && rightU ? leftU.factor / rightU.factor : 0;
+  const summary = ratio
+    ? `1${leftU.name}=${fmtConvNum(ratio, true)}${rightU.name}`
+    : "";
+
+  const boxStyle = {
+    flex: 1,
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    overflow: "hidden",
+    background: "var(--bg)",
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "1px solid var(--border)" }}>
+        {Object.entries(UNIT_CATALOG).map(([key, cfg]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => switchCat(key)}
+            style={{
+              background: cat === key ? "var(--card)" : "transparent",
+              color: cat === key ? "#2d7dd2" : "var(--tm)",
+              border: "none",
+              borderBottom: cat === key ? "2px solid #2d7dd2" : "2px solid transparent",
+              padding: "10px 20px",
+              fontSize: 14,
+              fontWeight: cat === key ? 600 : 400,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              marginBottom: -1,
+            }}
+          >
+            {cfg.label}
+          </button>
+        ))}
+      </div>
+
+      {summary && (
+        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 20, letterSpacing: "-0.02em" }}>
+          {summary}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "stretch", gap: 10, marginBottom: picker ? 0 : 8 }}>
+        <div style={boxStyle}>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={leftVal}
+            onChange={e => onLeftVal(e.target.value)}
+            style={{
+              width: "100%",
+              border: "none",
+              background: "transparent",
+              fontSize: 28,
+              fontWeight: 600,
+              padding: "16px 14px 8px",
+              fontFamily: "inherit",
+              color: "var(--text)",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setPicker(picker === "left" ? null : "left")}
+            style={{
+              width: "100%",
+              border: "none",
+              borderTop: "1px solid var(--border)",
+              background: picker === "left" ? "rgba(45,125,210,0.08)" : "var(--card)",
+              padding: "10px 14px",
+              fontSize: 13,
+              color: picker === "left" ? "#2d7dd2" : "var(--text)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              textAlign: "left",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span>{unitLabel(leftU)}</span>
+            <span style={{ fontSize: 10, color: "var(--tm)" }}>{picker === "left" ? "▲" : "▼"}</span>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={swap}
+          title="互换单位与数值"
+          style={{
+            alignSelf: "center",
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+            width: 44,
+            height: 44,
+            fontSize: 20,
+            cursor: "pointer",
+            color: "#2d7dd2",
+            fontFamily: "inherit",
+            flexShrink: 0,
+          }}
+        >
+          ⇄
+        </button>
+
+        <div style={boxStyle}>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={rightVal}
+            onChange={e => onRightVal(e.target.value)}
+            style={{
+              width: "100%",
+              border: "none",
+              background: "transparent",
+              fontSize: 28,
+              fontWeight: 600,
+              padding: "16px 14px 8px",
+              fontFamily: "inherit",
+              color: "var(--text)",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setPicker(picker === "right" ? null : "right")}
+            style={{
+              width: "100%",
+              border: "none",
+              borderTop: "1px solid var(--border)",
+              background: picker === "right" ? "rgba(45,125,210,0.08)" : "var(--card)",
+              padding: "10px 14px",
+              fontSize: 13,
+              color: picker === "right" ? "#2d7dd2" : "var(--text)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              textAlign: "left",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span>{unitLabel(rightU)}</span>
+            <span style={{ fontSize: 10, color: "var(--tm)" }}>{picker === "right" ? "▲" : "▼"}</span>
+          </button>
+        </div>
+      </div>
+
+      {picker && (
+        <UnitPicker
+          cat={cat}
+          selected={picker === "left" ? leftUnit : rightUnit}
+          onSelect={picker === "left" ? onLeftUnit : onRightUnit}
+          onClose={() => setPicker(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 const TOOL_CATALOG = [
+  { id: "weight-converter", name: "单位换算", desc: "质量与长度实时换算，支持多单位切换", icon: "⚖️", category: "常用", component: UnitConverterTool },
   { id: "fba-profit", name: "FBA 利润计算器", desc: "全链路利润：体积重、尺寸分档、头程 / 佣金 / 退货", icon: "💰", category: "FBA", openUrl: "fba-profit-calculator.html" },
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },
   { id: "amazon-tracker", name: "亚马逊推广追踪", desc: "精铺/精品 · 月度规划 · 投入产出分析", icon: "📦", category: "运营", url: "https://guangdongperfect2024-ctrl.github.io/amazon-tracker/" },
-  { id: "online-doc", name: "在线文档", desc: "金山 / 钉钉 / 飞书等在线文档，链接可随时更换", icon: "📄", category: "运营", configurableUrl: true, defaultUrl: "https://www.kdocs.cn/l/cuP9MuR9zUkN?R=L1MvMTE=" },
   {
     id: "mailwatch",
     name: "MailWatch 邮件分析",
@@ -128,10 +497,11 @@ async function openMailWatch(tool) {
   else openToolUrl(target);
 }
 
-function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl, onOpen, onStartEdit, onEditNameChange, onEditUrlChange, onEditSave, onEditSaveAndOpen, onEditCancel }) {
+function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl, onOpen, onStartEdit, onEditNameChange, onEditUrlChange, onEditSave, onEditSaveAndOpen, onEditCancel, onDuplicate, onDelete }) {
   const href = resolvedUrl ?? toolUrl(tool);
   const inline = tool.target === "inline";
   const configurable = !!tool.configurableUrl;
+  const isOnlineDoc = !!tool.isOnlineDoc;
 
   const stop = (e) => e.stopPropagation();
 
@@ -237,14 +607,36 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
         {configurable && !isEditing && (
-          <button
-            type="button"
-            title="编辑名称与链接"
-            onClick={e => { stop(e); onStartEdit(tool); }}
-            style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, fontSize: 13, cursor: "pointer", color: "#2d7dd2", fontFamily: "inherit", lineHeight: 1 }}
-          >
-            ✎
-          </button>
+          <>
+            <button
+              type="button"
+              title="编辑名称与链接"
+              onClick={e => { stop(e); onStartEdit(tool); }}
+              style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, fontSize: 13, cursor: "pointer", color: "#2d7dd2", fontFamily: "inherit", lineHeight: 1 }}
+            >
+              ✎
+            </button>
+            {isOnlineDoc && onDuplicate && (
+              <button
+                type="button"
+                title="复制一份"
+                onClick={e => { stop(e); onDuplicate(tool); }}
+                style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, fontSize: 12, cursor: "pointer", color: "#2e7d32", fontFamily: "inherit", lineHeight: 1 }}
+              >
+                ⧉
+              </button>
+            )}
+            {isOnlineDoc && onDelete && (
+              <button
+                type="button"
+                title="删除此文档"
+                onClick={e => { stop(e); onDelete(tool); }}
+                style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, fontSize: 12, cursor: "pointer", color: "#c62828", fontFamily: "inherit", lineHeight: 1 }}
+              >
+                ×
+              </button>
+            )}
+          </>
         )}
         {!isEditing && <span style={{ fontSize: 12, color: "var(--tm)" }}>{inline ? "→" : "↗"}</span>}
       </div>
@@ -255,6 +647,7 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
 export function ToolsPanel() {
   const [customUrls, setCustomUrls] = useState(loadCustomUrls);
   const [customNames, setCustomNames] = useState(loadCustomNames);
+  const [onlineDocs, setOnlineDocsState] = useState(loadOnlineDocs);
   const [inlineTool, setInlineTool] = useState(null);
   const [active, setActive] = useState(null);
   const [cat, setCat] = useState("全部");
@@ -263,14 +656,37 @@ export function ToolsPanel() {
   const [editUrl, setEditUrl] = useState("");
   const [editName, setEditName] = useState("");
 
-  const tool = TOOL_CATALOG.find(t => t.id === active);
+  const setOnlineDocs = (updater) => {
+    setOnlineDocsState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      saveOnlineDocs(next);
+      return next;
+    });
+  };
+
+  const onlineDocTools = onlineDocs.map(onlineDocToTool);
+  const allTools = [...onlineDocTools, ...TOOL_CATALOG];
+
+  const tool = allTools.find(t => t.id === active);
   const ActiveComponent = tool?.component;
+  const editingTool = allTools.find(t => t.id === editingId);
 
   const persistEdit = () => {
     if (!editingId) return;
-    const catalog = TOOL_CATALOG.find(t => t.id === editingId);
     const url = editUrl.trim();
     const name = editName.trim();
+
+    if (editingTool?.isOnlineDoc) {
+      setOnlineDocs(prev => prev.map(d => d.id === editingId
+        ? { ...d, name: name || "在线文档", url }
+        : d));
+      setEditingId(null);
+      setEditUrl("");
+      setEditName("");
+      return;
+    }
+
+    const catalog = TOOL_CATALOG.find(t => t.id === editingId);
     try {
       if (url) localStorage.setItem(URL_STORAGE_PREFIX + editingId, url);
       else localStorage.removeItem(URL_STORAGE_PREFIX + editingId);
@@ -293,6 +709,11 @@ export function ToolsPanel() {
 
   const startEdit = (t) => {
     setEditingId(t.id);
+    if (t.isOnlineDoc) {
+      setEditUrl(t.defaultUrl || "");
+      setEditName(t.name || "在线文档");
+      return;
+    }
     setEditUrl(customUrls[t.id] || t.defaultUrl || "");
     setEditName(customNames[t.id] || t.name);
   };
@@ -346,7 +767,40 @@ export function ToolsPanel() {
     setActive(t.id);
   };
 
-  let list = TOOL_CATALOG;
+  const duplicateOnlineDoc = (tool) => {
+    const source = onlineDocs.find(d => d.id === tool.id);
+    if (!source) return;
+    const copy = {
+      ...source,
+      id: "online-doc-" + Date.now(),
+      name: (source.name || "在线文档") + " 副本",
+    };
+    setOnlineDocs(prev => [...prev, copy]);
+  };
+
+  const addOnlineDoc = () => {
+    const doc = {
+      id: "online-doc-" + Date.now(),
+      name: "新在线文档",
+      url: "",
+      desc: DEFAULT_ONLINE_DOC.desc,
+      icon: "📄",
+    };
+    setOnlineDocs(prev => [...prev, doc]);
+    startEdit(onlineDocToTool(doc));
+  };
+
+  const deleteOnlineDoc = (tool) => {
+    if (onlineDocs.length <= 1) {
+      window.alert("至少保留一个在线文档");
+      return;
+    }
+    if (!window.confirm(`确定删除「${tool.name}」？`)) return;
+    if (editingId === tool.id) cancelEdit();
+    setOnlineDocs(prev => prev.filter(d => d.id !== tool.id));
+  };
+
+  let list = allTools;
   if (cat !== "全部") list = list.filter(t => t.category === cat);
   if (q.trim()) {
     const s = q.trim().toLowerCase();
@@ -391,6 +845,7 @@ export function ToolsPanel() {
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索工具…" style={{ ...inpSm, flex: 1, minWidth: 140, maxWidth: 220 }} />
+        <button type="button" onClick={addOnlineDoc} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>+ 添加在线文档</button>
         {TOOL_CATEGORIES.map(c => (
           <button key={c} type="button" onClick={() => setCat(c)} style={{ background: cat === c ? "#2d7dd2" : "var(--card)", color: cat === c ? "#fff" : "var(--tm)", border: `1px solid ${cat === c ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
         ))}
@@ -413,6 +868,8 @@ export function ToolsPanel() {
               onEditSave={saveEdit}
               onEditSaveAndOpen={saveEditAndOpen}
               onEditCancel={cancelEdit}
+              onDuplicate={duplicateOnlineDoc}
+              onDelete={deleteOnlineDoc}
             />
           ))}
         </div>
@@ -420,7 +877,7 @@ export function ToolsPanel() {
         <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--tm)", fontSize: 13 }}>没有匹配的工具</div>
       )}
       <div style={{ marginTop: "1.5rem", padding: "10px 14px", borderRadius: 10, background: "var(--bg)", border: "1px dashed var(--border)", fontSize: 11, color: "var(--tm)", lineHeight: 1.6 }}>
-        「在线文档」点击卡片或链接即可打开；要改名称/链接请点右侧 ✎。<br />
+        「在线文档」可添加多个：点「+ 添加在线文档」或右侧 ⧉ 复制；✎ 改名称/链接，× 删除。<br />
         「MailWatch 邮件分析」在云端点击即下载安装包；本机 run.bat 下一键打开。<br />
         「C 盘垃圾清理」云端可下载 zip，解压后在 Windows 本机运行。<br />
       </div>

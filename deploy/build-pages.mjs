@@ -46,6 +46,13 @@ function copyDir(src, dest) {
 console.log("==> sync browser jsx");
 execSync("node sync-browser.mjs", { cwd: root, stdio: "inherit" });
 
+console.log("==> sync amazon news");
+try {
+  execSync("node sync-amazon-news.mjs --force", { cwd: root, stdio: "inherit" });
+} catch {
+  console.warn("amazon-news sync skipped (will use existing file if any)");
+}
+
 console.log("==> build precompiled app.bundle.js");
 execSync("npm install --no-audit --no-fund", { cwd: root, stdio: "inherit" });
 execSync("node deploy/build-browser-bundle.mjs", { cwd: root, stdio: "inherit" });
@@ -77,6 +84,8 @@ mkdirp(out);
 const staticFiles = [
   "app.html",
   "logo.svg",
+  "fx-rates.json",
+  "amazon-news.json",
   "fba-profit-calculator.html",
   "fba-warehouse-tool.html",
 ];

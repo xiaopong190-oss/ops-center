@@ -1,0 +1,11 @@
+{
+  "date": "2026-05-29",
+  "asOf": "2026-05-29",
+  "rates": {
+    "USD": 0.14778,
+    "GBP": 0.11006,
+    "EUR": 0.12691,
+    "JPY": 23.536
+  },
+  "note": "Bundled fallback when live FX APIs are unreachable. Updated at deploy time."
+}

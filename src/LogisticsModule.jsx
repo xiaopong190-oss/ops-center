@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { OwnerField, ownerFilterEntries, RoleBadge, getStaffRole } from "./GlobalConfig.jsx";
+import { useSharedList, SharedMetaLine } from "./utils/storage.js";
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
@@ -370,13 +371,13 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
   );
 }
 export function LogisticsPanel() {
-  const [items, setItems] = useState(INIT_LOGISTICS);
-  const [nid, setNid] = useState(4);
+  const { items, meta, persist } = useSharedList("logistics", INIT_LOGISTICS);
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [expanded, setExpanded] = useState({ 1: true });
   const panelCsvRef = useRef(null);
+  const nextId = () => Math.max(0, ...items.map(i => i.id || 0)) + 1;
   const counts = {
     all: items.length,
     transit: items.filter(batchHeadTransit).length,
@@ -399,9 +400,13 @@ export function LogisticsPanel() {
     if (da === null) return 1; if (db === null) return -1;
     return da - db;
   });
-  const save = (t) => { if (t.id) setItems(items.map(x => x.id === t.id ? t : x)); else { setItems([...items, { ...t, id: nid }]); setNid(nid + 1); } setModal(null); };
+  const save = (t) => {
+    if (t.id) persist(items.map(x => x.id === t.id ? t : x));
+    else persist([...items, { ...t, id: nextId() }]);
+    setModal(null);
+  };
   const editTracking = (gid, fid, tracking) => {
-    setItems(items.map(g => g.id !== gid ? g : {
+    persist(items.map(g => g.id !== gid ? g : {
       ...g, fbaShipments: (g.fbaShipments || []).map(s => s.id !== fid ? s : { ...s, tracking, status: tracking.trim() && s.status === "准备发货" ? "运输中" : s.status }),
     }));
   };
@@ -428,6 +433,7 @@ export function LogisticsPanel() {
   ];
   return (
     <div>
+      <SharedMetaLine meta={meta} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>
           {tabs.map(f => (

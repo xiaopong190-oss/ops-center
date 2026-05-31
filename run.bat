@@ -1,21 +1,5 @@
 @echo off
 cd /d "%~dp0"
-title Ops Center
-echo.
-echo ========================================
-echo   Ops Center
-echo   %CD%
-echo ========================================
-echo.
-echo Starting...
-echo.
-
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0serve-open.ps1"
-if errorlevel 1 (
-  echo.
-  echo Server failed. Opening app.html in browser...
-  start "" "%~dp0app.html"
-  echo.
-)
-
-pause
+set "ROOT=%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'powershell.exe' -WorkingDirectory '%ROOT%' -ArgumentList @('-NoProfile','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File','%ROOT%serve-open.ps1') -WindowStyle Hidden"
+exit /b 0

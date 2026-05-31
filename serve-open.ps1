@@ -198,24 +198,99 @@ function Handle-DiskCleanerApi {
   return $false
 }
 
+function Sync-AmazonNewsIfNeeded {
+  param([switch]$Force)
+  $dest = Join-Path $root "amazon-news.json"
+  $script = Join-Path $root "sync-amazon-news.mjs"
+  $node = Get-Command node -ErrorAction SilentlyContinue
+  if (-not $node -or -not (Test-Path -LiteralPath $script)) { return }
+
+  $stale = $true
+  if (-not $Force -and (Test-Path -LiteralPath $dest)) {
+    $age = (Get-Date) - (Get-Item -LiteralPath $dest).LastWriteTime
+    if ($age.TotalHours -lt 4) { $stale = $false }
+  }
+  if (-not $stale) { return }
+
+  try {
+    $args = @($script)
+    if ($Force) { $args += "--force" }
+    & $node.Source @args 2>$null | Out-Null
+  } catch {
+    Write-Host "amazon-news sync skipped: $($_.Exception.Message)"
+  }
+}
+
+function Handle-AmazonNewsApi {
+  param($Request, $Response, [string]$Path)
+
+  if ($Path -ne "/api/amazon-news") { return $false }
+
+  $dest = Join-Path $root "amazon-news.json"
+  Sync-AmazonNewsIfNeeded
+
+  if (-not (Test-Path -LiteralPath $dest)) {
+    Write-JsonResponse $Response @{ ok = $false; error = "news unavailable" } 503
+    return $true
+  }
+
+  try {
+    $json = Get-Content -LiteralPath $dest -Raw -Encoding UTF8 | ConvertFrom-Json
+    Write-JsonResponse $Response @{ ok = $true; news = $json }
+  } catch {
+    Write-JsonResponse $Response @{ ok = $false; error = $_.Exception.Message } 500
+  }
+  return $true
+}
+
+function Show-StartupError {
+  param([string]$Message)
+  try {
+    Add-Type -AssemblyName PresentationFramework
+    [System.Windows.MessageBox]::Show($Message, "Ops Center", "OK", "Error") | Out-Null
+  } catch {
+    Write-Host $Message
+  }
+}
+
+function Hide-ConsoleWindow {
+  try {
+    Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class OpsCenterWin32 {
+  [DllImport("kernel32.dll")]
+  public static extern IntPtr GetConsoleWindow();
+  [DllImport("user32.dll")]
+  public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
+"@
+    $hwnd = [OpsCenterWin32]::GetConsoleWindow()
+    if ($hwnd -ne [IntPtr]::Zero) {
+      [OpsCenterWin32]::ShowWindow($hwnd, 0) | Out-Null
+    }
+  } catch { }
+}
+
 function Open-Fallback {
+  param([string]$Reason = "")
+
   $python = Get-Command python -ErrorAction SilentlyContinue
   if ($python) {
-    Write-Host "Trying Python HTTP server on port $port..."
-    Write-Host "Note: disk-cleaner API requires run.bat (HttpListener)."
-    Start-Process -FilePath $python.Source -ArgumentList "-m", "http.server", [string]$port, "-d", $root
+    Start-Process -FilePath $python.Source -ArgumentList "-m", "http.server", [string]$port, "-d", $root -WindowStyle Hidden
     Start-Sleep -Seconds 1
     Start-Process $url
-    Write-Host "Running at $url"
-    Write-Host "Close the Python window to stop."
+    Hide-ConsoleWindow
     exit 0
   }
-  Write-Host "Opening app.html directly (needs internet; may not load on file://)..."
   if (Test-Path $entry) {
     Start-Process $entry
+    $msg = "本地服务启动失败，已直接打开页面（部分功能可能不可用）。"
+    if ($Reason) { $msg += "`n`n$Reason" }
+    Show-StartupError $msg
     exit 0
   }
-  Write-Host "ERROR: app.html not found in $root"
+  Show-StartupError "启动失败：找不到 app.html`n路径：$root"
   exit 1
 }
 
@@ -237,20 +312,17 @@ function Get-MimeType {
 }
 
 try {
+  Sync-AmazonNewsIfNeeded
   $listener = New-Object System.Net.HttpListener
   $listener.Prefixes.Add("http://127.0.0.1:$port/")
   $listener.Start()
 } catch {
-  Write-Host "Server start failed: $($_.Exception.Message)"
-  Open-Fallback
+  Open-Fallback -Reason $_.Exception.Message
 }
 
 Start-Sleep -Milliseconds 300
 Start-Process $url
-
-Write-Host "Ops Center running: $url"
-Write-Host "Close this window to stop."
-Write-Host ""
+Hide-ConsoleWindow
 
 while ($listener.IsListening) {
   $context = $listener.GetContext()
@@ -266,6 +338,11 @@ while ($listener.IsListening) {
   }
 
   if (Handle-DiskCleanerApi $request $response $apiPath) {
+    $response.OutputStream.Close()
+    continue
+  }
+
+  if (Handle-AmazonNewsApi $request $response $apiPath) {
     $response.OutputStream.Close()
     continue
   }

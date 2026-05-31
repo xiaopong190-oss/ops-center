@@ -1,4 +1,4 @@
-const { useState, useRef, useEffect } = React;
+const { useState, useRef, useEffect, useCallback, createContext, useContext } = React;
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
@@ -14,6 +14,120 @@ const Avatar = ({ name, size = 24 }) => {
   const [bg, tx] = AVATAR_PALETTE[strHash(name || "?")];
   return (<div style={{ width: size, height: size, borderRadius: "50%", background: bg, color: tx, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.42, fontWeight: 700, flexShrink: 0 }}>{(name || "?").slice(0, 1)}</div>);
 };
+
+// ─── STORAGE (shared / private) ─────────────────────────────────────
+const CURRENT_USER_KEY = "ops-center-current-user";
+
+function getCurrentUser() {
+  try {
+    const raw = sessionStorage.getItem(CURRENT_USER_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.id && parsed?.name) return parsed;
+    }
+  } catch { /* ignore */ }
+  return { id: "guest", name: "访客" };
+}
+
+function setCurrentUser(user) {
+  try {
+    sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify({
+      id: user.id || user.name || "guest",
+      name: user.name || "访客",
+    }));
+  } catch { /* ignore */ }
+}
+
+const sharedStorage = {
+  get(key) {
+    try {
+      const raw = localStorage.getItem(`shared:${key}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  },
+  set(key, value, updatedBy) {
+    localStorage.setItem(`shared:${key}`, JSON.stringify({
+      data: value,
+      updatedBy: updatedBy || getCurrentUser().name,
+      updatedAt: Date.now(),
+    }));
+  },
+  delete(key) {
+    localStorage.removeItem(`shared:${key}`);
+  },
+};
+
+const privateStorage = {
+  get(userId, key) {
+    try {
+      const raw = localStorage.getItem(`user:${userId}:${key}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  },
+  set(userId, key, value) {
+    localStorage.setItem(`user:${userId}:${key}`, JSON.stringify(value));
+  },
+  delete(userId, key) {
+    localStorage.removeItem(`user:${userId}:${key}`);
+  },
+};
+
+function formatSharedTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function useSharedList(storageKey, defaultData) {
+  const read = useCallback(() => {
+    const raw = sharedStorage.get(storageKey);
+    const data = raw?.data != null ? raw.data : defaultData;
+    return { data, meta: raw };
+  }, [storageKey, defaultData]);
+
+  const [state, setState] = useState(() => read());
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === `shared:${storageKey}`) setState(read());
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, [storageKey, read]);
+
+  const persist = useCallback((data) => {
+    sharedStorage.set(storageKey, data, getCurrentUser().name);
+    setState({ data, meta: sharedStorage.get(storageKey) });
+  }, [storageKey]);
+
+  return { items: state.data, meta: state.meta, persist, reload: () => setState(read()) };
+}
+
+function SharedMetaLine({ meta, style }) {
+  if (!meta?.updatedBy) return null;
+  return (
+    <div style={{ fontSize: 10, color: "var(--tm)", marginBottom: 10, ...style }}>
+      最后由 {meta.updatedBy} 更新于 {formatSharedTime(meta.updatedAt)}
+    </div>
+  );
+}
+
+// ─── USER CONTEXT ───────────────────────────────────────────────────
+const UserContext = createContext(getCurrentUser());
+
+function useCurrentUser() {
+  return useContext(UserContext);
+}
 
 // ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────
 const CONFIG_STORAGE_KEY = "ops-center-global-config";
@@ -632,13 +746,13 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
   );
 }
 function LogisticsPanel() {
-  const [items, setItems] = useState(INIT_LOGISTICS);
-  const [nid, setNid] = useState(4);
+  const { items, meta, persist } = useSharedList("logistics", INIT_LOGISTICS);
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [expanded, setExpanded] = useState({ 1: true });
   const panelCsvRef = useRef(null);
+  const nextId = () => Math.max(0, ...items.map(i => i.id || 0)) + 1;
   const counts = {
     all: items.length,
     transit: items.filter(batchHeadTransit).length,
@@ -661,9 +775,13 @@ function LogisticsPanel() {
     if (da === null) return 1; if (db === null) return -1;
     return da - db;
   });
-  const save = (t) => { if (t.id) setItems(items.map(x => x.id === t.id ? t : x)); else { setItems([...items, { ...t, id: nid }]); setNid(nid + 1); } setModal(null); };
+  const save = (t) => {
+    if (t.id) persist(items.map(x => x.id === t.id ? t : x));
+    else persist([...items, { ...t, id: nextId() }]);
+    setModal(null);
+  };
   const editTracking = (gid, fid, tracking) => {
-    setItems(items.map(g => g.id !== gid ? g : {
+    persist(items.map(g => g.id !== gid ? g : {
       ...g, fbaShipments: (g.fbaShipments || []).map(s => s.id !== fid ? s : { ...s, tracking, status: tracking.trim() && s.status === "准备发货" ? "运输中" : s.status }),
     }));
   };
@@ -690,6 +808,7 @@ function LogisticsPanel() {
   ];
   return (
     <div>
+      <SharedMetaLine meta={meta} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>
           {tabs.map(f => (

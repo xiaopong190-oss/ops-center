@@ -13,6 +13,8 @@ const files = [
   "LogisticsModule.browser.jsx",
   "ProductionModule.browser.jsx",
   "ToolsModule.browser.jsx",
+  "AgentsModule.browser.jsx",
+  "HomeModule.browser.jsx",
   "App.browser.jsx",
 ];
 

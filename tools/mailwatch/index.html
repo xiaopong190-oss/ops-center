@@ -12,7 +12,7 @@
       --text: #1a202c;
       --muted: #64748b;
       --primary: #2d7dd2;
-      --ok: #2e7d32;
+      --warn: #b45309;
     }
     * { box-sizing: border-box; }
     body {
@@ -32,6 +32,16 @@
       border-radius: 14px;
       padding: 18px 20px;
       margin-bottom: 14px;
+    }
+    .alert {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: var(--warn);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      margin-bottom: 14px;
+      line-height: 1.55;
     }
     button {
       appearance: none;
@@ -61,16 +71,22 @@
       display: none;
     }
     #log.show { display: block; }
+    code { font-family: Consolas, monospace; font-size: 12px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>📧 MailWatch 邮件分析</h1>
-    <p class="sub">无需分两步：点一次即可（未运行时会自动启动服务）</p>
+    <p class="sub">本机一键启动邮件分析服务</p>
+
+    <div id="cloudNote" class="alert" style="display:none">
+      当前是<strong>云端网页</strong>，无法从这里直接启动 MailWatch。<br />
+      请在 Windows 电脑上运行运营中心的 <code>run.bat</code>，再在「工具 → MailWatch」中打开；或在本机浏览器访问 <code>http://127.0.0.1:8765</code>。
+    </div>
 
     <div class="card">
       <button type="button" id="btnOpen">打开 MailWatch ↗</button>
-      <p class="note">首次启动会弹出 MailWatch 命令行窗口，请勿关闭。安装路径：D:\Projects\mailwatch</p>
+      <p class="note">首次启动会弹出 MailWatch 命令行窗口，请勿关闭。默认路径：<code>D:\Projects\mailwatch</code></p>
     </div>
 
     <div id="log"></div>
@@ -81,6 +97,13 @@
       var APP_URL = "http://127.0.0.1:8000";
       var btn = document.getElementById("btnOpen");
       var logEl = document.getElementById("log");
+      var cloudNote = document.getElementById("cloudNote");
+      var isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+
+      if (!isLocal) {
+        cloudNote.style.display = "block";
+        btn.textContent = "尝试打开本机 MailWatch（通常不可用）";
+      }
 
       function log(msg) {
         logEl.textContent = msg;
@@ -92,9 +115,18 @@
       }
 
       async function openMailWatch() {
+        var tab = window.open("about:blank", "_blank", "noopener,noreferrer");
         var target = APP_URL;
         btn.disabled = true;
         log("正在准备…");
+
+        if (!isLocal) {
+          if (tab) tab.location.href = APP_URL;
+          log("已尝试打开 " + APP_URL + "。若无法访问，请在本机运行 run.bat。");
+          btn.disabled = false;
+          return;
+        }
+
         try {
           var statusRes = await fetch("/api/mailwatch/status");
           if (statusRes.ok) {
@@ -118,7 +150,9 @@
         } catch (e) {
           log("无法连接本地 API，将直接尝试打开浏览器。");
         }
-        window.open(target, "_blank", "noopener,noreferrer");
+
+        if (tab) tab.location.href = target;
+        else window.open(target, "_blank", "noopener,noreferrer");
         log("已打开 MailWatch。若页面空白，请稍等几秒后刷新。");
         btn.disabled = false;
       }

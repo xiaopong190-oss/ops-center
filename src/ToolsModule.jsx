@@ -19,6 +19,25 @@ const toolUrl = (tool, customUrls = {}) => {
 const toolDisplayName = (tool, customNames = {}) =>
   (tool.configurableUrl && customNames[tool.id]) ? customNames[tool.id] : tool.name;
 
+const isLocalOpsServer = () =>
+  location.hostname === "localhost" || location.hostname === "127.0.0.1";
+
+const resolveToolUrl = (url) => {
+  if (!url) return "";
+  try {
+    return new URL(url, location.href).href;
+  } catch {
+    return url;
+  }
+};
+
+const openToolUrl = (url) => {
+  const target = resolveToolUrl(url);
+  if (!target) return false;
+  window.open(target, "_blank", "noopener,noreferrer");
+  return true;
+};
+
 const TOOL_CATALOG = [
   { id: "fba-profit", name: "FBA 利润计算器", desc: "全链路利润：体积重、尺寸分档、头程 / 佣金 / 退货", icon: "💰", category: "FBA", openUrl: "fba-profit-calculator.html" },
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },
@@ -58,7 +77,18 @@ const lblSm = { display: "block", fontSize: 10, color: "var(--tm)", marginBottom
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-async function openMailWatch(appUrl = "http://127.0.0.1:8000") {
+async function openMailWatch(tool, customUrls = {}) {
+  const launcher = resolveToolUrl(tool.openUrl || "tools/mailwatch/index.html");
+  const appUrl = tool.defaultUrl || "http://127.0.0.1:8000";
+
+  // 云端无法启动本机服务：同步打开说明页，避免弹窗被拦截
+  if (!isLocalOpsServer()) {
+    openToolUrl(launcher);
+    return;
+  }
+
+  // 本机：先同步开空白页，再异步启动服务后跳转，避免 popup blocker
+  const tab = window.open("about:blank", "_blank", "noopener,noreferrer");
   let target = appUrl;
   try {
     const statusRes = await fetch("/api/mailwatch/status");
@@ -78,8 +108,9 @@ async function openMailWatch(appUrl = "http://127.0.0.1:8000") {
         }
       }
     }
-  } catch { /* 非 run.bat 环境：直接尝试打开 */ }
-  window.open(target, "_blank", "noopener,noreferrer");
+  } catch { /* 非 run.bat 环境：打开启动页 */ target = launcher; }
+  if (tab) tab.location.href = target;
+  else openToolUrl(target);
 }
 
 function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl, onOpen, onStartEdit, onEditNameChange, onEditUrlChange, onEditSave, onEditSaveAndOpen, onEditCancel }) {
@@ -88,6 +119,12 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
   const configurable = !!tool.configurableUrl;
 
   const stop = (e) => e.stopPropagation();
+
+  const openHref = (e) => {
+    stop(e);
+    if (href) openToolUrl(href);
+    else onStartEdit(tool);
+  };
 
   return (
     <div
@@ -109,9 +146,9 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
           <span
-            onClick={e => { if (configurable && !isEditing) { stop(e); onStartEdit(tool); } }}
-            title={configurable ? "点击编辑名称与链接" : undefined}
-            style={{ fontSize: 14, fontWeight: 600, cursor: configurable && !isEditing ? "text" : undefined }}
+            onClick={openHref}
+            title={configurable ? (href ? "点击打开文档" : "点击设置链接") : undefined}
+            style={{ fontSize: 14, fontWeight: 600, cursor: configurable && !isEditing ? "pointer" : undefined }}
           >
             {displayName}
           </span>
@@ -160,9 +197,9 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
           <div
             role="button"
             tabIndex={0}
-            title="点击编辑链接"
-            onClick={e => { stop(e); onStartEdit(tool); }}
-            onKeyDown={e => { if (e.key === "Enter") { stop(e); onStartEdit(tool); } }}
+            title={href ? "点击打开链接" : "点击设置链接"}
+            onClick={openHref}
+            onKeyDown={e => { if (e.key === "Enter") openHref(e); }}
             style={{
               fontSize: 10,
               color: "#2d7dd2",
@@ -264,22 +301,22 @@ export function ToolsPanel() {
     setEditingId(null);
     setEditUrl("");
     setEditName("");
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(resolveToolUrl(url), "_blank", "noopener,noreferrer");
   };
 
   const handleToolClick = (t) => {
     if (editingId) return;
     if (t.autoLaunch) {
-      openMailWatch(t.defaultUrl || toolUrl(t, customUrls));
+      openMailWatch(t, customUrls);
       return;
     }
     const url = toolUrl(t, customUrls);
     if (t.target === "inline" && url) {
-      setInlineTool({ ...t, _resolvedUrl: url });
+      setInlineTool({ ...t, _resolvedUrl: resolveToolUrl(url) });
       return;
     }
     if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
+      openToolUrl(url);
       return;
     }
     if (t.configurableUrl) {
@@ -300,7 +337,7 @@ export function ToolsPanel() {
   }
 
   if (inlineTool) {
-    const url = inlineTool._resolvedUrl || toolUrl(inlineTool, customUrls);
+    const url = resolveToolUrl(inlineTool._resolvedUrl || toolUrl(inlineTool, customUrls));
     return (
       <div style={{ position: "relative", height: "calc(100vh - 120px)", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
@@ -363,8 +400,8 @@ export function ToolsPanel() {
         <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--tm)", fontSize: 13 }}>没有匹配的工具</div>
       )}
       <div style={{ marginTop: "1.5rem", padding: "10px 14px", borderRadius: 10, background: "var(--bg)", border: "1px dashed var(--border)", fontSize: 11, color: "var(--tm)", lineHeight: 1.6 }}>
-        「在线文档」可改显示名称（如「美工图需」）和链接，点标题或 ✎ 编辑，保存后本机记住。<br />
-        「MailWatch 邮件分析」点击即可：未运行时会自动启动，然后打开新窗口（路径 D:\Projects\mailwatch）。<br />
+        「在线文档」点击卡片或链接即可打开；要改名称/链接请点右侧 ✎。<br />
+        「MailWatch 邮件分析」在本机 run.bat 下可自动启动；云端会打开说明页，邮件分析须在本机 Windows 运行。<br />
         「C 盘垃圾清理」标记为本机工具：云端门户提供下载包，须在员工 Windows 电脑上运行。
       </div>
     </div>

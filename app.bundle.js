@@ -791,6 +791,18 @@ function formatSharedTime(ts) {
   }).format(d);
 }
 const CLIENT_ID_KEY = "ops-center-client-id";
+const DEVICE_ID_KEY = "ops-center-device-id";
+function getOrCreateDeviceId() {
+  try {
+    const cached = localStorage.getItem(DEVICE_ID_KEY);
+    if (cached) return cached;
+    const id = typeof crypto !== "undefined" && crypto.randomUUID ? `dev-${crypto.randomUUID()}` : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(DEVICE_ID_KEY, id);
+    return id;
+  } catch {
+    return `dev-${Date.now()}`;
+  }
+}
 function isPrivateLanIp(ip) {
   if (!ip || typeof ip !== "string") return false;
   if (ip.startsWith("192.168.") || ip.startsWith("10.")) return true;
@@ -887,10 +899,11 @@ async function resolveClientId() {
     } catch {/* ignore */}
     return lanIp;
   }
-  return "";
+  return getOrCreateDeviceId();
 }
 async function loadTodayPriority(clientId, date) {
-  if (!clientId) return {
+  const id = clientId || getOrCreateDeviceId();
+  if (!id) return {
     date: "",
     text: ""
   };
@@ -903,7 +916,7 @@ async function loadTodayPriority(clientId, date) {
           date: data.date,
           text: data.text
         };
-        writePriorityLocal(clientId, entry);
+        writePriorityLocal(id, entry);
         return entry;
       }
       if (data.ok && data.date === date && !data.text) {
@@ -914,14 +927,15 @@ async function loadTodayPriority(clientId, date) {
       }
     }
   } catch {/* ignore */}
-  return readPriorityLocal(clientId, date);
+  return readPriorityLocal(id, date);
 }
 async function saveTodayPriority(clientId, date, text) {
+  const id = clientId || getOrCreateDeviceId();
   const entry = {
     date,
     text: text.trim()
   };
-  writePriorityLocal(clientId, entry);
+  writePriorityLocal(id, entry);
   try {
     await fetch("/api/priority", {
       method: "POST",
@@ -6334,7 +6348,8 @@ function PriorityModal({
 }) {
   const [text, setText] = useState(initialText || "");
   const [warn, setWarn] = useState("");
-  const canClose = !required;
+  const [saving, setSaving] = useState(false);
+  const canClose = !required && !saving;
   const tryClose = () => {
     if (canClose) onClose();
   };
@@ -6346,13 +6361,19 @@ function PriorityModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [canClose, onClose]);
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!text.trim()) {
       setWarn("请先填写今日最优先工作，保存后才能关闭。");
       return;
     }
     setWarn("");
-    onSave(text);
+    setSaving(true);
+    try {
+      await onSave(text);
+    } catch (e) {
+      setWarn(e?.message || "保存失败，请重试");
+      setSaving(false);
+    }
   };
   return /*#__PURE__*/React.createElement("div", {
     onClick: canClose ? tryClose : undefined,
@@ -6446,18 +6467,19 @@ function PriorityModal({
   }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: handleSave,
+    disabled: saving,
     style: {
-      background: "#2d7dd2",
+      background: saving ? "#94a3b8" : "#2d7dd2",
       border: "none",
       borderRadius: 8,
       padding: "7px 16px",
       fontSize: 12,
-      cursor: "pointer",
+      cursor: saving ? "wait" : "pointer",
       fontFamily: "inherit",
       color: "#fff",
       fontWeight: 600
     }
-  }, "\u4FDD\u5B58"))));
+  }, saving ? "保存中…" : "保存"))));
 }
 
 // ─── HOME MODULE ───────────────────────────────────────────────────────
@@ -6493,8 +6515,14 @@ function HomePanel() {
   }, [today]);
   const handleSavePriority = async text => {
     const trimmed = text.trim();
-    if (!trimmed || !clientId) return;
-    const entry = await saveTodayPriority(clientId, today, trimmed);
+    if (!trimmed) return;
+    let id = clientId;
+    if (!id) {
+      id = await resolveClientId();
+      setClientId(id);
+    }
+    if (!id) throw new Error("无法识别本机，请刷新页面后重试");
+    const entry = await saveTodayPriority(id, today, trimmed);
     setPriority(entry);
     setShowModal(false);
   };
@@ -7511,7 +7539,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "☁️ cloud-8";
+const APP_BUILD = "☁️ cloud-9";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {

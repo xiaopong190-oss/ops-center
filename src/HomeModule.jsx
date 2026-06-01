@@ -437,8 +437,9 @@ function useNow(tickMs = 1000) {
 function PriorityModal({ initialText, onSave, onClose, requiredHint, required }) {
   const [text, setText] = useState(initialText || "");
   const [warn, setWarn] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const canClose = !required;
+  const canClose = !required && !saving;
 
   const tryClose = () => {
     if (canClose) onClose();
@@ -451,13 +452,19 @@ function PriorityModal({ initialText, onSave, onClose, requiredHint, required })
     return () => window.removeEventListener("keydown", onKey);
   }, [canClose, onClose]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!text.trim()) {
       setWarn("请先填写今日最优先工作，保存后才能关闭。");
       return;
     }
     setWarn("");
-    onSave(text);
+    setSaving(true);
+    try {
+      await onSave(text);
+    } catch (e) {
+      setWarn(e?.message || "保存失败，请重试");
+      setSaving(false);
+    }
   };
 
   return (
@@ -482,7 +489,7 @@ function PriorityModal({ initialText, onSave, onClose, requiredHint, required })
           {canClose && (
             <button type="button" onClick={tryClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
           )}
-          <button type="button" onClick={handleSave} style={{ background: "#2d7dd2", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "#fff", fontWeight: 600 }}>保存</button>
+          <button type="button" onClick={handleSave} disabled={saving} style={{ background: saving ? "#94a3b8" : "#2d7dd2", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "#fff", fontWeight: 600 }}>{saving ? "保存中…" : "保存"}</button>
         </div>
       </div>
     </div>
@@ -520,8 +527,14 @@ export function HomePanel() {
 
   const handleSavePriority = async (text) => {
     const trimmed = text.trim();
-    if (!trimmed || !clientId) return;
-    const entry = await saveTodayPriority(clientId, today, trimmed);
+    if (!trimmed) return;
+    let id = clientId;
+    if (!id) {
+      id = await resolveClientId();
+      setClientId(id);
+    }
+    if (!id) throw new Error("无法识别本机，请刷新页面后重试");
+    const entry = await saveTodayPriority(id, today, trimmed);
     setPriority(entry);
     setShowModal(false);
   };

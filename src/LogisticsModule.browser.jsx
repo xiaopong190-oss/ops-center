@@ -455,6 +455,21 @@ function formatSharedTime(ts) {
 }
 
 const CLIENT_ID_KEY = "ops-center-client-id";
+const DEVICE_ID_KEY = "ops-center-device-id";
+
+function getOrCreateDeviceId() {
+  try {
+    const cached = localStorage.getItem(DEVICE_ID_KEY);
+    if (cached) return cached;
+    const id = typeof crypto !== "undefined" && crypto.randomUUID
+      ? `dev-${crypto.randomUUID()}`
+      : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(DEVICE_ID_KEY, id);
+    return id;
+  } catch {
+    return `dev-${Date.now()}`;
+  }
+}
 
 function isPrivateLanIp(ip) {
   if (!ip || typeof ip !== "string") return false;
@@ -547,11 +562,12 @@ async function resolveClientId() {
     return lanIp;
   }
 
-  return "";
+  return getOrCreateDeviceId();
 }
 
 async function loadTodayPriority(clientId, date) {
-  if (!clientId) return { date: "", text: "" };
+  const id = clientId || getOrCreateDeviceId();
+  if (!id) return { date: "", text: "" };
 
   try {
     const res = await fetch(`/api/priority?date=${encodeURIComponent(date)}`);
@@ -559,7 +575,7 @@ async function loadTodayPriority(clientId, date) {
       const data = await res.json();
       if (data.ok && data.date === date && data.text) {
         const entry = { date: data.date, text: data.text };
-        writePriorityLocal(clientId, entry);
+        writePriorityLocal(id, entry);
         return entry;
       }
       if (data.ok && data.date === date && !data.text) {
@@ -568,12 +584,13 @@ async function loadTodayPriority(clientId, date) {
     }
   } catch { /* ignore */ }
 
-  return readPriorityLocal(clientId, date);
+  return readPriorityLocal(id, date);
 }
 
 async function saveTodayPriority(clientId, date, text) {
+  const id = clientId || getOrCreateDeviceId();
   const entry = { date, text: text.trim() };
-  writePriorityLocal(clientId, entry);
+  writePriorityLocal(id, entry);
 
   try {
     await fetch("/api/priority", {

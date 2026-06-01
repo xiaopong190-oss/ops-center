@@ -60,7 +60,7 @@ Get-ChildItem -Path $root -Filter "*.bat" | ForEach-Object { & git add $_.FullNa
 $staged = & git diff --cached --name-only
 if ($staged) {
   Log "git commit"
-  & git commit -m "fix: JSONBin cloud sync and cloud-8 status bar for GitHub Pages"
+  & git commit -m "fix: cloud-14 tab keep-alive — stop tasks/logistics/production auto collapse"
   if ($LASTEXITCODE -ne 0) { Log "FAIL commit"; exit 1 }
 } else {
   Log "nothing new to commit"
@@ -76,5 +76,5 @@ if (-not $pushOk) {
 
 Log "DONE OK"
 Log "Wait 1-2 min, Ctrl+F5: https://xiaopong190-oss.github.io/ops-center/"
-Log "Look for cloud-8 badge top-left"
+Log "Look for cloud-14 badge top-left"
 exit 0

@@ -315,7 +315,6 @@ function loadGlobalConfig() {
       localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({
         staff
       }));
-      window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
     }
     return {
       staff
@@ -7539,7 +7538,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "☁️ cloud-9";
+const APP_BUILD = "cloud-14";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {
@@ -7657,9 +7656,6 @@ function App() {
   const [tab, setTab] = useState("home");
   const [dark, setDark] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState(null);
-  const {
-    version: configVersion
-  } = useGlobalConfig();
   const css = {
     "--bg": dark ? "#111" : "#f8f8f6",
     "--card": dark ? "#1c1c1c" : "#fff",
@@ -7762,13 +7758,31 @@ function App() {
       fontFamily: "inherit",
       marginBottom: -1
     }
-  }, t.label))), tab === "home" && /*#__PURE__*/React.createElement(HomePanel, null), tab === "tasks" && /*#__PURE__*/React.createElement(TasksPanel, {
-    key: configVersion
-  }), tab === "logistics" && /*#__PURE__*/React.createElement(LogisticsPanel, {
-    key: configVersion
-  }), tab === "production" && /*#__PURE__*/React.createElement(ProductionPanel, {
-    key: configVersion
-  }), tab === "tools" && /*#__PURE__*/React.createElement(ToolsPanel, null), tab === "agents" && /*#__PURE__*/React.createElement(AgentsPanel, null)), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
+  }, t.label))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: tab === "home" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(HomePanel, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: tab === "tasks" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(TasksPanel, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: tab === "logistics" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(LogisticsPanel, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: tab === "production" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(ProductionPanel, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: tab === "tools" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(ToolsPanel, null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: tab === "agents" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(AgentsPanel, null)), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
     onClose: () => setSettingsPanel(null),
     onSaved: () => setSettingsPanel(null)
   })));

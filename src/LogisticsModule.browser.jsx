@@ -15,6 +15,20 @@ const Avatar = ({ name, size = 24 }) => {
   return (<div style={{ width: size, height: size, borderRadius: "50%", background: bg, color: tx, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.42, fontWeight: 700, flexShrink: 0 }}>{(name || "?").slice(0, 1)}</div>);
 };
 
+const LOG_EXPAND_KEY = "ops-logistics-expanded";
+
+function loadExpandedState() {
+  try {
+    const raw = sessionStorage.getItem(LOG_EXPAND_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return { 1: true };
+}
+
+function saveExpandedState(state) {
+  try { sessionStorage.setItem(LOG_EXPAND_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+}
+
 // ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────
 const CONFIG_STORAGE_KEY = "ops-center-global-config";
 
@@ -203,7 +217,6 @@ function loadGlobalConfig() {
     const staff = parsed.staff.map(normalizeStaffEntry).filter(e => e.name);
     if (JSON.stringify(parsed.staff) !== JSON.stringify(staff)) {
       localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({ staff }));
-      window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
     }
     return { staff };
   } catch {
@@ -1144,8 +1157,13 @@ function LogisticsPanel() {
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
-  const [expanded, setExpanded] = useState({ 1: true });
+  const [expanded, setExpanded] = useState(loadExpandedState);
   const panelCsvRef = useRef(null);
+  const toggleExpanded = (id) => setExpanded(prev => {
+    const next = { ...prev, [id]: !prev[id] };
+    saveExpandedState(next);
+    return next;
+  });
   const nextId = () => Math.max(0, ...items.map(i => i.id || 0)) + 1;
   const counts = {
     all: items.length,
@@ -1232,7 +1250,7 @@ function LogisticsPanel() {
             key={g.id}
             group={g}
             expanded={!!expanded[g.id]}
-            onToggleExpand={() => setExpanded(e => ({ ...e, [g.id]: !e[g.id] }))}
+            onToggleExpand={() => toggleExpanded(g.id)}
             onEdit={() => setModal(cloneGroup(g))}
             onEditTracking={editTracking}
           />

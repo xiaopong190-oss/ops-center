@@ -17,6 +17,20 @@ const Avatar = ({ name, size = 24 }) => {
   return (<div style={{ width: size, height: size, borderRadius: "50%", background: bg, color: tx, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.42, fontWeight: 700, flexShrink: 0 }}>{(name || "?").slice(0, 1)}</div>);
 };
 
+const LOG_EXPAND_KEY = "ops-logistics-expanded";
+
+function loadExpandedState() {
+  try {
+    const raw = sessionStorage.getItem(LOG_EXPAND_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return { 1: true };
+}
+
+function saveExpandedState(state) {
+  try { sessionStorage.setItem(LOG_EXPAND_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+}
+
 // ─── LOGISTICS MODULE (Shipment Group + FBA) ─────────────────────────
 const HEAD_STAGES = ["备货中", "已出港", "在途", "已到港"];
 const HEAD_STAGE_SHORT = { 备货中: "备货", 已出港: "出港", 在途: "在途", 已到港: "到港" };
@@ -375,8 +389,13 @@ export function LogisticsPanel() {
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
-  const [expanded, setExpanded] = useState({ 1: true });
+  const [expanded, setExpanded] = useState(loadExpandedState);
   const panelCsvRef = useRef(null);
+  const toggleExpanded = (id) => setExpanded(prev => {
+    const next = { ...prev, [id]: !prev[id] };
+    saveExpandedState(next);
+    return next;
+  });
   const nextId = () => Math.max(0, ...items.map(i => i.id || 0)) + 1;
   const counts = {
     all: items.length,
@@ -463,7 +482,7 @@ export function LogisticsPanel() {
             key={g.id}
             group={g}
             expanded={!!expanded[g.id]}
-            onToggleExpand={() => setExpanded(e => ({ ...e, [g.id]: !e[g.id] }))}
+            onToggleExpand={() => toggleExpanded(g.id)}
             onEdit={() => setModal(cloneGroup(g))}
             onEditTracking={editTracking}
           />

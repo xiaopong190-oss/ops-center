@@ -213,7 +213,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-12";
+const APP_BUILD = "cloud-13";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -266,7 +266,7 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [dark, setDark] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState(null);
-  const { version: configVersion } = useGlobalConfig();
+  useGlobalConfig();
   const css = { "--bg": dark ? "#111" : "#f8f8f6", "--card": dark ? "#1c1c1c" : "#fff", "--border": dark ? "#2a2a2a" : "#e5e5e5", "--text": dark ? "#eee" : "#111", "--tm": dark ? "#777" : "#888" };
   if (!authed) {
     return <LoginScreen onSuccess={() => { setCurrentUserState(getCurrentUser()); setAuthed(true); }} />;
@@ -290,9 +290,9 @@ export default function App() {
           {TABS.map(t => (<button key={t.key} onClick={() => setTab(t.key)} style={{ background: "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent", padding: "8px 18px", fontSize: 13, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? "#2d7dd2" : "var(--tm)", cursor: "pointer", fontFamily: "inherit", marginBottom: -1 }}>{t.label}</button>))}
         </div>
         <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
-        <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel key={configVersion} /></div>
-        <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel key={configVersion} /></div>
-        <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel key={configVersion} /></div>
+        <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel /></div>
+        <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel /></div>
+        <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel /></div>
         <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel /></div>
         <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel /></div>
       </div>

@@ -187,7 +187,6 @@ export function loadGlobalConfig() {
     const staff = parsed.staff.map(normalizeStaffEntry).filter(e => e.name);
     if (JSON.stringify(parsed.staff) !== JSON.stringify(staff)) {
       localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({ staff }));
-      window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
     }
     return { staff };
   } catch {

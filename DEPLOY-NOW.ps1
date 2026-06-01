@@ -1,4 +1,4 @@
-# Deploy cloud-17 to GitHub Pages
+# Deploy cloud-18 to GitHub Pages
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -6,7 +6,7 @@ $log = Join-Path $root "_push-log.txt"
 "" | Set-Content $log -Encoding utf8
 function Log($s) { $line = "[$(Get-Date -Format 'HH:mm:ss')] $s"; Write-Host $line; Add-Content $log $line }
 
-Log "DEPLOY cloud-17 start"
+Log "DEPLOY cloud-18 start"
 
 Log "sync-browser.mjs"
 & node sync-browser.mjs 2>&1 | ForEach-Object { Log $_ }
@@ -17,7 +17,7 @@ Log "build-browser-bundle.mjs"
 
 if (Test-Path "app.bundle.js") {
   $txt = Get-Content "app.bundle.js" -Raw
-  if ($txt -notmatch "cloud-17") { Log "WARN: bundle missing cloud-17 (Pages will use runtime jsx)" }
+  if ($txt -notmatch "cloud-18") { Log "WARN: bundle missing cloud-18 (Pages will use runtime jsx)" }
   if ($txt -match "key: configVersion") { Log "WARN: bundle still has configVersion" }
 }
 
@@ -40,7 +40,7 @@ Get-ChildItem -Path $root -Filter "*.bat" | ForEach-Object { & git add $_.FullNa
 
 $staged = @(git diff --cached --name-only 2>$null)
 if ($staged.Count -gt 0) {
-  & git commit -m "fix: cloud-17 — refresh button and active-tab cloud sync only" 2>&1 | ForEach-Object { Log $_ }
+  & git commit -m "fix: cloud-18 — Pages snapshot fallback for cloud data in CN" 2>&1 | ForEach-Object { Log $_ }
 } else {
   Log "nothing new to commit"
 }
@@ -58,6 +58,6 @@ if (-not $pushOk) {
   exit 1
 }
 
-Log "DONE OK — wait 1-2 min, Ctrl+F5, look for cloud-17"
+Log "DONE OK — wait 1-2 min, Ctrl+F5, look for cloud-18"
 Read-Host "Press Enter"
 exit 0

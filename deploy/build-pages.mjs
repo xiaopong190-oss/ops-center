@@ -72,7 +72,7 @@ try {
 const bundlePath = path.join(root, "app.bundle.js");
 if (fs.existsSync(bundlePath)) {
   const bundle = fs.readFileSync(bundlePath, "utf8");
-  if (!bundle.includes("cloud-17") || bundle.includes("key: configVersion")) {
+  if (!bundle.includes("cloud-18") || bundle.includes("key: configVersion")) {
     console.warn("bundle outdated — Pages will use runtime .browser.jsx instead");
     fs.unlinkSync(bundlePath);
   }
@@ -92,6 +92,13 @@ if (isWin) {
 console.log("==> build docs/");
 rmrf(out);
 mkdirp(out);
+
+console.log("==> sync cloud snapshots (Pages fallback for CN)");
+try {
+  run("node deploy/sync-cloud-snapshot.mjs");
+} catch (e) {
+  console.warn("cloud snapshot skipped:", e?.message || e);
+}
 
 const staticFiles = [
   "app.html",

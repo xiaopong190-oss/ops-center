@@ -338,6 +338,13 @@ export function SharedMetaLine({ meta, style, onReload, loading, error }) {
     border = "#fca5a5";
     color = "#991b1b";
     text = `❌ ${error}`;
+  } else if (meta?._source === "snapshot") {
+    bg = "#eff6ff";
+    border = "#93c5fd";
+    color = "#1e40af";
+    text = meta?.updatedBy
+      ? `📦 已从 Pages 快照加载 · 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)}（国内只读，改数据需 VPN）`
+      : "📦 已从 Pages 快照加载（国内只读，改数据需 VPN）";
   } else if (meta?._source === "cloud") {
     bg = "#ecfdf5";
     border = "#6ee7b7";

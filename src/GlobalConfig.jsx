@@ -58,19 +58,38 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchJsonBinLatest(binId) {
+async function fetchJsonBinLatest(binId, storageKey) {
+  const url = `${JSONBIN_API_BASE}/${binId}/latest`;
+  const headers = { "X-Master-Key": JSONBIN_API_KEY };
+  const attempts = [
+    { via: "cloud", run: () => fetchWithTimeout(url, { headers }) },
+    { via: "proxy", run: () => fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, { headers }) },
+    { via: "snapshot", run: () => fetchWithTimeout(`data/shared-${storageKey}.json?v=${Date.now()}`, { cache: "no-store" }) },
+  ];
+
+  let lastErr = "网络错误";
+  for (const { via, run } of attempts) {
+    try {
+      const res = await run();
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const record = json.record != null ? json.record : json;
+      const normalized = normalizeSharedRecord(record);
+      if (!normalized) return null;
+      return { ...normalized, _via: via };
+    } catch (e) {
+      lastErr = e?.name === "AbortError" ? "连接超时" : (e?.message || "网络错误");
+    }
+  }
+  throw new Error(lastErr);
+}
+
+async function fetchWithTimeout(url, opts = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 12000);
   try {
-    const res = await fetch(`${JSONBIN_API_BASE}/${binId}/latest`, {
-      headers: { "X-Master-Key": JSONBIN_API_KEY },
-      cache: "no-store",
-      signal: ctrl.signal,
-    });
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`JSONBin ${res.status}`);
-    const json = await res.json();
-    return normalizeSharedRecord(json.record);
+    return await fetch(url, { ...opts, signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -85,10 +104,12 @@ export const sharedStorage = {
     for (let attempt = 0; attempt < retries; attempt++) {
       if (attempt > 0) await sleep(800 * attempt);
       try {
-        const normalized = await fetchJsonBinLatest(binId);
+        const normalized = await fetchJsonBinLatest(binId, key);
         if (normalized) {
           sharedLocalSet(key, normalized.data, normalized.updatedBy);
-          return { ...normalized, _source: "cloud" };
+          const source = normalized._via === "snapshot" ? "snapshot" : "cloud";
+          const { _via, ...rest } = normalized;
+          return { ...rest, _source: source };
         }
         return null;
       } catch (e) {

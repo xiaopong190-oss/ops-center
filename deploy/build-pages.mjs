@@ -72,7 +72,7 @@ try {
 const bundlePath = path.join(root, "app.bundle.js");
 if (fs.existsSync(bundlePath)) {
   const bundle = fs.readFileSync(bundlePath, "utf8");
-  if (!bundle.includes("cloud-15") || bundle.includes("key: configVersion")) {
+  if (!bundle.includes("cloud-17") || bundle.includes("key: configVersion")) {
     console.warn("bundle outdated — Pages will use runtime .browser.jsx instead");
     fs.unlinkSync(bundlePath);
   }

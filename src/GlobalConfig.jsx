@@ -54,30 +54,62 @@ function notifySharedUpdated(key) {
   window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchJsonBinLatest(binId) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const res = await fetch(`${JSONBIN_API_BASE}/${binId}/latest`, {
+      headers: { "X-Master-Key": JSONBIN_API_KEY },
+      cache: "no-store",
+      signal: ctrl.signal,
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`JSONBin ${res.status}`);
+    const json = await res.json();
+    return normalizeSharedRecord(json.record);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const sharedStorage = {
-  async get(key) {
+  async get(key, { retries = 3 } = {}) {
     const binId = resolveJsonBinId(key);
     if (!binId) return sharedLocalGet(key);
 
-    try {
-      const res = await fetch(`${JSONBIN_API_BASE}/${binId}/latest`, {
-        headers: { "X-Master-Key": JSONBIN_API_KEY },
-        cache: "no-store",
-      });
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`JSONBin GET ${res.status}`);
-      const json = await res.json();
-      const normalized = normalizeSharedRecord(json.record);
-      if (normalized) {
-        sharedLocalSet(key, normalized.data, normalized.updatedBy);
-        return { ...normalized, _source: "cloud" };
+    let lastErr = "网络错误";
+    for (let attempt = 0; attempt < retries; attempt++) {
+      if (attempt > 0) await sleep(800 * attempt);
+      try {
+        const normalized = await fetchJsonBinLatest(binId);
+        if (normalized) {
+          sharedLocalSet(key, normalized.data, normalized.updatedBy);
+          return { ...normalized, _source: "cloud" };
+        }
+        return null;
+      } catch (e) {
+        lastErr = e?.name === "AbortError" ? "连接超时" : (e?.message || "网络错误");
       }
-      return null;
-    } catch {
-      const local = sharedLocalGet(key);
-      if (local) return { ...local, _source: "local-fallback" };
-      return null;
     }
+
+    const local = sharedLocalGet(key);
+    const normalized = normalizeSharedRecord(local);
+    if (normalized && Array.isArray(normalized.data) && normalized.data.length === 0) {
+      return {
+        data: null,
+        updatedBy: "",
+        updatedAt: 0,
+        _source: "local-fallback",
+        _cloudError: lastErr,
+        _emptyLocalIgnored: true,
+      };
+    }
+    if (normalized) return { ...normalized, _source: "local-fallback", _cloudError: lastErr };
+    return { data: null, updatedBy: "", updatedAt: 0, _source: "local-fallback", _cloudError: lastErr };
   },
 
   async set(key, value, updatedBy) {

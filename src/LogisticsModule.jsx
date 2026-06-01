@@ -384,8 +384,8 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
     </div>
   );
 }
-export function LogisticsPanel() {
-  const { items, meta, loading, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS);
+export function LogisticsPanel({ active = true }) {
+  const { items, meta, loading, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS, { active });
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");

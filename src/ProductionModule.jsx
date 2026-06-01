@@ -268,8 +268,8 @@ function ProductGroup({ product, name, batches, onEdit }) {
   );
 }
 
-export function ProductionPanel() {
-  const { items, meta, loading, error, persist, reload } = useSharedList("production", INIT_PROD.map(b => ({ ...b, stage: normalizeStage(b.stage) })));
+export function ProductionPanel({ active = true }) {
+  const { items, meta, loading, error, persist, reload } = useSharedList("production", INIT_PROD.map(b => ({ ...b, stage: normalizeStage(b.stage) })), { active });
   const [modal, setModal] = useState(null);
   const [tabFilter, setTabFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");

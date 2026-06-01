@@ -108,8 +108,8 @@ function TaskCard({ task, onClick }) {
   );
 }
 
-function TasksPanel() {
-  const { items: tasks, meta, loading, error, persist, reload } = useSharedList("tasks", INIT_TASKS);
+function TasksPanel({ active = true }) {
+  const { items: tasks, meta, loading, error, persist, reload } = useSharedList("tasks", INIT_TASKS, { active });
   const [filter, setFilter] = useState("all");
   const [modal, setModal] = useState(null);
   const nextId = () => Math.max(0, ...tasks.map(t => t.id || 0)) + 1;
@@ -188,7 +188,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-15";
+const APP_BUILD = "cloud-17";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -264,9 +264,9 @@ function App() {
           {TABS.map(t => (<button key={t.key} onClick={() => setTab(t.key)} style={{ background: "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent", padding: "8px 18px", fontSize: 13, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? "#2d7dd2" : "var(--tm)", cursor: "pointer", fontFamily: "inherit", marginBottom: -1 }}>{t.label}</button>))}
         </div>
         <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
-        <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel /></div>
-        <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel /></div>
-        <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel /></div>
+        <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
+        <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
+        <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
         <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel /></div>
         <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel /></div>
       </div>

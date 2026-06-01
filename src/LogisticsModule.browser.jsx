@@ -84,30 +84,62 @@ function notifySharedUpdated(key) {
   window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchJsonBinLatest(binId) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const res = await fetch(`${JSONBIN_API_BASE}/${binId}/latest`, {
+      headers: { "X-Master-Key": JSONBIN_API_KEY },
+      cache: "no-store",
+      signal: ctrl.signal,
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`JSONBin ${res.status}`);
+    const json = await res.json();
+    return normalizeSharedRecord(json.record);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const sharedStorage = {
-  async get(key) {
+  async get(key, { retries = 3 } = {}) {
     const binId = resolveJsonBinId(key);
     if (!binId) return sharedLocalGet(key);
 
-    try {
-      const res = await fetch(`${JSONBIN_API_BASE}/${binId}/latest`, {
-        headers: { "X-Master-Key": JSONBIN_API_KEY },
-        cache: "no-store",
-      });
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`JSONBin GET ${res.status}`);
-      const json = await res.json();
-      const normalized = normalizeSharedRecord(json.record);
-      if (normalized) {
-        sharedLocalSet(key, normalized.data, normalized.updatedBy);
-        return { ...normalized, _source: "cloud" };
+    let lastErr = "网络错误";
+    for (let attempt = 0; attempt < retries; attempt++) {
+      if (attempt > 0) await sleep(800 * attempt);
+      try {
+        const normalized = await fetchJsonBinLatest(binId);
+        if (normalized) {
+          sharedLocalSet(key, normalized.data, normalized.updatedBy);
+          return { ...normalized, _source: "cloud" };
+        }
+        return null;
+      } catch (e) {
+        lastErr = e?.name === "AbortError" ? "连接超时" : (e?.message || "网络错误");
       }
-      return null;
-    } catch {
-      const local = sharedLocalGet(key);
-      if (local) return { ...local, _source: "local-fallback" };
-      return null;
     }
+
+    const local = sharedLocalGet(key);
+    const normalized = normalizeSharedRecord(local);
+    if (normalized && Array.isArray(normalized.data) && normalized.data.length === 0) {
+      return {
+        data: null,
+        updatedBy: "",
+        updatedAt: 0,
+        _source: "local-fallback",
+        _cloudError: lastErr,
+        _emptyLocalIgnored: true,
+      };
+    }
+    if (normalized) return { ...normalized, _source: "local-fallback", _cloudError: lastErr };
+    return { data: null, updatedBy: "", updatedAt: 0, _source: "local-fallback", _cloudError: lastErr };
   },
 
   async set(key, value, updatedBy) {
@@ -638,37 +670,49 @@ async function saveTodayPriority(clientId, date, text) {
   return entry;
 }
 
-function useSharedList(storageKey, defaultData) {
-  const read = useCallback(async () => {
+function resolveSharedListData(raw, defaultData) {
+  if (raw?.data == null) return defaultData;
+  if (raw._source === "local-fallback" && Array.isArray(raw.data) && raw.data.length === 0) {
+    return defaultData;
+  }
+  return raw.data;
+}
+
+function useSharedList(storageKey, defaultData, { active = true } = {}) {
+  const read = useCallback(async (retries = 3) => {
     try {
-      const raw = await sharedStorage.get(storageKey);
-      const data = raw?.data != null ? raw.data : defaultData;
+      const raw = await sharedStorage.get(storageKey, { retries });
+      const data = resolveSharedListData(raw, defaultData);
       return { data, meta: raw, error: "" };
     } catch (e) {
       return { data: defaultData, meta: null, error: e?.message || "读取失败" };
     }
   }, [storageKey, defaultData]);
 
-  const [state, setState] = useState({ data: defaultData, meta: null, loading: true, error: "" });
+  const [state, setState] = useState({ data: defaultData, meta: null, loading: false, error: "" });
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
+    setState(prev => ({ ...prev, loading: true, error: "" }));
     (async () => {
       const next = await read();
       if (!cancelled) setState({ ...next, loading: false });
     })();
     return () => { cancelled = true; };
-  }, [read]);
+  }, [read, active]);
 
   useEffect(() => {
     const handler = () => {
+      if (!active) return;
       read().then(next => setState({ ...next, loading: false }));
     };
     window.addEventListener(`ops-shared-updated:${storageKey}`, handler);
     return () => window.removeEventListener(`ops-shared-updated:${storageKey}`, handler);
-  }, [storageKey, read]);
+  }, [storageKey, read, active]);
 
   useEffect(() => {
+    if (!active) return;
     const refresh = () => read().then(next => setState({ ...next, loading: false }));
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
@@ -681,7 +725,7 @@ function useSharedList(storageKey, defaultData) {
       document.removeEventListener("visibilitychange", onVisible);
       clearInterval(timer);
     };
-  }, [read]);
+  }, [read, active]);
 
   const persist = useCallback(async (data) => {
     setState(prev => ({
@@ -694,7 +738,7 @@ function useSharedList(storageKey, defaultData) {
       await sharedStorage.set(storageKey, data, getCurrentUser().name);
       const raw = await sharedStorage.get(storageKey);
       setState({
-        data: raw?.data != null ? raw.data : data,
+        data: resolveSharedListData(raw, data),
         meta: raw,
         loading: false,
         error: "",
@@ -710,9 +754,15 @@ function useSharedList(storageKey, defaultData) {
   }, [storageKey]);
 
   const reload = useCallback(async () => {
-    const next = await read();
-    setState({ ...next, loading: false });
-  }, [read]);
+    setState(prev => ({ ...prev, loading: true, error: "" }));
+    try { localStorage.removeItem(`shared:${storageKey}`); } catch { /* ignore */ }
+    try {
+      const next = await read(5);
+      setState({ ...next, loading: false });
+    } catch (e) {
+      setState(prev => ({ ...prev, loading: false, error: e?.message || "刷新失败" }));
+    }
+  }, [read, storageKey]);
 
   return { items: state.data, meta: state.meta, loading: state.loading, error: state.error, persist, reload };
 }
@@ -744,7 +794,9 @@ function SharedMetaLine({ meta, style, onReload, loading, error }) {
     bg = "#fffbeb";
     border = "#fcd34d";
     color = "#92400e";
-    text = "⚠️ 云端暂不可用，当前显示本机缓存";
+    const hint = meta._cloudError || "请检查网络";
+    const emptyNote = meta._emptyLocalIgnored ? " · 已忽略空的本机缓存" : "";
+    text = `⚠️ 云端暂不可用（${hint}${emptyNote}）· 请开 VPN 后点「立即刷新」`;
   } else if (meta?._source === "local") {
     bg = "#f3f4f6";
     border = "#d1d5db";
@@ -768,23 +820,32 @@ function SharedMetaLine({ meta, style, onReload, loading, error }) {
       justifyContent: "space-between",
       gap: 10,
       flexWrap: "wrap",
+      position: "relative",
+      zIndex: 2,
       ...style,
     }}>
-      <span>{text}</span>
-      {onReload && !loading && (
-        <button type="button" onClick={onReload} style={{
-          background: "#fff",
-          border: `1px solid ${border}`,
-          borderRadius: 6,
-          padding: "4px 10px",
-          fontSize: 11,
-          cursor: "pointer",
-          fontFamily: "inherit",
-          color,
-          fontWeight: 600,
-          flexShrink: 0,
-        }}>
-          立即刷新
+      <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+      {onReload && (
+        <button
+          type="button"
+          disabled={loading}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReload(); }}
+          style={{
+            background: "#fff",
+            border: `1px solid ${border}`,
+            borderRadius: 6,
+            padding: "6px 12px",
+            fontSize: 11,
+            cursor: loading ? "wait" : "pointer",
+            fontFamily: "inherit",
+            color,
+            fontWeight: 600,
+            flexShrink: 0,
+            opacity: loading ? 0.75 : 1,
+            minWidth: 72,
+          }}
+        >
+          {loading ? "刷新中…" : "立即刷新"}
         </button>
       )}
     </div>
@@ -1152,8 +1213,8 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
     </div>
   );
 }
-function LogisticsPanel() {
-  const { items, meta, loading, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS);
+function LogisticsPanel({ active = true }) {
+  const { items, meta, loading, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS, { active });
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");

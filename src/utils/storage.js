@@ -225,37 +225,49 @@ export async function saveTodayPriority(clientId, date, text) {
   return entry;
 }
 
-export function useSharedList(storageKey, defaultData) {
-  const read = useCallback(async () => {
+function resolveSharedListData(raw, defaultData) {
+  if (raw?.data == null) return defaultData;
+  if (raw._source === "local-fallback" && Array.isArray(raw.data) && raw.data.length === 0) {
+    return defaultData;
+  }
+  return raw.data;
+}
+
+export function useSharedList(storageKey, defaultData, { active = true } = {}) {
+  const read = useCallback(async (retries = 3) => {
     try {
-      const raw = await sharedStorage.get(storageKey);
-      const data = raw?.data != null ? raw.data : defaultData;
+      const raw = await sharedStorage.get(storageKey, { retries });
+      const data = resolveSharedListData(raw, defaultData);
       return { data, meta: raw, error: "" };
     } catch (e) {
       return { data: defaultData, meta: null, error: e?.message || "读取失败" };
     }
   }, [storageKey, defaultData]);
 
-  const [state, setState] = useState({ data: defaultData, meta: null, loading: true, error: "" });
+  const [state, setState] = useState({ data: defaultData, meta: null, loading: false, error: "" });
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
+    setState(prev => ({ ...prev, loading: true, error: "" }));
     (async () => {
       const next = await read();
       if (!cancelled) setState({ ...next, loading: false });
     })();
     return () => { cancelled = true; };
-  }, [read]);
+  }, [read, active]);
 
   useEffect(() => {
     const handler = () => {
+      if (!active) return;
       read().then(next => setState({ ...next, loading: false }));
     };
     window.addEventListener(`ops-shared-updated:${storageKey}`, handler);
     return () => window.removeEventListener(`ops-shared-updated:${storageKey}`, handler);
-  }, [storageKey, read]);
+  }, [storageKey, read, active]);
 
   useEffect(() => {
+    if (!active) return;
     const refresh = () => read().then(next => setState({ ...next, loading: false }));
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
@@ -268,7 +280,7 @@ export function useSharedList(storageKey, defaultData) {
       document.removeEventListener("visibilitychange", onVisible);
       clearInterval(timer);
     };
-  }, [read]);
+  }, [read, active]);
 
   const persist = useCallback(async (data) => {
     setState(prev => ({
@@ -281,7 +293,7 @@ export function useSharedList(storageKey, defaultData) {
       await sharedStorage.set(storageKey, data, getCurrentUser().name);
       const raw = await sharedStorage.get(storageKey);
       setState({
-        data: raw?.data != null ? raw.data : data,
+        data: resolveSharedListData(raw, data),
         meta: raw,
         loading: false,
         error: "",
@@ -297,9 +309,15 @@ export function useSharedList(storageKey, defaultData) {
   }, [storageKey]);
 
   const reload = useCallback(async () => {
-    const next = await read();
-    setState({ ...next, loading: false });
-  }, [read]);
+    setState(prev => ({ ...prev, loading: true, error: "" }));
+    try { localStorage.removeItem(`shared:${storageKey}`); } catch { /* ignore */ }
+    try {
+      const next = await read(5);
+      setState({ ...next, loading: false });
+    } catch (e) {
+      setState(prev => ({ ...prev, loading: false, error: e?.message || "刷新失败" }));
+    }
+  }, [read, storageKey]);
 
   return { items: state.data, meta: state.meta, loading: state.loading, error: state.error, persist, reload };
 }
@@ -331,7 +349,9 @@ export function SharedMetaLine({ meta, style, onReload, loading, error }) {
     bg = "#fffbeb";
     border = "#fcd34d";
     color = "#92400e";
-    text = "⚠️ 云端暂不可用，当前显示本机缓存";
+    const hint = meta._cloudError || "请检查网络";
+    const emptyNote = meta._emptyLocalIgnored ? " · 已忽略空的本机缓存" : "";
+    text = `⚠️ 云端暂不可用（${hint}${emptyNote}）· 请开 VPN 后点「立即刷新」`;
   } else if (meta?._source === "local") {
     bg = "#f3f4f6";
     border = "#d1d5db";
@@ -355,23 +375,32 @@ export function SharedMetaLine({ meta, style, onReload, loading, error }) {
       justifyContent: "space-between",
       gap: 10,
       flexWrap: "wrap",
+      position: "relative",
+      zIndex: 2,
       ...style,
     }}>
-      <span>{text}</span>
-      {onReload && !loading && (
-        <button type="button" onClick={onReload} style={{
-          background: "#fff",
-          border: `1px solid ${border}`,
-          borderRadius: 6,
-          padding: "4px 10px",
-          fontSize: 11,
-          cursor: "pointer",
-          fontFamily: "inherit",
-          color,
-          fontWeight: 600,
-          flexShrink: 0,
-        }}>
-          立即刷新
+      <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+      {onReload && (
+        <button
+          type="button"
+          disabled={loading}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReload(); }}
+          style={{
+            background: "#fff",
+            border: `1px solid ${border}`,
+            borderRadius: 6,
+            padding: "6px 12px",
+            fontSize: 11,
+            cursor: loading ? "wait" : "pointer",
+            fontFamily: "inherit",
+            color,
+            fontWeight: 600,
+            flexShrink: 0,
+            opacity: loading ? 0.75 : 1,
+            minWidth: 72,
+          }}
+        >
+          {loading ? "刷新中…" : "立即刷新"}
         </button>
       )}
     </div>

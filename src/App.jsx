@@ -4,7 +4,7 @@ import { ProductionPanel } from "./ProductionModule.jsx";
 import { ToolsPanel } from "./ToolsModule.jsx";
 import { AgentsPanel } from "./AgentsModule.jsx";
 import { HomePanel } from "./HomeModule.jsx";
-import { GlobalSettingsModal, OwnerField, useGlobalConfig, getStaffRole, RoleBadge, getStaffNames } from "./GlobalConfig.jsx";
+import { GlobalSettingsModal, OwnerField, getStaffRole, RoleBadge, getStaffNames } from "./GlobalConfig.jsx";
 import { UserContext } from "./context/UserContext.jsx";
 import { getCurrentUser, setCurrentUser, useSharedList, SharedMetaLine } from "./utils/storage.js";
 
@@ -213,7 +213,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-13";
+const APP_BUILD = "cloud-14";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -266,7 +266,6 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [dark, setDark] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState(null);
-  useGlobalConfig();
   const css = { "--bg": dark ? "#111" : "#f8f8f6", "--card": dark ? "#1c1c1c" : "#fff", "--border": dark ? "#2a2a2a" : "#e5e5e5", "--text": dark ? "#eee" : "#111", "--tm": dark ? "#777" : "#888" };
   if (!authed) {
     return <LoginScreen onSuccess={() => { setCurrentUserState(getCurrentUser()); setAuthed(true); }} />;

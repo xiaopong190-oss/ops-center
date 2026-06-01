@@ -35,12 +35,14 @@
         }
 
         try {
-          var SYNC_VER = "13";
+          var SYNC_VER = "14";
           // 优先预编译 bundle；旧 bundle（无 JSONBin）自动跳过，改用运行时编译
           var bundleRes = await fetch("app.bundle.js?v=" + SYNC_VER);
           if (bundleRes.ok) {
             var js = await bundleRes.text();
-            if (js.indexOf("JSONBIN_API_KEY") >= 0 || js.indexOf("api.jsonbin.io") >= 0) {
+            if ((js.indexOf("JSONBIN_API_KEY") >= 0 || js.indexOf("api.jsonbin.io") >= 0)
+                && js.indexOf("key: configVersion") < 0
+                && js.indexOf("cloud-14") >= 0) {
               prepareRoot();
               (0, eval)(js);
               return;

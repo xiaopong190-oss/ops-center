@@ -375,7 +375,7 @@ export function ProductionPanel() {
           <ProductGroup key={`${g.product}-${g.name}`} product={g.product} name={g.name} batches={g.batches} onEdit={b => setModal(clone(b))} />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>
-      {modal && <ProdModal item={modal} ownerExtras={items.map(i => i.owner)} onSave={save} onClose={() => setModal(null)} onDelete={() => { setItems(items.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      {modal && <ProdModal item={modal} ownerExtras={items.map(i => i.owner)} onSave={save} onClose={() => setModal(null)} onDelete={() => { persist(items.filter(x => x.id !== modal.id)); setModal(null); }} />}
     </div>
   );
 }

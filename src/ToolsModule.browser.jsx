@@ -61,9 +61,6 @@ const toolDisplayName = (tool, customNames = {}) => {
   return (tool.configurableUrl && customNames[tool.id]) ? customNames[tool.id] : tool.name;
 };
 
-const isLocalOpsServer = () =>
-  location.hostname === "localhost" || location.hostname === "127.0.0.1";
-
 const resolveToolUrl = (url) => {
   if (!url) return "";
   try {

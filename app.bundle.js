@@ -84,6 +84,21 @@ const Avatar = ({
     }
   }, (name || "?").slice(0, 1));
 };
+const LOG_EXPAND_KEY = "ops-logistics-expanded";
+function loadExpandedState() {
+  try {
+    const raw = sessionStorage.getItem(LOG_EXPAND_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {/* ignore */}
+  return {
+    1: true
+  };
+}
+function saveExpandedState(state) {
+  try {
+    sessionStorage.setItem(LOG_EXPAND_KEY, JSON.stringify(state));
+  } catch {/* ignore */}
+}
 
 // ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────
 const CONFIG_STORAGE_KEY = "ops-center-global-config";
@@ -802,6 +817,14 @@ function getOrCreateDeviceId() {
     return `dev-${Date.now()}`;
   }
 }
+function isGitHubPages() {
+  return typeof location !== "undefined" && /\.github\.io$/i.test(location.hostname);
+}
+function isLocalOpsServer() {
+  if (typeof location === "undefined") return false;
+  const h = location.hostname;
+  return h === "localhost" || h.startsWith("127.") || isPrivateLanIp(h);
+}
 function isPrivateLanIp(ip) {
   if (!ip || typeof ip !== "string") return false;
   if (ip.startsWith("192.168.") || ip.startsWith("10.")) return true;
@@ -844,7 +867,7 @@ function detectLocalLanIpViaWebRTC() {
       } else {
         finish("");
       }
-    }, 2500);
+    }, 800);
   });
 }
 function priorityLocalKey(clientId, date) {
@@ -881,22 +904,25 @@ async function resolveClientId() {
     if (cached && isPrivateLanIp(cached)) return cached;
     if (cached && !isPrivateLanIp(cached)) localStorage.removeItem(CLIENT_ID_KEY);
   } catch {/* ignore */}
-  try {
-    const res = await fetch("/api/client-id");
-    if (res.ok) {
-      const data = await res.json();
-      if (data.clientId && isPrivateLanIp(data.clientId)) {
-        localStorage.setItem(CLIENT_ID_KEY, data.clientId);
-        return data.clientId;
-      }
-    }
-  } catch {/* ignore */}
-  const lanIp = await detectLocalLanIpViaWebRTC();
-  if (lanIp && isPrivateLanIp(lanIp)) {
+  if (isGitHubPages()) return getOrCreateDeviceId();
+  if (isLocalOpsServer()) {
     try {
-      localStorage.setItem(CLIENT_ID_KEY, lanIp);
+      const res = await fetch("/api/client-id");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.clientId && isPrivateLanIp(data.clientId)) {
+          localStorage.setItem(CLIENT_ID_KEY, data.clientId);
+          return data.clientId;
+        }
+      }
     } catch {/* ignore */}
-    return lanIp;
+    const lanIp = await detectLocalLanIpViaWebRTC();
+    if (lanIp && isPrivateLanIp(lanIp)) {
+      try {
+        localStorage.setItem(CLIENT_ID_KEY, lanIp);
+      } catch {/* ignore */}
+      return lanIp;
+    }
   }
   return getOrCreateDeviceId();
 }
@@ -906,26 +932,28 @@ async function loadTodayPriority(clientId, date) {
     date: "",
     text: ""
   };
-  try {
-    const res = await fetch(`/api/priority?date=${encodeURIComponent(date)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.ok && data.date === date && data.text) {
-        const entry = {
-          date: data.date,
-          text: data.text
-        };
-        writePriorityLocal(id, entry);
-        return entry;
+  if (isLocalOpsServer()) {
+    try {
+      const res = await fetch(`/api/priority?date=${encodeURIComponent(date)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.date === date && data.text) {
+          const entry = {
+            date: data.date,
+            text: data.text
+          };
+          writePriorityLocal(id, entry);
+          return entry;
+        }
+        if (data.ok && data.date === date && !data.text) {
+          return {
+            date: "",
+            text: ""
+          };
+        }
       }
-      if (data.ok && data.date === date && !data.text) {
-        return {
-          date: "",
-          text: ""
-        };
-      }
-    }
-  } catch {/* ignore */}
+    } catch {/* ignore */}
+  }
   return readPriorityLocal(id, date);
 }
 async function saveTodayPriority(clientId, date, text) {
@@ -935,18 +963,24 @@ async function saveTodayPriority(clientId, date, text) {
     text: text.trim()
   };
   writePriorityLocal(id, entry);
-  try {
-    await fetch("/api/priority", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        date,
-        text: entry.text
-      })
-    });
-  } catch {/* ignore */}
+  if (isLocalOpsServer()) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 2000);
+      await fetch("/api/priority", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          date,
+          text: entry.text
+        }),
+        signal: ctrl.signal
+      });
+      clearTimeout(timer);
+    } catch {/* ignore */}
+  }
   return entry;
 }
 function useSharedList(storageKey, defaultData) {
@@ -2480,10 +2514,16 @@ function LogisticsPanel() {
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
-  const [expanded, setExpanded] = useState({
-    1: true
-  });
+  const [expanded, setExpanded] = useState(loadExpandedState);
   const panelCsvRef = useRef(null);
+  const toggleExpanded = id => setExpanded(prev => {
+    const next = {
+      ...prev,
+      [id]: !prev[id]
+    };
+    saveExpandedState(next);
+    return next;
+  });
   const nextId = () => Math.max(0, ...items.map(i => i.id || 0)) + 1;
   const counts = {
     all: items.length,
@@ -2722,10 +2762,7 @@ function LogisticsPanel() {
     key: g.id,
     group: g,
     expanded: !!expanded[g.id],
-    onToggleExpand: () => setExpanded(e => ({
-      ...e,
-      [g.id]: !e[g.id]
-    })),
+    onToggleExpand: () => toggleExpanded(g.id),
     onEdit: () => setModal(cloneGroup(g)),
     onEditTracking: editTracking
   })) : /*#__PURE__*/React.createElement("div", {
@@ -2741,7 +2778,7 @@ function LogisticsPanel() {
     onSave: save,
     onClose: () => setModal(null),
     onDelete: () => {
-      setItems(items.filter(x => x.id !== modal.id));
+      persist(items.filter(x => x.id !== modal.id));
       setModal(null);
     }
   }));
@@ -4031,7 +4068,7 @@ function ProductionPanel() {
     onSave: save,
     onClose: () => setModal(null),
     onDelete: () => {
-      setItems(items.filter(x => x.id !== modal.id));
+      persist(items.filter(x => x.id !== modal.id));
       setModal(null);
     }
   }));
@@ -4095,7 +4132,6 @@ const toolDisplayName = (tool, customNames = {}) => {
   if (tool.isOnlineDoc) return tool.name;
   return tool.configurableUrl && customNames[tool.id] ? customNames[tool.id] : tool.name;
 };
-const isLocalOpsServer = () => location.hostname === "localhost" || location.hostname === "127.0.0.1";
 const resolveToolUrl = url => {
   if (!url) return "";
   try {
@@ -6338,6 +6374,51 @@ function useNow(tickMs = 1000) {
   }, [tickMs]);
   return now;
 }
+function getPriorityOwnerId() {
+  try {
+    const lan = localStorage.getItem("ops-center-client-id");
+    if (lan && /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(lan)) return lan;
+    let dev = localStorage.getItem("ops-center-device-id");
+    if (!dev) {
+      dev = typeof crypto !== "undefined" && crypto.randomUUID ? `dev-${crypto.randomUUID()}` : `dev-${Date.now()}`;
+      localStorage.setItem("ops-center-device-id", dev);
+    }
+    return dev;
+  } catch {
+    return "dev-fallback";
+  }
+}
+function priorityStorageKey(date) {
+  return `ops-priority:${date}`;
+}
+function readPriorityForToday(date) {
+  try {
+    const raw = localStorage.getItem(priorityStorageKey(date));
+    if (!raw) return {
+      date: "",
+      text: ""
+    };
+    const parsed = JSON.parse(raw);
+    if (parsed?.date === date && parsed.text) {
+      return {
+        date: parsed.date,
+        text: parsed.text
+      };
+    }
+  } catch {/* ignore */}
+  return {
+    date: "",
+    text: ""
+  };
+}
+function writePriorityForToday(date, text) {
+  const entry = {
+    date,
+    text: text.trim()
+  };
+  localStorage.setItem(priorityStorageKey(date), JSON.stringify(entry));
+  return entry;
+}
 function PriorityModal({
   initialText,
   onSave,
@@ -6347,8 +6428,7 @@ function PriorityModal({
 }) {
   const [text, setText] = useState(initialText || "");
   const [warn, setWarn] = useState("");
-  const [saving, setSaving] = useState(false);
-  const canClose = !required && !saving;
+  const canClose = !required;
   const tryClose = () => {
     if (canClose) onClose();
   };
@@ -6360,18 +6440,16 @@ function PriorityModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [canClose, onClose]);
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!text.trim()) {
       setWarn("请先填写今日最优先工作，保存后才能关闭。");
       return;
     }
-    setWarn("");
-    setSaving(true);
     try {
-      await onSave(text);
+      onSave(text);
+      setWarn("");
     } catch (e) {
       setWarn(e?.message || "保存失败，请重试");
-      setSaving(false);
     }
   };
   return /*#__PURE__*/React.createElement("div", {
@@ -6380,7 +6458,7 @@ function PriorityModal({
       position: "fixed",
       inset: 0,
       background: "rgba(0,0,0,0.45)",
-      zIndex: 250,
+      zIndex: 1000,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -6396,7 +6474,9 @@ function PriorityModal({
       width: "100%",
       maxWidth: 440,
       color: "var(--text)",
-      boxShadow: "0 16px 48px rgba(0,0,0,0.12)"
+      boxShadow: "0 16px 48px rgba(0,0,0,0.12)",
+      position: "relative",
+      zIndex: 1001
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6466,19 +6546,18 @@ function PriorityModal({
   }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: handleSave,
-    disabled: saving,
     style: {
-      background: saving ? "#94a3b8" : "#2d7dd2",
+      background: "#2d7dd2",
       border: "none",
       borderRadius: 8,
       padding: "7px 16px",
       fontSize: 12,
-      cursor: saving ? "wait" : "pointer",
+      cursor: "pointer",
       fontFamily: "inherit",
       color: "#fff",
       fontWeight: 600
     }
-  }, saving ? "保存中…" : "保存"))));
+  }, "\u4FDD\u5B58"))));
 }
 
 // ─── HOME MODULE ───────────────────────────────────────────────────────
@@ -6498,32 +6577,30 @@ function HomePanel() {
   const todayPriority = priority.date === today ? priority.text : "";
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const id = await resolveClientId();
-      if (cancelled) return;
-      setClientId(id);
-      const saved = await loadTodayPriority(id, today);
-      if (cancelled) return;
-      setPriority(saved);
-      setShowModal(!saved.text.trim());
-      setPriorityReady(true);
-    })();
+    const saved = readPriorityForToday(today);
+    setPriority(saved);
+    setShowModal(!saved.text.trim());
+    setPriorityReady(true);
+    resolveClientId().then(id => {
+      if (!cancelled && id) setClientId(id);
+    }).catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [today]);
-  const handleSavePriority = async text => {
+  const handleSavePriority = text => {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    let id = clientId;
-    if (!id) {
-      id = await resolveClientId();
-      setClientId(id);
+    if (!trimmed) throw new Error("请先填写内容");
+    let entry;
+    try {
+      entry = writePriorityForToday(today, trimmed);
+    } catch {
+      throw new Error("无法保存，请检查浏览器是否允许本地存储");
     }
-    if (!id) throw new Error("无法识别本机，请刷新页面后重试");
-    const entry = await saveTodayPriority(id, today, trimmed);
     setPriority(entry);
     setShowModal(false);
+    const id = clientId || getPriorityOwnerId();
+    saveTodayPriority(id, today, trimmed).catch(() => {});
   };
   const beijingDate = formatClockDate(now, "Asia/Shanghai");
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -7538,7 +7615,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-14";
+const APP_BUILD = "cloud-15";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {
@@ -7704,7 +7781,7 @@ function App() {
       letterSpacing: "-0.02em"
     }
   }, /*#__PURE__*/React.createElement(BrandLogo, null), "\u6CD3\u68EE\u62D3\u521B\u79D1\u6280", /*#__PURE__*/React.createElement("span", {
-    title: "\u7248\u672C\u6807\u8BC6\uFF1A\u63A8\u9001 GitHub \u540E\u7EA6 1 \u5206\u949F\u751F\u6548",
+    title: "version",
     style: {
       fontSize: 10,
       fontWeight: 600,
@@ -7782,7 +7859,7 @@ function App() {
     style: {
       display: tab === "agents" ? "block" : "none"
     }
-  }, /*#__PURE__*/React.createElement(AgentsPanel, null)), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
+  }, /*#__PURE__*/React.createElement(AgentsPanel, null))), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
     onClose: () => setSettingsPanel(null),
     onSaved: () => setSettingsPanel(null)
   })));

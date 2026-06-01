@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isLocalOpsServer } from "./utils/storage.js";
 
 const inpSm = { fontSize: 12, padding: "5px 8px", border: "1px solid var(--border)", borderRadius: 6, fontFamily: "inherit", background: "transparent", color: "inherit" };
 const inp = { width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", background: "transparent", color: "inherit", display: "block" };
@@ -64,9 +65,6 @@ const toolDisplayName = (tool, customNames = {}) => {
   if (tool.isOnlineDoc) return tool.name;
   return (tool.configurableUrl && customNames[tool.id]) ? customNames[tool.id] : tool.name;
 };
-
-const isLocalOpsServer = () =>
-  location.hostname === "localhost" || location.hostname === "127.0.0.1";
 
 const resolveToolUrl = (url) => {
   if (!url) return "";

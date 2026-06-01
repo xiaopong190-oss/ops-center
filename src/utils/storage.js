@@ -75,7 +75,7 @@ function isGitHubPages() {
   return typeof location !== "undefined" && /\.github\.io$/i.test(location.hostname);
 }
 
-function isLocalOpsServer() {
+export function isLocalOpsServer() {
   if (typeof location === "undefined") return false;
   const h = location.hostname;
   return h === "localhost" || h.startsWith("127.") || isPrivateLanIp(h);

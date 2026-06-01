@@ -40,7 +40,7 @@ Get-ChildItem -Path $root -Filter "*.bat" | ForEach-Object { & git add $_.FullNa
 
 $staged = @(git diff --cached --name-only 2>$null)
 if ($staged.Count -gt 0) {
-  & git commit -m "fix: cloud-18 — Pages snapshot fallback for cloud data in CN" 2>&1 | ForEach-Object { Log $_ }
+  & git commit -m "fix: cloud-18 — Pages snapshot fallback + sleep duplicate fix" 2>&1 | ForEach-Object { Log $_ }
 } else {
   Log "nothing new to commit"
 }

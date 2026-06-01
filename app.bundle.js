@@ -151,37 +151,117 @@ function normalizeSharedRecord(record) {
 function notifySharedUpdated(key) {
   window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
 }
+function delayMs(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+async function fetchJsonBinLatest(binId, storageKey) {
+  const url = `${JSONBIN_API_BASE}/${binId}/latest`;
+  const headers = {
+    "X-Master-Key": JSONBIN_API_KEY
+  };
+  const attempts = [{
+    via: "cloud",
+    run: () => fetchWithTimeout(url, {
+      headers
+    })
+  }, {
+    via: "proxy",
+    run: () => fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
+      headers
+    })
+  }, {
+    via: "snapshot",
+    run: () => fetchWithTimeout(`data/shared-${storageKey}.json?v=${Date.now()}`, {
+      cache: "no-store"
+    })
+  }];
+  let lastErr = "网络错误";
+  for (const {
+    via,
+    run
+  } of attempts) {
+    try {
+      const res = await run();
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const record = json.record != null ? json.record : json;
+      const normalized = normalizeSharedRecord(record);
+      if (!normalized) return null;
+      return {
+        ...normalized,
+        _via: via
+      };
+    } catch (e) {
+      lastErr = e?.name === "AbortError" ? "连接超时" : e?.message || "网络错误";
+    }
+  }
+  throw new Error(lastErr);
+}
+async function fetchWithTimeout(url, opts = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    return await fetch(url, {
+      ...opts,
+      signal: ctrl.signal
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 const sharedStorage = {
-  async get(key) {
+  async get(key, {
+    retries = 3
+  } = {}) {
     const binId = resolveJsonBinId(key);
     if (!binId) return sharedLocalGet(key);
-    try {
-      const res = await fetch(`${JSONBIN_API_BASE}/${binId}/latest`, {
-        headers: {
-          "X-Master-Key": JSONBIN_API_KEY
-        },
-        cache: "no-store"
-      });
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`JSONBin GET ${res.status}`);
-      const json = await res.json();
-      const normalized = normalizeSharedRecord(json.record);
-      if (normalized) {
-        sharedLocalSet(key, normalized.data, normalized.updatedBy);
-        return {
-          ...normalized,
-          _source: "cloud"
-        };
+    let lastErr = "网络错误";
+    for (let attempt = 0; attempt < retries; attempt++) {
+      if (attempt > 0) await delayMs(800 * attempt);
+      try {
+        const normalized = await fetchJsonBinLatest(binId, key);
+        if (normalized) {
+          sharedLocalSet(key, normalized.data, normalized.updatedBy);
+          const source = normalized._via === "snapshot" ? "snapshot" : "cloud";
+          const {
+            _via,
+            ...rest
+          } = normalized;
+          return {
+            ...rest,
+            _source: source
+          };
+        }
+        return null;
+      } catch (e) {
+        lastErr = e?.name === "AbortError" ? "连接超时" : e?.message || "网络错误";
       }
-      return null;
-    } catch {
-      const local = sharedLocalGet(key);
-      if (local) return {
-        ...local,
-        _source: "local-fallback"
-      };
-      return null;
     }
+    const local = sharedLocalGet(key);
+    const normalized = normalizeSharedRecord(local);
+    if (normalized && Array.isArray(normalized.data) && normalized.data.length === 0) {
+      return {
+        data: null,
+        updatedBy: "",
+        updatedAt: 0,
+        _source: "local-fallback",
+        _cloudError: lastErr,
+        _emptyLocalIgnored: true
+      };
+    }
+    if (normalized) return {
+      ...normalized,
+      _source: "local-fallback",
+      _cloudError: lastErr
+    };
+    return {
+      data: null,
+      updatedBy: "",
+      updatedAt: 0,
+      _source: "local-fallback",
+      _cloudError: lastErr
+    };
   },
   async set(key, value, updatedBy) {
     const payload = {
@@ -983,11 +1063,22 @@ async function saveTodayPriority(clientId, date, text) {
   }
   return entry;
 }
-function useSharedList(storageKey, defaultData) {
-  const read = useCallback(async () => {
+function resolveSharedListData(raw, defaultData) {
+  if (raw?.data == null) return defaultData;
+  if (raw._source === "local-fallback" && Array.isArray(raw.data) && raw.data.length === 0) {
+    return defaultData;
+  }
+  return raw.data;
+}
+function useSharedList(storageKey, defaultData, {
+  active = true
+} = {}) {
+  const read = useCallback(async (retries = 3) => {
     try {
-      const raw = await sharedStorage.get(storageKey);
-      const data = raw?.data != null ? raw.data : defaultData;
+      const raw = await sharedStorage.get(storageKey, {
+        retries
+      });
+      const data = resolveSharedListData(raw, defaultData);
       return {
         data,
         meta: raw,
@@ -1004,11 +1095,17 @@ function useSharedList(storageKey, defaultData) {
   const [state, setState] = useState({
     data: defaultData,
     meta: null,
-    loading: true,
+    loading: false,
     error: ""
   });
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
+    setState(prev => ({
+      ...prev,
+      loading: true,
+      error: ""
+    }));
     (async () => {
       const next = await read();
       if (!cancelled) setState({
@@ -1019,9 +1116,10 @@ function useSharedList(storageKey, defaultData) {
     return () => {
       cancelled = true;
     };
-  }, [read]);
+  }, [read, active]);
   useEffect(() => {
     const handler = () => {
+      if (!active) return;
       read().then(next => setState({
         ...next,
         loading: false
@@ -1029,8 +1127,9 @@ function useSharedList(storageKey, defaultData) {
     };
     window.addEventListener(`ops-shared-updated:${storageKey}`, handler);
     return () => window.removeEventListener(`ops-shared-updated:${storageKey}`, handler);
-  }, [storageKey, read]);
+  }, [storageKey, read, active]);
   useEffect(() => {
+    if (!active) return;
     const refresh = () => read().then(next => setState({
       ...next,
       loading: false
@@ -1046,7 +1145,7 @@ function useSharedList(storageKey, defaultData) {
       document.removeEventListener("visibilitychange", onVisible);
       clearInterval(timer);
     };
-  }, [read]);
+  }, [read, active]);
   const persist = useCallback(async data => {
     setState(prev => ({
       data,
@@ -1062,7 +1161,7 @@ function useSharedList(storageKey, defaultData) {
       await sharedStorage.set(storageKey, data, getCurrentUser().name);
       const raw = await sharedStorage.get(storageKey);
       setState({
-        data: raw?.data != null ? raw.data : data,
+        data: resolveSharedListData(raw, data),
         meta: raw,
         loading: false,
         error: ""
@@ -1077,12 +1176,28 @@ function useSharedList(storageKey, defaultData) {
     }
   }, [storageKey]);
   const reload = useCallback(async () => {
-    const next = await read();
-    setState({
-      ...next,
-      loading: false
-    });
-  }, [read]);
+    setState(prev => ({
+      ...prev,
+      loading: true,
+      error: ""
+    }));
+    try {
+      localStorage.removeItem(`shared:${storageKey}`);
+    } catch {/* ignore */}
+    try {
+      const next = await read(5);
+      setState({
+        ...next,
+        loading: false
+      });
+    } catch (e) {
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: e?.message || "刷新失败"
+      }));
+    }
+  }, [read, storageKey]);
   return {
     items: state.data,
     meta: state.meta,
@@ -1113,6 +1228,11 @@ function SharedMetaLine({
     border = "#fca5a5";
     color = "#991b1b";
     text = `❌ ${error}`;
+  } else if (meta?._source === "snapshot") {
+    bg = "#eff6ff";
+    border = "#93c5fd";
+    color = "#1e40af";
+    text = meta?.updatedBy ? `📦 已从 Pages 快照加载 · 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)}（国内只读，改数据需 VPN）` : "📦 已从 Pages 快照加载（国内只读，改数据需 VPN）";
   } else if (meta?._source === "cloud") {
     bg = "#ecfdf5";
     border = "#6ee7b7";
@@ -1122,7 +1242,9 @@ function SharedMetaLine({
     bg = "#fffbeb";
     border = "#fcd34d";
     color = "#92400e";
-    text = "⚠️ 云端暂不可用，当前显示本机缓存";
+    const hint = meta._cloudError || "请检查网络";
+    const emptyNote = meta._emptyLocalIgnored ? " · 已忽略空的本机缓存" : "";
+    text = `⚠️ 云端暂不可用（${hint}${emptyNote}）· 请开 VPN 后点「立即刷新」`;
   } else if (meta?._source === "local") {
     bg = "#f3f4f6";
     border = "#d1d5db";
@@ -1145,24 +1267,38 @@ function SharedMetaLine({
       justifyContent: "space-between",
       gap: 10,
       flexWrap: "wrap",
+      position: "relative",
+      zIndex: 2,
       ...style
     }
-  }, /*#__PURE__*/React.createElement("span", null, text), onReload && !loading && /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, text), onReload && /*#__PURE__*/React.createElement("button", {
     type: "button",
-    onClick: onReload,
+    disabled: loading,
+    onClick: e => {
+      e.preventDefault();
+      e.stopPropagation();
+      onReload();
+    },
     style: {
       background: "#fff",
       border: `1px solid ${border}`,
       borderRadius: 6,
-      padding: "4px 10px",
+      padding: "6px 12px",
       fontSize: 11,
-      cursor: "pointer",
+      cursor: loading ? "wait" : "pointer",
       fontFamily: "inherit",
       color,
       fontWeight: 600,
-      flexShrink: 0
+      flexShrink: 0,
+      opacity: loading ? 0.75 : 1,
+      minWidth: 72
     }
-  }, "\u7ACB\u5373\u5237\u65B0"));
+  }, loading ? "刷新中…" : "立即刷新"));
 }
 
 // ─── USER CONTEXT ───────────────────────────────────────────────────
@@ -2502,7 +2638,9 @@ function ShipmentModal({
     }
   }, "\u4FDD\u5B58")))));
 }
-function LogisticsPanel() {
+function LogisticsPanel({
+  active = true
+}) {
   const {
     items,
     meta,
@@ -2510,7 +2648,9 @@ function LogisticsPanel() {
     error,
     persist,
     reload
-  } = useSharedList("logistics", INIT_LOGISTICS);
+  } = useSharedList("logistics", INIT_LOGISTICS, {
+    active
+  });
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
@@ -3790,7 +3930,9 @@ function ProductGroup({
     onClick: () => onEdit(b)
   })));
 }
-function ProductionPanel() {
+function ProductionPanel({
+  active = true
+}) {
   const {
     items,
     meta,
@@ -3801,7 +3943,9 @@ function ProductionPanel() {
   } = useSharedList("production", INIT_PROD.map(b => ({
     ...b,
     stage: normalizeStage(b.stage)
-  })));
+  })), {
+    active
+  });
   const [modal, setModal] = useState(null);
   const [tabFilter, setTabFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
@@ -4620,7 +4764,7 @@ const lblSm = {
   color: "var(--tm)",
   marginBottom: 3
 };
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const toolDelay = ms => new Promise(r => setTimeout(r, ms));
 async function openMailWatch(tool) {
   const appUrl = tool.defaultUrl || "http://127.0.0.1:8000";
   const tab = window.open("about:blank", "_blank", "noopener,noreferrer");
@@ -4641,7 +4785,7 @@ async function openMailWatch(tool) {
           })
         });
         for (let i = 0; i < 20; i++) {
-          await sleep(1500);
+          await toolDelay(1500);
           const next = await fetch("/api/mailwatch/status").then(r => r.json()).catch(() => null);
           if (next?.running) break;
         }
@@ -7321,7 +7465,9 @@ function TaskCard({
     }
   }, "\u26A1 ", task.block));
 }
-function TasksPanel() {
+function TasksPanel({
+  active = true
+}) {
   const {
     items: tasks,
     meta,
@@ -7329,7 +7475,9 @@ function TasksPanel() {
     error,
     persist,
     reload
-  } = useSharedList("tasks", INIT_TASKS);
+  } = useSharedList("tasks", INIT_TASKS, {
+    active
+  });
   const [filter, setFilter] = useState("all");
   const [modal, setModal] = useState(null);
   const nextId = () => Math.max(0, ...tasks.map(t => t.id || 0)) + 1;
@@ -7615,7 +7763,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-15";
+const APP_BUILD = "cloud-18";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {
@@ -7843,15 +7991,21 @@ function App() {
     style: {
       display: tab === "tasks" ? "block" : "none"
     }
-  }, /*#__PURE__*/React.createElement(TasksPanel, null)), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(TasksPanel, {
+    active: tab === "tasks"
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "logistics" ? "block" : "none"
     }
-  }, /*#__PURE__*/React.createElement(LogisticsPanel, null)), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(LogisticsPanel, {
+    active: tab === "logistics"
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "production" ? "block" : "none"
     }
-  }, /*#__PURE__*/React.createElement(ProductionPanel, null)), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(ProductionPanel, {
+    active: tab === "production"
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "tools" ? "block" : "none"
     }

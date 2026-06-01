@@ -461,7 +461,7 @@ const TOOL_CATEGORIES = ["全部", ...new Set(TOOL_CATALOG.map(t => t.category))
 
 const lblSm = { display: "block", fontSize: 10, color: "var(--tm)", marginBottom: 3 };
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const toolDelay = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function openMailWatch(tool) {
   const appUrl = tool.defaultUrl || "http://127.0.0.1:8000";
@@ -479,7 +479,7 @@ async function openMailWatch(tool) {
           body: JSON.stringify({ action: "start" }),
         });
         for (let i = 0; i < 20; i++) {
-          await sleep(1500);
+          await toolDelay(1500);
           const next = await fetch("/api/mailwatch/status").then(r => r.json()).catch(() => null);
           if (next?.running) break;
         }

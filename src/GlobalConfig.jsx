@@ -54,7 +54,7 @@ function notifySharedUpdated(key) {
   window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
 }
 
-function sleep(ms) {
+function delayMs(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -102,7 +102,7 @@ export const sharedStorage = {
 
     let lastErr = "网络错误";
     for (let attempt = 0; attempt < retries; attempt++) {
-      if (attempt > 0) await sleep(800 * attempt);
+      if (attempt > 0) await delayMs(800 * attempt);
       try {
         const normalized = await fetchJsonBinLatest(binId, key);
         if (normalized) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { resolveClientId, loadTodayPriority, saveTodayPriority, getOrCreateDeviceId } from "./utils/storage.js";
+import { resolveClientId, saveTodayPriority } from "./utils/storage.js";
 
 const FX_CACHE_KEY = "ops-center-fx-rates";
 const NEWS_CACHE_KEY = "ops-center-amazon-news";
@@ -434,12 +434,50 @@ function useNow(tickMs = 1000) {
   return now;
 }
 
+function getPriorityOwnerId() {
+  try {
+    const lan = localStorage.getItem("ops-center-client-id");
+    if (lan && /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(lan)) return lan;
+    let dev = localStorage.getItem("ops-center-device-id");
+    if (!dev) {
+      dev = typeof crypto !== "undefined" && crypto.randomUUID
+        ? `dev-${crypto.randomUUID()}`
+        : `dev-${Date.now()}`;
+      localStorage.setItem("ops-center-device-id", dev);
+    }
+    return dev;
+  } catch {
+    return "dev-fallback";
+  }
+}
+
+function priorityStorageKey(date) {
+  return `priority:${getPriorityOwnerId()}:${date}`;
+}
+
+function readPriorityForToday(date) {
+  try {
+    const raw = localStorage.getItem(priorityStorageKey(date));
+    if (!raw) return { date: "", text: "" };
+    const parsed = JSON.parse(raw);
+    if (parsed?.date === date && parsed.text) {
+      return { date: parsed.date, text: parsed.text };
+    }
+  } catch { /* ignore */ }
+  return { date: "", text: "" };
+}
+
+function writePriorityForToday(date, text) {
+  const entry = { date, text: text.trim() };
+  localStorage.setItem(priorityStorageKey(date), JSON.stringify(entry));
+  return entry;
+}
+
 function PriorityModal({ initialText, onSave, onClose, requiredHint, required }) {
   const [text, setText] = useState(initialText || "");
   const [warn, setWarn] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  const canClose = !required && !saving;
+  const canClose = !required;
 
   const tryClose = () => {
     if (canClose) onClose();
@@ -452,24 +490,22 @@ function PriorityModal({ initialText, onSave, onClose, requiredHint, required })
     return () => window.removeEventListener("keydown", onKey);
   }, [canClose, onClose]);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!text.trim()) {
       setWarn("请先填写今日最优先工作，保存后才能关闭。");
       return;
     }
-    setWarn("");
-    setSaving(true);
     try {
-      await onSave(text);
+      onSave(text);
+      setWarn("");
     } catch (e) {
       setWarn(e?.message || "保存失败，请重试");
-      setSaving(false);
     }
   };
 
   return (
-    <div onClick={canClose ? tryClose : undefined} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 250, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: "1.35rem 1.5rem", width: "100%", maxWidth: 440, color: "var(--text)", boxShadow: "0 16px 48px rgba(0,0,0,0.12)" }}>
+    <div onClick={canClose ? tryClose : undefined} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: "1.35rem 1.5rem", width: "100%", maxWidth: 440, color: "var(--text)", boxShadow: "0 16px 48px rgba(0,0,0,0.12)", position: "relative", zIndex: 1001 }}>
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>今日最优先工作</div>
         <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 14, lineHeight: 1.55 }}>
           {requiredHint || "写下今天必须完成的第一件事，保存后会在首页显示。"}
@@ -489,7 +525,7 @@ function PriorityModal({ initialText, onSave, onClose, requiredHint, required })
           {canClose && (
             <button type="button" onClick={tryClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
           )}
-          <button type="button" onClick={handleSave} disabled={saving} style={{ background: saving ? "#94a3b8" : "#2d7dd2", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "#fff", fontWeight: 600 }}>{saving ? "保存中…" : "保存"}</button>
+          <button type="button" onClick={handleSave} style={{ background: "#2d7dd2", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "#fff", fontWeight: 600 }}>保存</button>
         </div>
       </div>
     </div>
@@ -512,27 +548,29 @@ export function HomePanel() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const id = await resolveClientId();
-      if (cancelled) return;
-      setClientId(id);
-      const saved = await loadTodayPriority(id, today);
-      if (cancelled) return;
-      setPriority(saved);
-      setShowModal(!saved.text.trim());
-      setPriorityReady(true);
-    })();
+    const saved = readPriorityForToday(today);
+    setPriority(saved);
+    setShowModal(!saved.text.trim());
+    setPriorityReady(true);
+    resolveClientId().then((id) => {
+      if (!cancelled && id) setClientId(id);
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [today]);
 
-  const handleSavePriority = async (text) => {
+  const handleSavePriority = (text) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    const id = clientId || getOrCreateDeviceId();
-    if (id !== clientId) setClientId(id);
-    const entry = await saveTodayPriority(id, today, trimmed);
+    if (!trimmed) throw new Error("请先填写内容");
+    let entry;
+    try {
+      entry = writePriorityForToday(today, trimmed);
+    } catch {
+      throw new Error("无法保存，请检查浏览器是否允许本地存储");
+    }
     setPriority(entry);
     setShowModal(false);
+    const id = clientId || getPriorityOwnerId();
+    saveTodayPriority(id, today, trimmed).catch(() => {});
   };
 
   const beijingDate = formatClockDate(now, "Asia/Shanghai");

@@ -35,7 +35,7 @@
         }
 
         try {
-          var SYNC_VER = "10";
+          var SYNC_VER = "11";
           // 优先预编译 bundle；旧 bundle（无 JSONBin）自动跳过，改用运行时编译
           var bundleRes = await fetch("app.bundle.js?v=" + SYNC_VER);
           if (bundleRes.ok) {

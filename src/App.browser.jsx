@@ -188,7 +188,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-11";
+const APP_BUILD = "cloud-12";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -264,12 +264,12 @@ function App() {
         <div style={{ display: "flex", gap: 4, marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
           {TABS.map(t => (<button key={t.key} onClick={() => setTab(t.key)} style={{ background: "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent", padding: "8px 18px", fontSize: 13, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? "#2d7dd2" : "var(--tm)", cursor: "pointer", fontFamily: "inherit", marginBottom: -1 }}>{t.label}</button>))}
         </div>
-        {tab === "home" && <HomePanel />}
-        {tab === "tasks" && <TasksPanel key={configVersion} />}
-        {tab === "logistics" && <LogisticsPanel key={configVersion} />}
-        {tab === "production" && <ProductionPanel key={configVersion} />}
-        {tab === "tools" && <ToolsPanel />}
-        {tab === "agents" && <AgentsPanel />}
+        <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
+        <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel key={configVersion} /></div>
+        <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel key={configVersion} /></div>
+        <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel key={configVersion} /></div>
+        <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel /></div>
+        <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel /></div>
       </div>
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
     </div>

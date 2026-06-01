@@ -452,7 +452,7 @@ function getPriorityOwnerId() {
 }
 
 function priorityStorageKey(date) {
-  return `priority:${getPriorityOwnerId()}:${date}`;
+  return `ops-priority:${date}`;
 }
 
 function readPriorityForToday(date) {

@@ -188,7 +188,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "☁️ cloud-9";
+const APP_BUILD = "cloud-10";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -254,7 +254,7 @@ function App() {
           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>
             <BrandLogo />
             泓森拓创科技
-            <span title="版本标识：推送 GitHub 后约 1 分钟生效" style={{ fontSize: 10, fontWeight: 600, color: "#2d7dd2", background: "#eef6ff", border: "1px solid #b8d4f0", padding: "2px 7px", borderRadius: 5 }}>{APP_BUILD}</span>
+            <span title="version" style={{ fontSize: 10, fontWeight: 600, color: "#2d7dd2", background: "#eef6ff", border: "1px solid #b8d4f0", padding: "2px 7px", borderRadius: 5 }}>{APP_BUILD}</span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <SettingsMenu onSelect={key => { if (key === "staff") setSettingsPanel("staff"); }} />

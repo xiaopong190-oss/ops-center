@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { resolveClientId, loadTodayPriority, saveTodayPriority } from "./utils/storage.js";
+import { resolveClientId, loadTodayPriority, saveTodayPriority, getOrCreateDeviceId } from "./utils/storage.js";
 
 const FX_CACHE_KEY = "ops-center-fx-rates";
 const NEWS_CACHE_KEY = "ops-center-amazon-news";
@@ -528,12 +528,8 @@ export function HomePanel() {
   const handleSavePriority = async (text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    let id = clientId;
-    if (!id) {
-      id = await resolveClientId();
-      setClientId(id);
-    }
-    if (!id) throw new Error("无法识别本机，请刷新页面后重试");
+    const id = clientId || getOrCreateDeviceId();
+    if (id !== clientId) setClientId(id);
     const entry = await saveTodayPriority(id, today, trimmed);
     setPriority(entry);
     setShowModal(false);

@@ -471,6 +471,16 @@ function getOrCreateDeviceId() {
   }
 }
 
+function isGitHubPages() {
+  return typeof location !== "undefined" && /\.github\.io$/i.test(location.hostname);
+}
+
+function isLocalOpsServer() {
+  if (typeof location === "undefined") return false;
+  const h = location.hostname;
+  return h === "localhost" || h.startsWith("127.") || isPrivateLanIp(h);
+}
+
 function isPrivateLanIp(ip) {
   if (!ip || typeof ip !== "string") return false;
   if (ip.startsWith("192.168.") || ip.startsWith("10.")) return true;
@@ -512,7 +522,7 @@ function detectLocalLanIpViaWebRTC() {
       } else {
         finish("");
       }
-    }, 2500);
+    }, 800);
   });
 }
 
@@ -545,21 +555,25 @@ async function resolveClientId() {
     if (cached && !isPrivateLanIp(cached)) localStorage.removeItem(CLIENT_ID_KEY);
   } catch { /* ignore */ }
 
-  try {
-    const res = await fetch("/api/client-id");
-    if (res.ok) {
-      const data = await res.json();
-      if (data.clientId && isPrivateLanIp(data.clientId)) {
-        localStorage.setItem(CLIENT_ID_KEY, data.clientId);
-        return data.clientId;
-      }
-    }
-  } catch { /* ignore */ }
+  if (isGitHubPages()) return getOrCreateDeviceId();
 
-  const lanIp = await detectLocalLanIpViaWebRTC();
-  if (lanIp && isPrivateLanIp(lanIp)) {
-    try { localStorage.setItem(CLIENT_ID_KEY, lanIp); } catch { /* ignore */ }
-    return lanIp;
+  if (isLocalOpsServer()) {
+    try {
+      const res = await fetch("/api/client-id");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.clientId && isPrivateLanIp(data.clientId)) {
+          localStorage.setItem(CLIENT_ID_KEY, data.clientId);
+          return data.clientId;
+        }
+      }
+    } catch { /* ignore */ }
+
+    const lanIp = await detectLocalLanIpViaWebRTC();
+    if (lanIp && isPrivateLanIp(lanIp)) {
+      try { localStorage.setItem(CLIENT_ID_KEY, lanIp); } catch { /* ignore */ }
+      return lanIp;
+    }
   }
 
   return getOrCreateDeviceId();
@@ -569,20 +583,22 @@ async function loadTodayPriority(clientId, date) {
   const id = clientId || getOrCreateDeviceId();
   if (!id) return { date: "", text: "" };
 
-  try {
-    const res = await fetch(`/api/priority?date=${encodeURIComponent(date)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.ok && data.date === date && data.text) {
-        const entry = { date: data.date, text: data.text };
-        writePriorityLocal(id, entry);
-        return entry;
+  if (isLocalOpsServer()) {
+    try {
+      const res = await fetch(`/api/priority?date=${encodeURIComponent(date)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.date === date && data.text) {
+          const entry = { date: data.date, text: data.text };
+          writePriorityLocal(id, entry);
+          return entry;
+        }
+        if (data.ok && data.date === date && !data.text) {
+          return { date: "", text: "" };
+        }
       }
-      if (data.ok && data.date === date && !data.text) {
-        return { date: "", text: "" };
-      }
-    }
-  } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }
 
   return readPriorityLocal(id, date);
 }
@@ -592,13 +608,19 @@ async function saveTodayPriority(clientId, date, text) {
   const entry = { date, text: text.trim() };
   writePriorityLocal(id, entry);
 
-  try {
-    await fetch("/api/priority", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, text: entry.text }),
-    });
-  } catch { /* ignore */ }
+  if (isLocalOpsServer()) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 2000);
+      await fetch("/api/priority", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, text: entry.text }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+    } catch { /* ignore */ }
+  }
 
   return entry;
 }

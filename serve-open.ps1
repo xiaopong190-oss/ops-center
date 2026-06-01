@@ -133,6 +133,148 @@ function Handle-MailWatchApi {
   return $false
 }
 
+function Get-BeijingTodayKey {
+  try {
+    $tz = [TimeZoneInfo]::FindSystemTimeZoneById("China Standard Time")
+    $now = [TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $tz)
+    return $now.ToString("yyyy-MM-dd")
+  } catch {
+    return (Get-Date).ToString("yyyy-MM-dd")
+  }
+}
+
+function Get-LocalPhysicalIp {
+  try {
+    $preferred = $null
+    $others = @()
+    $ifaces = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+      Where-Object {
+        $_.IPAddress -notmatch '^127\.' -and
+        $_.IPAddress -notmatch '^169\.254\.' -and
+        $_.PrefixOrigin -ne 'WellKnown'
+      }
+    foreach ($iface in $ifaces) {
+      $ip = [string]$iface.IPAddress
+      if ($ip -match '^192\.168\.') { return $ip }
+      if ($ip -match '^10\.' -or $ip -match '^172\.(1[6-9]|2[0-9]|3[01])\.') {
+        $others += $ip
+      }
+    }
+    if ($others.Count -gt 0) { return $others[0] }
+    if ($ifaces.Count -gt 0) { return [string]$ifaces[0].IPAddress }
+  } catch { }
+  return "127.0.0.1"
+}
+
+function Get-PhysicalClientId {
+  param($Request)
+  $remote = $Request.RemoteEndPoint.Address.ToString()
+  if ($remote -eq "127.0.0.1" -or $remote -eq "::1") {
+    return Get-LocalPhysicalIp
+  }
+  if ($remote -match '^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)') {
+    return $remote
+  }
+  return Get-LocalPhysicalIp
+}
+
+function Get-ClientIdFromRequest {
+  param($Request)
+  return Get-PhysicalClientId $Request
+}
+
+function Get-PriorityStorePath {
+  Join-Path $root "data\daily-priorities.json"
+}
+
+function Read-PriorityStore {
+  $path = Get-PriorityStorePath
+  if (-not (Test-Path -LiteralPath $path)) { return @{} }
+  try {
+    $raw = [IO.File]::ReadAllText($path, [Text.Encoding]::UTF8)
+    if ([string]::IsNullOrWhiteSpace($raw)) { return @{} }
+    $parsed = $raw | ConvertFrom-Json
+    $map = @{}
+    foreach ($prop in $parsed.PSObject.Properties) {
+      $map[$prop.Name] = [string]$prop.Value
+    }
+    return $map
+  } catch {
+    return @{}
+  }
+}
+
+function Write-PriorityStore {
+  param([hashtable]$Map)
+  $path = Get-PriorityStorePath
+  $dir = Split-Path -Parent $path
+  if (-not (Test-Path -LiteralPath $dir)) {
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  }
+  $obj = New-Object PSObject
+  foreach ($key in ($Map.Keys | Sort-Object)) {
+    $obj | Add-Member -NotePropertyName $key -NotePropertyValue $Map[$key]
+  }
+  $json = ($obj | ConvertTo-Json -Compress)
+  [IO.File]::WriteAllText($path, $json, [Text.Encoding]::UTF8)
+}
+
+function Get-PriorityStoreKey {
+  param([string]$ClientId, [string]$Date)
+  return "$ClientId|$Date"
+}
+
+function Handle-PriorityApi {
+  param($Request, $Response, [string]$Path)
+
+  if ($Path -eq "/api/client-id") {
+    $id = Get-PhysicalClientId $Request
+    Write-JsonResponse $Response @{ ok = $true; clientId = $id; type = "lan" }
+    return $true
+  }
+
+  if ($Path -eq "/api/priority" -and $Request.HttpMethod -eq "GET") {
+    $clientId = Get-PhysicalClientId $Request
+    $date = Get-BeijingTodayKey
+    $qDate = $Request.QueryString["date"]
+    if ($qDate) { $date = [string]$qDate }
+    $store = Read-PriorityStore
+    $key = Get-PriorityStoreKey $clientId $date
+    $text = ""
+    if ($store.ContainsKey($key)) { $text = [string]$store[$key] }
+    Write-JsonResponse $Response @{ ok = $true; clientId = $clientId; date = $date; text = $text }
+    return $true
+  }
+
+  if ($Path -eq "/api/priority" -and $Request.HttpMethod -eq "POST") {
+    $clientId = Get-PhysicalClientId $Request
+    $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
+    $body = $reader.ReadToEnd()
+    $reader.Close()
+    $text = ""
+    $date = Get-BeijingTodayKey
+    if ($body) {
+      try {
+        $parsed = $body | ConvertFrom-Json
+        if ($parsed.text) { $text = [string]$parsed.text.Trim() }
+        if ($parsed.date) { $date = [string]$parsed.date }
+      } catch { }
+    }
+    if (-not $text) {
+      Write-JsonResponse $Response @{ ok = $false; error = "empty priority" } 400
+      return $true
+    }
+    $store = Read-PriorityStore
+    $key = Get-PriorityStoreKey $clientId $date
+    $store[$key] = $text
+    Write-PriorityStore $store
+    Write-JsonResponse $Response @{ ok = $true; clientId = $clientId; date = $date; text = $text }
+    return $true
+  }
+
+  return $false
+}
+
 function Handle-DiskCleanerApi {
   param($Request, $Response, [string]$Path)
 
@@ -333,6 +475,11 @@ while ($listener.IsListening) {
   $apiPath = $request.Url.LocalPath
 
   if (Handle-MailWatchApi $request $response $apiPath) {
+    $response.OutputStream.Close()
+    continue
+  }
+
+  if (Handle-PriorityApi $request $response $apiPath) {
     $response.OutputStream.Close()
     continue
   }

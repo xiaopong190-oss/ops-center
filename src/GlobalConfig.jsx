@@ -2,6 +2,129 @@ import { useState, useEffect } from "react";
 
 export const CONFIG_STORAGE_KEY = "ops-center-global-config";
 
+const JSONBIN_API_KEY = "$2a$10$2ozXoCjldhmBsjtHria.3.Qe9IGP3lPWQnxGsvO4fOBdlfDogsBZq";
+const JSONBIN_API_BASE = "https://api.jsonbin.io/v3/b";
+const JSONBIN_BIN_IDS = {
+  logistics: "6a1d27c321f9ee59d2a3c1c4",
+  tasks: "6a1d27fd21f9ee59d2a3c26e",
+  production: "6a1d282721f9ee59d2a3c30a",
+  "tools-links": "6a1d284521f9ee59d2a3c375",
+};
+
+function resolveJsonBinId(key) {
+  return JSONBIN_BIN_IDS[key] || null;
+}
+
+function sharedLocalGet(key) {
+  try {
+    const raw = localStorage.getItem(`shared:${key}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function sharedLocalSet(key, value, updatedBy) {
+  const payload = {
+    data: value,
+    updatedBy: updatedBy || "未知",
+    updatedAt: Date.now(),
+  };
+  localStorage.setItem(`shared:${key}`, JSON.stringify(payload));
+  return payload;
+}
+
+function sharedLocalDelete(key) {
+  localStorage.removeItem(`shared:${key}`);
+}
+
+function normalizeSharedRecord(record) {
+  if (record == null) return null;
+  if (typeof record === "object" && Object.prototype.hasOwnProperty.call(record, "data")) {
+    return {
+      data: record.data,
+      updatedBy: record.updatedBy || "",
+      updatedAt: record.updatedAt || 0,
+    };
+  }
+  return { data: record, updatedBy: "", updatedAt: 0 };
+}
+
+function notifySharedUpdated(key) {
+  window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+}
+
+export const sharedStorage = {
+  async get(key) {
+    const binId = resolveJsonBinId(key);
+    if (!binId) return sharedLocalGet(key);
+
+    try {
+      const res = await fetch(`${JSONBIN_API_BASE}/${binId}/latest`, {
+        headers: { "X-Master-Key": JSONBIN_API_KEY },
+        cache: "no-store",
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`JSONBin GET ${res.status}`);
+      const json = await res.json();
+      const normalized = normalizeSharedRecord(json.record);
+      if (normalized) {
+        sharedLocalSet(key, normalized.data, normalized.updatedBy);
+        return { ...normalized, _source: "cloud" };
+      }
+      return null;
+    } catch {
+      const local = sharedLocalGet(key);
+      if (local) return { ...local, _source: "local-fallback" };
+      return null;
+    }
+  },
+
+  async set(key, value, updatedBy) {
+    const payload = {
+      data: value,
+      updatedBy: updatedBy || "未知",
+      updatedAt: Date.now(),
+    };
+    const binId = resolveJsonBinId(key);
+    if (!binId) {
+      sharedLocalSet(key, value, updatedBy);
+      notifySharedUpdated(key);
+      return { ...payload, _source: "local" };
+    }
+
+    try {
+      const res = await fetch(`${JSONBIN_API_BASE}/${binId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Master-Key": JSONBIN_API_KEY,
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`JSONBin PUT ${res.status}`);
+      sharedLocalSet(key, value, updatedBy);
+      notifySharedUpdated(key);
+      return { ...payload, _source: "cloud" };
+    } catch (e) {
+      sharedLocalSet(key, value, updatedBy);
+      notifySharedUpdated(key);
+      throw new Error(`云端保存失败（已暂存本机）：${e?.message || "网络错误"}`);
+    }
+  },
+
+  async delete(key) {
+    const binId = resolveJsonBinId(key);
+    if (!binId) {
+      sharedLocalDelete(key);
+      notifySharedUpdated(key);
+      return;
+    }
+    await sharedStorage.set(key, null, "");
+  },
+};
+
 export const ROLE_COLORS = {
   运营: { bg: "#dceeff", color: "#1a4e8a" },
   美工: { bg: "#f3e8ff", color: "#6b21a8" },

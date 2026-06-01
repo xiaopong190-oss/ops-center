@@ -1,8 +1,19 @@
 #Requires -Version 5.1
-Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Set-ExecutionPolicy -Scope Process Bypass -Force -ErrorAction SilentlyContinue
-Set-Location $PSScriptRoot
+Set-Location -LiteralPath $PSScriptRoot
+
+Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
+
+trap {
+    Write-Host ''
+    Write-Host "运行出错: $($_.Exception.Message)" -ForegroundColor Red
+    if ($_.ScriptStackTrace) {
+        Write-Host $_.ScriptStackTrace -ForegroundColor DarkGray
+    }
+    Read-Host '按 Enter 退出'
+    exit 1
+}
 
 Write-Host ''
 Write-Host '========================================' -ForegroundColor Cyan
@@ -10,13 +21,7 @@ Write-Host '  C盘垃圾残留清理 - 第一步：预览' -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 Write-Host ''
 
-try {
-    & "$PSScriptRoot\Clean-Residuals.ps1"
-} catch {
-    Write-Host "预览失败: $_" -ForegroundColor Red
-    Read-Host '按 Enter 退出'
-    exit 1
-}
+& "$PSScriptRoot\Clean-Residuals.ps1"
 
 Write-Host ''
 Write-Host '========================================' -ForegroundColor Yellow

@@ -13,7 +13,7 @@ cd D:\Projects\ops-center\local-tools\disk-cleaner
 
 ## 云端分发
 
-员工从门户下载 `packages/disk-cleaner-win.zip`，解压后双击 `一键清理.bat`。
+员工从门户下载 `packages/disk-cleaner-win.zip`，解压后双击 `run-cleanup.bat`（或「一键清理.bat」）。
 
 ## 保护目录
 

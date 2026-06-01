@@ -14,6 +14,7 @@ if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 $staging = Join-Path $env:TEMP ("disk-cleaner-pack-" + [guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Force -Path $staging | Out-Null
 Copy-Item -Path (Join-Path $src "*") -Destination $staging -Recurse -Force
+Get-ChildItem -LiteralPath $staging -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
 Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zip -Force
 Remove-Item -LiteralPath $staging -Recurse -Force
 

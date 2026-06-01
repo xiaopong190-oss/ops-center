@@ -1,6 +1,5 @@
 const { useState, useEffect, useCallback } = React;
 
-const PRIORITY_STORAGE_KEY = "ops-center-daily-priority";
 const FX_CACHE_KEY = "ops-center-fx-rates";
 const NEWS_CACHE_KEY = "ops-center-amazon-news";
 
@@ -406,29 +405,6 @@ function ExchangeRatesCard({ fx }) {
   );
 }
 
-function loadPriority(userId) {
-  const today = beijingTodayKey();
-  const stored = privateStorage.get(userId, "today-priority");
-  if (stored?.date === today) return { date: stored.date, text: stored.text || "" };
-  try {
-    const raw = localStorage.getItem(PRIORITY_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed.date === today && parsed.text) {
-        privateStorage.set(userId, "today-priority", parsed);
-        return { date: parsed.date, text: parsed.text };
-      }
-    }
-  } catch { /* ignore */ }
-  return { date: "", text: "" };
-}
-
-function savePriority(userId, text) {
-  const entry = { date: beijingTodayKey(), text: text.trim() };
-  privateStorage.set(userId, "today-priority", entry);
-  return entry;
-}
-
 function formatClockTime(date, tz) {
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone: tz,
@@ -514,31 +490,37 @@ function PriorityModal({ initialText, onSave, onClose, requiredHint, required })
 
 // ─── HOME MODULE ───────────────────────────────────────────────────────
 
-function HomePanel({ userId = "guest" }) {
+function HomePanel() {
   const now = useNow();
   const fx = useExchangeRates();
   const news = useAmazonNews();
   const today = beijingTodayKey(now);
-  const [priority, setPriority] = useState(() => loadPriority(userId));
-  const [showModal, setShowModal] = useState(() => {
-    const saved = loadPriority(userId);
-    return !saved.text.trim();
-  });
+  const [clientId, setClientId] = useState("");
+  const [priority, setPriority] = useState({ date: "", text: "" });
+  const [priorityReady, setPriorityReady] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   const todayPriority = priority.date === today ? priority.text : "";
 
   useEffect(() => {
-    const saved = loadPriority(userId);
-    setPriority(saved);
-    if (!saved.text.trim()) {
-      setShowModal(true);
-    }
-  }, [today, userId]);
+    let cancelled = false;
+    (async () => {
+      const id = await resolveClientId();
+      if (cancelled) return;
+      setClientId(id);
+      const saved = await loadTodayPriority(id, today);
+      if (cancelled) return;
+      setPriority(saved);
+      setShowModal(!saved.text.trim());
+      setPriorityReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, [today]);
 
-  const handleSavePriority = (text) => {
+  const handleSavePriority = async (text) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    const entry = savePriority(userId, trimmed);
+    if (!trimmed || !clientId) return;
+    const entry = await saveTodayPriority(clientId, today, trimmed);
     setPriority(entry);
     setShowModal(false);
   };
@@ -588,7 +570,7 @@ function HomePanel({ userId = "guest" }) {
         )}
       </div>
 
-      {showModal && (
+      {priorityReady && showModal && (
         <PriorityModal
           initialText={todayPriority}
           required={!todayPriority}

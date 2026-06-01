@@ -252,7 +252,7 @@ function ProductGroup({ product, name, batches, onEdit }) {
 }
 
 function ProductionPanel() {
-  const { items, meta, persist } = useSharedList("production", INIT_PROD.map(b => ({ ...b, stage: normalizeStage(b.stage) })));
+  const { items, meta, loading, error, persist, reload } = useSharedList("production", INIT_PROD.map(b => ({ ...b, stage: normalizeStage(b.stage) })));
   const [modal, setModal] = useState(null);
   const [tabFilter, setTabFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
@@ -322,7 +322,7 @@ function ProductionPanel() {
 
   return (
     <div>
-      <SharedMetaLine meta={meta} />
+      <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 7, flex: 1, minWidth: 320 }}>
           {tabs.map(f => (

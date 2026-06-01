@@ -32,10 +32,17 @@ const chunks = files.map((file, i) => {
 });
 
 const bundled = chunks.join("\n\n");
-const compiled = babel.transform(bundled, {
-  presets: ["react"],
-  filename: "ops-center.bundle.jsx",
-}).code;
+let compiled;
+try {
+  compiled = babel.transform(bundled, {
+    presets: ["react"],
+    filename: "ops-center.bundle.jsx",
+  }).code;
+} catch (e) {
+  console.error("build-browser-bundle FAILED:", e.message);
+  if (e.loc) console.error(`  at line ${e.loc.line}, column ${e.loc.column}`);
+  process.exit(1);
+}
 
 const outPath = path.join(root, "app.bundle.js");
 fs.writeFileSync(

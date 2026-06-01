@@ -371,7 +371,7 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
   );
 }
 export function LogisticsPanel() {
-  const { items, meta, persist } = useSharedList("logistics", INIT_LOGISTICS);
+  const { items, meta, loading, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS);
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
@@ -433,7 +433,7 @@ export function LogisticsPanel() {
   ];
   return (
     <div>
-      <SharedMetaLine meta={meta} />
+      <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>
           {tabs.map(f => (

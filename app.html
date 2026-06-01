@@ -35,16 +35,18 @@
         }
 
         try {
-          // GitHub Pages：优先加载预编译 bundle（无运行时 Babel，更稳定）
-          var bundleRes = await fetch("app.bundle.js?v=5");
+          var SYNC_VER = "8";
+          // 优先预编译 bundle；旧 bundle（无 JSONBin）自动跳过，改用运行时编译
+          var bundleRes = await fetch("app.bundle.js?v=" + SYNC_VER);
           if (bundleRes.ok) {
             var js = await bundleRes.text();
-            prepareRoot();
-            (0, eval)(js);
-            return;
+            if (js.indexOf("JSONBIN_API_KEY") >= 0 || js.indexOf("api.jsonbin.io") >= 0) {
+              prepareRoot();
+              (0, eval)(js);
+              return;
+            }
           }
 
-          // 本地开发：运行时拉取 .browser.jsx 并 Babel 编译
           var files = [
             "src/LogisticsModule.browser.jsx",
             "src/ProductionModule.browser.jsx",
@@ -55,7 +57,7 @@
           ];
           var chunks = [];
           for (var i = 0; i < files.length; i++) {
-            var file = files[i];
+            var file = files[i] + "?v=" + SYNC_VER;
             var res = await fetch(file);
             if (!res.ok) throw new Error(file + " HTTP " + res.status);
             var code = await res.text();

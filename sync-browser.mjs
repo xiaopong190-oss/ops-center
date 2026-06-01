@@ -33,7 +33,9 @@ function toBrowser(src, { exportName, stripUtilsThrough = null }) {
 function storageBrowserBlock() {
   let storage = fs.readFileSync(path.join(dir, "utils/storage.js"), "utf8");
   storage = storage
-    .replace(/^import \{[^}]+\} from "react";\r?\n\r?\n/, "")
+    .replace(/^import \{[^}]+\} from "react";\r?\n/gm, "")
+    .replace(/^import \{ sharedStorage \} from "\.\.\/GlobalConfig\.jsx";\r?\n/gm, "")
+    .replace(/^export \{ sharedStorage \} from "\.\.\/GlobalConfig\.jsx";\r?\n/gm, "")
     .replace(/^export /gm, "");
   let userCtx = fs.readFileSync(path.join(dir, "context/UserContext.jsx"), "utf8");
   userCtx = userCtx
@@ -55,6 +57,7 @@ function globalConfigBrowserBlock() {
   gc = gc
     .replace(/^import \{ useState, useEffect \} from "react";\r?\n\r?\n/, "")
     .replace(/^export const CONFIG_STORAGE_KEY/m, "const CONFIG_STORAGE_KEY")
+    .replace(/^export const sharedStorage/m, "const sharedStorage")
     .replace(/^export const ROLE_COLORS/m, "const ROLE_COLORS")
     .replace(/^export const STAFF_ROLE_OPTIONS/m, "const STAFF_ROLE_OPTIONS")
     .replace(/^export const DEFAULT_GLOBAL_CONFIG/m, "const DEFAULT_GLOBAL_CONFIG")
@@ -74,7 +77,8 @@ function globalConfigBrowserBlock() {
     "window.RoleBadge = RoleBadge;\n" +
     "window.OwnerField = OwnerField;\n" +
     "window.GlobalSettingsModal = GlobalSettingsModal;\n" +
-    "window.useGlobalConfig = useGlobalConfig;\n"
+    "window.useGlobalConfig = useGlobalConfig;\n" +
+    "window.sharedStorage = sharedStorage;\n"
   );
 }
 
@@ -82,7 +86,7 @@ function injectGlobalConfig(logisticsBrowser) {
   const marker = "// ─── LOGISTICS MODULE";
   const idx = logisticsBrowser.indexOf(marker);
   if (idx < 0) return logisticsBrowser;
-  return logisticsBrowser.slice(0, idx) + storageBrowserBlock() + globalConfigBrowserBlock() + "\n" + logisticsBrowser.slice(idx);
+  return logisticsBrowser.slice(0, idx) + globalConfigBrowserBlock() + storageBrowserBlock() + "\n" + logisticsBrowser.slice(idx);
 }
 
 const log = fs.readFileSync(path.join(dir, "LogisticsModule.jsx"), "utf8");

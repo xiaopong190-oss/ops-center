@@ -4,6 +4,8 @@ $ErrorActionPreference = 'Stop'
 Set-ExecutionPolicy -Scope Process Bypass -Force -ErrorAction SilentlyContinue
 Set-Location $PSScriptRoot
 
+Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
+
 Write-Host ''
 Write-Host '请先确认已在 [设置 - 应用] 中卸载:' -ForegroundColor Yellow
 Write-Host '  - 金山毒霸'

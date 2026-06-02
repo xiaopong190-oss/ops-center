@@ -174,7 +174,8 @@ const GIST_SHARED_FILES = {
   logistics: "logistics.json",
   tasks: "tasks.json",
   production: "production.json",
-  "tools-links": "tools-links.json"
+  "tools-links": "tools-links.json",
+  agents: "agents.json"
 };
 function gistConfigured() {
   return Boolean(getGistToken() && getGistId());
@@ -5247,9 +5248,9 @@ function ToolsPanel({
 // Shared helpers (TODAY, fmtD, Avatar, …) come from LogisticsModule.browser.jsx loaded first.
 
 // ─── AI AGENTS MODULE ──────────────────────────────────────────────────
-// 点击卡片在新窗口打开 GPTs / Gems 等外部链接，数据保存在 localStorage
+// GPTs / Gems 链接列表 → GitHub Gist 全公司共享
 
-const AGENTS_STORAGE_KEY = "ops-center-ai-agents";
+const AGENTS_LEGACY_KEY = "ops-center-ai-agents";
 const AGENT_CATEGORIES = ["全部", "GPTs", "Gems", "其他"];
 const CATEGORY_ICONS = {
   GPTs: "🤖",
@@ -5262,21 +5263,21 @@ const detectCategory = url => {
   if (u.includes("gemini.google.com/gems") || u.includes("gemini.google.com/app") && u.includes("gem")) return "Gems";
   return "其他";
 };
-const loadAgents = () => {
+function readLegacyAgents() {
   try {
-    const raw = localStorage.getItem(AGENTS_STORAGE_KEY);
+    const raw = localStorage.getItem(AGENTS_LEGACY_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length) return parsed;
     }
   } catch {/* ignore */}
-  return [];
-};
-const saveAgents = agents => {
+  return null;
+}
+function clearLegacyAgentsStorage() {
   try {
-    localStorage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(agents));
+    localStorage.removeItem(AGENTS_LEGACY_KEY);
   } catch {/* ignore */}
-};
+}
 const resolveAgentUrl = url => {
   if (!url) return "";
   try {
@@ -5557,20 +5558,42 @@ function AgentCard({
     }
   }, "\u2197"))));
 }
-function AgentsPanel() {
-  const [agents, setAgentsState] = useState(loadAgents);
+function AgentsPanel({
+  active: tabActive = true
+}) {
+  const {
+    items: agents,
+    meta,
+    loading,
+    error,
+    persist: persistAgents,
+    reload
+  } = useSharedList("agents", [], {
+    active: tabActive
+  });
   const [cat, setCat] = useState("全部");
   const [q, setQ] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [legacyMigrated, setLegacyMigrated] = useState(false);
+  useEffect(() => {
+    if (!tabActive || loading || legacyMigrated) return;
+    const legacy = readLegacyAgents();
+    if (!legacy?.length) {
+      setLegacyMigrated(true);
+      return;
+    }
+    if (!agents.length) {
+      persistAgents(legacy);
+      clearLegacyAgentsStorage();
+    }
+    setLegacyMigrated(true);
+  }, [tabActive, loading, legacyMigrated, agents.length, persistAgents]);
   const setAgents = updater => {
-    setAgentsState(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      saveAgents(next);
-      return next;
-    });
+    const next = typeof updater === "function" ? updater(agents) : updater;
+    persistAgents(next);
   };
   const persistEdit = () => {
     if (!editingId) return;
@@ -5649,7 +5672,12 @@ function AgentsPanel() {
     const s = q.trim().toLowerCase();
     list = list.filter(a => (a.name || "").toLowerCase().includes(s) || (a.desc || "").toLowerCase().includes(s) || (a.url || "").toLowerCase().includes(s));
   }
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
+    meta: meta,
+    loading: loading,
+    error: error,
+    onReload: reload
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -5736,7 +5764,7 @@ function AgentsPanel() {
       color: "var(--tm)",
       lineHeight: 1.6
     }
-  }, "\u7C98\u8D34 ChatGPT GPTs \u6216 Google Gems \u5206\u4EAB\u94FE\u63A5\uFF0C\u70B9\u51FB\u5361\u7247\u5373\u53EF\u5728\u65B0\u7A97\u53E3\u6253\u5F00\u3002", /*#__PURE__*/React.createElement("br", null), "\u94FE\u63A5\u4F1A\u81EA\u52A8\u8BC6\u522B\u7C7B\u578B\uFF08GPTs / Gems\uFF09\uFF1B\u270E \u7F16\u8F91\u540D\u79F0\u4E0E\u94FE\u63A5\uFF0C\u29C9 \u590D\u5236\uFF0C\xD7 \u5220\u9664\u3002"));
+  }, "\u7C98\u8D34 ChatGPT GPTs \u6216 Google Gems \u5206\u4EAB\u94FE\u63A5\uFF0C\u70B9\u51FB\u5361\u7247\u5373\u53EF\u5728\u65B0\u7A97\u53E3\u6253\u5F00\uFF1B\u6DFB\u52A0\u540E\u5168\u516C\u53F8\u7535\u8111\u81EA\u52A8\u540C\u6B65\u3002", /*#__PURE__*/React.createElement("br", null), "\u94FE\u63A5\u4F1A\u81EA\u52A8\u8BC6\u522B\u7C7B\u578B\uFF08GPTs / Gems\uFF09\uFF1B\u270E \u7F16\u8F91\u540D\u79F0\u4E0E\u94FE\u63A5\uFF0C\u29C9 \u590D\u5236\uFF0C\xD7 \u5220\u9664\u3002"));
 }
 const FX_CACHE_KEY = "ops-center-fx-rates";
 const NEWS_CACHE_KEY = "ops-center-amazon-news";
@@ -7858,7 +7886,9 @@ function App() {
     style: {
       display: tab === "agents" ? "block" : "none"
     }
-  }, /*#__PURE__*/React.createElement(AgentsPanel, null))), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
+  }, /*#__PURE__*/React.createElement(AgentsPanel, {
+    active: tab === "agents"
+  }))), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
     onClose: () => setSettingsPanel(null),
     onSaved: () => setSettingsPanel(null)
   })));

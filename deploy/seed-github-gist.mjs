@@ -34,6 +34,7 @@ const files = {
   "tasks.json": { content: emptyPayload("tasks") },
   "production.json": { content: emptyPayload("production") },
   "tools-links.json": { content: emptyPayload("tools-links") },
+  "agents.json": { content: emptyPayload("agents") },
 };
 
 const res = await fetch("https://api.github.com/gists", {

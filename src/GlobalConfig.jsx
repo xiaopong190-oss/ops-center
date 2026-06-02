@@ -24,6 +24,7 @@ const GIST_SHARED_FILES = {
   tasks: "tasks.json",
   production: "production.json",
   "tools-links": "tools-links.json",
+  agents: "agents.json",
 };
 
 function gistConfigured() {

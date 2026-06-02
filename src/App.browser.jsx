@@ -268,7 +268,7 @@ function App() {
         <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
         <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
         <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel active={tab === "tools"} /></div>
-        <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel /></div>
+        <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel active={tab === "agents"} /></div>
       </div>
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
     </div>

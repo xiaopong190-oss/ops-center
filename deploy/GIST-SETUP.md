@@ -52,4 +52,4 @@ CI 构建时会把 Token 写入 `docs/gist-config.js`（仅部署产物，不进
 
 ## 5. 共享模块
 
-物流头程、任务跟进、精品生产、工具在线文档 → Gist；首页今日最优先 → 本机 localStorage。
+物流头程、任务跟进、精品生产、工具在线文档、**AI 智能体** → Gist；首页今日最优先 → 本机 localStorage。

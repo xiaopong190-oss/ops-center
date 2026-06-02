@@ -1,9 +1,9 @@
 // Shared helpers (TODAY, fmtD, Avatar, …) come from LogisticsModule.browser.jsx loaded first.
 
 // ─── AI AGENTS MODULE ──────────────────────────────────────────────────
-// 点击卡片在新窗口打开 GPTs / Gems 等外部链接，数据保存在 localStorage
+// GPTs / Gems 链接列表 → GitHub Gist 全公司共享
 
-const AGENTS_STORAGE_KEY = "ops-center-ai-agents";
+const AGENTS_LEGACY_KEY = "ops-center-ai-agents";
 const AGENT_CATEGORIES = ["全部", "GPTs", "Gems", "其他"];
 const CATEGORY_ICONS = { GPTs: "🤖", Gems: "✨", 其他: "🧠" };
 
@@ -14,20 +14,20 @@ const detectCategory = (url) => {
   return "其他";
 };
 
-const loadAgents = () => {
+function readLegacyAgents() {
   try {
-    const raw = localStorage.getItem(AGENTS_STORAGE_KEY);
+    const raw = localStorage.getItem(AGENTS_LEGACY_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length) return parsed;
     }
   } catch { /* ignore */ }
-  return [];
-};
+  return null;
+}
 
-const saveAgents = (agents) => {
-  try { localStorage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(agents)); } catch { /* ignore */ }
-};
+function clearLegacyAgentsStorage() {
+  try { localStorage.removeItem(AGENTS_LEGACY_KEY); } catch { /* ignore */ }
+}
 
 const resolveAgentUrl = (url) => {
   if (!url) return "";
@@ -153,21 +153,34 @@ function AgentCard({ agent, isEditing, editName, editUrl, editDesc, onOpen, onSt
   );
 }
 
-function AgentsPanel() {
-  const [agents, setAgentsState] = useState(loadAgents);
+function AgentsPanel({ active: tabActive = true }) {
+  const { items: agents, meta, loading, error, persist: persistAgents, reload } =
+    useSharedList("agents", [], { active: tabActive });
   const [cat, setCat] = useState("全部");
   const [q, setQ] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [legacyMigrated, setLegacyMigrated] = useState(false);
+
+  useEffect(() => {
+    if (!tabActive || loading || legacyMigrated) return;
+    const legacy = readLegacyAgents();
+    if (!legacy?.length) {
+      setLegacyMigrated(true);
+      return;
+    }
+    if (!agents.length) {
+      persistAgents(legacy);
+      clearLegacyAgentsStorage();
+    }
+    setLegacyMigrated(true);
+  }, [tabActive, loading, legacyMigrated, agents.length, persistAgents]);
 
   const setAgents = (updater) => {
-    setAgentsState(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      saveAgents(next);
-      return next;
-    });
+    const next = typeof updater === "function" ? updater(agents) : updater;
+    persistAgents(next);
   };
 
   const persistEdit = () => {
@@ -259,6 +272,7 @@ function AgentsPanel() {
 
   return (
     <div>
+      <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索智能体…" style={{ ...inpSm, flex: 1, minWidth: 140, maxWidth: 220 }} />
         <button type="button" onClick={addAgent} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 20, padding: "4px 14px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>+ 添加智能体</button>
@@ -297,7 +311,7 @@ function AgentsPanel() {
       )}
 
       <div style={{ marginTop: "1.5rem", padding: "10px 14px", borderRadius: 10, background: "var(--bg)", border: "1px dashed var(--border)", fontSize: 11, color: "var(--tm)", lineHeight: 1.6 }}>
-        粘贴 ChatGPT GPTs 或 Google Gems 分享链接，点击卡片即可在新窗口打开。<br />
+        粘贴 ChatGPT GPTs 或 Google Gems 分享链接，点击卡片即可在新窗口打开；添加后全公司电脑自动同步。<br />
         链接会自动识别类型（GPTs / Gems）；✎ 编辑名称与链接，⧉ 复制，× 删除。
       </div>
     </div>

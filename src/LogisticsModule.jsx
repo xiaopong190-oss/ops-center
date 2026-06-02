@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { OwnerField, ownerFilterEntries, RoleBadge, getStaffRole } from "./GlobalConfig.jsx";
 import { useSharedList, SharedMetaLine } from "./utils/storage.js";
+import FBAGanttCard from "./FBAGanttCard.jsx";
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
@@ -270,7 +271,7 @@ function FbaRow({ fba, onEditTracking }) {
     </div>
   );
 }
-function ShipmentGroupCard({ group, expanded, onToggleExpand, onEdit, onEditTracking }) {
+function ShipmentGroupCard({ group, expanded, onToggleExpand, onEdit, onEditTracking, onDelete }) {
   const stageIdx = HEAD_STAGES.indexOf(group.headStatus);
   const prog = stageIdx >= 0 ? Math.round((stageIdx / (HEAD_STAGES.length - 1)) * 100) : 0;
   const bc = batchHeadOverdue(group) ? "#E24B4A" : openExcCount(group) > 0 ? "#e09000" : headStageColor(group.headStatus);
@@ -321,7 +322,10 @@ function ShipmentGroupCard({ group, expanded, onToggleExpand, onEdit, onEditTrac
       </div>
       <div style={{ borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", background: "var(--bg)" }}>
         <span style={{ fontSize: 11, color: "var(--tm)" }}>{expanded ? "收起 FBA 货件" : `展开 ${fbaCount} 个 FBA 货件`}</span>
-        <button type="button" onClick={e => { e.stopPropagation(); onToggleExpand(); }} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>{expanded ? "▲ 收起" : "▼ 展开"}</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button type="button" onClick={e => { e.stopPropagation(); onDelete(); }} style={{ background: "transparent", border: "1px solid #fecaca", borderRadius: 8, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#e55" }}>删除</button>
+          <button type="button" onClick={e => { e.stopPropagation(); onToggleExpand(); }} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>{expanded ? "▲ 收起" : "▼ 展开"}</button>
+        </div>
       </div>
       {expanded && (
         <div style={{ borderTop: "1px solid var(--border)", background: "var(--bg)" }}>
@@ -360,8 +364,18 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
   const [fbas, setFbas] = useState(item.fbaShipments ? item.fbaShipments.map(s => ({ ...s })) : []);
   const [nextFbaId, setNextFbaId] = useState(() => Math.max(0, ...(item.fbaShipments || []).map(s => s.id)) + 1);
   const [importMsg, setImportMsg] = useState("");
+  const [saveWarn, setSaveWarn] = useState("");
   const fileInputRef = useRef(null);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const handleSave = (e) => {
+    e?.stopPropagation?.();
+    if (!form.name.trim()) {
+      setSaveWarn("请先填写「批次名称」");
+      return;
+    }
+    setSaveWarn("");
+    onSave({ ...form, exceptions: excs, fbaShipments: fbas });
+  };
   const emptyFba = () => ({ id: nextFbaId, name: "", fbaId: "", internalId: "", warehouse: "", expectedQty: 0, receivedQty: 0, windowStart: "", windowEnd: "", tracking: "", status: "准备发货", note: "" });
   const onCsvPick = async (e) => {
     const files = e.target.files;
@@ -385,12 +399,21 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
     e.target.value = "";
   };
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.5rem", width: "100%", maxWidth: 760, color: "var(--text)" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem 1rem" }}>
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} aria-hidden />
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: "relative", zIndex: 1, background: "var(--card)", border: "1px solid var(--border)",
+          borderRadius: 14, width: "100%", maxWidth: 760, maxHeight: "calc(100vh - 3rem)",
+          color: "var(--text)", display: "flex", flexDirection: "column", overflow: "hidden",
+        }}
+      >
+        <div style={{ flex: 1, overflowY: "auto", padding: "1.5rem 1.5rem 0" }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: "1rem" }}>{item.id ? "编辑发货批次" : "新建发货批次"}</div>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", marginBottom: 8 }}>批次信息</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <div><label style={lbl}>批次名称</label><input value={form.name} onChange={e => set("name", e.target.value)} placeholder="FB100绿色第三批" style={inp} /></div>
+          <div><label style={lbl}>批次名称 <span style={{ color: "#c62828" }}>*</span></label><input value={form.name} onChange={e => { set("name", e.target.value); if (saveWarn) setSaveWarn(""); }} placeholder="FB100绿色第三批" style={inp} /></div>
           <div><label style={lbl}>产品 / SKU</label><input value={form.sku} onChange={e => set("sku", e.target.value)} placeholder="FB100" style={inp} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -420,11 +443,15 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
         {importMsg && <div style={{ fontSize: 11, color: importMsg.includes("失败") || importMsg.includes("不是") ? "#E24B4A" : "#1a6b35", marginBottom: 8, padding: "6px 10px", background: importMsg.includes("失败") || importMsg.includes("不是") ? "#fee2e2" : "#f0faf4", borderRadius: 8 }}>{importMsg}</div>}
         {fbas.map((f, i) => <FbaEditorRow key={f.id} fba={f} onChange={v => { const a = [...fbas]; a[i] = v; setFbas(a); }} onRemove={() => setFbas(fbas.filter((_, j) => j !== i))} />)}
         <button type="button" onClick={() => { setFbas([...fbas, emptyFba()]); setNextFbaId(nextFbaId + 1); }} style={{ width: "100%", border: "1px dashed var(--border)", borderRadius: 8, padding: "6px 0", fontSize: 12, cursor: "pointer", color: "var(--tm)", background: "transparent", marginBottom: 12, fontFamily: "inherit" }}>+ 添加 FBA 货件</button>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-          {item.id ? <button type="button" onClick={onDelete} style={{ background: "none", border: "none", color: "#e55", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>删除批次</button> : <div />}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" onClick={onClose} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
-            <button type="button" onClick={() => { if (!form.name.trim()) return; onSave({ ...form, exceptions: excs, fbaShipments: fbas }); }} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>保存</button>
+        </div>
+        <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "12px 1.5rem 1.5rem", background: "var(--card)" }}>
+          {saveWarn && <div style={{ fontSize: 12, color: "#c62828", marginBottom: 8 }}>{saveWarn}</div>}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            {item.id ? <button type="button" onClick={onDelete} style={{ background: "none", border: "none", color: "#e55", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>删除批次</button> : <div />}
+            <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+              <button type="button" onClick={onClose} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
+              <button type="button" onClick={handleSave} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>保存</button>
+            </div>
           </div>
         </div>
       </div>
@@ -488,6 +515,11 @@ export function LogisticsPanel({ active = true }) {
     else persist([...list, { ...t, id: nextId() }]);
     setModal(null);
   };
+  const deleteGroup = (g) => {
+    if (!window.confirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`)) return;
+    persist(list.filter(x => x.id !== g.id));
+    if (modal?.id === g.id) setModal(null);
+  };
   const editTracking = (gid, fid, tracking) => {
     persist(list.map(g => g.id !== gid ? g : {
       ...g, fbaShipments: (g.fbaShipments || []).map(s => s.id !== fid ? s : { ...s, tracking, status: tracking.trim() && s.status === "准备发货" ? "运输中" : s.status }),
@@ -517,6 +549,7 @@ export function LogisticsPanel({ active = true }) {
   return (
     <div>
       <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
+      <FBAGanttCard groups={list} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>
           {tabs.map(f => (
@@ -549,6 +582,7 @@ export function LogisticsPanel({ active = true }) {
             onToggleExpand={() => toggleExpanded(g.id)}
             onEdit={() => setModal(cloneGroup(g))}
             onEditTracking={editTracking}
+            onDelete={() => deleteGroup(g)}
           />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>

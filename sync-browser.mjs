@@ -7,7 +7,7 @@ const dir = path.join(root, "src");
 
 function toBrowser(src, { exportName, stripUtilsThrough = null }) {
   let out = src
-    .replace(/^import \{[^}]+\} from "react";\r?\n/, "const { useState, useRef, useEffect, useCallback, createContext, useContext } = React;\n")
+    .replace(/^import \{[^}]+\} from "react";\r?\n/, "const { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext } = React;\n")
     .replace(/^import \{ useState, useEffect \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
     .replace(/^import \{ useState \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
     .replace(/import \{[^}]+\} from "\.\/utils\/storage\.js";\r?\n/g, "")
@@ -109,17 +109,25 @@ function globalConfigBrowserBlock() {
   );
 }
 
-function injectGlobalConfig(logisticsBrowser) {
+function injectGlobalConfig(logisticsBrowser, afterStorage = "") {
   const marker = "// ─── LOGISTICS MODULE";
   const idx = logisticsBrowser.indexOf(marker);
   if (idx < 0) return logisticsBrowser;
-  return logisticsBrowser.slice(0, idx) + globalConfigBrowserBlock() + storageBrowserBlock() + "\n" + logisticsBrowser.slice(idx);
+  return logisticsBrowser.slice(0, idx) + globalConfigBrowserBlock() + storageBrowserBlock() + "\n" + afterStorage + logisticsBrowser.slice(idx);
 }
 
-const log = fs.readFileSync(path.join(dir, "LogisticsModule.jsx"), "utf8");
+const logRaw = fs.readFileSync(path.join(dir, "LogisticsModule.jsx"), "utf8");
+const fbaGantt = fs.readFileSync(path.join(dir, "FBAGanttCard.jsx"), "utf8");
+const logMerged = logRaw
+  .replace(/^import FBAGanttCard from "\.\/FBAGanttCard\.jsx";\r?\n/m, "")
+  .replace(/^import FBAGanttCard from '\.\/FBAGanttCard\.jsx';\r?\n/m, "");
+const fbaGanttBrowser = toBrowser(fbaGantt, { exportName: null })
+  .replace(/^export default function FBAGanttCard/m, "function FBAGanttCard")
+  .replace(/^const \{[^}]+\} = React;\r?\n+/, "");
+const logBrowser = toBrowser(logMerged, { exportName: "LogisticsPanel" });
 fs.writeFileSync(
   path.join(dir, "LogisticsModule.browser.jsx"),
-  injectGlobalConfig(toBrowser(log, { exportName: "LogisticsPanel" }))
+  injectGlobalConfig(logBrowser, fbaGanttBrowser + "\n")
 );
 
 const prod = fs.readFileSync(path.join(dir, "ProductionModule.jsx"), "utf8");

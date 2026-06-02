@@ -92,6 +92,8 @@ const INIT_PROD = [
   },
 ];
 
+const INIT_PROD_DEFAULT = INIT_PROD.map(b => ({ ...b, stage: normalizeStage(b.stage) }));
+
 function ProdExceptionEditor({ excs, setExcs }) {
   return (
     <>
@@ -269,7 +271,7 @@ function ProductGroup({ product, name, batches, onEdit }) {
 }
 
 export function ProductionPanel({ active = true }) {
-  const { items, meta, loading, error, persist, reload } = useSharedList("production", INIT_PROD.map(b => ({ ...b, stage: normalizeStage(b.stage) })), { active });
+  const { items, meta, loading, error, persist, reload } = useSharedList("production", INIT_PROD_DEFAULT, { active });
   const [modal, setModal] = useState(null);
   const [tabFilter, setTabFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");

@@ -1,136 +1,96 @@
 import { useState, useEffect } from "react";
+import { GITHUB_GIST_ID } from "./cloud-sync-config.js";
 
 export const CONFIG_STORAGE_KEY = "ops-center-global-config";
 
-const JSONBIN_API_KEY = "$2a$10$2ozXoCjldhmBsjtHria.3.Qe9IGP3lPWQnxGsvO4fOBdlfDogsBZq";
-const JSONBIN_API_BASE = "https://api.jsonbin.io/v3/b";
-const JSONBIN_BIN_IDS = {
-  logistics: "6a1d27c321f9ee59d2a3c1c4",
-  tasks: "6a1d27fd21f9ee59d2a3c26e",
-  production: "6a1d282721f9ee59d2a3c30a",
-  "tools-links": "6a1d284521f9ee59d2a3c375",
+function getGistToken() {
+  if (typeof window !== "undefined" && window.__OPS_GIST__?.token) {
+    return String(window.__OPS_GIST__.token);
+  }
+  return "";
+}
+
+function getGistId() {
+  if (typeof window !== "undefined" && window.__OPS_GIST__?.id) {
+    return String(window.__OPS_GIST__.id);
+  }
+  return GITHUB_GIST_ID || "";
+}
+
+// ─── GitHub Gist 共享（一个 Gist 里多个 json 文件）────────────────────
+const GIST_API = "https://api.github.com/gists";
+const GIST_SHARED_FILES = {
+  logistics: "logistics.json",
+  tasks: "tasks.json",
+  production: "production.json",
+  "tools-links": "tools-links.json",
 };
 
-function resolveJsonBinId(key) {
-  return JSONBIN_BIN_IDS[key] || null;
+function gistConfigured() {
+  return Boolean(getGistToken() && getGistId());
 }
 
-function sharedLocalGet(key) {
-  try {
-    const raw = localStorage.getItem(`shared:${key}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function sharedLocalSet(key, value, updatedBy) {
-  const payload = {
-    data: value,
-    updatedBy: updatedBy || "未知",
-    updatedAt: Date.now(),
+function gistHeaders(json = false) {
+  const h = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${getGistToken()}`,
+    "X-GitHub-Api-Version": "2022-11-28",
   };
-  localStorage.setItem(`shared:${key}`, JSON.stringify(payload));
+  if (json) h["Content-Type"] = "application/json";
+  return h;
+}
+
+async function gistFetchAll() {
+  const res = await fetch(`${GIST_API}/${getGistId()}`, { headers: gistHeaders() });
+  if (!res.ok) throw new Error(`Gist 读取失败 HTTP ${res.status}`);
+  return res.json();
+}
+
+async function gistReadRecord(key) {
+  const fileName = GIST_SHARED_FILES[key];
+  if (!fileName) return null;
+  const gist = await gistFetchAll();
+  const content = gist?.files?.[fileName]?.content;
+  if (!content) return null;
+  const record = JSON.parse(content);
+  if (record && typeof record === "object") return record;
+  return null;
+}
+
+async function gistWriteRecord(key, payload) {
+  const fileName = GIST_SHARED_FILES[key];
+  if (!fileName) throw new Error(`未知共享键: ${key}`);
+  const res = await fetch(`${GIST_API}/${getGistId()}`, {
+    method: "PATCH",
+    headers: gistHeaders(true),
+    body: JSON.stringify({
+      files: {
+        [fileName]: { content: JSON.stringify(payload, null, 2) },
+      },
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Gist 保存失败 HTTP ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`);
+  }
   return payload;
 }
 
-function sharedLocalDelete(key) {
-  localStorage.removeItem(`shared:${key}`);
-}
-
-function normalizeSharedRecord(record) {
-  if (record == null) return null;
-  if (typeof record === "object" && Object.prototype.hasOwnProperty.call(record, "data")) {
-    return {
-      data: record.data,
-      updatedBy: record.updatedBy || "",
-      updatedAt: record.updatedAt || 0,
-    };
-  }
-  return { data: record, updatedBy: "", updatedAt: 0 };
-}
-
-function notifySharedUpdated(key) {
-  window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
-}
-
-function delayMs(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchJsonBinLatest(binId, storageKey) {
-  const url = `${JSONBIN_API_BASE}/${binId}/latest`;
-  const headers = { "X-Master-Key": JSONBIN_API_KEY };
-  const attempts = [
-    { via: "cloud", run: () => fetchWithTimeout(url, { headers }) },
-    { via: "proxy", run: () => fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, { headers }) },
-    { via: "snapshot", run: () => fetchWithTimeout(`data/shared-${storageKey}.json?v=${Date.now()}`, { cache: "no-store" }) },
-  ];
-
-  let lastErr = "网络错误";
-  for (const { via, run } of attempts) {
-    try {
-      const res = await run();
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const record = json.record != null ? json.record : json;
-      const normalized = normalizeSharedRecord(record);
-      if (!normalized) return null;
-      return { ...normalized, _via: via };
-    } catch (e) {
-      lastErr = e?.name === "AbortError" ? "连接超时" : (e?.message || "网络错误");
-    }
-  }
-  throw new Error(lastErr);
-}
-
-async function fetchWithTimeout(url, opts = {}) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 12000);
-  try {
-    return await fetch(url, { ...opts, signal: ctrl.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// ─── sharedStorage ───────────────────────────────────────────────────
+// 已配置 Gist → 全公司共享；未配置 → 仅 localStorage
 
 export const sharedStorage = {
-  async get(key, { retries = 3 } = {}) {
-    const binId = resolveJsonBinId(key);
-    if (!binId) return sharedLocalGet(key);
-
-    let lastErr = "网络错误";
-    for (let attempt = 0; attempt < retries; attempt++) {
-      if (attempt > 0) await delayMs(800 * attempt);
-      try {
-        const normalized = await fetchJsonBinLatest(binId, key);
-        if (normalized) {
-          sharedLocalSet(key, normalized.data, normalized.updatedBy);
-          const source = normalized._via === "snapshot" ? "snapshot" : "cloud";
-          const { _via, ...rest } = normalized;
-          return { ...rest, _source: source };
-        }
-        return null;
-      } catch (e) {
-        lastErr = e?.name === "AbortError" ? "连接超时" : (e?.message || "网络错误");
-      }
+  async get(key) {
+    if (!GIST_SHARED_FILES[key]) return localGet(key);
+    if (!gistConfigured()) return localGet(key);
+    try {
+      const record = await gistReadRecord(key);
+      if (record) localSet(key, record);
+      return record ?? localGet(key);
+    } catch (e) {
+      console.warn(`[sharedStorage] get "${key}" Gist 失败，用本地缓存`, e?.message);
+      return localGet(key);
     }
-
-    const local = sharedLocalGet(key);
-    const normalized = normalizeSharedRecord(local);
-    if (normalized && Array.isArray(normalized.data) && normalized.data.length === 0) {
-      return {
-        data: null,
-        updatedBy: "",
-        updatedAt: 0,
-        _source: "local-fallback",
-        _cloudError: lastErr,
-        _emptyLocalIgnored: true,
-      };
-    }
-    if (normalized) return { ...normalized, _source: "local-fallback", _cloudError: lastErr };
-    return { data: null, updatedBy: "", updatedAt: 0, _source: "local-fallback", _cloudError: lastErr };
   },
 
   async set(key, value, updatedBy) {
@@ -139,45 +99,48 @@ export const sharedStorage = {
       updatedBy: updatedBy || "未知",
       updatedAt: Date.now(),
     };
-    const binId = resolveJsonBinId(key);
-    if (!binId) {
-      sharedLocalSet(key, value, updatedBy);
-      notifySharedUpdated(key);
-      return { ...payload, _source: "local" };
+    if (!GIST_SHARED_FILES[key]) {
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      return payload;
     }
-
+    if (!gistConfigured()) {
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      throw new Error("未配置 GitHub Gist，已暂存本机（请填写 cloud-sync-config.js）");
+    }
     try {
-      const res = await fetch(`${JSONBIN_API_BASE}/${binId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Master-Key": JSONBIN_API_KEY,
-        },
-        body: JSON.stringify(payload),
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`JSONBin PUT ${res.status}`);
-      sharedLocalSet(key, value, updatedBy);
-      notifySharedUpdated(key);
-      return { ...payload, _source: "cloud" };
+      await gistWriteRecord(key, payload);
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      return payload;
     } catch (e) {
-      sharedLocalSet(key, value, updatedBy);
-      notifySharedUpdated(key);
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
       throw new Error(`云端保存失败（已暂存本机）：${e?.message || "网络错误"}`);
     }
   },
 
   async delete(key) {
-    const binId = resolveJsonBinId(key);
-    if (!binId) {
-      sharedLocalDelete(key);
-      notifySharedUpdated(key);
-      return;
-    }
-    await sharedStorage.set(key, null, "");
+    localStorage.removeItem(`shared:${key}`);
+    await sharedStorage.set(key, [], "");
   },
 };
 
+function localGet(key) {
+  try {
+    const raw = localStorage.getItem(`shared:${key}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function localSet(key, payload) {
+  try {
+    localStorage.setItem(`shared:${key}`, JSON.stringify(payload));
+  } catch { /* ignore */ }
+}
+
+// ─── ROLE / STAFF ─────────────────────────────────────────────────────
 export const ROLE_COLORS = {
   运营: { bg: "#dceeff", color: "#1a4e8a" },
   美工: { bg: "#f3e8ff", color: "#6b21a8" },
@@ -220,8 +183,7 @@ function normalizeStaffEntry(item) {
 export function parseStaffText(text) {
   return text.split(/\r?\n/).map(line => {
     const [name, role] = line.split("|").map(s => s.trim());
-    const trimmed = line.trim();
-    return { name: name || trimmed, role: role || "" };
+    return { name: name || line.trim(), role: role || "" };
   }).filter(e => e.name);
 }
 
@@ -237,11 +199,7 @@ export function loadGlobalConfig() {
     if (!Array.isArray(parsed.staff) || !parsed.staff.length) {
       return { staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({ ...e })) };
     }
-    const staff = parsed.staff.map(normalizeStaffEntry).filter(e => e.name);
-    if (JSON.stringify(parsed.staff) !== JSON.stringify(staff)) {
-      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({ staff }));
-    }
-    return { staff };
+    return { staff: parsed.staff.map(normalizeStaffEntry).filter(e => e.name) };
   } catch {
     return { staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({ ...e })) };
   }
@@ -256,19 +214,10 @@ export function saveGlobalConfig(config) {
   return next;
 }
 
-export function getEmployees() {
-  return loadGlobalConfig().staff;
-}
+export function getEmployees() { return loadGlobalConfig().staff; }
+export function getStaffNames() { return getEmployees().map(e => e.name); }
+export function getStaffRole(name) { return getEmployees().find(e => e.name === name)?.role || ""; }
 
-export function getStaffNames() {
-  return getEmployees().map(e => e.name);
-}
-
-export function getStaffRole(name) {
-  return getEmployees().find(e => e.name === name)?.role || "";
-}
-
-/** 全局员工 + 业务数据里出现过的姓名，去重排序 */
 export function ownerOptions(...extraLists) {
   const fromData = extraLists.flat().filter(Boolean);
   const byName = new Map(getEmployees().map(e => [e.name, e]));
@@ -278,12 +227,10 @@ export function ownerOptions(...extraLists) {
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }
 
-/** 跟进人筛选：全部 + 员工对象列表 */
 export function ownerFilterEntries(...extraLists) {
   return [{ name: "all", role: "" }, ...ownerOptions(...extraLists)];
 }
 
-/** 跟进人筛选：全部 + 合并名单（姓名字符串，兼容旧用法） */
 export function ownerFilterOptions(...extraLists) {
   return ownerFilterEntries(...extraLists).map(e => e.name);
 }
@@ -330,31 +277,24 @@ export function OwnerField({ value, onChange, listId = "owner-list", extraOwners
   }
 
   return (
-    <select
-      value={known.has(value) ? value : ""}
-      onChange={e => {
-        const v = e.target.value;
-        if (v === "__manual__") { setManual(true); onChange(""); return; }
-        onChange(v);
-      }}
-      style={fieldStyle}
-    >
+    <select value={known.has(value) ? value : ""} onChange={e => {
+      const v = e.target.value;
+      if (v === "__manual__") { setManual(true); onChange(""); return; }
+      onChange(v);
+    }} style={fieldStyle}>
       <option value="">{placeholder}</option>
-      {options.map(o => (
-        <option key={o.name} value={o.name}>{formatOwnerLabel(o)}</option>
-      ))}
+      {options.map(o => <option key={o.name} value={o.name}>{formatOwnerLabel(o)}</option>)}
       <option value="__manual__">手动输入…</option>
     </select>
   );
 }
 
 function StaffListEditor({ rows, onChange }) {
-  const setRow = (i, patch) => onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const setRow = (i, patch) => onChange(rows.map((r, j) => j === i ? { ...r, ...patch } : r));
   const removeRow = (i) => onChange(rows.filter((_, j) => j !== i));
   const addRow = () => onChange([...rows, { name: "", role: STAFF_ROLE_OPTIONS[0] || "运营" }]);
   const inp = { flex: 1, minWidth: 0, fontSize: 13, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", background: "transparent", color: "inherit" };
   const sel = { ...inp, width: 92, flex: "0 0 92px", background: "var(--card)", cursor: "pointer" };
-
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 6, padding: "0 2px" }}>
@@ -372,7 +312,7 @@ function StaffListEditor({ rows, onChange }) {
               <select value={row.role || STAFF_ROLE_OPTIONS[0]} onChange={e => setRow(i, { role: e.target.value })} style={sel}>
                 {roles.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
-              <button type="button" onClick={() => removeRow(i)} title="删除" aria-label="删除" style={{ width: 28, height: 28, border: "none", background: "transparent", color: "#bbb", cursor: "pointer", fontSize: 20, lineHeight: 1, flexShrink: 0, fontFamily: "inherit" }}>×</button>
+              <button type="button" onClick={() => removeRow(i)} style={{ width: 28, height: 28, border: "none", background: "transparent", color: "#bbb", cursor: "pointer", fontSize: 20, lineHeight: 1, flexShrink: 0, fontFamily: "inherit" }}>×</button>
             </div>
           );
         })}
@@ -384,26 +324,21 @@ function StaffListEditor({ rows, onChange }) {
 
 export function GlobalSettingsModal({ onClose, onSaved }) {
   const [rows, setRows] = useState(() => getEmployees().map(e => ({ ...e })));
-
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-
   const save = () => {
     const staff = rows.map(r => ({ name: r.name.trim(), role: r.role || "" })).filter(r => r.name);
     saveGlobalConfig({ staff });
     onSaved?.();
   };
-
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 440, color: "var(--text)" }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>全局员工名单</div>
-        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 14, lineHeight: 1.5 }}>
-          填写姓名并选择角色，保存后会在各模块「负责人 / 跟进人」中统一出现。
-        </div>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 14, lineHeight: 1.5 }}>填写姓名并选择角色，保存后会在各模块「负责人 / 跟进人」中统一出现。</div>
         <StaffListEditor rows={rows} onChange={setRows} />
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
           <button type="button" onClick={onClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>

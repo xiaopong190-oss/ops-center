@@ -188,7 +188,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-18";
+const APP_BUILD = "cloud-22";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -267,7 +267,7 @@ function App() {
         <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
         <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
         <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
-        <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel /></div>
+        <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel active={tab === "tools"} /></div>
         <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel /></div>
       </div>
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}

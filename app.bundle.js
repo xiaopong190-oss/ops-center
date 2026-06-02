@@ -85,183 +85,162 @@ const Avatar = ({
   }, (name || "?").slice(0, 1));
 };
 const LOG_EXPAND_KEY = "ops-logistics-expanded";
+const LOG_FILTER_KEY = "ops-logistics-filters";
+let logisticsExpandedCache = null;
+function isPlainObj(v) {
+  return v != null && typeof v === "object" && !Array.isArray(v);
+}
 function loadExpandedState() {
+  if (isPlainObj(logisticsExpandedCache)) return {
+    ...logisticsExpandedCache
+  };
   try {
-    const raw = sessionStorage.getItem(LOG_EXPAND_KEY);
-    if (raw) return JSON.parse(raw);
+    const raw = localStorage.getItem(LOG_EXPAND_KEY) || sessionStorage.getItem(LOG_EXPAND_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (isPlainObj(parsed)) {
+        logisticsExpandedCache = parsed;
+        return {
+          ...logisticsExpandedCache
+        };
+      }
+    }
   } catch {/* ignore */}
-  return {
+  logisticsExpandedCache = {
     1: true
+  };
+  return {
+    ...logisticsExpandedCache
   };
 }
 function saveExpandedState(state) {
+  logisticsExpandedCache = {
+    ...state
+  };
   try {
-    sessionStorage.setItem(LOG_EXPAND_KEY, JSON.stringify(state));
+    const json = JSON.stringify(logisticsExpandedCache);
+    localStorage.setItem(LOG_EXPAND_KEY, json);
+    sessionStorage.setItem(LOG_EXPAND_KEY, json);
   } catch {/* ignore */}
+}
+function loadLogisticsFilters() {
+  try {
+    const raw = sessionStorage.getItem(LOG_FILTER_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (isPlainObj(parsed)) {
+        return {
+          filter: typeof parsed.filter === "string" ? parsed.filter : "all",
+          ownerFilter: typeof parsed.ownerFilter === "string" ? parsed.ownerFilter : "all"
+        };
+      }
+    }
+  } catch {/* ignore */}
+  return {
+    filter: "all",
+    ownerFilter: "all"
+  };
+}
+function saveLogisticsFilters(filters) {
+  try {
+    sessionStorage.setItem(LOG_FILTER_KEY, JSON.stringify(filters));
+  } catch {/* ignore */}
+}
+function isBatchExpanded(expanded, id) {
+  if (!isPlainObj(expanded)) return Number(id) === 1;
+  const key = String(id);
+  if (Object.prototype.hasOwnProperty.call(expanded, key)) return expanded[key] === true;
+  if (Object.prototype.hasOwnProperty.call(expanded, id)) return expanded[id] === true;
+  return Number(id) === 1;
+}
+
+// ─── CLOUD SYNC (GitHub Gist — token via gist-config.js, not in repo) ─
+const GITHUB_GIST_ID = "d4c6e4e873edfef595350da3ecc5c4da";
+function getGistToken() {
+  if (typeof window !== "undefined" && window.__OPS_GIST__?.token) return String(window.__OPS_GIST__.token);
+  return "";
+}
+function getGistId() {
+  if (typeof window !== "undefined" && window.__OPS_GIST__?.id) return String(window.__OPS_GIST__.id);
+  return GITHUB_GIST_ID || "";
 }
 
 // ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────
 const CONFIG_STORAGE_KEY = "ops-center-global-config";
-const JSONBIN_API_KEY = "$2a$10$2ozXoCjldhmBsjtHria.3.Qe9IGP3lPWQnxGsvO4fOBdlfDogsBZq";
-const JSONBIN_API_BASE = "https://api.jsonbin.io/v3/b";
-const JSONBIN_BIN_IDS = {
-  logistics: "6a1d27c321f9ee59d2a3c1c4",
-  tasks: "6a1d27fd21f9ee59d2a3c26e",
-  production: "6a1d282721f9ee59d2a3c30a",
-  "tools-links": "6a1d284521f9ee59d2a3c375"
+
+// ─── GitHub Gist 共享（一个 Gist 里多个 json 文件）────────────────────
+const GIST_API = "https://api.github.com/gists";
+const GIST_SHARED_FILES = {
+  logistics: "logistics.json",
+  tasks: "tasks.json",
+  production: "production.json",
+  "tools-links": "tools-links.json"
 };
-function resolveJsonBinId(key) {
-  return JSONBIN_BIN_IDS[key] || null;
+function gistConfigured() {
+  return Boolean(getGistToken() && getGistId());
 }
-function sharedLocalGet(key) {
-  try {
-    const raw = localStorage.getItem(`shared:${key}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-function sharedLocalSet(key, value, updatedBy) {
-  const payload = {
-    data: value,
-    updatedBy: updatedBy || "未知",
-    updatedAt: Date.now()
+function gistHeaders(json = false) {
+  const h = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${getGistToken()}`,
+    "X-GitHub-Api-Version": "2022-11-28"
   };
-  localStorage.setItem(`shared:${key}`, JSON.stringify(payload));
+  if (json) h["Content-Type"] = "application/json";
+  return h;
+}
+async function gistFetchAll() {
+  const res = await fetch(`${GIST_API}/${getGistId()}`, {
+    headers: gistHeaders()
+  });
+  if (!res.ok) throw new Error(`Gist 读取失败 HTTP ${res.status}`);
+  return res.json();
+}
+async function gistReadRecord(key) {
+  const fileName = GIST_SHARED_FILES[key];
+  if (!fileName) return null;
+  const gist = await gistFetchAll();
+  const content = gist?.files?.[fileName]?.content;
+  if (!content) return null;
+  const record = JSON.parse(content);
+  if (record && typeof record === "object") return record;
+  return null;
+}
+async function gistWriteRecord(key, payload) {
+  const fileName = GIST_SHARED_FILES[key];
+  if (!fileName) throw new Error(`未知共享键: ${key}`);
+  const res = await fetch(`${GIST_API}/${getGistId()}`, {
+    method: "PATCH",
+    headers: gistHeaders(true),
+    body: JSON.stringify({
+      files: {
+        [fileName]: {
+          content: JSON.stringify(payload, null, 2)
+        }
+      }
+    })
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Gist 保存失败 HTTP ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`);
+  }
   return payload;
 }
-function sharedLocalDelete(key) {
-  localStorage.removeItem(`shared:${key}`);
-}
-function normalizeSharedRecord(record) {
-  if (record == null) return null;
-  if (typeof record === "object" && Object.prototype.hasOwnProperty.call(record, "data")) {
-    return {
-      data: record.data,
-      updatedBy: record.updatedBy || "",
-      updatedAt: record.updatedAt || 0
-    };
-  }
-  return {
-    data: record,
-    updatedBy: "",
-    updatedAt: 0
-  };
-}
-function notifySharedUpdated(key) {
-  window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
-}
-function delayMs(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-async function fetchJsonBinLatest(binId, storageKey) {
-  const url = `${JSONBIN_API_BASE}/${binId}/latest`;
-  const headers = {
-    "X-Master-Key": JSONBIN_API_KEY
-  };
-  const attempts = [{
-    via: "cloud",
-    run: () => fetchWithTimeout(url, {
-      headers
-    })
-  }, {
-    via: "proxy",
-    run: () => fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
-      headers
-    })
-  }, {
-    via: "snapshot",
-    run: () => fetchWithTimeout(`data/shared-${storageKey}.json?v=${Date.now()}`, {
-      cache: "no-store"
-    })
-  }];
-  let lastErr = "网络错误";
-  for (const {
-    via,
-    run
-  } of attempts) {
-    try {
-      const res = await run();
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const record = json.record != null ? json.record : json;
-      const normalized = normalizeSharedRecord(record);
-      if (!normalized) return null;
-      return {
-        ...normalized,
-        _via: via
-      };
-    } catch (e) {
-      lastErr = e?.name === "AbortError" ? "连接超时" : e?.message || "网络错误";
-    }
-  }
-  throw new Error(lastErr);
-}
-async function fetchWithTimeout(url, opts = {}) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 12000);
-  try {
-    return await fetch(url, {
-      ...opts,
-      signal: ctrl.signal
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
+
+// ─── sharedStorage ───────────────────────────────────────────────────
+// 已配置 Gist → 全公司共享；未配置 → 仅 localStorage
+
 const sharedStorage = {
-  async get(key, {
-    retries = 3
-  } = {}) {
-    const binId = resolveJsonBinId(key);
-    if (!binId) return sharedLocalGet(key);
-    let lastErr = "网络错误";
-    for (let attempt = 0; attempt < retries; attempt++) {
-      if (attempt > 0) await delayMs(800 * attempt);
-      try {
-        const normalized = await fetchJsonBinLatest(binId, key);
-        if (normalized) {
-          sharedLocalSet(key, normalized.data, normalized.updatedBy);
-          const source = normalized._via === "snapshot" ? "snapshot" : "cloud";
-          const {
-            _via,
-            ...rest
-          } = normalized;
-          return {
-            ...rest,
-            _source: source
-          };
-        }
-        return null;
-      } catch (e) {
-        lastErr = e?.name === "AbortError" ? "连接超时" : e?.message || "网络错误";
-      }
+  async get(key) {
+    if (!GIST_SHARED_FILES[key]) return localGet(key);
+    if (!gistConfigured()) return localGet(key);
+    try {
+      const record = await gistReadRecord(key);
+      if (record) localSet(key, record);
+      return record ?? localGet(key);
+    } catch (e) {
+      console.warn(`[sharedStorage] get "${key}" Gist 失败，用本地缓存`, e?.message);
+      return localGet(key);
     }
-    const local = sharedLocalGet(key);
-    const normalized = normalizeSharedRecord(local);
-    if (normalized && Array.isArray(normalized.data) && normalized.data.length === 0) {
-      return {
-        data: null,
-        updatedBy: "",
-        updatedAt: 0,
-        _source: "local-fallback",
-        _cloudError: lastErr,
-        _emptyLocalIgnored: true
-      };
-    }
-    if (normalized) return {
-      ...normalized,
-      _source: "local-fallback",
-      _cloudError: lastErr
-    };
-    return {
-      data: null,
-      updatedBy: "",
-      updatedAt: 0,
-      _source: "local-fallback",
-      _cloudError: lastErr
-    };
   },
   async set(key, value, updatedBy) {
     const payload = {
@@ -269,48 +248,47 @@ const sharedStorage = {
       updatedBy: updatedBy || "未知",
       updatedAt: Date.now()
     };
-    const binId = resolveJsonBinId(key);
-    if (!binId) {
-      sharedLocalSet(key, value, updatedBy);
-      notifySharedUpdated(key);
-      return {
-        ...payload,
-        _source: "local"
-      };
+    if (!GIST_SHARED_FILES[key]) {
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      return payload;
+    }
+    if (!gistConfigured()) {
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      throw new Error("未配置 GitHub Gist，已暂存本机（请填写 cloud-sync-config.js）");
     }
     try {
-      const res = await fetch(`${JSONBIN_API_BASE}/${binId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Master-Key": JSONBIN_API_KEY
-        },
-        body: JSON.stringify(payload),
-        cache: "no-store"
-      });
-      if (!res.ok) throw new Error(`JSONBin PUT ${res.status}`);
-      sharedLocalSet(key, value, updatedBy);
-      notifySharedUpdated(key);
-      return {
-        ...payload,
-        _source: "cloud"
-      };
+      await gistWriteRecord(key, payload);
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      return payload;
     } catch (e) {
-      sharedLocalSet(key, value, updatedBy);
-      notifySharedUpdated(key);
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
       throw new Error(`云端保存失败（已暂存本机）：${e?.message || "网络错误"}`);
     }
   },
   async delete(key) {
-    const binId = resolveJsonBinId(key);
-    if (!binId) {
-      sharedLocalDelete(key);
-      notifySharedUpdated(key);
-      return;
-    }
-    await sharedStorage.set(key, null, "");
+    localStorage.removeItem(`shared:${key}`);
+    await sharedStorage.set(key, [], "");
   }
 };
+function localGet(key) {
+  try {
+    const raw = localStorage.getItem(`shared:${key}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function localSet(key, payload) {
+  try {
+    localStorage.setItem(`shared:${key}`, JSON.stringify(payload));
+  } catch {/* ignore */}
+}
+
+// ─── ROLE / STAFF ─────────────────────────────────────────────────────
 const ROLE_COLORS = {
   运营: {
     bg: "#dceeff",
@@ -379,9 +357,8 @@ function normalizeStaffEntry(item) {
 function parseStaffText(text) {
   return text.split(/\r?\n/).map(line => {
     const [name, role] = line.split("|").map(s => s.trim());
-    const trimmed = line.trim();
     return {
-      name: name || trimmed,
+      name: name || line.trim(),
       role: role || ""
     };
   }).filter(e => e.name);
@@ -405,14 +382,8 @@ function loadGlobalConfig() {
         }))
       };
     }
-    const staff = parsed.staff.map(normalizeStaffEntry).filter(e => e.name);
-    if (JSON.stringify(parsed.staff) !== JSON.stringify(staff)) {
-      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({
-        staff
-      }));
-    }
     return {
-      staff
+      staff: parsed.staff.map(normalizeStaffEntry).filter(e => e.name)
     };
   } catch {
     return {
@@ -439,8 +410,6 @@ function getStaffNames() {
 function getStaffRole(name) {
   return getEmployees().find(e => e.name === name)?.role || "";
 }
-
-/** 全局员工 + 业务数据里出现过的姓名，去重排序 */
 function ownerOptions(...extraLists) {
   const fromData = extraLists.flat().filter(Boolean);
   const byName = new Map(getEmployees().map(e => [e.name, e]));
@@ -452,16 +421,12 @@ function ownerOptions(...extraLists) {
   }
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }
-
-/** 跟进人筛选：全部 + 员工对象列表 */
 function ownerFilterEntries(...extraLists) {
   return [{
     name: "all",
     role: ""
   }, ...ownerOptions(...extraLists)];
 }
-
-/** 跟进人筛选：全部 + 合并名单（姓名字符串，兼容旧用法） */
 function ownerFilterOptions(...extraLists) {
   return ownerFilterEntries(...extraLists).map(e => e.name);
 }
@@ -678,8 +643,6 @@ function StaffListEditor({
     }, r))), /*#__PURE__*/React.createElement("button", {
       type: "button",
       onClick: () => removeRow(i),
-      title: "\u5220\u9664",
-      "aria-label": "\u5220\u9664",
       style: {
         width: 28,
         height: 28,
@@ -836,6 +799,9 @@ window.useGlobalConfig = useGlobalConfig;
 window.sharedStorage = sharedStorage;
 // ─── STORAGE (shared / private) ─────────────────────────────────────
 const CURRENT_USER_KEY = "ops-center-current-user";
+
+/** 2 分钟轮询；Gist 无 JSONBin 式月度配额，可按需改为 0 关闭 */
+const CLOUD_POLL_MS = 120000;
 function getCurrentUser() {
   try {
     const raw = sessionStorage.getItem(CURRENT_USER_KEY);
@@ -884,7 +850,6 @@ function formatSharedTime(ts) {
     minute: "2-digit"
   }).format(d);
 }
-const CLIENT_ID_KEY = "ops-center-client-id";
 const DEVICE_ID_KEY = "ops-center-device-id";
 function getOrCreateDeviceId() {
   try {
@@ -897,271 +862,78 @@ function getOrCreateDeviceId() {
     return `dev-${Date.now()}`;
   }
 }
-function isGitHubPages() {
-  return typeof location !== "undefined" && /\.github\.io$/i.test(location.hostname);
+async function resolveClientId() {
+  return getOrCreateDeviceId();
 }
 function isLocalOpsServer() {
-  if (typeof location === "undefined") return false;
-  const h = location.hostname;
-  return h === "localhost" || h.startsWith("127.") || isPrivateLanIp(h);
-}
-function isPrivateLanIp(ip) {
-  if (!ip || typeof ip !== "string") return false;
-  if (ip.startsWith("192.168.") || ip.startsWith("10.")) return true;
-  return /^172\.(1[6-9]|2[0-9]|3[01])\./.test(ip);
-}
-function detectLocalLanIpViaWebRTC() {
-  return new Promise(resolve => {
-    if (typeof RTCPeerConnection !== "function") {
-      resolve("");
-      return;
-    }
-    let settled = false;
-    const finish = ip => {
-      if (settled) return;
-      settled = true;
-      try {
-        pc.close();
-      } catch {/* ignore */}
-      resolve(ip || "");
-    };
-    const pc = new RTCPeerConnection({
-      iceServers: []
-    });
-    const found = new Set();
-    pc.createDataChannel("ops-center");
-    pc.onicecandidate = event => {
-      if (!event.candidate?.candidate) return;
-      const match = /(\d{1,3}(?:\.\d{1,3}){3})/.exec(event.candidate.candidate);
-      if (!match) return;
-      const ip = match[1];
-      if (!isPrivateLanIp(ip)) return;
-      found.add(ip);
-      const preferred = [...found].find(i => i.startsWith("192.168.")) || [...found][0];
-      finish(preferred);
-    };
-    pc.createOffer().then(offer => pc.setLocalDescription(offer)).catch(() => finish(""));
-    setTimeout(() => {
-      if (found.size) {
-        finish([...found].find(i => i.startsWith("192.168.")) || [...found][0]);
-      } else {
-        finish("");
-      }
-    }, 800);
-  });
+  return false;
 }
 function priorityLocalKey(clientId, date) {
   return `priority:${clientId}:${date}`;
 }
-function readPriorityLocal(clientId, date) {
+function loadTodayPriority(clientId, date) {
+  const id = clientId || getOrCreateDeviceId();
   try {
-    const raw = localStorage.getItem(priorityLocalKey(clientId, date));
+    const raw = localStorage.getItem(priorityLocalKey(id, date));
     if (!raw) return {
       date: "",
       text: ""
     };
     const parsed = JSON.parse(raw);
-    if (parsed?.date === date && parsed.text) {
-      return {
-        date: parsed.date,
-        text: parsed.text
-      };
-    }
+    if (parsed?.date === date) return {
+      date: parsed.date,
+      text: parsed.text || ""
+    };
   } catch {/* ignore */}
   return {
     date: "",
     text: ""
   };
 }
-function writePriorityLocal(clientId, entry) {
-  try {
-    localStorage.setItem(priorityLocalKey(clientId, entry.date), JSON.stringify(entry));
-  } catch {/* ignore */}
-}
-async function resolveClientId() {
-  try {
-    const cached = localStorage.getItem(CLIENT_ID_KEY);
-    if (cached && isPrivateLanIp(cached)) return cached;
-    if (cached && !isPrivateLanIp(cached)) localStorage.removeItem(CLIENT_ID_KEY);
-  } catch {/* ignore */}
-  if (isGitHubPages()) return getOrCreateDeviceId();
-  if (isLocalOpsServer()) {
-    try {
-      const res = await fetch("/api/client-id");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.clientId && isPrivateLanIp(data.clientId)) {
-          localStorage.setItem(CLIENT_ID_KEY, data.clientId);
-          return data.clientId;
-        }
-      }
-    } catch {/* ignore */}
-    const lanIp = await detectLocalLanIpViaWebRTC();
-    if (lanIp && isPrivateLanIp(lanIp)) {
-      try {
-        localStorage.setItem(CLIENT_ID_KEY, lanIp);
-      } catch {/* ignore */}
-      return lanIp;
-    }
-  }
-  return getOrCreateDeviceId();
-}
-async function loadTodayPriority(clientId, date) {
-  const id = clientId || getOrCreateDeviceId();
-  if (!id) return {
-    date: "",
-    text: ""
-  };
-  if (isLocalOpsServer()) {
-    try {
-      const res = await fetch(`/api/priority?date=${encodeURIComponent(date)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.ok && data.date === date && data.text) {
-          const entry = {
-            date: data.date,
-            text: data.text
-          };
-          writePriorityLocal(id, entry);
-          return entry;
-        }
-        if (data.ok && data.date === date && !data.text) {
-          return {
-            date: "",
-            text: ""
-          };
-        }
-      }
-    } catch {/* ignore */}
-  }
-  return readPriorityLocal(id, date);
-}
-async function saveTodayPriority(clientId, date, text) {
+function saveTodayPriority(clientId, date, text) {
   const id = clientId || getOrCreateDeviceId();
   const entry = {
     date,
     text: text.trim()
   };
-  writePriorityLocal(id, entry);
-  if (isLocalOpsServer()) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 2000);
-      await fetch("/api/priority", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          date,
-          text: entry.text
-        }),
-        signal: ctrl.signal
-      });
-      clearTimeout(timer);
-    } catch {/* ignore */}
-  }
+  try {
+    localStorage.setItem(priorityLocalKey(id, date), JSON.stringify(entry));
+  } catch {/* ignore */}
   return entry;
-}
-function resolveSharedListData(raw, defaultData) {
-  if (raw?.data == null) return defaultData;
-  if (raw._source === "local-fallback" && Array.isArray(raw.data) && raw.data.length === 0) {
-    return defaultData;
-  }
-  return raw.data;
 }
 function useSharedList(storageKey, defaultData, {
   active = true
 } = {}) {
-  const read = useCallback(async (retries = 3) => {
-    try {
-      const raw = await sharedStorage.get(storageKey, {
-        retries
-      });
-      const data = resolveSharedListData(raw, defaultData);
-      return {
-        data,
-        meta: raw,
-        error: ""
-      };
-    } catch (e) {
-      return {
-        data: defaultData,
-        meta: null,
-        error: e?.message || "读取失败"
-      };
-    }
-  }, [storageKey, defaultData]);
+  const defaultRef = useRef(defaultData);
+  defaultRef.current = defaultData;
   const [state, setState] = useState({
     data: defaultData,
     meta: null,
-    loading: false,
+    loading: true,
     error: ""
   });
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    setState(prev => ({
-      ...prev,
-      loading: true,
-      error: ""
-    }));
-    (async () => {
-      const next = await read();
-      if (!cancelled) setState({
-        ...next,
-        loading: false
-      });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [read, active]);
-  useEffect(() => {
-    const handler = () => {
-      if (!active) return;
-      read().then(next => setState({
-        ...next,
-        loading: false
-      }));
-    };
-    window.addEventListener(`ops-shared-updated:${storageKey}`, handler);
-    return () => window.removeEventListener(`ops-shared-updated:${storageKey}`, handler);
-  }, [storageKey, read, active]);
-  useEffect(() => {
-    if (!active) return;
-    const refresh = () => read().then(next => setState({
-      ...next,
-      loading: false
-    }));
-    const onVisible = () => {
-      if (document.visibilityState === "visible") refresh();
-    };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", onVisible);
-    const timer = setInterval(refresh, 30000);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", onVisible);
-      clearInterval(timer);
-    };
-  }, [read, active]);
-  const persist = useCallback(async data => {
-    setState(prev => ({
-      data,
-      meta: {
-        updatedBy: getCurrentUser().name,
-        updatedAt: Date.now(),
-        ...(prev.meta || {})
-      },
-      loading: false,
-      error: ""
-    }));
+  const fetchingRef = useRef(false);
+  const lastFetchAtRef = useRef(0);
+  const fetchFromCloud = useCallback(async (force = false) => {
+    if (fetchingRef.current) return;
+    const now = Date.now();
+    if (!force && now - lastFetchAtRef.current < 3000) return;
+    fetchingRef.current = true;
+    lastFetchAtRef.current = now;
     try {
-      await sharedStorage.set(storageKey, data, getCurrentUser().name);
       const raw = await sharedStorage.get(storageKey);
+      if (!raw) {
+        setState({
+          data: defaultRef.current,
+          meta: null,
+          loading: false,
+          error: ""
+        });
+        return;
+      }
+      const data = Array.isArray(raw.data) ? raw.data : defaultRef.current;
       setState({
-        data: resolveSharedListData(raw, data),
+        data,
         meta: raw,
         loading: false,
         error: ""
@@ -1169,8 +941,60 @@ function useSharedList(storageKey, defaultData, {
     } catch (e) {
       setState(prev => ({
         ...prev,
-        data,
+        data: prev.data ?? defaultRef.current,
         loading: false,
+        error: e?.message || "读取失败"
+      }));
+    } finally {
+      fetchingRef.current = false;
+    }
+  }, [storageKey]);
+  useEffect(() => {
+    setState(prev => ({
+      ...prev,
+      loading: true,
+      error: ""
+    }));
+    fetchFromCloud(true);
+  }, [fetchFromCloud]);
+  useEffect(() => {
+    const handler = () => fetchFromCloud(true);
+    window.addEventListener(`ops-shared-updated:${storageKey}`, handler);
+    return () => window.removeEventListener(`ops-shared-updated:${storageKey}`, handler);
+  }, [storageKey, fetchFromCloud]);
+  useEffect(() => {
+    if (!active) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchFromCloud();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    let timer = null;
+    if (CLOUD_POLL_MS > 0) {
+      timer = setInterval(() => fetchFromCloud(), CLOUD_POLL_MS);
+    }
+    return () => {
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      if (timer) clearInterval(timer);
+    };
+  }, [fetchFromCloud, active]);
+  const persist = useCallback(async data => {
+    setState(prev => ({
+      ...prev,
+      data,
+      meta: {
+        ...prev.meta,
+        updatedBy: getCurrentUser().name,
+        updatedAt: Date.now()
+      },
+      error: ""
+    }));
+    try {
+      await sharedStorage.set(storageKey, data, getCurrentUser().name);
+    } catch (e) {
+      setState(prev => ({
+        ...prev,
         error: e?.message || "保存失败"
       }));
     }
@@ -1181,23 +1005,8 @@ function useSharedList(storageKey, defaultData, {
       loading: true,
       error: ""
     }));
-    try {
-      localStorage.removeItem(`shared:${storageKey}`);
-    } catch {/* ignore */}
-    try {
-      const next = await read(5);
-      setState({
-        ...next,
-        loading: false
-      });
-    } catch (e) {
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: e?.message || "刷新失败"
-      }));
-    }
-  }, [read, storageKey]);
+    await fetchFromCloud(true);
+  }, [fetchFromCloud]);
   return {
     items: state.data,
     meta: state.meta,
@@ -1214,10 +1023,10 @@ function SharedMetaLine({
   loading,
   error
 }) {
-  let bg = "#eef6ff";
-  let border = "#b8d4f0";
-  let color = "#1a4e8a";
-  let text = "☁️ 云端同步已启用 · 修改后全公司电脑自动共享";
+  let bg = "#ecfdf5",
+    border = "#6ee7b7",
+    color = "#065f46";
+  let text = "☁️ GitHub 云端已启用 · 修改后全公司自动共享";
   if (loading) {
     bg = "#f3f4f6";
     border = "#d1d5db";
@@ -1227,31 +1036,9 @@ function SharedMetaLine({
     bg = "#fee2e2";
     border = "#fca5a5";
     color = "#991b1b";
-    text = `❌ ${error}`;
-  } else if (meta?._source === "snapshot") {
-    bg = "#eff6ff";
-    border = "#93c5fd";
-    color = "#1e40af";
-    text = meta?.updatedBy ? `📦 已从 Pages 快照加载 · 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)}（国内只读，改数据需 VPN）` : "📦 已从 Pages 快照加载（国内只读，改数据需 VPN）";
-  } else if (meta?._source === "cloud") {
-    bg = "#ecfdf5";
-    border = "#6ee7b7";
-    color = "#065f46";
-    text = meta?.updatedBy ? `☁️ 已从云端同步 · 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)}` : "☁️ 已从云端同步 · 数据全公司共享";
-  } else if (meta?._source === "local-fallback") {
-    bg = "#fffbeb";
-    border = "#fcd34d";
-    color = "#92400e";
-    const hint = meta._cloudError || "请检查网络";
-    const emptyNote = meta._emptyLocalIgnored ? " · 已忽略空的本机缓存" : "";
-    text = `⚠️ 云端暂不可用（${hint}${emptyNote}）· 请开 VPN 后点「立即刷新」`;
-  } else if (meta?._source === "local") {
-    bg = "#f3f4f6";
-    border = "#d1d5db";
-    color = "#4b5563";
-    text = "💾 仅保存在本机（未配置云端）";
+    text = `❌ ${error} · 数据已暂存本机`;
   } else if (meta?.updatedBy) {
-    text = `最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 30 秒自动同步`;
+    text = CLOUD_POLL_MS > 0 ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 ${Math.round(CLOUD_POLL_MS / 1000)} 秒自动同步` : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 点「立即刷新」同步`;
   }
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1267,8 +1054,6 @@ function SharedMetaLine({
       justifyContent: "space-between",
       gap: 10,
       flexWrap: "wrap",
-      position: "relative",
-      zIndex: 2,
       ...style
     }
   }, /*#__PURE__*/React.createElement("span", {
@@ -2651,29 +2436,52 @@ function LogisticsPanel({
   } = useSharedList("logistics", INIT_LOGISTICS, {
     active
   });
+  const list = Array.isArray(items) ? items : [];
+  const savedFilters = loadLogisticsFilters();
   const [modal, setModal] = useState(null);
-  const [filter, setFilter] = useState("all");
-  const [ownerFilter, setOwnerFilter] = useState("all");
+  const [filter, setFilter] = useState(savedFilters.filter || "all");
+  const [ownerFilter, setOwnerFilter] = useState(savedFilters.ownerFilter || "all");
   const [expanded, setExpanded] = useState(loadExpandedState);
   const panelCsvRef = useRef(null);
+  useEffect(() => {
+    saveLogisticsFilters({
+      filter,
+      ownerFilter
+    });
+  }, [filter, ownerFilter]);
+  const setFilterPersist = key => {
+    setFilter(key);
+    saveLogisticsFilters({
+      filter: key,
+      ownerFilter
+    });
+  };
+  const setOwnerFilterPersist = name => {
+    setOwnerFilter(name);
+    saveLogisticsFilters({
+      filter,
+      ownerFilter: name
+    });
+  };
   const toggleExpanded = id => setExpanded(prev => {
+    const key = String(id);
     const next = {
       ...prev,
-      [id]: !prev[id]
+      [key]: !isBatchExpanded(prev, id)
     };
     saveExpandedState(next);
     return next;
   });
-  const nextId = () => Math.max(0, ...items.map(i => i.id || 0)) + 1;
+  const nextId = () => Math.max(0, ...list.map(i => i.id || 0)) + 1;
   const counts = {
-    all: items.length,
-    transit: items.filter(batchHeadTransit).length,
-    missing_track: items.filter(batchMissingTrack).length,
-    receiving: items.filter(batchReceiving).length,
-    done: items.filter(batchAllDone).length
+    all: list.length,
+    transit: list.filter(batchHeadTransit).length,
+    missing_track: list.filter(batchMissingTrack).length,
+    receiving: list.filter(batchReceiving).length,
+    done: list.filter(batchAllDone).length
   };
-  const owners = ownerFilterEntries(items.map(i => i.owner));
-  let vis = items.slice();
+  const owners = ownerFilterEntries(list.map(i => i.owner));
+  let vis = list.slice();
   if (ownerFilter !== "all") vis = vis.filter(i => i.owner === ownerFilter);
   if (filter === "transit") vis = vis.filter(batchHeadTransit);else if (filter === "missing_track") vis = vis.filter(batchMissingTrack);else if (filter === "receiving") vis = vis.filter(batchReceiving);else if (filter === "done") vis = vis.filter(batchAllDone);
   vis.sort((a, b) => {
@@ -2687,14 +2495,14 @@ function LogisticsPanel({
     return da - db;
   });
   const save = t => {
-    if (t.id) persist(items.map(x => x.id === t.id ? t : x));else persist([...items, {
+    if (t.id) persist(list.map(x => x.id === t.id ? t : x));else persist([...list, {
       ...t,
       id: nextId()
     }]);
     setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
-    persist(items.map(g => g.id !== gid ? g : {
+    persist(list.map(g => g.id !== gid ? g : {
       ...g,
       fbaShipments: (g.fbaShipments || []).map(s => s.id !== fid ? s : {
         ...s,
@@ -2795,7 +2603,7 @@ function LogisticsPanel({
     }
   }, tabs.map(f => /*#__PURE__*/React.createElement("div", {
     key: f.key,
-    onClick: () => setFilter(f.key),
+    onClick: () => setFilterPersist(f.key),
     style: {
       background: "var(--card)",
       border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`,
@@ -2872,7 +2680,7 @@ function LogisticsPanel({
     }
   }, "\u8DDF\u8FDB\u4EBA"), owners.map(o => /*#__PURE__*/React.createElement("button", {
     key: o.name,
-    onClick: () => setOwnerFilter(o.name),
+    onClick: () => setOwnerFilterPersist(o.name),
     style: {
       background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)",
       color: ownerFilter === o.name ? "#fff" : "var(--tm)",
@@ -2901,7 +2709,7 @@ function LogisticsPanel({
   }, vis.length ? vis.map(g => /*#__PURE__*/React.createElement(ShipmentGroupCard, {
     key: g.id,
     group: g,
-    expanded: !!expanded[g.id],
+    expanded: isBatchExpanded(expanded, g.id),
     onToggleExpand: () => toggleExpanded(g.id),
     onEdit: () => setModal(cloneGroup(g)),
     onEditTracking: editTracking
@@ -2914,11 +2722,11 @@ function LogisticsPanel({
     }
   }, "\u6682\u65E0\u5339\u914D\u6279\u6B21")), modal && /*#__PURE__*/React.createElement(ShipmentModal, {
     item: modal,
-    ownerExtras: items.map(i => i.owner),
+    ownerExtras: list.map(i => i.owner),
     onSave: save,
     onClose: () => setModal(null),
     onDelete: () => {
-      persist(items.filter(x => x.id !== modal.id));
+      persist(list.filter(x => x.id !== modal.id));
       setModal(null);
     }
   }));
@@ -3126,6 +2934,10 @@ const INIT_PROD = [{
   note: "方案讨论中",
   exceptions: []
 }];
+const INIT_PROD_DEFAULT = INIT_PROD.map(b => ({
+  ...b,
+  stage: normalizeStage(b.stage)
+}));
 function ProdExceptionEditor({
   excs,
   setExcs
@@ -3940,10 +3752,7 @@ function ProductionPanel({
     error,
     persist,
     reload
-  } = useSharedList("production", INIT_PROD.map(b => ({
-    ...b,
-    stage: normalizeStage(b.stage)
-  })), {
+  } = useSharedList("production", INIT_PROD_DEFAULT, {
     active
   });
   const [modal, setModal] = useState(null);
@@ -4234,7 +4043,10 @@ const DEFAULT_ONLINE_DOC = {
   desc: "金山 / 钉钉 / 飞书等在线文档，链接可随时更换",
   icon: "📄"
 };
-const loadOnlineDocs = () => {
+const DEFAULT_ONLINE_DOCS = [DEFAULT_ONLINE_DOC];
+
+/** 仅用于从旧版 localStorage 一次性迁移 */
+function readLegacyOnlineDocs() {
   try {
     const raw = localStorage.getItem(ONLINE_DOCS_KEY);
     if (raw) {
@@ -4244,19 +4056,22 @@ const loadOnlineDocs = () => {
   } catch {/* ignore */}
   const legacyUrl = localStorage.getItem(URL_STORAGE_PREFIX + "online-doc");
   const legacyName = localStorage.getItem(NAME_STORAGE_PREFIX + "online-doc");
-  const docs = [{
-    ...DEFAULT_ONLINE_DOC,
-    name: legacyName || DEFAULT_ONLINE_DOC.name,
-    url: legacyUrl || DEFAULT_ONLINE_DOC.url
-  }];
-  saveOnlineDocs(docs);
-  return docs;
-};
-const saveOnlineDocs = docs => {
+  if (legacyUrl || legacyName) {
+    return [{
+      ...DEFAULT_ONLINE_DOC,
+      name: legacyName || DEFAULT_ONLINE_DOC.name,
+      url: legacyUrl || DEFAULT_ONLINE_DOC.url
+    }];
+  }
+  return null;
+}
+function clearLegacyOnlineDocsStorage() {
   try {
-    localStorage.setItem(ONLINE_DOCS_KEY, JSON.stringify(docs));
+    localStorage.removeItem(ONLINE_DOCS_KEY);
+    localStorage.removeItem(URL_STORAGE_PREFIX + "online-doc");
+    localStorage.removeItem(NAME_STORAGE_PREFIX + "online-doc");
   } catch {/* ignore */}
-};
+}
 const onlineDocToTool = doc => ({
   id: doc.id,
   name: doc.name || "在线文档",
@@ -5063,10 +4878,21 @@ function ToolCard({
     }
   }, inline ? "→" : "↗")));
 }
-function ToolsPanel() {
+function ToolsPanel({
+  active: tabActive = true
+}) {
+  const {
+    items: onlineDocs,
+    meta: docsMeta,
+    loading: docsLoading,
+    error: docsError,
+    persist: persistOnlineDocs,
+    reload: reloadDocs
+  } = useSharedList("tools-links", DEFAULT_ONLINE_DOCS, {
+    active: tabActive
+  });
   const [customUrls, setCustomUrls] = useState(loadCustomUrls);
   const [customNames, setCustomNames] = useState(loadCustomNames);
-  const [onlineDocs, setOnlineDocsState] = useState(loadOnlineDocs);
   const [inlineTool, setInlineTool] = useState(null);
   const [active, setActive] = useState(null);
   const [cat, setCat] = useState("全部");
@@ -5074,12 +4900,24 @@ function ToolsPanel() {
   const [editingId, setEditingId] = useState(null);
   const [editUrl, setEditUrl] = useState("");
   const [editName, setEditName] = useState("");
+  const [legacyMigrated, setLegacyMigrated] = useState(false);
+  useEffect(() => {
+    if (!tabActive || docsLoading || legacyMigrated) return;
+    const legacy = readLegacyOnlineDocs();
+    if (!legacy?.length) {
+      setLegacyMigrated(true);
+      return;
+    }
+    const cloudEmpty = onlineDocs.length <= 1 && !(onlineDocs[0]?.url && onlineDocs[0].url !== DEFAULT_ONLINE_DOC.url);
+    if (cloudEmpty || docsMeta?._showingDemo) {
+      persistOnlineDocs(legacy);
+      clearLegacyOnlineDocsStorage();
+    }
+    setLegacyMigrated(true);
+  }, [tabActive, docsLoading, legacyMigrated, onlineDocs, docsMeta, persistOnlineDocs]);
   const setOnlineDocs = updater => {
-    setOnlineDocsState(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      saveOnlineDocs(next);
-      return next;
-    });
+    const next = typeof updater === "function" ? updater(onlineDocs) : updater;
+    persistOnlineDocs(next);
   };
   const onlineDocTools = onlineDocs.map(onlineDocToTool);
   const allTools = [...onlineDocTools, ...TOOL_CATALOG];
@@ -5312,7 +5150,12 @@ function ToolsPanel() {
       }
     }, tool.desc))), /*#__PURE__*/React.createElement(ActiveComponent, null)));
   }
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
+    meta: docsMeta,
+    loading: docsLoading,
+    error: docsError,
+    onReload: reloadDocs
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -7763,7 +7606,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-18";
+const APP_BUILD = "cloud-22";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {
@@ -8009,7 +7852,9 @@ function App() {
     style: {
       display: tab === "tools" ? "block" : "none"
     }
-  }, /*#__PURE__*/React.createElement(ToolsPanel, null)), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(ToolsPanel, {
+    active: tab === "tools"
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "agents" ? "block" : "none"
     }

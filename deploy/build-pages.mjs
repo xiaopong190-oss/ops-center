@@ -47,6 +47,19 @@ function run(cmd, opts = {}) {
   execSync(cmd, { cwd: root, stdio: "inherit", ...opts });
 }
 
+function getCiGistSecrets() {
+  const token = (process.env.GITHUB_GIST_TOKEN || process.env.OPS_GIST_TOKEN || "").trim();
+  const gistId = (process.env.GITHUB_GIST_ID || process.env.OPS_GIST_ID || "").trim();
+  if (token && gistId) return { token, gistId };
+  const cfgPath = path.join(root, "src", "cloud-sync-config.js");
+  if (fs.existsSync(cfgPath)) {
+    const src = fs.readFileSync(cfgPath, "utf8");
+    const id = (src.match(/GITHUB_GIST_ID\s*=\s*"([^"]*)"/) || [])[1]?.trim();
+    if (token && id) return { token, gistId: id };
+  }
+  return null;
+}
+
 console.log("==> sync browser jsx");
 run("node sync-browser.mjs");
 
@@ -72,7 +85,8 @@ try {
 const bundlePath = path.join(root, "app.bundle.js");
 if (fs.existsSync(bundlePath)) {
   const bundle = fs.readFileSync(bundlePath, "utf8");
-  if (!bundle.includes("cloud-18") || bundle.includes("key: configVersion")) {
+  const gistOk = bundle.includes("GITHUB_GIST_ID") && bundle.includes("api.github.com/gists");
+  if (!gistOk || bundle.includes("key: configVersion")) {
     console.warn("bundle outdated — Pages will use runtime .browser.jsx instead");
     fs.unlinkSync(bundlePath);
   }
@@ -102,6 +116,7 @@ try {
 
 const staticFiles = [
   "app.html",
+  "gist-config.js",
   "logo.svg",
   "fx-rates.json",
   "amazon-news.json",
@@ -111,6 +126,18 @@ const staticFiles = [
 
 for (const f of staticFiles) {
   copyFile(path.join(root, f), path.join(out, f));
+}
+
+const ciGist = getCiGistSecrets();
+if (ciGist) {
+  const gistCfg =
+    "window.__OPS_GIST__ = window.__OPS_GIST__ || {};\n" +
+    `window.__OPS_GIST__.token = ${JSON.stringify(ciGist.token)};\n` +
+    `window.__OPS_GIST__.id = ${JSON.stringify(ciGist.gistId)};\n`;
+  fs.writeFileSync(path.join(out, "gist-config.js"), gistCfg, "utf8");
+  console.log("gist-config.js ← CI secrets (deploy only, not in git)");
+} else {
+  copyFile(path.join(root, "gist-config.js"), path.join(out, "gist-config.js"));
 }
 
 if (fs.existsSync(bundlePath)) {

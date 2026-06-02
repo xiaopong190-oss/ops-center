@@ -1,7 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { sharedStorage } from "../GlobalConfig.jsx";
 
+export { sharedStorage } from "../GlobalConfig.jsx";
+
 export const CURRENT_USER_KEY = "ops-center-current-user";
+
+/** 2 分钟轮询；Gist 无 JSONBin 式月度配额，可按需改为 0 关闭 */
+const CLOUD_POLL_MS = 120000;
 
 export function getCurrentUser() {
   try {
@@ -23,16 +28,12 @@ export function setCurrentUser(user) {
   } catch { /* ignore */ }
 }
 
-export { sharedStorage } from "../GlobalConfig.jsx";
-
 export const privateStorage = {
   get(userId, key) {
     try {
       const raw = localStorage.getItem(`user:${userId}:${key}`);
       return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   },
   set(userId, key, value) {
     localStorage.setItem(`user:${userId}:${key}`, JSON.stringify(value));
@@ -47,14 +48,11 @@ export function formatSharedTime(ts) {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("zh-CN", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    month: "numeric", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
   }).format(d);
 }
 
-const CLIENT_ID_KEY = "ops-center-client-id";
 const DEVICE_ID_KEY = "ops-center-device-id";
 
 export function getOrCreateDeviceId() {
@@ -71,342 +69,163 @@ export function getOrCreateDeviceId() {
   }
 }
 
-function isGitHubPages() {
-  return typeof location !== "undefined" && /\.github\.io$/i.test(location.hostname);
+export async function resolveClientId() {
+  return getOrCreateDeviceId();
 }
 
 export function isLocalOpsServer() {
-  if (typeof location === "undefined") return false;
-  const h = location.hostname;
-  return h === "localhost" || h.startsWith("127.") || isPrivateLanIp(h);
-}
-
-function isPrivateLanIp(ip) {
-  if (!ip || typeof ip !== "string") return false;
-  if (ip.startsWith("192.168.") || ip.startsWith("10.")) return true;
-  return /^172\.(1[6-9]|2[0-9]|3[01])\./.test(ip);
-}
-
-function detectLocalLanIpViaWebRTC() {
-  return new Promise((resolve) => {
-    if (typeof RTCPeerConnection !== "function") {
-      resolve("");
-      return;
-    }
-    let settled = false;
-    const finish = (ip) => {
-      if (settled) return;
-      settled = true;
-      try { pc.close(); } catch { /* ignore */ }
-      resolve(ip || "");
-    };
-    const pc = new RTCPeerConnection({ iceServers: [] });
-    const found = new Set();
-    pc.createDataChannel("ops-center");
-    pc.onicecandidate = (event) => {
-      if (!event.candidate?.candidate) return;
-      const match = /(\d{1,3}(?:\.\d{1,3}){3})/.exec(event.candidate.candidate);
-      if (!match) return;
-      const ip = match[1];
-      if (!isPrivateLanIp(ip)) return;
-      found.add(ip);
-      const preferred = [...found].find(i => i.startsWith("192.168.")) || [...found][0];
-      finish(preferred);
-    };
-    pc.createOffer()
-      .then(offer => pc.setLocalDescription(offer))
-      .catch(() => finish(""));
-    setTimeout(() => {
-      if (found.size) {
-        finish([...found].find(i => i.startsWith("192.168.")) || [...found][0]);
-      } else {
-        finish("");
-      }
-    }, 800);
-  });
+  return false;
 }
 
 function priorityLocalKey(clientId, date) {
   return `priority:${clientId}:${date}`;
 }
 
-function readPriorityLocal(clientId, date) {
+export function loadTodayPriority(clientId, date) {
+  const id = clientId || getOrCreateDeviceId();
   try {
-    const raw = localStorage.getItem(priorityLocalKey(clientId, date));
+    const raw = localStorage.getItem(priorityLocalKey(id, date));
     if (!raw) return { date: "", text: "" };
     const parsed = JSON.parse(raw);
-    if (parsed?.date === date && parsed.text) {
-      return { date: parsed.date, text: parsed.text };
-    }
+    if (parsed?.date === date) return { date: parsed.date, text: parsed.text || "" };
   } catch { /* ignore */ }
   return { date: "", text: "" };
 }
 
-function writePriorityLocal(clientId, entry) {
-  try {
-    localStorage.setItem(priorityLocalKey(clientId, entry.date), JSON.stringify(entry));
-  } catch { /* ignore */ }
-}
-
-export async function resolveClientId() {
-  try {
-    const cached = localStorage.getItem(CLIENT_ID_KEY);
-    if (cached && isPrivateLanIp(cached)) return cached;
-    if (cached && !isPrivateLanIp(cached)) localStorage.removeItem(CLIENT_ID_KEY);
-  } catch { /* ignore */ }
-
-  if (isGitHubPages()) return getOrCreateDeviceId();
-
-  if (isLocalOpsServer()) {
-    try {
-      const res = await fetch("/api/client-id");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.clientId && isPrivateLanIp(data.clientId)) {
-          localStorage.setItem(CLIENT_ID_KEY, data.clientId);
-          return data.clientId;
-        }
-      }
-    } catch { /* ignore */ }
-
-    const lanIp = await detectLocalLanIpViaWebRTC();
-    if (lanIp && isPrivateLanIp(lanIp)) {
-      try { localStorage.setItem(CLIENT_ID_KEY, lanIp); } catch { /* ignore */ }
-      return lanIp;
-    }
-  }
-
-  return getOrCreateDeviceId();
-}
-
-export async function loadTodayPriority(clientId, date) {
-  const id = clientId || getOrCreateDeviceId();
-  if (!id) return { date: "", text: "" };
-
-  if (isLocalOpsServer()) {
-    try {
-      const res = await fetch(`/api/priority?date=${encodeURIComponent(date)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.ok && data.date === date && data.text) {
-          const entry = { date: data.date, text: data.text };
-          writePriorityLocal(id, entry);
-          return entry;
-        }
-        if (data.ok && data.date === date && !data.text) {
-          return { date: "", text: "" };
-        }
-      }
-    } catch { /* ignore */ }
-  }
-
-  return readPriorityLocal(id, date);
-}
-
-export async function saveTodayPriority(clientId, date, text) {
+export function saveTodayPriority(clientId, date, text) {
   const id = clientId || getOrCreateDeviceId();
   const entry = { date, text: text.trim() };
-  writePriorityLocal(id, entry);
-
-  if (isLocalOpsServer()) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 2000);
-      await fetch("/api/priority", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, text: entry.text }),
-        signal: ctrl.signal,
-      });
-      clearTimeout(timer);
-    } catch { /* ignore */ }
-  }
-
+  try {
+    localStorage.setItem(priorityLocalKey(id, date), JSON.stringify(entry));
+  } catch { /* ignore */ }
   return entry;
 }
 
-function resolveSharedListData(raw, defaultData) {
-  if (raw?.data == null) return defaultData;
-  if (raw._source === "local-fallback" && Array.isArray(raw.data) && raw.data.length === 0) {
-    return defaultData;
-  }
-  return raw.data;
-}
-
 export function useSharedList(storageKey, defaultData, { active = true } = {}) {
-  const read = useCallback(async (retries = 3) => {
+  const defaultRef = useRef(defaultData);
+  defaultRef.current = defaultData;
+
+  const [state, setState] = useState({
+    data: defaultData,
+    meta: null,
+    loading: true,
+    error: "",
+  });
+
+  const fetchingRef = useRef(false);
+  const lastFetchAtRef = useRef(0);
+
+  const fetchFromCloud = useCallback(async (force = false) => {
+    if (fetchingRef.current) return;
+    const now = Date.now();
+    if (!force && now - lastFetchAtRef.current < 3000) return;
+    fetchingRef.current = true;
+    lastFetchAtRef.current = now;
     try {
-      const raw = await sharedStorage.get(storageKey, { retries });
-      const data = resolveSharedListData(raw, defaultData);
-      return { data, meta: raw, error: "" };
+      const raw = await sharedStorage.get(storageKey);
+      if (!raw) {
+        setState({ data: defaultRef.current, meta: null, loading: false, error: "" });
+        return;
+      }
+      const data = Array.isArray(raw.data) ? raw.data : defaultRef.current;
+      setState({ data, meta: raw, loading: false, error: "" });
     } catch (e) {
-      return { data: defaultData, meta: null, error: e?.message || "读取失败" };
+      setState(prev => ({
+        ...prev,
+        data: prev.data ?? defaultRef.current,
+        loading: false,
+        error: e?.message || "读取失败",
+      }));
+    } finally {
+      fetchingRef.current = false;
     }
-  }, [storageKey, defaultData]);
-
-  const [state, setState] = useState({ data: defaultData, meta: null, loading: false, error: "" });
+  }, [storageKey]);
 
   useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
     setState(prev => ({ ...prev, loading: true, error: "" }));
-    (async () => {
-      const next = await read();
-      if (!cancelled) setState({ ...next, loading: false });
-    })();
-    return () => { cancelled = true; };
-  }, [read, active]);
+    fetchFromCloud(true);
+  }, [fetchFromCloud]);
 
   useEffect(() => {
-    const handler = () => {
-      if (!active) return;
-      read().then(next => setState({ ...next, loading: false }));
-    };
+    const handler = () => fetchFromCloud(true);
     window.addEventListener(`ops-shared-updated:${storageKey}`, handler);
     return () => window.removeEventListener(`ops-shared-updated:${storageKey}`, handler);
-  }, [storageKey, read, active]);
+  }, [storageKey, fetchFromCloud]);
 
   useEffect(() => {
     if (!active) return;
-    const refresh = () => read().then(next => setState({ ...next, loading: false }));
     const onVisible = () => {
-      if (document.visibilityState === "visible") refresh();
+      if (document.visibilityState === "visible") fetchFromCloud();
     };
-    window.addEventListener("focus", refresh);
+    window.addEventListener("focus", onVisible);
     document.addEventListener("visibilitychange", onVisible);
-    const timer = setInterval(refresh, 30000);
+    let timer = null;
+    if (CLOUD_POLL_MS > 0) {
+      timer = setInterval(() => fetchFromCloud(), CLOUD_POLL_MS);
+    }
     return () => {
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
     };
-  }, [read, active]);
+  }, [fetchFromCloud, active]);
 
   const persist = useCallback(async (data) => {
     setState(prev => ({
+      ...prev,
       data,
-      meta: { updatedBy: getCurrentUser().name, updatedAt: Date.now(), ...(prev.meta || {}) },
-      loading: false,
+      meta: { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
       error: "",
     }));
     try {
       await sharedStorage.set(storageKey, data, getCurrentUser().name);
-      const raw = await sharedStorage.get(storageKey);
-      setState({
-        data: resolveSharedListData(raw, data),
-        meta: raw,
-        loading: false,
-        error: "",
-      });
     } catch (e) {
-      setState(prev => ({
-        ...prev,
-        data,
-        loading: false,
-        error: e?.message || "保存失败",
-      }));
+      setState(prev => ({ ...prev, error: e?.message || "保存失败" }));
     }
   }, [storageKey]);
 
   const reload = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: "" }));
-    try { localStorage.removeItem(`shared:${storageKey}`); } catch { /* ignore */ }
-    try {
-      const next = await read(5);
-      setState({ ...next, loading: false });
-    } catch (e) {
-      setState(prev => ({ ...prev, loading: false, error: e?.message || "刷新失败" }));
-    }
-  }, [read, storageKey]);
+    await fetchFromCloud(true);
+  }, [fetchFromCloud]);
 
-  return { items: state.data, meta: state.meta, loading: state.loading, error: state.error, persist, reload };
+  return {
+    items: state.data,
+    meta: state.meta,
+    loading: state.loading,
+    error: state.error,
+    persist,
+    reload,
+  };
 }
 
 export function SharedMetaLine({ meta, style, onReload, loading, error }) {
-  let bg = "#eef6ff";
-  let border = "#b8d4f0";
-  let color = "#1a4e8a";
-  let text = "☁️ 云端同步已启用 · 修改后全公司电脑自动共享";
+  let bg = "#ecfdf5", border = "#6ee7b7", color = "#065f46";
+  let text = "☁️ GitHub 云端已启用 · 修改后全公司自动共享";
 
   if (loading) {
-    bg = "#f3f4f6";
-    border = "#d1d5db";
-    color = "#4b5563";
+    bg = "#f3f4f6"; border = "#d1d5db"; color = "#4b5563";
     text = "⏳ 正在从云端加载…";
   } else if (error) {
-    bg = "#fee2e2";
-    border = "#fca5a5";
-    color = "#991b1b";
-    text = `❌ ${error}`;
-  } else if (meta?._source === "snapshot") {
-    bg = "#eff6ff";
-    border = "#93c5fd";
-    color = "#1e40af";
-    text = meta?.updatedBy
-      ? `📦 已从 Pages 快照加载 · 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)}（国内只读，改数据需 VPN）`
-      : "📦 已从 Pages 快照加载（国内只读，改数据需 VPN）";
-  } else if (meta?._source === "cloud") {
-    bg = "#ecfdf5";
-    border = "#6ee7b7";
-    color = "#065f46";
-    text = meta?.updatedBy
-      ? `☁️ 已从云端同步 · 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)}`
-      : "☁️ 已从云端同步 · 数据全公司共享";
-  } else if (meta?._source === "local-fallback") {
-    bg = "#fffbeb";
-    border = "#fcd34d";
-    color = "#92400e";
-    const hint = meta._cloudError || "请检查网络";
-    const emptyNote = meta._emptyLocalIgnored ? " · 已忽略空的本机缓存" : "";
-    text = `⚠️ 云端暂不可用（${hint}${emptyNote}）· 请开 VPN 后点「立即刷新」`;
-  } else if (meta?._source === "local") {
-    bg = "#f3f4f6";
-    border = "#d1d5db";
-    color = "#4b5563";
-    text = "💾 仅保存在本机（未配置云端）";
+    bg = "#fee2e2"; border = "#fca5a5"; color = "#991b1b";
+    text = `❌ ${error} · 数据已暂存本机`;
   } else if (meta?.updatedBy) {
-    text = `最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 30 秒自动同步`;
+    text = CLOUD_POLL_MS > 0
+      ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 ${Math.round(CLOUD_POLL_MS / 1000)} 秒自动同步`
+      : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 点「立即刷新」同步`;
   }
 
   return (
     <div style={{
-      fontSize: 12,
-      color,
-      background: bg,
-      border: `1px solid ${border}`,
-      borderRadius: 8,
-      padding: "8px 12px",
-      marginBottom: 12,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-      flexWrap: "wrap",
-      position: "relative",
-      zIndex: 2,
-      ...style,
+      fontSize: 12, color, background: bg, border: `1px solid ${border}`,
+      borderRadius: 8, padding: "8px 12px", marginBottom: 12,
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      gap: 10, flexWrap: "wrap", ...style,
     }}>
       <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
       {onReload && (
-        <button
-          type="button"
-          disabled={loading}
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReload(); }}
-          style={{
-            background: "#fff",
-            border: `1px solid ${border}`,
-            borderRadius: 6,
-            padding: "6px 12px",
-            fontSize: 11,
-            cursor: loading ? "wait" : "pointer",
-            fontFamily: "inherit",
-            color,
-            fontWeight: 600,
-            flexShrink: 0,
-            opacity: loading ? 0.75 : 1,
-            minWidth: 72,
-          }}
-        >
+        <button type="button" disabled={loading} onClick={e => { e.preventDefault(); e.stopPropagation(); onReload(); }}
+          style={{ background: "#fff", border: `1px solid ${border}`, borderRadius: 6, padding: "6px 12px", fontSize: 11, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", color, fontWeight: 600, flexShrink: 0, opacity: loading ? 0.75 : 1, minWidth: 72 }}>
           {loading ? "刷新中…" : "立即刷新"}
         </button>
       )}

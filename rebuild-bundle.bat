@@ -4,15 +4,16 @@ cd /d "%~dp0"
 echo.
 echo Rebuilding app.bundle.js ...
 echo.
+node deploy/write-local-gist-config.mjs
 node sync-browser.mjs
 if errorlevel 1 goto fail
 node deploy/build-browser-bundle.mjs
 if errorlevel 1 goto fail
-findstr /C:"JSONBIN_API_KEY" app.bundle.js >nul
+findstr /C:"GITHUB_GIST_ID" app.bundle.js >nul
 if errorlevel 1 (
-  echo [WARN] JSONBin not found in bundle
+  echo [WARN] GitHub Gist config not found in bundle
 ) else (
-  echo [OK] app.bundle.js includes JSONBin cloud sync
+  echo [OK] app.bundle.js includes GitHub Gist cloud sync
 )
 echo.
 pause

@@ -1,4 +1,4 @@
-# Deploy cloud-18 to GitHub Pages
+# Deploy cloud-20 to GitHub Pages
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -6,7 +6,10 @@ $log = Join-Path $root "_push-log.txt"
 "" | Set-Content $log -Encoding utf8
 function Log($s) { $line = "[$(Get-Date -Format 'HH:mm:ss')] $s"; Write-Host $line; Add-Content $log $line }
 
-Log "DEPLOY cloud-18 start"
+Log "DEPLOY cloud-20 start"
+
+Log "write-local-gist-config.mjs"
+& node deploy/write-local-gist-config.mjs 2>&1 | ForEach-Object { Log $_ }
 
 Log "sync-browser.mjs"
 & node sync-browser.mjs 2>&1 | ForEach-Object { Log $_ }
@@ -17,8 +20,11 @@ Log "build-browser-bundle.mjs"
 
 if (Test-Path "app.bundle.js") {
   $txt = Get-Content "app.bundle.js" -Raw
-  if ($txt -notmatch "cloud-18") { Log "WARN: bundle missing cloud-18 (Pages will use runtime jsx)" }
-  if ($txt -match "key: configVersion") { Log "WARN: bundle still has configVersion" }
+  if ($txt -match "ghp_[A-Za-z0-9]+") {
+    Log "FAIL: app.bundle.js contains GitHub token — run rebuild-bundle.bat after fixing config"
+    Read-Host "Press Enter"; exit 1
+  }
+  if ($txt -notmatch "__OPS_GIST__") { Log "WARN: bundle missing Gist runtime config" }
 }
 
 Log "git fetch origin"
@@ -32,7 +38,7 @@ if ($LASTEXITCODE -eq 0) {
   & git checkout origin/main -- amazon-news.json 2>&1 | ForEach-Object { Log $_ }
 }
 
-& git add src app.html deploy .github sync-browser.mjs package-lock.json fx-rates.json tools local-tools packages CHECK-VERSION.bat DEPLOY-NOW.bat DEPLOY-NOW.ps1 2>&1 | ForEach-Object { Log $_ }
+& git add src app.html gist-config.js deploy .github sync-browser.mjs package-lock.json fx-rates.json tools local-tools packages CHECK-VERSION.bat DEPLOY-NOW.bat DEPLOY-NOW.ps1 rebuild-bundle.bat 2>&1 | ForEach-Object { Log $_ }
 if (Test-Path "app.bundle.js") { & git add -f app.bundle.js 2>&1 | ForEach-Object { Log $_ } }
 Get-ChildItem -Path $root -Filter "*.bat" | ForEach-Object { & git add $_.FullName 2>&1 | Out-Null }
 
@@ -40,7 +46,7 @@ Get-ChildItem -Path $root -Filter "*.bat" | ForEach-Object { & git add $_.FullNa
 
 $staged = @(git diff --cached --name-only 2>$null)
 if ($staged.Count -gt 0) {
-  & git commit -m "fix: cloud-18 — Pages snapshot fallback + sleep duplicate fix" 2>&1 | ForEach-Object { Log $_ }
+  & git commit -m "feat: GitHub Gist 云端同步（Token 不进仓库）" 2>&1 | ForEach-Object { Log $_ }
 } else {
   Log "nothing new to commit"
 }
@@ -58,6 +64,6 @@ if (-not $pushOk) {
   exit 1
 }
 
-Log "DONE OK — wait 1-2 min, Ctrl+F5, look for cloud-18"
+Log "DONE OK — wait 1-2 min, Ctrl+F5, look for cloud-20"
 Read-Host "Press Enter"
 exit 0

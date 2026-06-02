@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>导出本机运营数据</title>
+  <style>
+    body { font-family: "Microsoft YaHei", sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+    button { background: #2d7dd2; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 14px; cursor: pointer; margin: 6px 6px 6px 0; }
+    button.secondary { background: #eee; color: #333; }
+    pre { background: #f5f5f5; padding: 12px; border-radius: 8px; overflow: auto; font-size: 12px; }
+    .ok { color: #065f46; }
+    .warn { color: #92400e; }
+  </style>
+</head>
+<body>
+  <h1>导出本机运营数据</h1>
+  <p>从<strong>当前浏览器</strong>的 localStorage 读取任务/物流/生产数据，保存到项目 <code>data/local-backup.json</code>，再上传到 JSONBin。</p>
+  <p class="warn">请用<strong>平时录入数据时的同一个浏览器</strong>打开本页（本机服务 <code>127.0.0.1</code>，不要用 github.io）。</p>
+  <div id="status"></div>
+  <button type="button" id="scan">扫描本机数据</button>
+  <button type="button" id="download" disabled>下载 local-backup.json</button>
+  <pre id="preview">点击「扫描本机数据」</pre>
+  <script>
+    const KEYS = ["logistics", "tasks", "production", "tools-links"];
+    let backup = null;
+
+    function scan() {
+      const out = { exportedAt: Date.now(), origin: location.origin, modules: {} };
+      let total = 0;
+      for (const k of KEYS) {
+        const raw = localStorage.getItem("shared:" + k);
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          const n = Array.isArray(parsed?.data) ? parsed.data.length : (Array.isArray(parsed) ? parsed.length : 0);
+          out.modules[k] = parsed;
+          total += n;
+        } catch (e) {
+          out.modules[k] = { error: String(e) };
+        }
+      }
+      backup = out;
+      const el = document.getElementById("status");
+      const btn = document.getElementById("download");
+      if (total === 0) {
+        el.innerHTML = '<p class="warn">未找到 shared:* 数据。若数据在 GitHub 线上版录入，请在本机用 run.bat 打开 app.html 后再试，或联系恢复 JSONBin。</p>';
+        btn.disabled = true;
+      } else {
+        el.innerHTML = '<p class="ok">找到 ' + total + ' 条业务数据，可下载备份。</p>';
+        btn.disabled = false;
+      }
+      document.getElementById("preview").textContent = JSON.stringify(out, null, 2).slice(0, 8000);
+    }
+
+    function download() {
+      if (!backup) return;
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "local-backup.json";
+      a.click();
+    }
+
+    document.getElementById("scan").onclick = scan;
+    document.getElementById("download").onclick = download;
+    scan();
+  </script>
+</body>
+</html>

@@ -7,7 +7,7 @@ const dir = path.join(root, "src");
 
 function toBrowser(src, { exportName, stripUtilsThrough = null }) {
   let out = src
-    .replace(/^import \{ useState, useRef \} from "react";\r?\n/, "const { useState, useRef, useEffect, useCallback, createContext, useContext } = React;\n")
+    .replace(/^import \{[^}]+\} from "react";\r?\n/, "const { useState, useRef, useEffect, useCallback, createContext, useContext } = React;\n")
     .replace(/^import \{ useState, useEffect \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
     .replace(/^import \{ useState \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
     .replace(/import \{[^}]+\} from "\.\/utils\/storage\.js";\r?\n/g, "")
@@ -52,10 +52,36 @@ function storageBrowserBlock() {
   );
 }
 
+function cloudSyncConfigBlock() {
+  const cfgPath = path.join(dir, "cloud-sync-config.js");
+  let gistId = "";
+  if (fs.existsSync(cfgPath)) {
+    const src = fs.readFileSync(cfgPath, "utf8");
+    const m = src.match(/GITHUB_GIST_ID\s*=\s*"([^"]*)"/);
+    if (m?.[1]) gistId = m[1];
+  }
+  return (
+    "// ─── CLOUD SYNC (GitHub Gist — token via gist-config.js, not in repo) ─\n" +
+    `const GITHUB_GIST_ID = ${JSON.stringify(gistId)};\n` +
+    "function getGistToken() {\n" +
+    "  if (typeof window !== \"undefined\" && window.__OPS_GIST__?.token) return String(window.__OPS_GIST__.token);\n" +
+    "  return \"\";\n" +
+    "}\n" +
+    "function getGistId() {\n" +
+    "  if (typeof window !== \"undefined\" && window.__OPS_GIST__?.id) return String(window.__OPS_GIST__.id);\n" +
+    "  return GITHUB_GIST_ID || \"\";\n" +
+    "}\n\n"
+  );
+}
+
 function globalConfigBrowserBlock() {
   let gc = fs.readFileSync(path.join(dir, "GlobalConfig.jsx"), "utf8");
   gc = gc
-    .replace(/^import \{ useState, useEffect \} from "react";\r?\n\r?\n/, "")
+    .replace(/^import \{ GITHUB_GIST_ID(?:, GITHUB_GIST_TOKEN as \w+)? \} from "\.\/cloud-sync-config\.js";\r?\n+/m, "")
+    .replace(/^import \{ GITHUB_GIST_ID \} from "\.\/cloud-sync-config\.js";\r?\n+/m, "")
+    .replace(/^function getGistToken\(\) \{[\s\S]*?^}\r?\n+/m, "")
+    .replace(/^function getGistId\(\) \{[\s\S]*?^}\r?\n+/m, "")
+    .replace(/^import \{[^}]+\} from "react";\r?\n+/m, "")
     .replace(/^export const CONFIG_STORAGE_KEY/m, "const CONFIG_STORAGE_KEY")
     .replace(/^export const sharedStorage/m, "const sharedStorage")
     .replace(/^export const ROLE_COLORS/m, "const ROLE_COLORS")
@@ -64,6 +90,7 @@ function globalConfigBrowserBlock() {
     .replace(/^export function /gm, "function ")
     .replace(/onSaved\?\.\(\)/g, "onSaved && onSaved()");
   return (
+    cloudSyncConfigBlock() +
     "// ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────\n" +
     gc.trim() +
     "\n\nwindow.ROLE_COLORS = ROLE_COLORS;\n" +

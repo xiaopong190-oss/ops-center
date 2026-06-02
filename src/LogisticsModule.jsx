@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { OwnerField, ownerFilterEntries, RoleBadge, getStaffRole } from "./GlobalConfig.jsx";
 import { useSharedList, SharedMetaLine } from "./utils/storage.js";
 
@@ -18,17 +18,64 @@ const Avatar = ({ name, size = 24 }) => {
 };
 
 const LOG_EXPAND_KEY = "ops-logistics-expanded";
+const LOG_FILTER_KEY = "ops-logistics-filters";
+let logisticsExpandedCache = null;
+
+function isPlainObj(v) {
+  return v != null && typeof v === "object" && !Array.isArray(v);
+}
 
 function loadExpandedState() {
+  if (isPlainObj(logisticsExpandedCache)) return { ...logisticsExpandedCache };
   try {
-    const raw = sessionStorage.getItem(LOG_EXPAND_KEY);
-    if (raw) return JSON.parse(raw);
+    const raw = localStorage.getItem(LOG_EXPAND_KEY) || sessionStorage.getItem(LOG_EXPAND_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (isPlainObj(parsed)) {
+        logisticsExpandedCache = parsed;
+        return { ...logisticsExpandedCache };
+      }
+    }
   } catch { /* ignore */ }
-  return { 1: true };
+  logisticsExpandedCache = { 1: true };
+  return { ...logisticsExpandedCache };
 }
 
 function saveExpandedState(state) {
-  try { sessionStorage.setItem(LOG_EXPAND_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+  logisticsExpandedCache = { ...state };
+  try {
+    const json = JSON.stringify(logisticsExpandedCache);
+    localStorage.setItem(LOG_EXPAND_KEY, json);
+    sessionStorage.setItem(LOG_EXPAND_KEY, json);
+  } catch { /* ignore */ }
+}
+
+function loadLogisticsFilters() {
+  try {
+    const raw = sessionStorage.getItem(LOG_FILTER_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (isPlainObj(parsed)) {
+        return {
+          filter: typeof parsed.filter === "string" ? parsed.filter : "all",
+          ownerFilter: typeof parsed.ownerFilter === "string" ? parsed.ownerFilter : "all",
+        };
+      }
+    }
+  } catch { /* ignore */ }
+  return { filter: "all", ownerFilter: "all" };
+}
+
+function saveLogisticsFilters(filters) {
+  try { sessionStorage.setItem(LOG_FILTER_KEY, JSON.stringify(filters)); } catch { /* ignore */ }
+}
+
+function isBatchExpanded(expanded, id) {
+  if (!isPlainObj(expanded)) return Number(id) === 1;
+  const key = String(id);
+  if (Object.prototype.hasOwnProperty.call(expanded, key)) return expanded[key] === true;
+  if (Object.prototype.hasOwnProperty.call(expanded, id)) return expanded[id] === true;
+  return Number(id) === 1;
 }
 
 // ─── LOGISTICS MODULE (Shipment Group + FBA) ─────────────────────────
@@ -386,26 +433,43 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
 }
 export function LogisticsPanel({ active = true }) {
   const { items, meta, loading, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS, { active });
+  const list = Array.isArray(items) ? items : [];
+  const savedFilters = loadLogisticsFilters();
   const [modal, setModal] = useState(null);
-  const [filter, setFilter] = useState("all");
-  const [ownerFilter, setOwnerFilter] = useState("all");
+  const [filter, setFilter] = useState(savedFilters.filter || "all");
+  const [ownerFilter, setOwnerFilter] = useState(savedFilters.ownerFilter || "all");
   const [expanded, setExpanded] = useState(loadExpandedState);
   const panelCsvRef = useRef(null);
+
+  useEffect(() => {
+    saveLogisticsFilters({ filter, ownerFilter });
+  }, [filter, ownerFilter]);
+
+  const setFilterPersist = (key) => {
+    setFilter(key);
+    saveLogisticsFilters({ filter: key, ownerFilter });
+  };
+  const setOwnerFilterPersist = (name) => {
+    setOwnerFilter(name);
+    saveLogisticsFilters({ filter, ownerFilter: name });
+  };
+
   const toggleExpanded = (id) => setExpanded(prev => {
-    const next = { ...prev, [id]: !prev[id] };
+    const key = String(id);
+    const next = { ...prev, [key]: !isBatchExpanded(prev, id) };
     saveExpandedState(next);
     return next;
   });
-  const nextId = () => Math.max(0, ...items.map(i => i.id || 0)) + 1;
+  const nextId = () => Math.max(0, ...list.map(i => i.id || 0)) + 1;
   const counts = {
-    all: items.length,
-    transit: items.filter(batchHeadTransit).length,
-    missing_track: items.filter(batchMissingTrack).length,
-    receiving: items.filter(batchReceiving).length,
-    done: items.filter(batchAllDone).length,
+    all: list.length,
+    transit: list.filter(batchHeadTransit).length,
+    missing_track: list.filter(batchMissingTrack).length,
+    receiving: list.filter(batchReceiving).length,
+    done: list.filter(batchAllDone).length,
   };
-  const owners = ownerFilterEntries(items.map(i => i.owner));
-  let vis = items.slice();
+  const owners = ownerFilterEntries(list.map(i => i.owner));
+  let vis = list.slice();
   if (ownerFilter !== "all") vis = vis.filter(i => i.owner === ownerFilter);
   if (filter === "transit") vis = vis.filter(batchHeadTransit);
   else if (filter === "missing_track") vis = vis.filter(batchMissingTrack);
@@ -420,12 +484,12 @@ export function LogisticsPanel({ active = true }) {
     return da - db;
   });
   const save = (t) => {
-    if (t.id) persist(items.map(x => x.id === t.id ? t : x));
-    else persist([...items, { ...t, id: nextId() }]);
+    if (t.id) persist(list.map(x => x.id === t.id ? t : x));
+    else persist([...list, { ...t, id: nextId() }]);
     setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
-    persist(items.map(g => g.id !== gid ? g : {
+    persist(list.map(g => g.id !== gid ? g : {
       ...g, fbaShipments: (g.fbaShipments || []).map(s => s.id !== fid ? s : { ...s, tracking, status: tracking.trim() && s.status === "准备发货" ? "运输中" : s.status }),
     }));
   };
@@ -456,7 +520,7 @@ export function LogisticsPanel({ active = true }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>
           {tabs.map(f => (
-            <div key={f.key} onClick={() => setFilter(f.key)} style={{ background: "var(--card)", border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer" }}>
+            <div key={f.key} onClick={() => setFilterPersist(f.key)} style={{ background: "var(--card)", border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer" }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: f.nc }}>{counts[f.key]}</div>
               <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 1 }}>{f.label}</div>
             </div>
@@ -471,7 +535,7 @@ export function LogisticsPanel({ active = true }) {
       <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 11, color: "var(--tm)" }}>跟进人</span>
         {owners.map(o => (
-          <button key={o.name} onClick={() => setOwnerFilter(o.name)} style={{ background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)", color: ownerFilter === o.name ? "#fff" : "var(--tm)", border: `1px solid ${ownerFilter === o.name ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <button key={o.name} onClick={() => setOwnerFilterPersist(o.name)} style={{ background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)", color: ownerFilter === o.name ? "#fff" : "var(--tm)", border: `1px solid ${ownerFilter === o.name ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
             {o.name === "all" ? "全部" : (<>{o.name}{o.role && <RoleBadge role={o.role} style={{ padding: "0 5px", fontSize: 9 }} />}</>)}
           </button>
         ))}
@@ -481,14 +545,14 @@ export function LogisticsPanel({ active = true }) {
           <ShipmentGroupCard
             key={g.id}
             group={g}
-            expanded={!!expanded[g.id]}
+            expanded={isBatchExpanded(expanded, g.id)}
             onToggleExpand={() => toggleExpanded(g.id)}
             onEdit={() => setModal(cloneGroup(g))}
             onEditTracking={editTracking}
           />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>
-      {modal && <ShipmentModal item={modal} ownerExtras={items.map(i => i.owner)} onSave={save} onClose={() => setModal(null)} onDelete={() => { persist(items.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      {modal && <ShipmentModal item={modal} ownerExtras={list.map(i => i.owner)} onSave={save} onClose={() => setModal(null)} onDelete={() => { persist(list.filter(x => x.id !== modal.id)); setModal(null); }} />}
     </div>
   );
 }

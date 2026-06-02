@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { isLocalOpsServer } from "./utils/storage.js";
+import { useState, useEffect } from "react";
+import { isLocalOpsServer, useSharedList, SharedMetaLine } from "./utils/storage.js";
 
 const inpSm = { fontSize: 12, padding: "5px 8px", border: "1px solid var(--border)", borderRadius: 6, fontFamily: "inherit", background: "transparent", color: "inherit" };
 const inp = { width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", background: "transparent", color: "inherit", display: "block" };
@@ -21,7 +21,10 @@ const DEFAULT_ONLINE_DOC = {
   icon: "📄",
 };
 
-const loadOnlineDocs = () => {
+const DEFAULT_ONLINE_DOCS = [DEFAULT_ONLINE_DOC];
+
+/** 仅用于从旧版 localStorage 一次性迁移 */
+function readLegacyOnlineDocs() {
   try {
     const raw = localStorage.getItem(ONLINE_DOCS_KEY);
     if (raw) {
@@ -31,18 +34,23 @@ const loadOnlineDocs = () => {
   } catch { /* ignore */ }
   const legacyUrl = localStorage.getItem(URL_STORAGE_PREFIX + "online-doc");
   const legacyName = localStorage.getItem(NAME_STORAGE_PREFIX + "online-doc");
-  const docs = [{
-    ...DEFAULT_ONLINE_DOC,
-    name: legacyName || DEFAULT_ONLINE_DOC.name,
-    url: legacyUrl || DEFAULT_ONLINE_DOC.url,
-  }];
-  saveOnlineDocs(docs);
-  return docs;
-};
+  if (legacyUrl || legacyName) {
+    return [{
+      ...DEFAULT_ONLINE_DOC,
+      name: legacyName || DEFAULT_ONLINE_DOC.name,
+      url: legacyUrl || DEFAULT_ONLINE_DOC.url,
+    }];
+  }
+  return null;
+}
 
-const saveOnlineDocs = (docs) => {
-  try { localStorage.setItem(ONLINE_DOCS_KEY, JSON.stringify(docs)); } catch { /* ignore */ }
-};
+function clearLegacyOnlineDocsStorage() {
+  try {
+    localStorage.removeItem(ONLINE_DOCS_KEY);
+    localStorage.removeItem(URL_STORAGE_PREFIX + "online-doc");
+    localStorage.removeItem(NAME_STORAGE_PREFIX + "online-doc");
+  } catch { /* ignore */ }
+}
 
 const onlineDocToTool = (doc) => ({
   id: doc.id,
@@ -642,10 +650,11 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
   );
 }
 
-export function ToolsPanel() {
+export function ToolsPanel({ active: tabActive = true }) {
+  const { items: onlineDocs, meta: docsMeta, loading: docsLoading, error: docsError, persist: persistOnlineDocs, reload: reloadDocs } =
+    useSharedList("tools-links", DEFAULT_ONLINE_DOCS, { active: tabActive });
   const [customUrls, setCustomUrls] = useState(loadCustomUrls);
   const [customNames, setCustomNames] = useState(loadCustomNames);
-  const [onlineDocs, setOnlineDocsState] = useState(loadOnlineDocs);
   const [inlineTool, setInlineTool] = useState(null);
   const [active, setActive] = useState(null);
   const [cat, setCat] = useState("全部");
@@ -653,13 +662,27 @@ export function ToolsPanel() {
   const [editingId, setEditingId] = useState(null);
   const [editUrl, setEditUrl] = useState("");
   const [editName, setEditName] = useState("");
+  const [legacyMigrated, setLegacyMigrated] = useState(false);
+
+  useEffect(() => {
+    if (!tabActive || docsLoading || legacyMigrated) return;
+    const legacy = readLegacyOnlineDocs();
+    if (!legacy?.length) {
+      setLegacyMigrated(true);
+      return;
+    }
+    const cloudEmpty = onlineDocs.length <= 1
+      && !(onlineDocs[0]?.url && onlineDocs[0].url !== DEFAULT_ONLINE_DOC.url);
+    if (cloudEmpty || docsMeta?._showingDemo) {
+      persistOnlineDocs(legacy);
+      clearLegacyOnlineDocsStorage();
+    }
+    setLegacyMigrated(true);
+  }, [tabActive, docsLoading, legacyMigrated, onlineDocs, docsMeta, persistOnlineDocs]);
 
   const setOnlineDocs = (updater) => {
-    setOnlineDocsState(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      saveOnlineDocs(next);
-      return next;
-    });
+    const next = typeof updater === "function" ? updater(onlineDocs) : updater;
+    persistOnlineDocs(next);
   };
 
   const onlineDocTools = onlineDocs.map(onlineDocToTool);
@@ -841,6 +864,7 @@ export function ToolsPanel() {
 
   return (
     <div>
+      <SharedMetaLine meta={docsMeta} loading={docsLoading} error={docsError} onReload={reloadDocs} />
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索工具…" style={{ ...inpSm, flex: 1, minWidth: 140, maxWidth: 220 }} />
         <button type="button" onClick={addOnlineDoc} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>+ 添加在线文档</button>

@@ -34,8 +34,20 @@
           document.getElementById("root").replaceChildren();
         }
 
+        async function loadGistConfig() {
+          var ver = "23";
+          for (var i = 0; i < 2; i++) {
+            var name = i === 0 ? "gist-config.js" : "gist-config.local.js";
+            try {
+              var r = await fetch(name + "?v=" + ver);
+              if (r.ok) (0, eval)(await r.text());
+            } catch (e) { /* optional */ }
+          }
+        }
+
         try {
-          var SYNC_VER = "18";
+          var SYNC_VER = "23";
+          await loadGistConfig();
           // 强制走 runtime .browser.jsx（bundle 已禁用，避免旧 cloud-9 bundle 干扰）
           var bundleRes = await fetch("app.bundle.js?v=" + SYNC_VER);
           if (false && bundleRes.ok) {

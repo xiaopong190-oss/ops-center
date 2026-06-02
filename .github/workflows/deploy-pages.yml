@@ -28,6 +28,9 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Build static site
+        env:
+          GITHUB_GIST_TOKEN: ${{ secrets.OPS_GIST_TOKEN }}
+          GITHUB_GIST_ID: ${{ secrets.OPS_GIST_ID }}
         run: node deploy/build-pages.mjs
 
       - uses: actions/upload-pages-artifact@v3

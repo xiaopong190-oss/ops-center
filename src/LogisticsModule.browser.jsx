@@ -16,151 +16,154 @@ const Avatar = ({ name, size = 24 }) => {
 };
 
 const LOG_EXPAND_KEY = "ops-logistics-expanded";
+const LOG_FILTER_KEY = "ops-logistics-filters";
+let logisticsExpandedCache = null;
+
+function isPlainObj(v) {
+  return v != null && typeof v === "object" && !Array.isArray(v);
+}
 
 function loadExpandedState() {
+  if (isPlainObj(logisticsExpandedCache)) return { ...logisticsExpandedCache };
   try {
-    const raw = sessionStorage.getItem(LOG_EXPAND_KEY);
-    if (raw) return JSON.parse(raw);
+    const raw = localStorage.getItem(LOG_EXPAND_KEY) || sessionStorage.getItem(LOG_EXPAND_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (isPlainObj(parsed)) {
+        logisticsExpandedCache = parsed;
+        return { ...logisticsExpandedCache };
+      }
+    }
   } catch { /* ignore */ }
-  return { 1: true };
+  logisticsExpandedCache = { 1: true };
+  return { ...logisticsExpandedCache };
 }
 
 function saveExpandedState(state) {
-  try { sessionStorage.setItem(LOG_EXPAND_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+  logisticsExpandedCache = { ...state };
+  try {
+    const json = JSON.stringify(logisticsExpandedCache);
+    localStorage.setItem(LOG_EXPAND_KEY, json);
+    sessionStorage.setItem(LOG_EXPAND_KEY, json);
+  } catch { /* ignore */ }
+}
+
+function loadLogisticsFilters() {
+  try {
+    const raw = sessionStorage.getItem(LOG_FILTER_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (isPlainObj(parsed)) {
+        return {
+          filter: typeof parsed.filter === "string" ? parsed.filter : "all",
+          ownerFilter: typeof parsed.ownerFilter === "string" ? parsed.ownerFilter : "all",
+        };
+      }
+    }
+  } catch { /* ignore */ }
+  return { filter: "all", ownerFilter: "all" };
+}
+
+function saveLogisticsFilters(filters) {
+  try { sessionStorage.setItem(LOG_FILTER_KEY, JSON.stringify(filters)); } catch { /* ignore */ }
+}
+
+function isBatchExpanded(expanded, id) {
+  if (!isPlainObj(expanded)) return Number(id) === 1;
+  const key = String(id);
+  if (Object.prototype.hasOwnProperty.call(expanded, key)) return expanded[key] === true;
+  if (Object.prototype.hasOwnProperty.call(expanded, id)) return expanded[id] === true;
+  return Number(id) === 1;
+}
+
+// ─── CLOUD SYNC (GitHub Gist — token via gist-config.js, not in repo) ─
+const GITHUB_GIST_ID = "d4c6e4e873edfef595350da3ecc5c4da";
+function getGistToken() {
+  if (typeof window !== "undefined" && window.__OPS_GIST__?.token) return String(window.__OPS_GIST__.token);
+  return "";
+}
+function getGistId() {
+  if (typeof window !== "undefined" && window.__OPS_GIST__?.id) return String(window.__OPS_GIST__.id);
+  return GITHUB_GIST_ID || "";
 }
 
 // ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────
 const CONFIG_STORAGE_KEY = "ops-center-global-config";
 
-const JSONBIN_API_KEY = "$2a$10$2ozXoCjldhmBsjtHria.3.Qe9IGP3lPWQnxGsvO4fOBdlfDogsBZq";
-const JSONBIN_API_BASE = "https://api.jsonbin.io/v3/b";
-const JSONBIN_BIN_IDS = {
-  logistics: "6a1d27c321f9ee59d2a3c1c4",
-  tasks: "6a1d27fd21f9ee59d2a3c26e",
-  production: "6a1d282721f9ee59d2a3c30a",
-  "tools-links": "6a1d284521f9ee59d2a3c375",
+// ─── GitHub Gist 共享（一个 Gist 里多个 json 文件）────────────────────
+const GIST_API = "https://api.github.com/gists";
+const GIST_SHARED_FILES = {
+  logistics: "logistics.json",
+  tasks: "tasks.json",
+  production: "production.json",
+  "tools-links": "tools-links.json",
 };
 
-function resolveJsonBinId(key) {
-  return JSONBIN_BIN_IDS[key] || null;
+function gistConfigured() {
+  return Boolean(getGistToken() && getGistId());
 }
 
-function sharedLocalGet(key) {
-  try {
-    const raw = localStorage.getItem(`shared:${key}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function sharedLocalSet(key, value, updatedBy) {
-  const payload = {
-    data: value,
-    updatedBy: updatedBy || "未知",
-    updatedAt: Date.now(),
+function gistHeaders(json = false) {
+  const h = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${getGistToken()}`,
+    "X-GitHub-Api-Version": "2022-11-28",
   };
-  localStorage.setItem(`shared:${key}`, JSON.stringify(payload));
+  if (json) h["Content-Type"] = "application/json";
+  return h;
+}
+
+async function gistFetchAll() {
+  const res = await fetch(`${GIST_API}/${getGistId()}`, { headers: gistHeaders() });
+  if (!res.ok) throw new Error(`Gist 读取失败 HTTP ${res.status}`);
+  return res.json();
+}
+
+async function gistReadRecord(key) {
+  const fileName = GIST_SHARED_FILES[key];
+  if (!fileName) return null;
+  const gist = await gistFetchAll();
+  const content = gist?.files?.[fileName]?.content;
+  if (!content) return null;
+  const record = JSON.parse(content);
+  if (record && typeof record === "object") return record;
+  return null;
+}
+
+async function gistWriteRecord(key, payload) {
+  const fileName = GIST_SHARED_FILES[key];
+  if (!fileName) throw new Error(`未知共享键: ${key}`);
+  const res = await fetch(`${GIST_API}/${getGistId()}`, {
+    method: "PATCH",
+    headers: gistHeaders(true),
+    body: JSON.stringify({
+      files: {
+        [fileName]: { content: JSON.stringify(payload, null, 2) },
+      },
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Gist 保存失败 HTTP ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`);
+  }
   return payload;
 }
 
-function sharedLocalDelete(key) {
-  localStorage.removeItem(`shared:${key}`);
-}
-
-function normalizeSharedRecord(record) {
-  if (record == null) return null;
-  if (typeof record === "object" && Object.prototype.hasOwnProperty.call(record, "data")) {
-    return {
-      data: record.data,
-      updatedBy: record.updatedBy || "",
-      updatedAt: record.updatedAt || 0,
-    };
-  }
-  return { data: record, updatedBy: "", updatedAt: 0 };
-}
-
-function notifySharedUpdated(key) {
-  window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
-}
-
-function delayMs(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchJsonBinLatest(binId, storageKey) {
-  const url = `${JSONBIN_API_BASE}/${binId}/latest`;
-  const headers = { "X-Master-Key": JSONBIN_API_KEY };
-  const attempts = [
-    { via: "cloud", run: () => fetchWithTimeout(url, { headers }) },
-    { via: "proxy", run: () => fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, { headers }) },
-    { via: "snapshot", run: () => fetchWithTimeout(`data/shared-${storageKey}.json?v=${Date.now()}`, { cache: "no-store" }) },
-  ];
-
-  let lastErr = "网络错误";
-  for (const { via, run } of attempts) {
-    try {
-      const res = await run();
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const record = json.record != null ? json.record : json;
-      const normalized = normalizeSharedRecord(record);
-      if (!normalized) return null;
-      return { ...normalized, _via: via };
-    } catch (e) {
-      lastErr = e?.name === "AbortError" ? "连接超时" : (e?.message || "网络错误");
-    }
-  }
-  throw new Error(lastErr);
-}
-
-async function fetchWithTimeout(url, opts = {}) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 12000);
-  try {
-    return await fetch(url, { ...opts, signal: ctrl.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// ─── sharedStorage ───────────────────────────────────────────────────
+// 已配置 Gist → 全公司共享；未配置 → 仅 localStorage
 
 const sharedStorage = {
-  async get(key, { retries = 3 } = {}) {
-    const binId = resolveJsonBinId(key);
-    if (!binId) return sharedLocalGet(key);
-
-    let lastErr = "网络错误";
-    for (let attempt = 0; attempt < retries; attempt++) {
-      if (attempt > 0) await delayMs(800 * attempt);
-      try {
-        const normalized = await fetchJsonBinLatest(binId, key);
-        if (normalized) {
-          sharedLocalSet(key, normalized.data, normalized.updatedBy);
-          const source = normalized._via === "snapshot" ? "snapshot" : "cloud";
-          const { _via, ...rest } = normalized;
-          return { ...rest, _source: source };
-        }
-        return null;
-      } catch (e) {
-        lastErr = e?.name === "AbortError" ? "连接超时" : (e?.message || "网络错误");
-      }
+  async get(key) {
+    if (!GIST_SHARED_FILES[key]) return localGet(key);
+    if (!gistConfigured()) return localGet(key);
+    try {
+      const record = await gistReadRecord(key);
+      if (record) localSet(key, record);
+      return record ?? localGet(key);
+    } catch (e) {
+      console.warn(`[sharedStorage] get "${key}" Gist 失败，用本地缓存`, e?.message);
+      return localGet(key);
     }
-
-    const local = sharedLocalGet(key);
-    const normalized = normalizeSharedRecord(local);
-    if (normalized && Array.isArray(normalized.data) && normalized.data.length === 0) {
-      return {
-        data: null,
-        updatedBy: "",
-        updatedAt: 0,
-        _source: "local-fallback",
-        _cloudError: lastErr,
-        _emptyLocalIgnored: true,
-      };
-    }
-    if (normalized) return { ...normalized, _source: "local-fallback", _cloudError: lastErr };
-    return { data: null, updatedBy: "", updatedAt: 0, _source: "local-fallback", _cloudError: lastErr };
   },
 
   async set(key, value, updatedBy) {
@@ -169,45 +172,48 @@ const sharedStorage = {
       updatedBy: updatedBy || "未知",
       updatedAt: Date.now(),
     };
-    const binId = resolveJsonBinId(key);
-    if (!binId) {
-      sharedLocalSet(key, value, updatedBy);
-      notifySharedUpdated(key);
-      return { ...payload, _source: "local" };
+    if (!GIST_SHARED_FILES[key]) {
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      return payload;
     }
-
+    if (!gistConfigured()) {
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      throw new Error("未配置 GitHub Gist，已暂存本机（请填写 cloud-sync-config.js）");
+    }
     try {
-      const res = await fetch(`${JSONBIN_API_BASE}/${binId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Master-Key": JSONBIN_API_KEY,
-        },
-        body: JSON.stringify(payload),
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`JSONBin PUT ${res.status}`);
-      sharedLocalSet(key, value, updatedBy);
-      notifySharedUpdated(key);
-      return { ...payload, _source: "cloud" };
+      await gistWriteRecord(key, payload);
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      return payload;
     } catch (e) {
-      sharedLocalSet(key, value, updatedBy);
-      notifySharedUpdated(key);
+      localSet(key, payload);
+      window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
       throw new Error(`云端保存失败（已暂存本机）：${e?.message || "网络错误"}`);
     }
   },
 
   async delete(key) {
-    const binId = resolveJsonBinId(key);
-    if (!binId) {
-      sharedLocalDelete(key);
-      notifySharedUpdated(key);
-      return;
-    }
-    await sharedStorage.set(key, null, "");
+    localStorage.removeItem(`shared:${key}`);
+    await sharedStorage.set(key, [], "");
   },
 };
 
+function localGet(key) {
+  try {
+    const raw = localStorage.getItem(`shared:${key}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function localSet(key, payload) {
+  try {
+    localStorage.setItem(`shared:${key}`, JSON.stringify(payload));
+  } catch { /* ignore */ }
+}
+
+// ─── ROLE / STAFF ─────────────────────────────────────────────────────
 const ROLE_COLORS = {
   运营: { bg: "#dceeff", color: "#1a4e8a" },
   美工: { bg: "#f3e8ff", color: "#6b21a8" },
@@ -250,8 +256,7 @@ function normalizeStaffEntry(item) {
 function parseStaffText(text) {
   return text.split(/\r?\n/).map(line => {
     const [name, role] = line.split("|").map(s => s.trim());
-    const trimmed = line.trim();
-    return { name: name || trimmed, role: role || "" };
+    return { name: name || line.trim(), role: role || "" };
   }).filter(e => e.name);
 }
 
@@ -267,11 +272,7 @@ function loadGlobalConfig() {
     if (!Array.isArray(parsed.staff) || !parsed.staff.length) {
       return { staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({ ...e })) };
     }
-    const staff = parsed.staff.map(normalizeStaffEntry).filter(e => e.name);
-    if (JSON.stringify(parsed.staff) !== JSON.stringify(staff)) {
-      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify({ staff }));
-    }
-    return { staff };
+    return { staff: parsed.staff.map(normalizeStaffEntry).filter(e => e.name) };
   } catch {
     return { staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({ ...e })) };
   }
@@ -286,19 +287,10 @@ function saveGlobalConfig(config) {
   return next;
 }
 
-function getEmployees() {
-  return loadGlobalConfig().staff;
-}
+function getEmployees() { return loadGlobalConfig().staff; }
+function getStaffNames() { return getEmployees().map(e => e.name); }
+function getStaffRole(name) { return getEmployees().find(e => e.name === name)?.role || ""; }
 
-function getStaffNames() {
-  return getEmployees().map(e => e.name);
-}
-
-function getStaffRole(name) {
-  return getEmployees().find(e => e.name === name)?.role || "";
-}
-
-/** 全局员工 + 业务数据里出现过的姓名，去重排序 */
 function ownerOptions(...extraLists) {
   const fromData = extraLists.flat().filter(Boolean);
   const byName = new Map(getEmployees().map(e => [e.name, e]));
@@ -308,12 +300,10 @@ function ownerOptions(...extraLists) {
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }
 
-/** 跟进人筛选：全部 + 员工对象列表 */
 function ownerFilterEntries(...extraLists) {
   return [{ name: "all", role: "" }, ...ownerOptions(...extraLists)];
 }
 
-/** 跟进人筛选：全部 + 合并名单（姓名字符串，兼容旧用法） */
 function ownerFilterOptions(...extraLists) {
   return ownerFilterEntries(...extraLists).map(e => e.name);
 }
@@ -360,31 +350,24 @@ function OwnerField({ value, onChange, listId = "owner-list", extraOwners = [], 
   }
 
   return (
-    <select
-      value={known.has(value) ? value : ""}
-      onChange={e => {
-        const v = e.target.value;
-        if (v === "__manual__") { setManual(true); onChange(""); return; }
-        onChange(v);
-      }}
-      style={fieldStyle}
-    >
+    <select value={known.has(value) ? value : ""} onChange={e => {
+      const v = e.target.value;
+      if (v === "__manual__") { setManual(true); onChange(""); return; }
+      onChange(v);
+    }} style={fieldStyle}>
       <option value="">{placeholder}</option>
-      {options.map(o => (
-        <option key={o.name} value={o.name}>{formatOwnerLabel(o)}</option>
-      ))}
+      {options.map(o => <option key={o.name} value={o.name}>{formatOwnerLabel(o)}</option>)}
       <option value="__manual__">手动输入…</option>
     </select>
   );
 }
 
 function StaffListEditor({ rows, onChange }) {
-  const setRow = (i, patch) => onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const setRow = (i, patch) => onChange(rows.map((r, j) => j === i ? { ...r, ...patch } : r));
   const removeRow = (i) => onChange(rows.filter((_, j) => j !== i));
   const addRow = () => onChange([...rows, { name: "", role: STAFF_ROLE_OPTIONS[0] || "运营" }]);
   const inp = { flex: 1, minWidth: 0, fontSize: 13, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", background: "transparent", color: "inherit" };
   const sel = { ...inp, width: 92, flex: "0 0 92px", background: "var(--card)", cursor: "pointer" };
-
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 6, padding: "0 2px" }}>
@@ -402,7 +385,7 @@ function StaffListEditor({ rows, onChange }) {
               <select value={row.role || STAFF_ROLE_OPTIONS[0]} onChange={e => setRow(i, { role: e.target.value })} style={sel}>
                 {roles.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
-              <button type="button" onClick={() => removeRow(i)} title="删除" aria-label="删除" style={{ width: 28, height: 28, border: "none", background: "transparent", color: "#bbb", cursor: "pointer", fontSize: 20, lineHeight: 1, flexShrink: 0, fontFamily: "inherit" }}>×</button>
+              <button type="button" onClick={() => removeRow(i)} style={{ width: 28, height: 28, border: "none", background: "transparent", color: "#bbb", cursor: "pointer", fontSize: 20, lineHeight: 1, flexShrink: 0, fontFamily: "inherit" }}>×</button>
             </div>
           );
         })}
@@ -414,26 +397,21 @@ function StaffListEditor({ rows, onChange }) {
 
 function GlobalSettingsModal({ onClose, onSaved }) {
   const [rows, setRows] = useState(() => getEmployees().map(e => ({ ...e })));
-
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-
   const save = () => {
     const staff = rows.map(r => ({ name: r.name.trim(), role: r.role || "" })).filter(r => r.name);
     saveGlobalConfig({ staff });
     onSaved && onSaved();
   };
-
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 440, color: "var(--text)" }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>全局员工名单</div>
-        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 14, lineHeight: 1.5 }}>
-          填写姓名并选择角色，保存后会在各模块「负责人 / 跟进人」中统一出现。
-        </div>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 14, lineHeight: 1.5 }}>填写姓名并选择角色，保存后会在各模块「负责人 / 跟进人」中统一出现。</div>
         <StaffListEditor rows={rows} onChange={setRows} />
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
           <button type="button" onClick={onClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
@@ -470,6 +448,9 @@ window.sharedStorage = sharedStorage;
 // ─── STORAGE (shared / private) ─────────────────────────────────────
 const CURRENT_USER_KEY = "ops-center-current-user";
 
+/** 2 分钟轮询；Gist 无 JSONBin 式月度配额，可按需改为 0 关闭 */
+const CLOUD_POLL_MS = 120000;
+
 function getCurrentUser() {
   try {
     const raw = sessionStorage.getItem(CURRENT_USER_KEY);
@@ -490,15 +471,12 @@ function setCurrentUser(user) {
   } catch { /* ignore */ }
 }
 
-
 const privateStorage = {
   get(userId, key) {
     try {
       const raw = localStorage.getItem(`user:${userId}:${key}`);
       return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   },
   set(userId, key, value) {
     localStorage.setItem(`user:${userId}:${key}`, JSON.stringify(value));
@@ -513,14 +491,11 @@ function formatSharedTime(ts) {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("zh-CN", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    month: "numeric", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
   }).format(d);
 }
 
-const CLIENT_ID_KEY = "ops-center-client-id";
 const DEVICE_ID_KEY = "ops-center-device-id";
 
 function getOrCreateDeviceId() {
@@ -537,342 +512,163 @@ function getOrCreateDeviceId() {
   }
 }
 
-function isGitHubPages() {
-  return typeof location !== "undefined" && /\.github\.io$/i.test(location.hostname);
+async function resolveClientId() {
+  return getOrCreateDeviceId();
 }
 
 function isLocalOpsServer() {
-  if (typeof location === "undefined") return false;
-  const h = location.hostname;
-  return h === "localhost" || h.startsWith("127.") || isPrivateLanIp(h);
-}
-
-function isPrivateLanIp(ip) {
-  if (!ip || typeof ip !== "string") return false;
-  if (ip.startsWith("192.168.") || ip.startsWith("10.")) return true;
-  return /^172\.(1[6-9]|2[0-9]|3[01])\./.test(ip);
-}
-
-function detectLocalLanIpViaWebRTC() {
-  return new Promise((resolve) => {
-    if (typeof RTCPeerConnection !== "function") {
-      resolve("");
-      return;
-    }
-    let settled = false;
-    const finish = (ip) => {
-      if (settled) return;
-      settled = true;
-      try { pc.close(); } catch { /* ignore */ }
-      resolve(ip || "");
-    };
-    const pc = new RTCPeerConnection({ iceServers: [] });
-    const found = new Set();
-    pc.createDataChannel("ops-center");
-    pc.onicecandidate = (event) => {
-      if (!event.candidate?.candidate) return;
-      const match = /(\d{1,3}(?:\.\d{1,3}){3})/.exec(event.candidate.candidate);
-      if (!match) return;
-      const ip = match[1];
-      if (!isPrivateLanIp(ip)) return;
-      found.add(ip);
-      const preferred = [...found].find(i => i.startsWith("192.168.")) || [...found][0];
-      finish(preferred);
-    };
-    pc.createOffer()
-      .then(offer => pc.setLocalDescription(offer))
-      .catch(() => finish(""));
-    setTimeout(() => {
-      if (found.size) {
-        finish([...found].find(i => i.startsWith("192.168.")) || [...found][0]);
-      } else {
-        finish("");
-      }
-    }, 800);
-  });
+  return false;
 }
 
 function priorityLocalKey(clientId, date) {
   return `priority:${clientId}:${date}`;
 }
 
-function readPriorityLocal(clientId, date) {
+function loadTodayPriority(clientId, date) {
+  const id = clientId || getOrCreateDeviceId();
   try {
-    const raw = localStorage.getItem(priorityLocalKey(clientId, date));
+    const raw = localStorage.getItem(priorityLocalKey(id, date));
     if (!raw) return { date: "", text: "" };
     const parsed = JSON.parse(raw);
-    if (parsed?.date === date && parsed.text) {
-      return { date: parsed.date, text: parsed.text };
-    }
+    if (parsed?.date === date) return { date: parsed.date, text: parsed.text || "" };
   } catch { /* ignore */ }
   return { date: "", text: "" };
 }
 
-function writePriorityLocal(clientId, entry) {
-  try {
-    localStorage.setItem(priorityLocalKey(clientId, entry.date), JSON.stringify(entry));
-  } catch { /* ignore */ }
-}
-
-async function resolveClientId() {
-  try {
-    const cached = localStorage.getItem(CLIENT_ID_KEY);
-    if (cached && isPrivateLanIp(cached)) return cached;
-    if (cached && !isPrivateLanIp(cached)) localStorage.removeItem(CLIENT_ID_KEY);
-  } catch { /* ignore */ }
-
-  if (isGitHubPages()) return getOrCreateDeviceId();
-
-  if (isLocalOpsServer()) {
-    try {
-      const res = await fetch("/api/client-id");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.clientId && isPrivateLanIp(data.clientId)) {
-          localStorage.setItem(CLIENT_ID_KEY, data.clientId);
-          return data.clientId;
-        }
-      }
-    } catch { /* ignore */ }
-
-    const lanIp = await detectLocalLanIpViaWebRTC();
-    if (lanIp && isPrivateLanIp(lanIp)) {
-      try { localStorage.setItem(CLIENT_ID_KEY, lanIp); } catch { /* ignore */ }
-      return lanIp;
-    }
-  }
-
-  return getOrCreateDeviceId();
-}
-
-async function loadTodayPriority(clientId, date) {
-  const id = clientId || getOrCreateDeviceId();
-  if (!id) return { date: "", text: "" };
-
-  if (isLocalOpsServer()) {
-    try {
-      const res = await fetch(`/api/priority?date=${encodeURIComponent(date)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.ok && data.date === date && data.text) {
-          const entry = { date: data.date, text: data.text };
-          writePriorityLocal(id, entry);
-          return entry;
-        }
-        if (data.ok && data.date === date && !data.text) {
-          return { date: "", text: "" };
-        }
-      }
-    } catch { /* ignore */ }
-  }
-
-  return readPriorityLocal(id, date);
-}
-
-async function saveTodayPriority(clientId, date, text) {
+function saveTodayPriority(clientId, date, text) {
   const id = clientId || getOrCreateDeviceId();
   const entry = { date, text: text.trim() };
-  writePriorityLocal(id, entry);
-
-  if (isLocalOpsServer()) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 2000);
-      await fetch("/api/priority", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, text: entry.text }),
-        signal: ctrl.signal,
-      });
-      clearTimeout(timer);
-    } catch { /* ignore */ }
-  }
-
+  try {
+    localStorage.setItem(priorityLocalKey(id, date), JSON.stringify(entry));
+  } catch { /* ignore */ }
   return entry;
 }
 
-function resolveSharedListData(raw, defaultData) {
-  if (raw?.data == null) return defaultData;
-  if (raw._source === "local-fallback" && Array.isArray(raw.data) && raw.data.length === 0) {
-    return defaultData;
-  }
-  return raw.data;
-}
-
 function useSharedList(storageKey, defaultData, { active = true } = {}) {
-  const read = useCallback(async (retries = 3) => {
+  const defaultRef = useRef(defaultData);
+  defaultRef.current = defaultData;
+
+  const [state, setState] = useState({
+    data: defaultData,
+    meta: null,
+    loading: true,
+    error: "",
+  });
+
+  const fetchingRef = useRef(false);
+  const lastFetchAtRef = useRef(0);
+
+  const fetchFromCloud = useCallback(async (force = false) => {
+    if (fetchingRef.current) return;
+    const now = Date.now();
+    if (!force && now - lastFetchAtRef.current < 3000) return;
+    fetchingRef.current = true;
+    lastFetchAtRef.current = now;
     try {
-      const raw = await sharedStorage.get(storageKey, { retries });
-      const data = resolveSharedListData(raw, defaultData);
-      return { data, meta: raw, error: "" };
+      const raw = await sharedStorage.get(storageKey);
+      if (!raw) {
+        setState({ data: defaultRef.current, meta: null, loading: false, error: "" });
+        return;
+      }
+      const data = Array.isArray(raw.data) ? raw.data : defaultRef.current;
+      setState({ data, meta: raw, loading: false, error: "" });
     } catch (e) {
-      return { data: defaultData, meta: null, error: e?.message || "读取失败" };
+      setState(prev => ({
+        ...prev,
+        data: prev.data ?? defaultRef.current,
+        loading: false,
+        error: e?.message || "读取失败",
+      }));
+    } finally {
+      fetchingRef.current = false;
     }
-  }, [storageKey, defaultData]);
-
-  const [state, setState] = useState({ data: defaultData, meta: null, loading: false, error: "" });
+  }, [storageKey]);
 
   useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
     setState(prev => ({ ...prev, loading: true, error: "" }));
-    (async () => {
-      const next = await read();
-      if (!cancelled) setState({ ...next, loading: false });
-    })();
-    return () => { cancelled = true; };
-  }, [read, active]);
+    fetchFromCloud(true);
+  }, [fetchFromCloud]);
 
   useEffect(() => {
-    const handler = () => {
-      if (!active) return;
-      read().then(next => setState({ ...next, loading: false }));
-    };
+    const handler = () => fetchFromCloud(true);
     window.addEventListener(`ops-shared-updated:${storageKey}`, handler);
     return () => window.removeEventListener(`ops-shared-updated:${storageKey}`, handler);
-  }, [storageKey, read, active]);
+  }, [storageKey, fetchFromCloud]);
 
   useEffect(() => {
     if (!active) return;
-    const refresh = () => read().then(next => setState({ ...next, loading: false }));
     const onVisible = () => {
-      if (document.visibilityState === "visible") refresh();
+      if (document.visibilityState === "visible") fetchFromCloud();
     };
-    window.addEventListener("focus", refresh);
+    window.addEventListener("focus", onVisible);
     document.addEventListener("visibilitychange", onVisible);
-    const timer = setInterval(refresh, 30000);
+    let timer = null;
+    if (CLOUD_POLL_MS > 0) {
+      timer = setInterval(() => fetchFromCloud(), CLOUD_POLL_MS);
+    }
     return () => {
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
     };
-  }, [read, active]);
+  }, [fetchFromCloud, active]);
 
   const persist = useCallback(async (data) => {
     setState(prev => ({
+      ...prev,
       data,
-      meta: { updatedBy: getCurrentUser().name, updatedAt: Date.now(), ...(prev.meta || {}) },
-      loading: false,
+      meta: { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
       error: "",
     }));
     try {
       await sharedStorage.set(storageKey, data, getCurrentUser().name);
-      const raw = await sharedStorage.get(storageKey);
-      setState({
-        data: resolveSharedListData(raw, data),
-        meta: raw,
-        loading: false,
-        error: "",
-      });
     } catch (e) {
-      setState(prev => ({
-        ...prev,
-        data,
-        loading: false,
-        error: e?.message || "保存失败",
-      }));
+      setState(prev => ({ ...prev, error: e?.message || "保存失败" }));
     }
   }, [storageKey]);
 
   const reload = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: "" }));
-    try { localStorage.removeItem(`shared:${storageKey}`); } catch { /* ignore */ }
-    try {
-      const next = await read(5);
-      setState({ ...next, loading: false });
-    } catch (e) {
-      setState(prev => ({ ...prev, loading: false, error: e?.message || "刷新失败" }));
-    }
-  }, [read, storageKey]);
+    await fetchFromCloud(true);
+  }, [fetchFromCloud]);
 
-  return { items: state.data, meta: state.meta, loading: state.loading, error: state.error, persist, reload };
+  return {
+    items: state.data,
+    meta: state.meta,
+    loading: state.loading,
+    error: state.error,
+    persist,
+    reload,
+  };
 }
 
 function SharedMetaLine({ meta, style, onReload, loading, error }) {
-  let bg = "#eef6ff";
-  let border = "#b8d4f0";
-  let color = "#1a4e8a";
-  let text = "☁️ 云端同步已启用 · 修改后全公司电脑自动共享";
+  let bg = "#ecfdf5", border = "#6ee7b7", color = "#065f46";
+  let text = "☁️ GitHub 云端已启用 · 修改后全公司自动共享";
 
   if (loading) {
-    bg = "#f3f4f6";
-    border = "#d1d5db";
-    color = "#4b5563";
+    bg = "#f3f4f6"; border = "#d1d5db"; color = "#4b5563";
     text = "⏳ 正在从云端加载…";
   } else if (error) {
-    bg = "#fee2e2";
-    border = "#fca5a5";
-    color = "#991b1b";
-    text = `❌ ${error}`;
-  } else if (meta?._source === "snapshot") {
-    bg = "#eff6ff";
-    border = "#93c5fd";
-    color = "#1e40af";
-    text = meta?.updatedBy
-      ? `📦 已从 Pages 快照加载 · 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)}（国内只读，改数据需 VPN）`
-      : "📦 已从 Pages 快照加载（国内只读，改数据需 VPN）";
-  } else if (meta?._source === "cloud") {
-    bg = "#ecfdf5";
-    border = "#6ee7b7";
-    color = "#065f46";
-    text = meta?.updatedBy
-      ? `☁️ 已从云端同步 · 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)}`
-      : "☁️ 已从云端同步 · 数据全公司共享";
-  } else if (meta?._source === "local-fallback") {
-    bg = "#fffbeb";
-    border = "#fcd34d";
-    color = "#92400e";
-    const hint = meta._cloudError || "请检查网络";
-    const emptyNote = meta._emptyLocalIgnored ? " · 已忽略空的本机缓存" : "";
-    text = `⚠️ 云端暂不可用（${hint}${emptyNote}）· 请开 VPN 后点「立即刷新」`;
-  } else if (meta?._source === "local") {
-    bg = "#f3f4f6";
-    border = "#d1d5db";
-    color = "#4b5563";
-    text = "💾 仅保存在本机（未配置云端）";
+    bg = "#fee2e2"; border = "#fca5a5"; color = "#991b1b";
+    text = `❌ ${error} · 数据已暂存本机`;
   } else if (meta?.updatedBy) {
-    text = `最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 30 秒自动同步`;
+    text = CLOUD_POLL_MS > 0
+      ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 ${Math.round(CLOUD_POLL_MS / 1000)} 秒自动同步`
+      : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 点「立即刷新」同步`;
   }
 
   return (
     <div style={{
-      fontSize: 12,
-      color,
-      background: bg,
-      border: `1px solid ${border}`,
-      borderRadius: 8,
-      padding: "8px 12px",
-      marginBottom: 12,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-      flexWrap: "wrap",
-      position: "relative",
-      zIndex: 2,
-      ...style,
+      fontSize: 12, color, background: bg, border: `1px solid ${border}`,
+      borderRadius: 8, padding: "8px 12px", marginBottom: 12,
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      gap: 10, flexWrap: "wrap", ...style,
     }}>
       <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
       {onReload && (
-        <button
-          type="button"
-          disabled={loading}
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReload(); }}
-          style={{
-            background: "#fff",
-            border: `1px solid ${border}`,
-            borderRadius: 6,
-            padding: "6px 12px",
-            fontSize: 11,
-            cursor: loading ? "wait" : "pointer",
-            fontFamily: "inherit",
-            color,
-            fontWeight: 600,
-            flexShrink: 0,
-            opacity: loading ? 0.75 : 1,
-            minWidth: 72,
-          }}
-        >
+        <button type="button" disabled={loading} onClick={e => { e.preventDefault(); e.stopPropagation(); onReload(); }}
+          style={{ background: "#fff", border: `1px solid ${border}`, borderRadius: 6, padding: "6px 12px", fontSize: 11, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", color, fontWeight: 600, flexShrink: 0, opacity: loading ? 0.75 : 1, minWidth: 72 }}>
           {loading ? "刷新中…" : "立即刷新"}
         </button>
       )}
@@ -1243,26 +1039,43 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
 }
 function LogisticsPanel({ active = true }) {
   const { items, meta, loading, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS, { active });
+  const list = Array.isArray(items) ? items : [];
+  const savedFilters = loadLogisticsFilters();
   const [modal, setModal] = useState(null);
-  const [filter, setFilter] = useState("all");
-  const [ownerFilter, setOwnerFilter] = useState("all");
+  const [filter, setFilter] = useState(savedFilters.filter || "all");
+  const [ownerFilter, setOwnerFilter] = useState(savedFilters.ownerFilter || "all");
   const [expanded, setExpanded] = useState(loadExpandedState);
   const panelCsvRef = useRef(null);
+
+  useEffect(() => {
+    saveLogisticsFilters({ filter, ownerFilter });
+  }, [filter, ownerFilter]);
+
+  const setFilterPersist = (key) => {
+    setFilter(key);
+    saveLogisticsFilters({ filter: key, ownerFilter });
+  };
+  const setOwnerFilterPersist = (name) => {
+    setOwnerFilter(name);
+    saveLogisticsFilters({ filter, ownerFilter: name });
+  };
+
   const toggleExpanded = (id) => setExpanded(prev => {
-    const next = { ...prev, [id]: !prev[id] };
+    const key = String(id);
+    const next = { ...prev, [key]: !isBatchExpanded(prev, id) };
     saveExpandedState(next);
     return next;
   });
-  const nextId = () => Math.max(0, ...items.map(i => i.id || 0)) + 1;
+  const nextId = () => Math.max(0, ...list.map(i => i.id || 0)) + 1;
   const counts = {
-    all: items.length,
-    transit: items.filter(batchHeadTransit).length,
-    missing_track: items.filter(batchMissingTrack).length,
-    receiving: items.filter(batchReceiving).length,
-    done: items.filter(batchAllDone).length,
+    all: list.length,
+    transit: list.filter(batchHeadTransit).length,
+    missing_track: list.filter(batchMissingTrack).length,
+    receiving: list.filter(batchReceiving).length,
+    done: list.filter(batchAllDone).length,
   };
-  const owners = ownerFilterEntries(items.map(i => i.owner));
-  let vis = items.slice();
+  const owners = ownerFilterEntries(list.map(i => i.owner));
+  let vis = list.slice();
   if (ownerFilter !== "all") vis = vis.filter(i => i.owner === ownerFilter);
   if (filter === "transit") vis = vis.filter(batchHeadTransit);
   else if (filter === "missing_track") vis = vis.filter(batchMissingTrack);
@@ -1277,12 +1090,12 @@ function LogisticsPanel({ active = true }) {
     return da - db;
   });
   const save = (t) => {
-    if (t.id) persist(items.map(x => x.id === t.id ? t : x));
-    else persist([...items, { ...t, id: nextId() }]);
+    if (t.id) persist(list.map(x => x.id === t.id ? t : x));
+    else persist([...list, { ...t, id: nextId() }]);
     setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
-    persist(items.map(g => g.id !== gid ? g : {
+    persist(list.map(g => g.id !== gid ? g : {
       ...g, fbaShipments: (g.fbaShipments || []).map(s => s.id !== fid ? s : { ...s, tracking, status: tracking.trim() && s.status === "准备发货" ? "运输中" : s.status }),
     }));
   };
@@ -1313,7 +1126,7 @@ function LogisticsPanel({ active = true }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>
           {tabs.map(f => (
-            <div key={f.key} onClick={() => setFilter(f.key)} style={{ background: "var(--card)", border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer" }}>
+            <div key={f.key} onClick={() => setFilterPersist(f.key)} style={{ background: "var(--card)", border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer" }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: f.nc }}>{counts[f.key]}</div>
               <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 1 }}>{f.label}</div>
             </div>
@@ -1328,7 +1141,7 @@ function LogisticsPanel({ active = true }) {
       <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 11, color: "var(--tm)" }}>跟进人</span>
         {owners.map(o => (
-          <button key={o.name} onClick={() => setOwnerFilter(o.name)} style={{ background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)", color: ownerFilter === o.name ? "#fff" : "var(--tm)", border: `1px solid ${ownerFilter === o.name ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <button key={o.name} onClick={() => setOwnerFilterPersist(o.name)} style={{ background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)", color: ownerFilter === o.name ? "#fff" : "var(--tm)", border: `1px solid ${ownerFilter === o.name ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
             {o.name === "all" ? "全部" : (<>{o.name}{o.role && <RoleBadge role={o.role} style={{ padding: "0 5px", fontSize: 9 }} />}</>)}
           </button>
         ))}
@@ -1338,14 +1151,14 @@ function LogisticsPanel({ active = true }) {
           <ShipmentGroupCard
             key={g.id}
             group={g}
-            expanded={!!expanded[g.id]}
+            expanded={isBatchExpanded(expanded, g.id)}
             onToggleExpand={() => toggleExpanded(g.id)}
             onEdit={() => setModal(cloneGroup(g))}
             onEditTracking={editTracking}
           />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>
-      {modal && <ShipmentModal item={modal} ownerExtras={items.map(i => i.owner)} onSave={save} onClose={() => setModal(null)} onDelete={() => { persist(items.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      {modal && <ShipmentModal item={modal} ownerExtras={list.map(i => i.owner)} onSave={save} onClose={() => setModal(null)} onDelete={() => { persist(list.filter(x => x.id !== modal.id)); setModal(null); }} />}
     </div>
   );
 }

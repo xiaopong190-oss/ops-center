@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { OwnerField, ownerFilterEntries, RoleBadge, getStaffRole } from "./GlobalConfig.jsx";
 import { useSharedList, SharedMetaLine, formatSharedTime } from "./utils/storage.js";
+import ProdGanttCard from "./ProdGanttCard.jsx";
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
@@ -342,6 +343,7 @@ export function ProductionPanel({ active = true }) {
   return (
     <div>
       <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
+      <ProdGanttCard items={items} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 7, flex: 1, minWidth: 320 }}>
           {tabs.map(f => (

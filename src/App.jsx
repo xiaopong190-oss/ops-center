@@ -213,7 +213,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-23";
+const APP_BUILD = "cloud-24";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {

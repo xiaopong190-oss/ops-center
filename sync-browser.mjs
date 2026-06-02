@@ -131,10 +131,17 @@ fs.writeFileSync(
 );
 
 const prod = fs.readFileSync(path.join(dir, "ProductionModule.jsx"), "utf8");
-fs.writeFileSync(
-  path.join(dir, "ProductionModule.browser.jsx"),
-  toBrowser(prod, { exportName: "ProductionPanel", stripUtilsThrough: "// ─── PRODUCTION MODULE" })
-);
+const prodGantt = fs.readFileSync(path.join(dir, "ProdGanttCard.jsx"), "utf8");
+const prodMerged = prod
+  .replace(/^import ProdGanttCard from "\.\/ProdGanttCard\.jsx";\r?\n/m, "")
+  .replace(/^import ProdGanttCard from '\.\/ProdGanttCard\.jsx';\r?\n/m, "");
+const prodGanttBrowser = toBrowser(prodGantt, { exportName: null })
+  .replace(/^export default function ProdGanttCard/m, "function ProdGanttCard")
+  .replace(/^export function productionItemsToGanttProducts/m, "function productionItemsToGanttProducts")
+  .replace(/^const \{[^}]+\} = React;\r?\n+/, "");
+let prodBrowser = toBrowser(prodMerged, { exportName: "ProductionPanel", stripUtilsThrough: "// ─── PRODUCTION MODULE" });
+prodBrowser = prodBrowser.replace("// ─── PRODUCTION MODULE", prodGanttBrowser + "\n// ─── PRODUCTION MODULE");
+fs.writeFileSync(path.join(dir, "ProductionModule.browser.jsx"), prodBrowser);
 
 const tools = fs.readFileSync(path.join(dir, "ToolsModule.jsx"), "utf8");
 fs.writeFileSync(

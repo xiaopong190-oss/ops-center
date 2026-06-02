@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-06-01T03:57:15.678Z",
+  "updatedAt": "2026-06-02T03:52:56.645Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "What’s new on Prime Video in June 2026, including ‘The Legend of Vox Machina' Season 4, WNBA games, and more",
+      "link": "https://www.aboutamazon.com/news/entertainment/prime-video-june-pride-month-movies-tv-shows-music-sports-2026?utm_source=rss",
+      "pubDate": "Mon, 01 Jun 2026 18:20:20 GMT",
+      "date": "6/1",
+      "summary": "Plus, check out Pride Month titles already available on Prime Video like 'Overcompensating' and 'Red, White & Royal Blue.'",
+      "category": "Entertainment"
+    },
     {
       "title": "Amazon in the community: Service, community, and commitment at HQ2",
       "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "5/29",
       "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
       "category": "Sustainability"
-    },
-    {
-      "title": "How Amazon protects cargo from fraud and theft across its shipping network",
-      "link": "https://www.aboutamazon.com/news/operations/amazon-freight-security-relay-carrier-fraud?utm_source=rss",
-      "pubDate": "Fri, 29 May 2026 00:30:35 GMT",
-      "date": "5/29",
-      "summary": "Amazon evaluates carriers using rigorous security and safety standards, smart trailer technology, chain-of-custody controls, and law enforce",
-      "category": "Operations"
     }
   ]
 }

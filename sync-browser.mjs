@@ -89,6 +89,7 @@ function globalConfigBrowserBlock() {
     .replace(/^export const STAFF_ROLE_OPTIONS/m, "const STAFF_ROLE_OPTIONS")
     .replace(/^export const DEFAULT_GLOBAL_CONFIG/m, "const DEFAULT_GLOBAL_CONFIG")
     .replace(/^export function /gm, "function ")
+    .replace(/^export async function /gm, "async function ")
     .replace(/onSaved\?\.\(\)/g, "onSaved && onSaved()");
   return (
     cloudSyncConfigBlock() +
@@ -106,6 +107,8 @@ function globalConfigBrowserBlock() {
     "window.OwnerField = OwnerField;\n" +
     "window.GlobalSettingsModal = GlobalSettingsModal;\n" +
     "window.useGlobalConfig = useGlobalConfig;\n" +
+    "window.fetchGlobalConfigFromCloud = fetchGlobalConfigFromCloud;\n" +
+    "window.getGlobalConfigMeta = getGlobalConfigMeta;\n" +
     "window.sharedStorage = sharedStorage;\n"
   );
 }

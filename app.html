@@ -46,7 +46,7 @@
         }
 
         try {
-          var SYNC_VER = "32";
+          var SYNC_VER = "34";
           await loadGistConfig();
           // 强制走 runtime .browser.jsx（bundle 已禁用，避免旧 cloud-9 bundle 干扰）
           var bundleRes = await fetch("app.bundle.js?v=" + SYNC_VER);

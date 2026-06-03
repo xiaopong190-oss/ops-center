@@ -5,7 +5,7 @@ import { ToolsPanel } from "./ToolsModule.jsx";
 import { AgentsPanel } from "./AgentsModule.jsx";
 import { HomePanel } from "./HomeModule.jsx";
 import { KpiPanel } from "./KpiModule.jsx";
-import { GlobalSettingsModal, OwnerField, getStaffRole, RoleBadge, getStaffNames } from "./GlobalConfig.jsx";
+import { GlobalSettingsModal, OwnerField, getStaffRole, RoleBadge, getStaffNames, STAFF_ROLE_OPTIONS, ROLE_COLORS } from "./GlobalConfig.jsx";
 import { UserContext } from "./context/UserContext.jsx";
 import { getCurrentUser, setCurrentUser, useSharedList } from "./utils/storage.js";
 import { CloudSyncProvider, useCloudSyncPage, GlobalCloudBar, useConfirmLeave } from "./GlobalCloudSync.jsx";
@@ -33,7 +33,29 @@ const NODE_STATUSES = [
   { val: "blocked", label: "受阻", dot: "#e09000", color: "#7a4a00" }, { val: "todo", label: "待开始", dot: "#bbb", color: "#666" },
 ];
 const nsMeta = (v) => NODE_STATUSES.find(x => x.val === v) || NODE_STATUSES[3];
-const CAT_COLORS = { 设计: { bg: "#ede9fe", c: "#4c1d95" }, 研发: { bg: "#fef3c7", c: "#78350f" }, 运营: { bg: "#dbeafe", c: "#1e3a8a" }, 品牌: { bg: "#fce7f3", c: "#831843" } };
+/** 旧任务分类 → 全局角色 */
+const TASK_CAT_LEGACY_MAP = { 研发: "开发", 品牌: "管理" };
+
+function normalizeTaskCat(cat) {
+  if (!cat) return STAFF_ROLE_OPTIONS[0] || "运营";
+  return TASK_CAT_LEGACY_MAP[cat] || cat;
+}
+
+function taskCatBadge(cat) {
+  const role = normalizeTaskCat(cat);
+  const c = ROLE_COLORS[role];
+  return c ? { bg: c.bg, c: c.color } : { bg: "#f3f4f6", c: "#666" };
+}
+
+function taskCatOptions(current) {
+  const opts = [...STAFF_ROLE_OPTIONS];
+  const norm = normalizeTaskCat(current);
+  if (norm && !opts.includes(norm)) opts.push(norm);
+  if (current && current !== norm && !opts.includes(current)) opts.push(current);
+  return opts;
+}
+
+const DEFAULT_TASK_CAT = STAFF_ROLE_OPTIONS[0] || "运营";
 const taskStatusOf = (t) => { if (t.actual) return "done"; if (t.nodes && t.nodes.some(n => n.status === "blocked")) return "blocked"; const d = daysDiff(t.due); if (d === null) return "inprog"; if (d < 0) return "over"; return "inprog"; };
 const taskIsOverdue = (t) => !t.actual && daysDiff(t.due) !== null && daysDiff(t.due) < 0;
 const getProgress = (nodes) => { if (!nodes || !nodes.length) return 0; return Math.round(nodes.filter(n => n.status === "done").length / nodes.length * 100); };
@@ -42,9 +64,9 @@ const INIT_TASKS = [
   { id: 1, task: "FB100/101/200/201欧规样品制作", owner: "杨工", cat: "设计", due: "2026-06-20", actual: "", nodes: [{ name: "FB100", status: "done" }, { name: "FB101", status: "done" }, { name: "FB200", status: "current" }, { name: "FB201", status: "todo" }], block: "FB200模具待供应商确认" },
   { id: 2, task: "43条链接图设计排期", owner: "杨工", cat: "设计", due: "2026-06-05", actual: "", nodes: [{ name: "排期制定", status: "done" }, { name: "初稿输出", status: "current" }, { name: "审核", status: "todo" }, { name: "提交", status: "todo" }], block: "" },
   { id: 3, task: "FB300多士炉图片", owner: "黄工", cat: "运营", due: "2026-05-28", actual: "", nodes: [{ name: "拍摄", status: "done" }, { name: "修图", status: "blocked" }, { name: "上架", status: "todo" }], block: "修图师生病，预计延迟3天" },
-  { id: 4, task: "FB102感温变色图档样品", owner: "李工", cat: "研发", due: "2026-06-15", actual: "", nodes: [{ name: "工艺确认", status: "blocked" }, { name: "图档", status: "todo" }, { name: "打样", status: "todo" }, { name: "确样", status: "todo" }], block: "油墨供应商报价超预期40%，等待决策" },
-  { id: 5, task: "FB400豆浆机功能测试", owner: "张工", cat: "研发", due: "2026-06-10", actual: "2026-05-25", nodes: [{ name: "温度测试", status: "done" }, { name: "闪光测试", status: "done" }, { name: "整机", status: "done" }], block: "" },
-  { id: 6, task: "FB欧洲德法品牌注册", owner: "王律师", cat: "品牌", due: "2026-06-15", actual: "", nodes: [{ name: "材料准备", status: "done" }, { name: "德国提交", status: "current" }, { name: "法国提交", status: "todo" }, { name: "回执", status: "todo" }], block: "" },
+  { id: 4, task: "FB102感温变色图档样品", owner: "李工", cat: "开发", due: "2026-06-15", actual: "", nodes: [{ name: "工艺确认", status: "blocked" }, { name: "图档", status: "todo" }, { name: "打样", status: "todo" }, { name: "确样", status: "todo" }], block: "油墨供应商报价超预期40%，等待决策" },
+  { id: 5, task: "FB400豆浆机功能测试", owner: "张工", cat: "开发", due: "2026-06-10", actual: "2026-05-25", nodes: [{ name: "温度测试", status: "done" }, { name: "闪光测试", status: "done" }, { name: "整机", status: "done" }], block: "" },
+  { id: 6, task: "FB欧洲德法品牌注册", owner: "王律师", cat: "管理", due: "2026-06-15", actual: "", nodes: [{ name: "材料准备", status: "done" }, { name: "德国提交", status: "current" }, { name: "法国提交", status: "todo" }, { name: "回执", status: "todo" }], block: "" },
 ];
 
 function NodeRow({ node, onChange, onRemove }) {
@@ -72,9 +94,9 @@ function TaskModal({ task, tasks, onSave, onClose, onDelete }) {
           <div><label style={lbl}>负责人</label>
             <OwnerField listId="task-owner" value={form.owner} onChange={v => set("owner", v)} extraOwners={tasks.map(t => t.owner)} inputStyle={inp} />
           </div>
-          <div><label style={lbl}>分类</label>
-            <select value={form.cat} onChange={e => set("cat", e.target.value)} style={{ ...inp, background: "var(--card)" }}>
-              {["设计", "研发", "运营", "品牌"].map(c => <option key={c}>{c}</option>)}
+          <div><label style={lbl}>分类（角色）</label>
+            <select value={normalizeTaskCat(form.cat)} onChange={e => set("cat", e.target.value)} style={{ ...inp, background: "var(--card)" }}>
+              {taskCatOptions(form.cat).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
@@ -102,7 +124,8 @@ function TaskModal({ task, tasks, onSave, onClose, onDelete }) {
 function TaskCard({ task, onClick }) {
   const st = taskStatusOf(task);
   const prog = getProgress(task.nodes);
-  const cc = CAT_COLORS[task.cat] || { bg: "#f0f0f0", c: "#555" };
+  const cc = taskCatBadge(task.cat);
+  const catLabel = normalizeTaskCat(task.cat);
   const d = daysDiff(task.due);
   const bc = st === "over" ? "#e55" : st === "blocked" ? "#e09000" : st === "done" ? "#2d9e52" : "#2d7dd2";
   let due = null;
@@ -128,7 +151,7 @@ function TaskCard({ task, onClick }) {
         </>
       )}
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={badge(cc.bg, cc.c)}>{task.cat}</span>{due}{prog > 0 && prog < 100 && <span style={badge("#f3f4f6", "#666")}>{prog}%</span>}
+        <span style={badge(cc.bg, cc.c)}>{catLabel}</span>{due}{prog > 0 && prog < 100 && <span style={badge("#f3f4f6", "#666")}>{prog}%</span>}
       </div>
       {task.block && <div style={{ marginTop: 8, padding: "6px 10px", background: "#fff8e6", color: "#7a4a00", borderRadius: 7, fontSize: 11, lineHeight: 1.5, borderLeft: "3px solid #e09000" }}>⚡ {task.block}</div>}
     </div>
@@ -145,8 +168,9 @@ function TasksPanel({ active = true }) {
   let vis = filter === "all" ? tasks : filter === "over" ? tasks.filter(taskIsOverdue) : tasks.filter(t => taskStatusOf(t) === filter);
   vis = [...vis].sort((a, b) => (sortO[taskStatusOf(a)] || 2) - (sortO[taskStatusOf(b)] || 2));
   const save = (t) => {
-    if (t.id) persist(tasks.map(x => x.id === t.id ? t : x));
-    else persist([...tasks, { ...t, id: nextId() }]);
+    const row = { ...t, cat: normalizeTaskCat(t.cat) };
+    if (row.id) persist(tasks.map(x => x.id === row.id ? row : x));
+    else persist([...tasks, { ...row, id: nextId() }]);
     setModal(null);
   };
   const tabs = [{ key: "all", label: "全部", nc: "var(--text)" }, { key: "over", label: "逾期", nc: "#e55" }, { key: "blocked", label: "受阻", nc: "#c07000" }, { key: "inprog", label: "进行中", nc: "#2d7dd2" }, { key: "done", label: "已完成", nc: "#2d9e52" }];
@@ -170,7 +194,7 @@ function TasksPanel({ active = true }) {
             <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 1 }}>{f.label}</div>
           </div>)}
         </div>
-        <button onClick={() => setModal({ task: "", owner: "", cat: "设计", due: "", actual: "", nodes: [], block: "" })} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, flexShrink: 0 }}>+ 新建</button>
+        <button onClick={() => setModal({ task: "", owner: "", cat: DEFAULT_TASK_CAT, due: "", actual: "", nodes: [], block: "" })} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, flexShrink: 0 }}>+ 新建</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {vis.length ? vis.map(t => <TaskCard key={t.id} task={t} onClick={() => setModal({ ...t, nodes: t.nodes ? t.nodes.map(n => ({ ...n })) : [] })} />) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无任务</div>}
@@ -228,7 +252,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-31";
+const APP_BUILD = "cloud-34";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {

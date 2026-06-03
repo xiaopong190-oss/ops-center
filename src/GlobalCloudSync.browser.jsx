@@ -1,6 +1,7 @@
 const { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext } = React;
+import { fetchGlobalConfigFromCloud } from "./GlobalConfig.jsx";
 
-const ALL_CLOUD_KEYS = ["logistics", "tasks", "production", "tools-links", "agents", "kpi-monthly"];
+const ALL_CLOUD_KEYS = ["logistics", "tasks", "production", "tools-links", "agents", "kpi-monthly", "global-config"];
 
 const LEAVE_MSG = "当前页有未上传的修改，确定离开吗？";
 
@@ -53,6 +54,7 @@ function CloudSyncProvider({ children }) {
     setBusy(true);
     try {
       await handlerRef.current?.reload?.();
+      await fetchGlobalConfigFromCloud();
       ALL_CLOUD_KEYS.forEach(key => {
         window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
       });
@@ -63,6 +65,15 @@ function CloudSyncProvider({ children }) {
       setBusy(false);
     }
   }, [showToast]);
+
+  useEffect(() => {
+    fetchGlobalConfigFromCloud().catch(() => {});
+    if (CLOUD_POLL_MS <= 0) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") fetchGlobalConfigFromCloud().catch(() => {});
+    }, CLOUD_POLL_MS);
+    return () => clearInterval(timer);
+  }, []);
 
   const saveToCloud = useCallback(async () => {
     const h = handlerRef.current;

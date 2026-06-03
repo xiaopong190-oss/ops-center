@@ -26,6 +26,7 @@ const GIST_SHARED_FILES = {
   "tools-links": "tools-links.json",
   agents: "agents.json",
   "kpi-monthly": "kpi-monthly.json",
+  "global-config": "global-config.json",
 };
 
 function gistConfigured() {
@@ -193,25 +194,99 @@ export function formatStaffText(staff) {
   return staff.map(e => `${e.name}|${e.role || ""}`).join("\n");
 }
 
-export function loadGlobalConfig() {
+function getCurrentUserName() {
+  try {
+    const raw = sessionStorage.getItem("ops-center-current-user");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.name) return parsed.name;
+    }
+  } catch { /* ignore */ }
+  return "未知";
+}
+
+function readSharedStaffCache() {
+  try {
+    const raw = localStorage.getItem("shared:global-config");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const staff = parsed?.data?.staff;
+    if (Array.isArray(staff) && staff.length) {
+      return { staff: staff.map(normalizeStaffEntry).filter(e => e.name) };
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function loadLegacyLocalConfig() {
   try {
     const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (!raw) return { staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({ ...e })) };
+    if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed.staff) || !parsed.staff.length) {
-      return { staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({ ...e })) };
-    }
+    if (!Array.isArray(parsed.staff) || !parsed.staff.length) return null;
     return { staff: parsed.staff.map(normalizeStaffEntry).filter(e => e.name) };
   } catch {
-    return { staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({ ...e })) };
+    return null;
   }
 }
 
-export function saveGlobalConfig(config) {
+export function loadGlobalConfig() {
+  const shared = readSharedStaffCache();
+  if (shared) return shared;
+  const legacy = loadLegacyLocalConfig();
+  if (legacy) return legacy;
+  return { staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({ ...e })) };
+}
+
+/** 从 Gist 拉取员工名单（与其它共享页相同逻辑，结果写入本地缓存） */
+export async function fetchGlobalConfigFromCloud() {
+  if (!gistConfigured()) return loadGlobalConfig();
+  try {
+    const record = await sharedStorage.get("global-config");
+    if (record?.data?.staff?.length) {
+      window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
+      return record.data;
+    }
+    const legacy = loadLegacyLocalConfig();
+    if (legacy?.staff?.length) {
+      await sharedStorage.set("global-config", legacy, getCurrentUserName());
+      window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
+      return legacy;
+    }
+  } catch (e) {
+    console.warn("[global-config] 云端读取失败，使用本地缓存", e?.message);
+  }
+  return loadGlobalConfig();
+}
+
+export function getGlobalConfigMeta() {
+  try {
+    const raw = localStorage.getItem("shared:global-config");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.updatedBy ? { updatedBy: parsed.updatedBy, updatedAt: parsed.updatedAt } : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveGlobalConfig(config) {
   const next = {
     staff: (config.staff || []).map(normalizeStaffEntry).filter(e => e.name),
   };
-  localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
+  try {
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
+  } catch { /* ignore */ }
+  if (gistConfigured()) {
+    await sharedStorage.set("global-config", next, getCurrentUserName());
+  } else {
+    localSet("global-config", {
+      data: next,
+      updatedBy: getCurrentUserName(),
+      updatedAt: Date.now(),
+    });
+    window.dispatchEvent(new CustomEvent("ops-shared-updated:global-config"));
+  }
   window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
   return next;
 }
@@ -326,25 +401,46 @@ function StaffListEditor({ rows, onChange }) {
 
 export function GlobalSettingsModal({ onClose, onSaved }) {
   const [rows, setRows] = useState(() => getEmployees().map(e => ({ ...e })));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [meta, setMeta] = useState(() => getGlobalConfigMeta());
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e) => { if (e.key === "Escape" && !saving) onClose(); };
+    const refreshMeta = () => setMeta(getGlobalConfigMeta());
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  const save = () => {
+    window.addEventListener("ops-global-config-updated", refreshMeta);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("ops-global-config-updated", refreshMeta);
+    };
+  }, [onClose, saving]);
+  const save = async () => {
     const staff = rows.map(r => ({ name: r.name.trim(), role: r.role || "" })).filter(r => r.name);
-    saveGlobalConfig({ staff });
-    onSaved?.();
+    setSaving(true);
+    setError("");
+    try {
+      await saveGlobalConfig({ staff });
+      onSaved?.();
+    } catch (e) {
+      setError(e?.message || "保存失败，请检查网络或 Gist 配置");
+    } finally {
+      setSaving(false);
+    }
   };
+  const metaLine = meta?.updatedBy
+    ? `☁️ 最后由 ${meta.updatedBy} 更新 · 保存后全公司同步`
+    : "☁️ 保存后上传云端，全员实时同步";
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 440, color: "var(--text)" }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>全局员工名单</div>
-        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 14, lineHeight: 1.5 }}>填写姓名并选择角色，保存后会在各模块「负责人 / 跟进人」中统一出现。</div>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>填写姓名并选择角色，保存后会在各模块「负责人 / 跟进人」中统一出现。</div>
+        <div style={{ fontSize: 11, color: "#065f46", background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 8, padding: "6px 10px", marginBottom: 12 }}>{metaLine}</div>
+        {error && <div style={{ fontSize: 11, color: "#b91c1c", background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 8, padding: "6px 10px", marginBottom: 10 }}>{error}</div>}
         <StaffListEditor rows={rows} onChange={setRows} />
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-          <button type="button" onClick={onClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
-          <button type="button" onClick={save} style={{ background: "#2d7dd2", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "#fff" }}>保存</button>
+          <button type="button" disabled={saving} onClick={onClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
+          <button type="button" disabled={saving} onClick={save} style={{ background: saving ? "#b8d4f0" : "#2d7dd2", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "#fff" }}>{saving ? "上传中…" : "☁️ 保存并同步"}</button>
         </div>
       </div>
     </div>
@@ -355,8 +451,13 @@ export function useGlobalConfig() {
   const [version, setVersion] = useState(0);
   useEffect(() => {
     const bump = () => setVersion(v => v + 1);
+    const onShared = () => { fetchGlobalConfigFromCloud().finally(bump); };
     window.addEventListener("ops-global-config-updated", bump);
-    return () => window.removeEventListener("ops-global-config-updated", bump);
+    window.addEventListener("ops-shared-updated:global-config", onShared);
+    return () => {
+      window.removeEventListener("ops-global-config-updated", bump);
+      window.removeEventListener("ops-shared-updated:global-config", onShared);
+    };
   }, []);
-  return { version, staff: getEmployees(), reload: () => setVersion(v => v + 1) };
+  return { version, staff: getEmployees(), reload: () => fetchGlobalConfigFromCloud().then(() => setVersion(v => v + 1)) };
 }

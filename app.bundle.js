@@ -982,24 +982,35 @@ function useSharedList(storageKey, defaultData, {
       if (timer) clearInterval(timer);
     };
   }, [fetchFromCloud, active]);
+  const [saving, setSaving] = useState(false);
   const persist = useCallback(async data => {
+    setSaving(true);
     setState(prev => ({
       ...prev,
       data,
-      meta: {
-        ...prev.meta,
-        updatedBy: getCurrentUser().name,
-        updatedAt: Date.now()
-      },
       error: ""
     }));
     try {
-      await sharedStorage.set(storageKey, data, getCurrentUser().name);
+      const payload = await sharedStorage.set(storageKey, data, getCurrentUser().name);
+      setState(prev => ({
+        ...prev,
+        data,
+        meta: payload || {
+          ...prev.meta,
+          updatedBy: getCurrentUser().name,
+          updatedAt: Date.now()
+        },
+        error: ""
+      }));
+      return true;
     } catch (e) {
       setState(prev => ({
         ...prev,
         error: e?.message || "保存失败"
       }));
+      return false;
+    } finally {
+      setSaving(false);
     }
   }, [storageKey]);
   const reload = useCallback(async () => {
@@ -1014,6 +1025,7 @@ function useSharedList(storageKey, defaultData, {
     items: state.data,
     meta: state.meta,
     loading: state.loading,
+    saving,
     error: state.error,
     persist,
     reload
@@ -1023,26 +1035,43 @@ function SharedMetaLine({
   meta,
   style,
   onReload,
+  onSaveCloud,
   loading,
+  saving,
   error
 }) {
   let bg = "#ecfdf5",
     border = "#6ee7b7",
     color = "#065f46";
-  let text = "☁️ GitHub 云端已启用 · 修改后全公司自动共享";
+  let text = "☁️ GitHub 云端已启用 · 填写后点「保存并上传」同步全员";
   if (loading) {
     bg = "#f3f4f6";
     border = "#d1d5db";
     color = "#4b5563";
     text = "⏳ 正在从云端加载…";
+  } else if (saving) {
+    bg = "#eef6ff";
+    border = "#b8d4f0";
+    color = "#1a4e8a";
+    text = "⏳ 正在保存并上传到云端…";
   } else if (error) {
     bg = "#fee2e2";
     border = "#fca5a5";
     color = "#991b1b";
-    text = `❌ ${error} · 数据已暂存本机`;
+    text = `❌ ${error} · 数据已暂存本机，请重试上传`;
   } else if (meta?.updatedBy) {
-    text = CLOUD_POLL_MS > 0 ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 ${Math.round(CLOUD_POLL_MS / 1000)} 秒自动同步` : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 点「立即刷新」同步`;
+    text = CLOUD_POLL_MS > 0 ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 ${Math.round(CLOUD_POLL_MS / 1000)} 秒自动同步` : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 点「从云端更新」拉取最新`;
   }
+  const btnBase = {
+    background: "#fff",
+    borderRadius: 6,
+    padding: "6px 12px",
+    fontSize: 11,
+    fontFamily: "inherit",
+    fontWeight: 600,
+    flexShrink: 0,
+    cursor: "pointer"
+  };
   return /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
@@ -1064,29 +1093,46 @@ function SharedMetaLine({
       flex: 1,
       minWidth: 0
     }
-  }, text), onReload && /*#__PURE__*/React.createElement("button", {
+  }, text), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, onSaveCloud && /*#__PURE__*/React.createElement("button", {
     type: "button",
-    disabled: loading,
+    disabled: loading || saving,
+    onClick: e => {
+      e.preventDefault();
+      e.stopPropagation();
+      onSaveCloud();
+    },
+    style: {
+      ...btnBase,
+      background: saving ? "#eef6ff" : "#2d7dd2",
+      border: saving ? "1px solid #b8d4f0" : "none",
+      color: saving ? "#1a4e8a" : "#fff",
+      opacity: loading || saving ? 0.85 : 1,
+      cursor: loading || saving ? "wait" : "pointer",
+      minWidth: 108
+    }
+  }, saving ? "上传中…" : "☁️ 保存并上传"), onReload && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    disabled: loading || saving,
     onClick: e => {
       e.preventDefault();
       e.stopPropagation();
       onReload();
     },
     style: {
-      background: "#fff",
+      ...btnBase,
       border: `1px solid ${border}`,
-      borderRadius: 6,
-      padding: "6px 12px",
-      fontSize: 11,
-      cursor: loading ? "wait" : "pointer",
-      fontFamily: "inherit",
       color,
-      fontWeight: 600,
-      flexShrink: 0,
-      opacity: loading ? 0.75 : 1,
-      minWidth: 72
+      opacity: loading || saving ? 0.75 : 1,
+      cursor: loading || saving ? "wait" : "pointer",
+      minWidth: 88
     }
-  }, loading ? "刷新中…" : "立即刷新"));
+  }, loading ? "更新中…" : "↻ 从云端更新")));
 }
 
 // ─── USER CONTEXT ───────────────────────────────────────────────────
@@ -9472,7 +9518,8 @@ function DevMonthlySummary({
   person,
   monthTargets,
   onMonthTargetsChange,
-  onSaveMonthTargets
+  onSaveMonthTargets,
+  saving
 }) {
   const totals = useMemo(() => {
     const orderArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).order));
@@ -9612,6 +9659,7 @@ function DevMonthlySummary({
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onSaveMonthTargets,
+    disabled: saving,
     style: {
       background: "#00695c",
       color: "#fff",
@@ -9619,11 +9667,12 @@ function DevMonthlySummary({
       borderRadius: 8,
       padding: "8px 18px",
       fontSize: 12,
-      cursor: "pointer",
+      cursor: saving ? "wait" : "pointer",
       fontFamily: "inherit",
-      fontWeight: 600
+      fontWeight: 600,
+      opacity: saving ? 0.8 : 1
     }
-  }, "\u4FDD\u5B58\u6708\u76EE\u6807"))));
+  }, saving ? "上传中…" : "☁️ 保存并上传月目标"))));
 }
 function MonthlyBlock({
   title,
@@ -9752,6 +9801,7 @@ function KpiPanel({
     persist,
     meta,
     loading,
+    saving,
     error,
     reload
   } = useSharedList(KPI_STORAGE_KEY, [], {
@@ -9796,8 +9846,12 @@ function KpiPanel({
     });
     return out;
   }, [items, year, month, curRole, person]);
+  const showToast = (msg, ok = true) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), ok ? 2200 : 3500);
+  };
   const upsertWeek = useCallback(async weekData => {
-    if (!person) return;
+    if (!person) return false;
     const next = [...items];
     let idx = next.findIndex(r => r.year === year && r.month === month && r.role === curRole && r.person === person);
     if (idx < 0) {
@@ -9817,12 +9871,12 @@ function KpiPanel({
         [curWeek]: weekData
       }
     };
-    await persist(next);
-    setToast(`第${curWeek}周已保存 ✓`);
-    setTimeout(() => setToast(""), 2000);
+    const ok = await persist(next);
+    if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    return ok;
   }, [items, year, month, curRole, person, curWeek, persist]);
   const upsertMonthTargets = useCallback(async targets => {
-    if (!person || curRole !== "dev") return;
+    if (!person || curRole !== "dev") return false;
     const next = [...items];
     let idx = next.findIndex(r => r.year === year && r.month === month && r.role === "dev" && r.person === person);
     if (idx < 0) {
@@ -9840,10 +9894,18 @@ function KpiPanel({
         monthTargets: targets
       };
     }
-    await persist(next);
-    setToast("月目标已保存 ✓");
-    setTimeout(() => setToast(""), 2000);
+    const ok = await persist(next);
+    if (ok) showToast("月目标已保存并上传云端 ✓");else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    return ok;
   }, [items, year, month, person, curRole, persist]);
+  const saveCurrentToCloud = useCallback(async () => {
+    if (!person) return;
+    if (curWeek === 0) {
+      if (curRole === "dev") await upsertMonthTargets(monthTargetsDraft);else showToast("月度汇总为汇总视图，请切换到具体周次填写后保存", false);
+      return;
+    }
+    await upsertWeek(draft);
+  }, [person, curWeek, curRole, monthTargetsDraft, draft, upsertMonthTargets, upsertWeek]);
   const clearWeek = () => {
     setDraft(emptyWeekForRole(curRole));
   };
@@ -9876,8 +9938,10 @@ function KpiPanel({
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
     meta: meta,
     loading: loading,
+    saving: saving,
     error: error,
-    onReload: reload
+    onReload: reload,
+    onSaveCloud: person ? saveCurrentToCloud : undefined
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -10055,7 +10119,8 @@ function KpiPanel({
     person: person,
     monthTargets: monthTargetsDraft,
     onMonthTargetsChange: setMonthTargetsDraft,
-    onSaveMonthTargets: () => upsertMonthTargets(monthTargetsDraft)
+    onSaveMonthTargets: () => upsertMonthTargets(monthTargetsDraft),
+    saving: saving
   }) : /*#__PURE__*/React.createElement(DesMonthlySummary, {
     items: items,
     year: year,
@@ -10082,19 +10147,21 @@ function KpiPanel({
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: clearWeek,
+    disabled: saving,
     style: {
       background: "transparent",
       border: "1px solid var(--border)",
       borderRadius: 8,
       padding: "8px 14px",
       fontSize: 12,
-      cursor: "pointer",
+      cursor: saving ? "wait" : "pointer",
       color: "var(--tm)",
       fontFamily: "inherit"
     }
   }, "\u6E05\u7A7A\u672C\u5468"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => upsertWeek(draft),
+    disabled: saving,
     style: {
       background: curRole === "dev" ? "#00695c" : "#2d7dd2",
       color: "#fff",
@@ -10102,18 +10169,19 @@ function KpiPanel({
       borderRadius: 8,
       padding: "8px 18px",
       fontSize: 12,
-      cursor: "pointer",
+      cursor: saving ? "wait" : "pointer",
       fontFamily: "inherit",
-      fontWeight: 600
+      fontWeight: 600,
+      opacity: saving ? 0.85 : 1
     }
-  }, "\u4FDD\u5B58\u7B2C", curWeek, "\u5468")))), toast && /*#__PURE__*/React.createElement("div", {
+  }, saving ? "上传中…" : `☁️ 保存并上传第${curWeek}周`)))), toast && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       bottom: 20,
       right: 20,
-      background: "#d4f0dc",
-      border: "1px solid #86efac",
-      color: "#2d9e52",
+      background: toast.includes("失败") ? "#fee2e2" : "#d4f0dc",
+      border: `1px solid ${toast.includes("失败") ? "#fecaca" : "#86efac"}`,
+      color: toast.includes("失败") ? "#e55" : "#2d9e52",
       padding: "9px 16px",
       borderRadius: 8,
       fontSize: 12,
@@ -11014,7 +11082,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-28";
+const APP_BUILD = "cloud-29";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {

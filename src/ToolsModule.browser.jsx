@@ -646,7 +646,7 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
 }
 
 function ToolsPanel({ active: tabActive = true }) {
-  const { items: onlineDocs, meta: docsMeta, loading: docsLoading, error: docsError, persist: persistOnlineDocs, reload: reloadDocs } =
+  const { items: onlineDocs, meta: docsMeta, loading: docsLoading, saving: docsSaving, error: docsError, persist: persistOnlineDocs, reload: reloadDocs } =
     useSharedList("tools-links", DEFAULT_ONLINE_DOCS, { active: tabActive });
   const [customUrls, setCustomUrls] = useState(loadCustomUrls);
   const [customNames, setCustomNames] = useState(loadCustomNames);
@@ -826,6 +826,16 @@ function ToolsPanel({ active: tabActive = true }) {
     });
   }
 
+  useCloudSyncPage(tabActive, {
+    label: "工具",
+    save: async () => persistOnlineDocs(onlineDocs),
+    reload: reloadDocs,
+    meta: docsMeta,
+    loading: docsLoading,
+    saving: docsSaving,
+    error: docsError,
+  });
+
   if (inlineTool) {
     const url = resolveToolUrl(inlineTool._resolvedUrl || toolUrl(inlineTool, customUrls));
     return (
@@ -859,7 +869,6 @@ function ToolsPanel({ active: tabActive = true }) {
 
   return (
     <div>
-      <SharedMetaLine meta={docsMeta} loading={docsLoading} error={docsError} onReload={reloadDocs} />
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索工具…" style={{ ...inpSm, flex: 1, minWidth: 140, maxWidth: 220 }} />
         <button type="button" onClick={addOnlineDoc} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>+ 添加在线文档</button>

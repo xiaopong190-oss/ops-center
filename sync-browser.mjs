@@ -11,6 +11,7 @@ function toBrowser(src, { exportName, stripUtilsThrough = null }) {
     .replace(/^import \{ useState, useEffect \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
     .replace(/^import \{ useState \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
     .replace(/import \{[^}]+\} from "\.\/utils\/storage\.js";\r?\n/g, "")
+    .replace(/import \{[^}]+\} from "\.\/GlobalCloudSync\.jsx";\r?\n/g, "")
     .replace(/import \{[^}]+\} from "\.\/context\/UserContext\.jsx";\r?\n/g, "")
     .replace(/import \{ OwnerField, ownerFilterOptions \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
     .replace(/import \{ OwnerField, ownerFilterEntries, RoleBadge, getStaffRole \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
@@ -166,6 +167,18 @@ fs.writeFileSync(
   path.join(dir, "KpiModule.browser.jsx"),
   toBrowser(kpi, { exportName: "KpiPanel" })
 );
+
+const cloudSyncRaw = fs.readFileSync(path.join(dir, "GlobalCloudSync.jsx"), "utf8");
+let cloudSyncBrowser = toBrowser(cloudSyncRaw, { exportName: null })
+  .replace(/^export const ALL_CLOUD_KEYS/m, "const ALL_CLOUD_KEYS")
+  .replace(/^export function CloudSyncProvider/m, "function CloudSyncProvider")
+  .replace(/^export function useCloudSyncPage/m, "function useCloudSyncPage")
+  .replace(/^export function GlobalCloudBar/m, "function GlobalCloudBar");
+cloudSyncBrowser +=
+  "\nwindow.CloudSyncProvider = CloudSyncProvider;\n" +
+  "window.useCloudSyncPage = useCloudSyncPage;\n" +
+  "window.GlobalCloudBar = GlobalCloudBar;\n";
+fs.writeFileSync(path.join(dir, "GlobalCloudSync.browser.jsx"), cloudSyncBrowser);
 
 const app = fs.readFileSync(path.join(dir, "App.jsx"), "utf8");
 const sharedEnd = app.indexOf("// ─── TASK MODULE");

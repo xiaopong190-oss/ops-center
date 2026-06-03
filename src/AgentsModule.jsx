@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useSharedList, SharedMetaLine } from "./utils/storage.js";
+import { useSharedList } from "./utils/storage.js";
+import { useCloudSyncPage } from "./GlobalCloudSync.jsx";
 
 const inpSm = { fontSize: 12, padding: "5px 8px", border: "1px solid var(--border)", borderRadius: 6, fontFamily: "inherit", background: "transparent", color: "inherit" };
 const inp = { width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", background: "transparent", color: "inherit", display: "block" };
@@ -160,7 +161,7 @@ function AgentCard({ agent, isEditing, editName, editUrl, editDesc, onOpen, onSt
 }
 
 export function AgentsPanel({ active: tabActive = true }) {
-  const { items: agents, meta, loading, error, persist: persistAgents, reload } =
+  const { items: agents, meta, loading, saving, error, persist: persistAgents, reload } =
     useSharedList("agents", [], { active: tabActive });
   const [cat, setCat] = useState("全部");
   const [q, setQ] = useState("");
@@ -276,9 +277,18 @@ export function AgentsPanel({ active: tabActive = true }) {
     );
   }
 
+  useCloudSyncPage(tabActive, {
+    label: "智能体",
+    save: async () => persistAgents(agents),
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+  });
+
   return (
     <div>
-      <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索智能体…" style={{ ...inpSm, flex: 1, minWidth: 140, maxWidth: 220 }} />
         <button type="button" onClick={addAgent} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 20, padding: "4px 14px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>+ 添加智能体</button>

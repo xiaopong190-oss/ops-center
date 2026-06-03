@@ -1,4 +1,4 @@
-const { useState, useRef, useEffect, useCallback, createContext, useContext } = React;
+const { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext } = React;
 
 const FX_CACHE_KEY = "ops-center-fx-rates";
 const NEWS_CACHE_KEY = "ops-center-amazon-news";

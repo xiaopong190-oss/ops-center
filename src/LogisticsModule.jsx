@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { OwnerField, ownerFilterEntries, RoleBadge, getStaffRole } from "./GlobalConfig.jsx";
-import { useSharedList, SharedMetaLine } from "./utils/storage.js";
+import { useSharedList } from "./utils/storage.js";
+import { useCloudSyncPage } from "./GlobalCloudSync.jsx";
 import FBAGanttCard from "./FBAGanttCard.jsx";
 
 const TODAY = new Date();
@@ -459,7 +460,7 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
   );
 }
 export function LogisticsPanel({ active = true }) {
-  const { items, meta, loading, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS, { active });
+  const { items, meta, loading, saving, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS, { active });
   const list = Array.isArray(items) ? items : [];
   const savedFilters = loadLogisticsFilters();
   const [modal, setModal] = useState(null);
@@ -546,9 +547,17 @@ export function LogisticsPanel({ active = true }) {
     { key: "receiving", label: "FBA接收中", nc: "#1a9e8a" },
     { key: "done", label: "已完成", nc: "#2d9e52" },
   ];
+  useCloudSyncPage(active, {
+    label: "物流",
+    save: async () => persist(list),
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+  });
   return (
     <div>
-      <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
       <FBAGanttCard groups={list} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>

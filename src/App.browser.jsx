@@ -109,7 +109,7 @@ function TaskCard({ task, onClick }) {
 }
 
 function TasksPanel({ active = true }) {
-  const { items: tasks, meta, loading, error, persist, reload } = useSharedList("tasks", INIT_TASKS, { active });
+  const { items: tasks, meta, loading, saving, error, persist, reload } = useSharedList("tasks", INIT_TASKS, { active });
   const [filter, setFilter] = useState("all");
   const [modal, setModal] = useState(null);
   const nextId = () => Math.max(0, ...tasks.map(t => t.id || 0)) + 1;
@@ -123,9 +123,17 @@ function TasksPanel({ active = true }) {
     setModal(null);
   };
   const tabs = [{ key: "all", label: "全部", nc: "var(--text)" }, { key: "over", label: "逾期", nc: "#e55" }, { key: "blocked", label: "受阻", nc: "#c07000" }, { key: "inprog", label: "进行中", nc: "#2d7dd2" }, { key: "done", label: "已完成", nc: "#2d9e52" }];
+  useCloudSyncPage(active, {
+    label: "任务",
+    save: async () => persist(tasks),
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+  });
   return (
     <div>
-      <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, marginRight: 12 }}>
           {tabs.map(f => <div key={f.key} onClick={() => setFilter(f.key)} style={{ background: "var(--card)", border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer" }}>
@@ -188,7 +196,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-28";
+const APP_BUILD = "cloud-30";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -247,6 +255,7 @@ function App() {
   }
   return (
     <UserContext.Provider value={currentUser}>
+    <CloudSyncProvider>
     <div style={{ ...css, minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif" }}>
       <div style={{ maxWidth: tab === "kpi" ? 1100 : 820, margin: "0 auto", padding: "1.5rem 1rem", transition: "max-width 0.2s" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
@@ -263,6 +272,7 @@ function App() {
         <div style={{ display: "flex", gap: 4, marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
           {TABS.map(t => (<button key={t.key} onClick={() => setTab(t.key)} style={{ background: "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent", padding: "8px 18px", fontSize: 13, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? "#2d7dd2" : "var(--tm)", cursor: "pointer", fontFamily: "inherit", marginBottom: -1 }}>{t.label}</button>))}
         </div>
+        <GlobalCloudBar />
         <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
         <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
         <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
@@ -273,6 +283,7 @@ function App() {
       </div>
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
     </div>
+    </CloudSyncProvider>
     </UserContext.Provider>
   );
 }

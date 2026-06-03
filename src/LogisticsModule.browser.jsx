@@ -617,17 +617,25 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
     };
   }, [fetchFromCloud, active]);
 
+  const [saving, setSaving] = useState(false);
+
   const persist = useCallback(async (data) => {
-    setState(prev => ({
-      ...prev,
-      data,
-      meta: { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
-      error: "",
-    }));
+    setSaving(true);
+    setState(prev => ({ ...prev, data, error: "" }));
     try {
-      await sharedStorage.set(storageKey, data, getCurrentUser().name);
+      const payload = await sharedStorage.set(storageKey, data, getCurrentUser().name);
+      setState(prev => ({
+        ...prev,
+        data,
+        meta: payload || { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
+        error: "",
+      }));
+      return true;
     } catch (e) {
       setState(prev => ({ ...prev, error: e?.message || "保存失败" }));
+      return false;
+    } finally {
+      setSaving(false);
     }
   }, [storageKey]);
 
@@ -640,27 +648,42 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
     items: state.data,
     meta: state.meta,
     loading: state.loading,
+    saving,
     error: state.error,
     persist,
     reload,
   };
 }
 
-function SharedMetaLine({ meta, style, onReload, loading, error }) {
+function SharedMetaLine({ meta, style, onReload, onSaveCloud, loading, saving, error }) {
   let bg = "#ecfdf5", border = "#6ee7b7", color = "#065f46";
-  let text = "☁️ GitHub 云端已启用 · 修改后全公司自动共享";
+  let text = "☁️ GitHub 云端已启用 · 填写后点「保存并上传」同步全员";
 
   if (loading) {
     bg = "#f3f4f6"; border = "#d1d5db"; color = "#4b5563";
     text = "⏳ 正在从云端加载…";
+  } else if (saving) {
+    bg = "#eef6ff"; border = "#b8d4f0"; color = "#1a4e8a";
+    text = "⏳ 正在保存并上传到云端…";
   } else if (error) {
     bg = "#fee2e2"; border = "#fca5a5"; color = "#991b1b";
-    text = `❌ ${error} · 数据已暂存本机`;
+    text = `❌ ${error} · 数据已暂存本机，请重试上传`;
   } else if (meta?.updatedBy) {
     text = CLOUD_POLL_MS > 0
       ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 ${Math.round(CLOUD_POLL_MS / 1000)} 秒自动同步`
-      : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 点「立即刷新」同步`;
+      : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 点「从云端更新」拉取最新`;
   }
+
+  const btnBase = {
+    background: "#fff",
+    borderRadius: 6,
+    padding: "6px 12px",
+    fontSize: 11,
+    fontFamily: "inherit",
+    fontWeight: 600,
+    flexShrink: 0,
+    cursor: "pointer",
+  };
 
   return (
     <div style={{
@@ -670,12 +693,35 @@ function SharedMetaLine({ meta, style, onReload, loading, error }) {
       gap: 10, flexWrap: "wrap", ...style,
     }}>
       <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
-      {onReload && (
-        <button type="button" disabled={loading} onClick={e => { e.preventDefault(); e.stopPropagation(); onReload(); }}
-          style={{ background: "#fff", border: `1px solid ${border}`, borderRadius: 6, padding: "6px 12px", fontSize: 11, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", color, fontWeight: 600, flexShrink: 0, opacity: loading ? 0.75 : 1, minWidth: 72 }}>
-          {loading ? "刷新中…" : "立即刷新"}
-        </button>
-      )}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {onSaveCloud && (
+          <button type="button" disabled={loading || saving} onClick={e => { e.preventDefault(); e.stopPropagation(); onSaveCloud(); }}
+            style={{
+              ...btnBase,
+              background: saving ? "#eef6ff" : "#2d7dd2",
+              border: saving ? "1px solid #b8d4f0" : "none",
+              color: saving ? "#1a4e8a" : "#fff",
+              opacity: loading || saving ? 0.85 : 1,
+              cursor: loading || saving ? "wait" : "pointer",
+              minWidth: 108,
+            }}>
+            {saving ? "上传中…" : "☁️ 保存并上传"}
+          </button>
+        )}
+        {onReload && (
+          <button type="button" disabled={loading || saving} onClick={e => { e.preventDefault(); e.stopPropagation(); onReload(); }}
+            style={{
+              ...btnBase,
+              border: `1px solid ${border}`,
+              color,
+              opacity: loading || saving ? 0.75 : 1,
+              cursor: loading || saving ? "wait" : "pointer",
+              minWidth: 88,
+            }}>
+            {loading ? "更新中…" : "↻ 从云端更新"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -1471,7 +1517,7 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
   );
 }
 function LogisticsPanel({ active = true }) {
-  const { items, meta, loading, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS, { active });
+  const { items, meta, loading, saving, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS, { active });
   const list = Array.isArray(items) ? items : [];
   const savedFilters = loadLogisticsFilters();
   const [modal, setModal] = useState(null);
@@ -1558,9 +1604,17 @@ function LogisticsPanel({ active = true }) {
     { key: "receiving", label: "FBA接收中", nc: "#1a9e8a" },
     { key: "done", label: "已完成", nc: "#2d9e52" },
   ];
+  useCloudSyncPage(active, {
+    label: "物流",
+    save: async () => persist(list),
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+  });
   return (
     <div>
-      <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
       <FBAGanttCard groups={list} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>

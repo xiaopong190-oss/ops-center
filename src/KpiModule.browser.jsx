@@ -656,7 +656,7 @@ function DevMonthProgressCard({ label, hint, actual, target, onTargetChange }) {
   );
 }
 
-function DevMonthlySummary({ items, year, month, person, monthTargets, onMonthTargetsChange, onSaveMonthTargets }) {
+function DevMonthlySummary({ items, year, month, person, monthTargets, onMonthTargetsChange, onSaveMonthTargets, saving }) {
   const totals = useMemo(() => {
     const orderArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).order));
     const devArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).devNew));
@@ -711,9 +711,9 @@ function DevMonthlySummary({ items, year, month, person, monthTargets, onMonthTa
             onTargetChange={v => onMonthTargetsChange({ ...monthTargets, tOrder: v })} />
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-          <button type="button" onClick={onSaveMonthTargets}
-            style={{ background: "#00695c", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
-            保存月目标
+          <button type="button" onClick={onSaveMonthTargets} disabled={saving}
+            style={{ background: "#00695c", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: saving ? 0.8 : 1 }}>
+            {saving ? "上传中…" : "☁️ 保存并上传月目标"}
           </button>
         </div>
       </div>
@@ -774,7 +774,7 @@ function KpiPanel({ active = true }) {
   const [toast, setToast] = useState("");
   const [staffTick, setStaffTick] = useState(0);
 
-  const { items, persist, meta, loading, error, reload } = useSharedList(KPI_STORAGE_KEY, [], { active });
+  const { items, persist, meta, loading, saving, error, reload } = useSharedList(KPI_STORAGE_KEY, [], { active });
 
   const roleMeta = KPI_ROLE_META[curRole] || KPI_ROLE_META.ops;
   const roleLabel = roleMeta.label;
@@ -819,8 +819,13 @@ function KpiPanel({ active = true }) {
     return out;
   }, [items, year, month, curRole, person]);
 
+  const showToast = (msg, ok = true) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), ok ? 2200 : 3500);
+  };
+
   const upsertWeek = useCallback(async (weekData) => {
-    if (!person) return;
+    if (!person) return false;
     const next = [...items];
     let idx = next.findIndex(r => r.year === year && r.month === month && r.role === curRole && r.person === person);
     if (idx < 0) {
@@ -831,13 +836,14 @@ function KpiPanel({ active = true }) {
       ...next[idx],
       weeks: { ...next[idx].weeks, [curWeek]: weekData },
     };
-    await persist(next);
-    setToast(`第${curWeek}周已保存 ✓`);
-    setTimeout(() => setToast(""), 2000);
+    const ok = await persist(next);
+    if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);
+    else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    return ok;
   }, [items, year, month, curRole, person, curWeek, persist]);
 
   const upsertMonthTargets = useCallback(async (targets) => {
-    if (!person || curRole !== "dev") return;
+    if (!person || curRole !== "dev") return false;
     const next = [...items];
     let idx = next.findIndex(r => r.year === year && r.month === month && r.role === "dev" && r.person === person);
     if (idx < 0) {
@@ -845,10 +851,30 @@ function KpiPanel({ active = true }) {
     } else {
       next[idx] = { ...next[idx], monthTargets: targets };
     }
-    await persist(next);
-    setToast("月目标已保存 ✓");
-    setTimeout(() => setToast(""), 2000);
+    const ok = await persist(next);
+    if (ok) showToast("月目标已保存并上传云端 ✓");
+    else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    return ok;
   }, [items, year, month, person, curRole, persist]);
+
+  const saveCurrentToCloud = useCallback(async () => {
+    if (!person) return "请先选择人员";
+    if (curWeek === 0) {
+      if (curRole === "dev") return upsertMonthTargets(monthTargetsDraft);
+      return "月度汇总为汇总视图，请切换到具体周次填写后保存";
+    }
+    return upsertWeek(draft);
+  }, [person, curWeek, curRole, monthTargetsDraft, draft, upsertMonthTargets, upsertWeek]);
+
+  useCloudSyncPage(active, {
+    label: "考核",
+    save: saveCurrentToCloud,
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+  });
 
   const clearWeek = () => {
     setDraft(emptyWeekForRole(curRole));
@@ -876,8 +902,6 @@ function KpiPanel({ active = true }) {
 
   return (
     <div>
-      <SharedMetaLine meta={meta} loading={loading} error={error} onReload={reload} />
-
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16, flexWrap: "wrap", gap: 12, borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>月度 KPI <span style={{ color: "#2d7dd2" }}>跟踪表</span></div>
@@ -937,7 +961,8 @@ function KpiPanel({ active = true }) {
                 ? <DevMonthlySummary items={items} year={year} month={month} person={person}
                     monthTargets={monthTargetsDraft}
                     onMonthTargetsChange={setMonthTargetsDraft}
-                    onSaveMonthTargets={() => upsertMonthTargets(monthTargetsDraft)} />
+                    onSaveMonthTargets={() => upsertMonthTargets(monthTargetsDraft)}
+                    saving={saving} />
                 : <DesMonthlySummary items={items} year={year} month={month} person={person} />
           ) : (
             <>
@@ -947,10 +972,10 @@ function KpiPanel({ active = true }) {
                   ? <DevWeekForm data={draft} onChange={setDraft} />
                   : <DesWeekForm week={curWeek} data={draft} onChange={setDraft} />}
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-                <button type="button" onClick={clearWeek} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px", fontSize: 12, cursor: "pointer", color: "var(--tm)", fontFamily: "inherit" }}>清空本周</button>
-                <button type="button" onClick={() => upsertWeek(draft)}
-                  style={{ background: curRole === "dev" ? "#00695c" : "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
-                  保存第{curWeek}周
+                <button type="button" onClick={clearWeek} disabled={saving} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", color: "var(--tm)", fontFamily: "inherit" }}>清空本周</button>
+                <button type="button" onClick={() => upsertWeek(draft)} disabled={saving}
+                  style={{ background: curRole === "dev" ? "#00695c" : "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: saving ? 0.85 : 1 }}>
+                  {saving ? "上传中…" : `☁️ 保存并上传第${curWeek}周`}
                 </button>
               </div>
             </>
@@ -960,8 +985,11 @@ function KpiPanel({ active = true }) {
 
       {toast && (
         <div style={{
-          position: "fixed", bottom: 20, right: 20, background: "#d4f0dc", border: "1px solid #86efac",
-          color: "#2d9e52", padding: "9px 16px", borderRadius: 8, fontSize: 12, zIndex: 99,
+          position: "fixed", bottom: 20, right: 20,
+          background: toast.includes("失败") ? "#fee2e2" : "#d4f0dc",
+          border: `1px solid ${toast.includes("失败") ? "#fecaca" : "#86efac"}`,
+          color: toast.includes("失败") ? "#e55" : "#2d9e52",
+          padding: "9px 16px", borderRadius: 8, fontSize: 12, zIndex: 99,
         }}>{toast}</div>
       )}
     </div>

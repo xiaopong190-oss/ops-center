@@ -555,6 +555,8 @@ export function LogisticsPanel({ active = true }) {
     loading,
     saving,
     error,
+    isDirty: !!modal,
+    dirtyHint: "物流批次编辑弹窗未保存",
   });
   return (
     <div>
@@ -595,7 +597,10 @@ export function LogisticsPanel({ active = true }) {
           />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>
-      {modal && <ShipmentModal item={modal} ownerExtras={list.map(i => i.owner)} onSave={save} onClose={() => setModal(null)} onDelete={() => { persist(list.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      {modal && <ShipmentModal item={modal} ownerExtras={list.map(i => i.owner)} onSave={save} onClose={() => {
+        if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+        setModal(null);
+      }} onDelete={() => { persist(list.filter(x => x.id !== modal.id)); setModal(null); }} />}
     </div>
   );
 }

@@ -866,6 +866,17 @@ function KpiPanel({ active = true }) {
     return upsertWeek(draft);
   }, [person, curWeek, curRole, monthTargetsDraft, draft, upsertMonthTargets, upsertWeek]);
 
+  const kpiDirty = useMemo(() => {
+    if (!person) return false;
+    if (curRole === "dev" && curWeek === 0) {
+      const saved = getDevMonthTargets(items, year, month, person);
+      return JSON.stringify(monthTargetsDraft) !== JSON.stringify(saved);
+    }
+    if (curWeek === 0) return false;
+    const saved = getWeekData(items, year, month, curRole, person, curWeek);
+    return JSON.stringify(draft) !== JSON.stringify(saved);
+  }, [person, curRole, curWeek, year, month, items, draft, monthTargetsDraft]);
+
   useCloudSyncPage(active, {
     label: "考核",
     save: saveCurrentToCloud,
@@ -874,6 +885,8 @@ function KpiPanel({ active = true }) {
     loading,
     saving,
     error,
+    isDirty: kpiDirty,
+    dirtyHint: curRole === "dev" && curWeek === 0 ? "开发月目标未上传" : `考核第${curWeek}周数据未上传`,
   });
 
   const clearWeek = () => {

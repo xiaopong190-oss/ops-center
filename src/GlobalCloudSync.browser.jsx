@@ -2,6 +2,8 @@ const { useState, useRef, useEffect, useCallback, useMemo, createContext, useCon
 
 const ALL_CLOUD_KEYS = ["logistics", "tasks", "production", "tools-links", "agents", "kpi-monthly"];
 
+const LEAVE_MSG = "当前页有未上传的修改，确定离开吗？";
+
 const CloudSyncContext = createContext(null);
 
 function CloudSyncProvider({ children }) {
@@ -27,6 +29,24 @@ function CloudSyncProvider({ children }) {
   const showToast = useCallback((msg, ms = 2200) => {
     setToast(msg);
     setTimeout(() => setToast(""), ms);
+  }, []);
+
+  const confirmLeaveIfDirty = useCallback(() => {
+    const h = handlerRef.current;
+    if (!h?.isDirty) return true;
+    const hint = h.dirtyHint || LEAVE_MSG;
+    return window.confirm(hint.endsWith("？") ? hint : `${hint}，确定离开吗？`);
+  }, []);
+
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      const h = handlerRef.current;
+      if (!h?.isDirty) return;
+      e.preventDefault();
+      e.returnValue = h.dirtyHint || LEAVE_MSG;
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
   const reloadAllCloud = useCallback(async () => {
@@ -64,7 +84,7 @@ function CloudSyncProvider({ children }) {
   }, [showToast]);
 
   return (
-    <CloudSyncContext.Provider value={{ register, unregister, bump, tick, getHandler, saveToCloud, reloadAllCloud, busy }}>
+    <CloudSyncContext.Provider value={{ register, unregister, bump, tick, getHandler, confirmLeaveIfDirty, saveToCloud, reloadAllCloud, busy }}>
       {children}
       {toast && (
         <div style={{
@@ -94,13 +114,20 @@ function useCloudSyncPage(active, handlers) {
       get loading() { return ref.current.loading; },
       get saving() { return ref.current.saving; },
       get error() { return ref.current.error; },
+      get isDirty() { return !!ref.current.isDirty; },
+      get dirtyHint() { return ref.current.dirtyHint; },
     });
     return () => ctx.unregister();
   }, [active, ctx]);
 
   useEffect(() => {
     if (active && ctx) ctx.bump();
-  }, [active, ctx, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label]);
+  }, [active, ctx, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty]);
+}
+
+export function useConfirmLeave() {
+  const ctx = useContext(CloudSyncContext);
+  return ctx?.confirmLeaveIfDirty || (() => true);
 }
 
 function GlobalCloudBar() {
@@ -116,11 +143,17 @@ function GlobalCloudBar() {
   const loading = busy || handler?.loading;
   const saving = busy || handler?.saving;
   const error = handler?.error;
+  const pollMin = CLOUD_POLL_MS > 0 ? Math.round(CLOUD_POLL_MS / 60000) : 0;
 
   let bg = "#ecfdf5", border = "#6ee7b7", color = "#065f46";
-  let text = "☁️ 全站云端同步 · 填写后点「保存并上传」，或点「从云端更新」拉取同事修改";
+  let text = pollMin > 0
+    ? `☁️ 全站云端同步 · 请点「从云端更新」手动拉取；页面可见时每 ${pollMin} 分钟自动拉一次`
+    : "☁️ 全站云端同步 · 请点「从云端更新」手动拉取；填写后点「保存并上传」";
 
-  if (loading && !saving) {
+  if (handler?.isDirty) {
+    bg = "#fffbeb"; border = "#fcd34d"; color = "#92400e";
+    text = `⚠️ ${handler.dirtyHint || "有未上传的修改"} · 离开前请先「保存并上传」`;
+  } else if (loading && !saving) {
     bg = "#f3f4f6"; border = "#d1d5db"; color = "#4b5563";
     text = "⏳ 正在从云端加载…";
   } else if (saving) {
@@ -133,7 +166,9 @@ function GlobalCloudBar() {
     const who = handler.meta.updatedBy;
     const when = formatSharedTime(handler.meta.updatedAt);
     const page = handler.label ? `（${handler.label}）` : "";
-    text = `☁️ 最后由 ${who} 更新于 ${when}${page}`;
+    text = pollMin > 0
+      ? `☁️ 最后由 ${who} 更新于 ${when}${page} · 手动更新；可见时每 ${pollMin} 分钟自动拉取`
+      : `☁️ 最后由 ${who} 更新于 ${when}${page} · 请手动点「从云端更新」`;
   }
 
   const btn = {

@@ -834,6 +834,8 @@ function ToolsPanel({ active: tabActive = true }) {
     loading: docsLoading,
     saving: docsSaving,
     error: docsError,
+    isDirty: editingId !== null,
+    dirtyHint: "在线文档编辑未保存",
   });
 
   if (inlineTool) {

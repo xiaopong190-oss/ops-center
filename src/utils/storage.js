@@ -5,8 +5,8 @@ export { sharedStorage } from "../GlobalConfig.jsx";
 
 export const CURRENT_USER_KEY = "ops-center-current-user";
 
-/** 2 分钟轮询；Gist 无 JSONBin 式月度配额，可按需改为 0 关闭 */
-const CLOUD_POLL_MS = 120000;
+/** 后台拉取间隔；0=关闭自动拉取，仅手动「从云端更新」。默认 30 分钟 */
+export const CLOUD_POLL_MS = 1800000;
 
 export function getCurrentUser() {
   try {
@@ -153,21 +153,11 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
   }, [storageKey, fetchFromCloud]);
 
   useEffect(() => {
-    if (!active) return;
-    const onVisible = () => {
+    if (!active || CLOUD_POLL_MS <= 0) return;
+    const timer = setInterval(() => {
       if (document.visibilityState === "visible") fetchFromCloud();
-    };
-    window.addEventListener("focus", onVisible);
-    document.addEventListener("visibilitychange", onVisible);
-    let timer = null;
-    if (CLOUD_POLL_MS > 0) {
-      timer = setInterval(() => fetchFromCloud(), CLOUD_POLL_MS);
-    }
-    return () => {
-      window.removeEventListener("focus", onVisible);
-      document.removeEventListener("visibilitychange", onVisible);
-      if (timer) clearInterval(timer);
-    };
+    }, CLOUD_POLL_MS);
+    return () => clearInterval(timer);
   }, [fetchFromCloud, active]);
 
   const [saving, setSaving] = useState(false);
@@ -223,8 +213,8 @@ export function SharedMetaLine({ meta, style, onReload, onSaveCloud, loading, sa
     text = `❌ ${error} · 数据已暂存本机，请重试上传`;
   } else if (meta?.updatedBy) {
     text = CLOUD_POLL_MS > 0
-      ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 ${Math.round(CLOUD_POLL_MS / 1000)} 秒自动同步`
-      : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 点「从云端更新」拉取最新`;
+      ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 可见时每 ${Math.round(CLOUD_POLL_MS / 60000)} 分钟自动拉取`
+      : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 请点「从云端更新」手动拉取`;
   }
 
   const btnBase = {

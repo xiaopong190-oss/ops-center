@@ -349,6 +349,8 @@ export function ProductionPanel({ active = true }) {
     loading,
     saving,
     error,
+    isDirty: !!modal,
+    dirtyHint: "生产批次编辑弹窗未保存",
   });
 
   return (
@@ -389,7 +391,10 @@ export function ProductionPanel({ active = true }) {
           <ProductGroup key={`${g.product}-${g.name}`} product={g.product} name={g.name} batches={g.batches} onEdit={b => setModal(clone(b))} />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>
-      {modal && <ProdModal item={modal} ownerExtras={items.map(i => i.owner)} onSave={save} onClose={() => setModal(null)} onDelete={() => { persist(items.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      {modal && <ProdModal item={modal} ownerExtras={items.map(i => i.owner)} onSave={save} onClose={() => {
+        if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+        setModal(null);
+      }} onDelete={() => { persist(items.filter(x => x.id !== modal.id)); setModal(null); }} />}
     </div>
   );
 }

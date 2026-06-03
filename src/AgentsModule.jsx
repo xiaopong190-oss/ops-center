@@ -285,6 +285,8 @@ export function AgentsPanel({ active: tabActive = true }) {
     loading,
     saving,
     error,
+    isDirty: editingId !== null,
+    dirtyHint: "智能体编辑未保存",
   });
 
   return (

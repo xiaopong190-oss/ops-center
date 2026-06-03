@@ -131,6 +131,8 @@ function TasksPanel({ active = true }) {
     loading,
     saving,
     error,
+    isDirty: !!modal,
+    dirtyHint: "任务编辑弹窗未保存",
   });
   return (
     <div>
@@ -146,7 +148,10 @@ function TasksPanel({ active = true }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {vis.length ? vis.map(t => <TaskCard key={t.id} task={t} onClick={() => setModal({ ...t, nodes: t.nodes ? t.nodes.map(n => ({ ...n })) : [] })} />) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无任务</div>}
       </div>
-      {modal && <TaskModal task={modal} tasks={tasks} onSave={save} onClose={() => setModal(null)} onDelete={() => { persist(tasks.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      {modal && <TaskModal task={modal} tasks={tasks} onSave={save} onClose={() => {
+        if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+        setModal(null);
+      }} onDelete={() => { persist(tasks.filter(x => x.id !== modal.id)); setModal(null); }} />}
     </div>
   );
 }
@@ -196,7 +201,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-30";
+const APP_BUILD = "cloud-31";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -243,19 +248,15 @@ function LoginScreen({ onSuccess }) {
   );
 }
 
-function App() {
-  const [authed, setAuthed] = useState(readAuthSession);
-  const [currentUser, setCurrentUserState] = useState(() => getCurrentUser());
-  const [tab, setTab] = useState("home");
-  const [dark, setDark] = useState(false);
-  const [settingsPanel, setSettingsPanel] = useState(null);
+function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel }) {
+  const confirmLeave = useConfirmLeave();
+  const trySetTab = (key) => {
+    if (key === tab) return;
+    if (!confirmLeave()) return;
+    setTab(key);
+  };
   const css = { "--bg": dark ? "#111" : "#f8f8f6", "--card": dark ? "#1c1c1c" : "#fff", "--border": dark ? "#2a2a2a" : "#e5e5e5", "--text": dark ? "#eee" : "#111", "--tm": dark ? "#777" : "#888" };
-  if (!authed) {
-    return <LoginScreen onSuccess={() => { setCurrentUserState(getCurrentUser()); setAuthed(true); }} />;
-  }
   return (
-    <UserContext.Provider value={currentUser}>
-    <CloudSyncProvider>
     <div style={{ ...css, minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif" }}>
       <div style={{ maxWidth: tab === "kpi" ? 1100 : 820, margin: "0 auto", padding: "1.5rem 1rem", transition: "max-width 0.2s" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
@@ -270,7 +271,7 @@ function App() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 4, marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
-          {TABS.map(t => (<button key={t.key} onClick={() => setTab(t.key)} style={{ background: "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent", padding: "8px 18px", fontSize: 13, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? "#2d7dd2" : "var(--tm)", cursor: "pointer", fontFamily: "inherit", marginBottom: -1 }}>{t.label}</button>))}
+          {TABS.map(t => (<button key={t.key} onClick={() => trySetTab(t.key)} style={{ background: "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent", padding: "8px 18px", fontSize: 13, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? "#2d7dd2" : "var(--tm)", cursor: "pointer", fontFamily: "inherit", marginBottom: -1 }}>{t.label}</button>))}
         </div>
         <GlobalCloudBar />
         <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
@@ -283,6 +284,22 @@ function App() {
       </div>
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
     </div>
+  );
+}
+
+function App() {
+  const [authed, setAuthed] = useState(readAuthSession);
+  const [currentUser, setCurrentUserState] = useState(() => getCurrentUser());
+  const [tab, setTab] = useState("home");
+  const [dark, setDark] = useState(false);
+  const [settingsPanel, setSettingsPanel] = useState(null);
+  if (!authed) {
+    return <LoginScreen onSuccess={() => { setCurrentUserState(getCurrentUser()); setAuthed(true); }} />;
+  }
+  return (
+    <UserContext.Provider value={currentUser}>
+    <CloudSyncProvider>
+      <AppShell tab={tab} setTab={setTab} dark={dark} setDark={setDark} settingsPanel={settingsPanel} setSettingsPanel={setSettingsPanel} />
     </CloudSyncProvider>
     </UserContext.Provider>
   );

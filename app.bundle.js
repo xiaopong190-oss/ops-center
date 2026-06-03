@@ -5865,7 +5865,7 @@ const TOOL_CATALOG = [{
   desc: "精铺/精品 · 月度规划 · 投入产出分析",
   icon: "📦",
   category: "运营",
-  url: "https://guangdongperfect2024-ctrl.github.io/amazon-tracker/"
+  url: "https://xiaopong190-oss.github.io/ops-center/tools/amazon-tracker/"
 }, {
   id: "mailwatch",
   name: "MailWatch 邮件分析",

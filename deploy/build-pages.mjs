@@ -153,6 +153,18 @@ for (const f of fs.readdirSync(path.join(root, "src")).filter(n => n.endsWith(".
 copyDir(path.join(root, "tools"), path.join(out, "tools"));
 copyDir(path.join(root, "packages"), path.join(out, "packages"));
 
+if (ciGist) {
+  const amzGistCfg =
+    "window.__AMZ_GIST__ = window.__AMZ_GIST__ || {};\n" +
+    `window.__AMZ_GIST__.token = ${JSON.stringify(ciGist.token)};\n` +
+    `window.__AMZ_GIST__.id = "a24d08263026d407b32e9c9dbe70fe35";\n`;
+  const amzGistPath = path.join(out, "tools", "amazon-tracker", "gist-config.js");
+  if (fs.existsSync(path.dirname(amzGistPath))) {
+    fs.writeFileSync(amzGistPath, amzGistCfg, "utf8");
+    console.log("tools/amazon-tracker/gist-config.js ← CI secrets");
+  }
+}
+
 fs.writeFileSync(path.join(out, ".nojekyll"), "");
 fs.writeFileSync(
   path.join(out, "README.txt"),

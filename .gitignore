@@ -13,6 +13,10 @@ data/
 .env.*
 *.log
 start.log
+gist-config.local.js
+**/gist-config.local.js
+gist-secrets.local.json
+src/cloud-sync-config.secret.js
 
 # 编辑器
 .idea

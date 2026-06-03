@@ -25,6 +25,7 @@ const GIST_SHARED_FILES = {
   production: "production.json",
   "tools-links": "tools-links.json",
   agents: "agents.json",
+  "kpi-monthly": "kpi-monthly.json",
 };
 
 function gistConfigured() {

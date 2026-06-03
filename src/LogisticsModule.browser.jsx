@@ -90,6 +90,8 @@ function getGistId() {
 // ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────
 const CONFIG_STORAGE_KEY = "ops-center-global-config";
 
+
+
 // ─── GitHub Gist 共享（一个 Gist 里多个 json 文件）────────────────────
 const GIST_API = "https://api.github.com/gists";
 const GIST_SHARED_FILES = {
@@ -98,6 +100,7 @@ const GIST_SHARED_FILES = {
   production: "production.json",
   "tools-links": "tools-links.json",
   agents: "agents.json",
+  "kpi-monthly": "kpi-monthly.json",
 };
 
 function gistConfigured() {

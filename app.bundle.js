@@ -176,7 +176,8 @@ const GIST_SHARED_FILES = {
   tasks: "tasks.json",
   production: "production.json",
   "tools-links": "tools-links.json",
-  agents: "agents.json"
+  agents: "agents.json",
+  "kpi-monthly": "kpi-monthly.json"
 };
 function gistConfigured() {
   return Boolean(getGistToken() && getGistId());
@@ -8034,6 +8035,2092 @@ function HomePanel() {
     onClose: () => setShowModal(false)
   }));
 }
+const WEEKS = [1, 2, 3, 4];
+const KPI_STORAGE_KEY = "kpi-monthly";
+const emptyOpsWeek = () => ({
+  nsku: "",
+  lsku: "",
+  aadd: "",
+  aout: "",
+  atot: "",
+  sales: "",
+  prate: "",
+  acos: "",
+  adsp: "",
+  ador: "",
+  nacos: "",
+  perfOk: null,
+  sout: "",
+  sdays: "",
+  perfRemark: "",
+  profitRemark: "",
+  tnsku: "",
+  tsal: "",
+  taco: "",
+  tadsp: "",
+  torder: ""
+});
+const emptyDesWeek = () => ({
+  prem: "",
+  std: "",
+  vid: "",
+  aplus: "",
+  dad: "",
+  ontime: "",
+  demand: "",
+  rework: ""
+});
+const emptyDevWeek = () => ({
+  tNew: "",
+  tSample: "",
+  tOrder: "",
+  devNew: "",
+  sampleIn: "",
+  pass: "",
+  order: "",
+  abn: "",
+  abnRemark: ""
+});
+const emptyDevMonthTargets = () => ({
+  tDev: "",
+  tSample: "",
+  tOrder: ""
+});
+const KPI_ROLE_META = {
+  ops: {
+    label: "运营",
+    color: "#2d7dd2",
+    sumBorder: "#b8d4f0"
+  },
+  des: {
+    label: "美工",
+    color: "#6b21a8",
+    sumBorder: "#e9d5ff"
+  },
+  dev: {
+    label: "开发",
+    color: "#00695c",
+    sumBorder: "#99f6e4"
+  }
+};
+function emptyWeekForRole(role) {
+  if (role === "ops") return emptyOpsWeek();
+  if (role === "dev") return emptyDevWeek();
+  return emptyDesWeek();
+}
+const num = v => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const kpiInp = {
+  width: "100%",
+  fontSize: 13,
+  padding: "6px 9px",
+  border: "1px solid var(--border)",
+  borderRadius: 6,
+  fontFamily: "inherit",
+  background: "var(--card)",
+  color: "inherit"
+};
+const kpiInpSm = {
+  ...kpiInp,
+  fontSize: 12,
+  padding: "4px 8px"
+};
+const kpiLbl = {
+  fontSize: 10,
+  color: "var(--tm)",
+  marginBottom: 4,
+  display: "block"
+};
+const kpiCard = {
+  background: "var(--card)",
+  border: "1px solid var(--border)",
+  borderRadius: 9,
+  padding: 12
+};
+const kpiModTitle = {
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "var(--tm)",
+  marginBottom: 8,
+  display: "flex",
+  alignItems: "center",
+  gap: 8
+};
+const kpiBadge = (bg, color) => ({
+  display: "inline-flex",
+  fontSize: 10,
+  padding: "2px 6px",
+  borderRadius: 4,
+  background: bg,
+  color,
+  fontWeight: 500,
+  marginTop: 6
+});
+function findRecord(items, year, month, role, person) {
+  return items.find(r => r.year === year && r.month === month && r.role === role && r.person === person);
+}
+function getWeekData(items, year, month, role, person, week) {
+  const rec = findRecord(items, year, month, role, person);
+  const w = rec?.weeks?.[week];
+  if (!w) return emptyWeekForRole(role);
+  return {
+    ...emptyWeekForRole(role),
+    ...w
+  };
+}
+function getDevMonthTargets(items, year, month, person) {
+  const rec = findRecord(items, year, month, "dev", person);
+  return {
+    ...emptyDevMonthTargets(),
+    ...(rec?.monthTargets || {})
+  };
+}
+function calcOpsSummary(w) {
+  const add = num(w.aadd),
+    out = num(w.aout),
+    net = add - out;
+  const sales = num(w.sales),
+    rate = parseFloat(w.prate);
+  const nsku = num(w.nsku),
+    acos = parseFloat(w.acos),
+    sout = num(w.sout);
+  return {
+    net,
+    sales,
+    rate: Number.isFinite(rate) ? rate : null,
+    nsku,
+    acos: Number.isFinite(acos) ? acos : null,
+    sout,
+    sdays: parseFloat(w.sdays)
+  };
+}
+function calcDesSummary(w) {
+  const prem = num(w.prem),
+    std = num(w.std),
+    aplus = num(w.aplus);
+  const imgPts = prem * 5 + std;
+  const total = imgPts + aplus * 0.5;
+  const ot = num(w.ontime),
+    dm = num(w.demand);
+  return {
+    imgPts,
+    aplusPts: aplus * 0.5,
+    total,
+    quotaOk: total >= 5,
+    vid: num(w.vid),
+    aplus,
+    rework: num(w.rework),
+    rate: dm > 0 ? Math.round(ot / dm * 100) : null
+  };
+}
+
+/** 运营周考核：下单款数 50% + 赢利 20% + 赢利且利润率≥15% 30% */
+function calcOpsWeeklyScore(w) {
+  const orderCount = num(w.lsku);
+  const target = num(w.torder) || num(w.tnsku) || 1;
+  const rate = parseFloat(w.prate);
+  const hasRate = Number.isFinite(rate);
+  const orderPct = Math.min(1, orderCount / target);
+  const orderScore = orderPct * 50;
+  const profitScore = hasRate && rate > 0 ? 20 : 0;
+  const profit15Score = hasRate && rate >= 15 ? 30 : 0;
+  const total = Math.round((orderScore + profitScore + profit15Score) * 10) / 10;
+  return {
+    orderCount,
+    target,
+    orderScore: Math.round(orderScore * 10) / 10,
+    profitScore,
+    profit15Score,
+    total,
+    rate: hasRate ? rate : null
+  };
+}
+function weekHasOpsData(w) {
+  return ["nsku", "lsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null);
+}
+function weekHasDesData(w) {
+  return ["prem", "std", "vid", "aplus"].some(k => w[k] !== "" && w[k] != null);
+}
+function weekHasDevData(w) {
+  return ["devNew", "sampleIn", "order", "pass", "abn"].some(k => w[k] !== "" && w[k] != null);
+}
+function kpiDevProgress(actual, target) {
+  const a = num(actual),
+    t = num(target);
+  if (t <= 0) return {
+    pct: 0,
+    color: "var(--tm)",
+    text: "待填写目标",
+    cls: ""
+  };
+  const pct = Math.min(100, Math.round(a / t * 100));
+  const color = pct >= 100 ? "#2d9e52" : pct >= 60 ? "#e09000" : "#e55";
+  const cls = pct >= 100 ? "g" : pct >= 60 ? "a" : "r";
+  return {
+    pct,
+    color,
+    cls,
+    text: `${a}/${t}款  ${pct}%${pct >= 100 ? " ✓" : ""}`,
+    rateText: `${pct}%`
+  };
+}
+function calcDevSummary(w) {
+  const devNew = num(w.devNew),
+    sampleIn = num(w.sampleIn),
+    pass = num(w.pass);
+  const order = num(w.order),
+    abn = num(w.abn);
+  const pNew = kpiDevProgress(devNew, w.tNew);
+  const pSample = kpiDevProgress(sampleIn, w.tSample);
+  const pOrder = kpiDevProgress(order, w.tOrder);
+  return {
+    devNew,
+    sampleIn,
+    pass,
+    order,
+    abn,
+    pNew,
+    pSample,
+    pOrder
+  };
+}
+function SummaryBar({
+  items,
+  role
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(90px,1fr))",
+      gap: 10,
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: 10,
+      padding: "12px 14px",
+      marginBottom: 14
+    }
+  }, items.map(it => /*#__PURE__*/React.createElement("div", {
+    key: it.label,
+    style: {
+      textAlign: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 18,
+      fontWeight: 700,
+      color: it.color || "var(--text)"
+    }
+  }, it.value), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginTop: 2
+    }
+  }, it.label))));
+}
+function OpsWeekForm({
+  week,
+  data,
+  onChange
+}) {
+  const set = (k, v) => onChange({
+    ...data,
+    [k]: v
+  });
+  const s = calcOpsSummary(data);
+  const score = calcOpsWeeklyScore(data);
+  const net = s.net;
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(OpsScorePanel, {
+    score: score
+  }), /*#__PURE__*/React.createElement(SummaryBar, {
+    items: [{
+      label: "周销售额($)",
+      value: s.sales > 0 ? `$${Math.round(s.sales).toLocaleString()}` : "—",
+      color: "#2d9e52"
+    }, {
+      label: "利润率",
+      value: s.rate != null ? `${s.rate.toFixed(1)}%` : "—",
+      color: s.rate != null && s.rate < 15 ? "#e55" : s.rate != null ? "#2d9e52" : undefined
+    }, {
+      label: "本周上新",
+      value: s.nsku || "—"
+    }, {
+      label: "A品净变化",
+      value: net !== 0 ? `${net >= 0 ? "+" : ""}${net}` : "—",
+      color: net > 0 ? "#2d9e52" : net < 0 ? "#e55" : undefined
+    }, {
+      label: "整体ACOS",
+      value: s.acos != null ? `${s.acos}%` : "—"
+    }, {
+      label: "A品断货天",
+      value: String(s.sout),
+      color: s.sout === 0 ? "#2d9e52" : "#e55"
+    }]
+  }), /*#__PURE__*/React.createElement(Section, {
+    title: "\u4E0A\u65B0"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u4E0A\u65B0 / NEW SKU",
+    hint: "\u5468\u4E0A\u65B0\u6570\u91CF"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.nsku,
+    onChange: v => set("nsku", v),
+    unit: "SKU"
+  }), /*#__PURE__*/React.createElement(TargetRow, {
+    label: "\u8BA1\u5212\u76EE\u6807",
+    value: data.tnsku,
+    onChange: v => set("tnsku", v),
+    unit: "SKU"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u843D\u5730 / LAUNCH",
+    hint: "\u672C\u5468\u4E0B\u5355\u6B3E\u6570\uFF08\u4E0B\u5927\u8D27\uFF09"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.lsku,
+    onChange: v => set("lsku", v),
+    unit: "\u6B3E"
+  }), /*#__PURE__*/React.createElement(TargetRow, {
+    label: "\u4E0B\u5355\u76EE\u6807",
+    value: data.torder,
+    onChange: v => set("torder", v),
+    unit: "\u6B3E"
+  }), /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge("#eef6ff", "#2d7dd2")
+  }, "\u8003\u6838\u6743\u91CD 50%")))), /*#__PURE__*/React.createElement(Section, {
+    title: "A \u54C1\u7BA1\u7406"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "A\u54C1 / ADD",
+    hint: "\u672C\u5468\u65B0\u589E A \u54C1\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.aadd,
+    onChange: v => set("aadd", v),
+    unit: "\u4E2A"
+  }), /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge("#d4f0dc", "#2d9e52")
+  }, "\u65B0\u589E +1 \u5206")), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "A\u54C1 / OUT",
+    hint: "\u672C\u5468\u9000\u51FA A \u54C1\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.aout,
+    onChange: v => set("aout", v),
+    unit: "\u4E2A"
+  }), /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge("#fee2e2", "#e55")
+  }, "\u9000\u51FA \u22121 \u5206")), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "A\u54C1 / NET\uFF08\u81EA\u52A8\uFF09",
+    hint: "A \u54C1\u51C0\u53D8\u5316"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...kpiInp,
+      opacity: 0.7
+    },
+    readOnly: true,
+    value: net
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "A\u54C1 / TOTAL",
+    hint: "A \u54C1\u603B\u6570\uFF08\u5468\u672B\u5FEB\u7167\uFF09"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.atot,
+    onChange: v => set("atot", v),
+    unit: "\u4E2A"
+  })))), /*#__PURE__*/React.createElement(Section, {
+    title: "\u9500\u552E\u989D\u4E0E\u5229\u6DA6"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u9500\u552E / SALES",
+    hint: "\u5468\u9500\u552E\u989D"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.sales,
+    onChange: v => set("sales", v),
+    unit: "USD"
+  }), /*#__PURE__*/React.createElement(TargetRow, {
+    label: "\u76EE\u6807",
+    value: data.tsal,
+    onChange: v => set("tsal", v),
+    unit: "USD"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u5229\u6DA6 / PROFIT",
+    hint: "\u5229\u6DA6\u7387\uFF08\u8003\u6838\uFF1A\u8D62\u5229 20% + \u226515% \u53E6 30%\uFF09"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.prate,
+    onChange: v => set("prate", v),
+    unit: "%",
+    step: "0.1"
+  }), s.rate != null && s.rate < 15 && /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...kpiInp,
+      marginTop: 6,
+      minHeight: 40,
+      fontSize: 11
+    },
+    value: data.profitRemark,
+    onChange: e => set("profitRemark", e.target.value),
+    placeholder: "\u4F4E\u4E8E 15% \u8BF7\u8BF4\u660E\u539F\u56E0\u2026"
+  })))), /*#__PURE__*/React.createElement(Section, {
+    title: "\u5E7F\u544A"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u5E7F\u544A / ACOS",
+    hint: "\u6574\u4F53 ACOS"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.acos,
+    onChange: v => set("acos", v),
+    unit: "%",
+    step: "0.1"
+  }), /*#__PURE__*/React.createElement(TargetRow, {
+    label: "\u76EE\u6807 \u2264",
+    value: data.taco,
+    onChange: v => set("taco", v),
+    unit: "%"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u5E7F\u544A / SPEND",
+    hint: "\u5E7F\u544A\u603B\u82B1\u8D39"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.adsp,
+    onChange: v => set("adsp", v),
+    unit: "USD"
+  }), /*#__PURE__*/React.createElement(TargetRow, {
+    label: "\u5468\u9884\u7B97",
+    value: data.tadsp,
+    onChange: v => set("tadsp", v),
+    unit: "USD"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u5E7F\u544A / ORDERS",
+    hint: "\u5E7F\u544A\u5E26\u6765\u8BA2\u5355\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.ador,
+    onChange: v => set("ador", v),
+    unit: "\u5355"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u65B0\u54C1\u5E7F\u544A / NEW ACOS",
+    hint: "\u65B0\u54C1\u5E7F\u544A ACOS"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.nacos,
+    onChange: v => set("nacos", v),
+    unit: "%",
+    step: "0.1"
+  })))), /*#__PURE__*/React.createElement(Section, {
+    title: "\u8D26\u53F7\u5065\u5EB7\uFF08FBA\uFF09"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u7EE9\u6548 / PERFORMANCE",
+    hint: "\u7EE9\u6548\u6307\u6807\u672C\u5468\u662F\u5426\u8FBE\u6807",
+    danger: true
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 5,
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement(PerfBtn, {
+    ok: true,
+    selected: data.perfOk === true,
+    onClick: () => set("perfOk", true)
+  }, "\u2713 \u8FBE\u6807"), /*#__PURE__*/React.createElement(PerfBtn, {
+    ok: false,
+    selected: data.perfOk === false,
+    onClick: () => set("perfOk", false)
+  }, "\u2717 \u89E6\u7EA2\u7EBF")), data.perfOk === false && /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...kpiInp,
+      marginTop: 6,
+      minHeight: 40,
+      fontSize: 11
+    },
+    value: data.perfRemark,
+    onChange: e => set("perfRemark", e.target.value),
+    placeholder: "\u89E6\u7EA2\u7EBF\u8BF7\u586B\u5199\u8BF4\u660E\u2026"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u65AD\u8D27 / STOCKOUT",
+    hint: "A \u54C1\u65AD\u8D27\u5929\u6570",
+    danger: true
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.sout,
+    onChange: v => set("sout", v),
+    unit: "\u5929"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u9884\u8B66 / STOCK DAYS",
+    hint: "A \u54C1\u6700\u4F4E\u53EF\u552E\u5929\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.sdays,
+    onChange: v => set("sdays", v),
+    unit: "\u5929"
+  }), Number.isFinite(s.sdays) && s.sdays > 0 && /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge(s.sdays < 30 ? "#fee2e2" : s.sdays < 45 ? "#fff0d4" : "#d4f0dc", s.sdays < 30 ? "#e55" : s.sdays < 45 ? "#e09000" : "#2d9e52")
+  }, s.sdays < 30 ? `⚠ 仅${s.sdays}天` : s.sdays < 45 ? `注意${s.sdays}天` : `✓ 充裕${s.sdays}天`)))));
+}
+function DesWeekForm({
+  week,
+  data,
+  onChange
+}) {
+  const set = (k, v) => onChange({
+    ...data,
+    [k]: v
+  });
+  const s = calcDesSummary(data);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SummaryBar, {
+    items: [{
+      label: "图片当量分",
+      value: s.imgPts || "—"
+    }, {
+      label: "A+当量分",
+      value: s.aplusPts > 0 ? s.aplusPts.toFixed(1) : "—",
+      color: s.aplusPts > 0 ? "#6b21a8" : undefined
+    }, {
+      label: "合计当量",
+      value: s.total > 0 ? s.total.toFixed(1) : "—",
+      color: s.total >= 5 ? "#2d9e52" : s.total > 0 ? "#e09000" : undefined
+    }, {
+      label: "视频完成数",
+      value: s.vid || "—"
+    }, {
+      label: "A+完成数",
+      value: s.aplus || "—"
+    }, {
+      label: "按时交付率",
+      value: s.rate != null ? `${s.rate}%` : "—",
+      color: s.rate != null && s.rate >= 90 ? "#2d9e52" : s.rate != null && s.rate >= 70 ? "#e09000" : s.rate != null ? "#e55" : undefined
+    }, {
+      label: "返工次数",
+      value: String(s.rework),
+      color: s.rework > 0 ? "#e55" : undefined
+    }]
+  }), /*#__PURE__*/React.createElement(Section, {
+    title: "\u56FE\u7247\u4EA7\u51FA\uFF08\u7CBE\u54C1 1\u5F20 = \u7CBE\u94FA 5\u5F20\uFF09"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u7CBE\u54C1\u56FE / PREMIUM",
+    hint: "\u7CBE\u54C1\u56FE\u5B8C\u6210\u6570",
+    accent: "#6b21a8"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.prem,
+    onChange: v => set("prem", v),
+    unit: "\u5F20"
+  }), /*#__PURE__*/React.createElement(QuotaBox, {
+    total: s.total,
+    imgPts: s.imgPts,
+    aplusPts: s.aplusPts,
+    prem: num(data.prem) * 5,
+    std: num(data.std)
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u7CBE\u94FA\u56FE / STANDARD",
+    hint: "\u7CBE\u94FA\u56FE\u5B8C\u6210\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.std,
+    onChange: v => set("std", v),
+    unit: "\u5F20"
+  })))), /*#__PURE__*/React.createElement(Section, {
+    title: "\u89C6\u9891"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u89C6\u9891 / VIDEO",
+    hint: "\u89C6\u9891\u5B8C\u6210\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.vid,
+    onChange: v => set("vid", v),
+    unit: "\u6761"
+  })))), /*#__PURE__*/React.createElement(Section, {
+    title: "\u5176\u4ED6\u4EA4\u4ED8"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "A+ / EBC",
+    hint: "A+ \u5B8C\u6210\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.aplus,
+    onChange: v => set("aplus", v),
+    unit: "\u5957"
+  }), /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge("#f3e8ff", "#6b21a8")
+  }, "1 \u5957 = 0.5 \u5F53\u91CF\u5206")), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u5E7F\u544A\u7D20\u6750 / AD ASSETS",
+    hint: "\u5E7F\u544A\u7D20\u6750\u5B8C\u6210\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.dad,
+    onChange: v => set("dad", v),
+    unit: "\u4EF6"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u4EA4\u4ED8 / ON-TIME",
+    hint: "\u6309\u65F6\u4EA4\u4ED8\u7387"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...kpiInpSm,
+      width: 66
+    },
+    type: "number",
+    placeholder: "\u51C6\u65F6",
+    value: data.ontime,
+    onChange: e => set("ontime", e.target.value)
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, "/"), /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...kpiInpSm,
+      width: 66
+    },
+    type: "number",
+    placeholder: "\u603B\u9700\u6C42",
+    value: data.demand,
+    onChange: e => set("demand", e.target.value)
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, "= ", s.rate != null ? `${s.rate}%` : "—"))), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u8FD4\u5DE5 / REWORK",
+    hint: "\u8FD4\u5DE5\u6B21\u6570\uFF08\u5927\u6539\u91CD\u505A\uFF09"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.rework,
+    onChange: v => set("rework", v),
+    unit: "\u6B21"
+  })))));
+}
+function OpsScorePanel({
+  score
+}) {
+  const color = score.total >= 80 ? "#2d9e52" : score.total >= 60 ? "#e09000" : score.total > 0 ? "#e55" : "var(--text)";
+  const items = [{
+    label: "下单款数",
+    pct: "50%",
+    value: `${score.orderScore}分`,
+    sub: `${score.orderCount}/${score.target}款`
+  }, {
+    label: "赢利",
+    pct: "20%",
+    value: `${score.profitScore}分`,
+    sub: score.profitScore ? "已赢利" : "未达"
+  }, {
+    label: "利润率≥15%",
+    pct: "30%",
+    value: `${score.profit15Score}分`,
+    sub: score.rate != null ? `${score.rate.toFixed(1)}%` : "—"
+  }];
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "linear-gradient(135deg,#eef6ff,#f8fbff)",
+      border: "1px solid #b8d4f0",
+      borderRadius: 10,
+      padding: "12px 14px",
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10,
+      flexWrap: "wrap",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: "#2d7dd2"
+    }
+  }, "\u672C\u5468\u8003\u6838\u5F97\u5206"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 22,
+      fontWeight: 700,
+      color
+    }
+  }, score.total, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 500,
+      color: "var(--tm)"
+    }
+  }, " / 100"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(3,1fr)",
+      gap: 8
+    }
+  }, items.map(it => /*#__PURE__*/React.createElement("div", {
+    key: it.label,
+    style: {
+      background: "var(--card)",
+      borderRadius: 8,
+      padding: "8px 10px",
+      border: "1px solid var(--border)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)"
+    }
+  }, it.label, " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#2d7dd2"
+    }
+  }, it.pct)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15,
+      fontWeight: 700,
+      marginTop: 2
+    }
+  }, it.value), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginTop: 2
+    }
+  }, it.sub)))));
+}
+function QuotaBox({
+  total,
+  imgPts,
+  aplusPts,
+  prem,
+  std
+}) {
+  const pct = Math.min(100, Math.round(total / 5 * 100));
+  const barColor = total >= 5 ? "#2d9e52" : total > 0 ? "#e09000" : "var(--border)";
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8,
+      background: "var(--bg)",
+      borderRadius: 6,
+      padding: "9px 11px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginBottom: 4
+    }
+  }, "\u5468\u914D\u989D\uFF1A5 \u5F53\u91CF\u5206\uFF08\u7CBE\u54C1\xD75 + \u7CBE\u94FA\xD71 + A+\xD70.5\uFF09"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 700,
+      color: total >= 5 ? "#2d9e52" : "var(--text)"
+    }
+  }, Number(total.toFixed(1)), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 400,
+      color: "var(--tm)"
+    }
+  }, "/ 5 \u5F53\u91CF\u5206")), (imgPts > 0 || aplusPts > 0) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginTop: 4
+    }
+  }, "\u56FE\u7247 ", imgPts, " \u5206", aplusPts > 0 ? ` + A+ ${aplusPts.toFixed(1)} 分` : ""), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--border)",
+      borderRadius: 99,
+      height: 4,
+      marginTop: 6,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: `${pct}%`,
+      height: "100%",
+      background: barColor,
+      borderRadius: 99,
+      transition: "width 0.2s"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: total >= 5 ? "#2d9e52" : total > 0 ? "#e09000" : "var(--tm)",
+      marginTop: 4
+    }
+  }, total >= 5 ? `✓ 达标（超出${(total - 5).toFixed(1)}分）` : total > 0 ? `进行中，还差${(5 - total).toFixed(1)}分` : "尚未开始"));
+}
+function Section({
+  title,
+  children
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: kpiModTitle
+  }, title, /*#__PURE__*/React.createElement("span", {
+    style: {
+      flex: 1,
+      height: 1,
+      background: "var(--border)"
+    }
+  })), children);
+}
+function FieldCard({
+  label,
+  hint,
+  children,
+  danger,
+  accent,
+  teal
+}) {
+  const border = danger ? "#fecaca" : teal ? "#99f6e4" : accent ? "#e9d5ff" : "var(--border)";
+  const bg = danger ? "#fef2f2" : teal ? "#f0fdfa" : accent ? "#faf5ff" : "var(--card)";
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...kpiCard,
+      borderColor: border,
+      background: bg
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginBottom: 2
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 500,
+      marginBottom: 8,
+      lineHeight: 1.4
+    }
+  }, hint), children);
+}
+function NumInput({
+  value,
+  onChange,
+  unit,
+  step
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    style: kpiInp,
+    value: value,
+    step: step || "1",
+    min: "0",
+    onChange: e => onChange(e.target.value),
+    placeholder: "0"
+  }), unit && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      whiteSpace: "nowrap"
+    }
+  }, unit));
+}
+function TargetRow({
+  label,
+  value,
+  onChange,
+  unit
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginTop: 5,
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, label, "\uFF1A", /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    style: {
+      ...kpiInpSm,
+      width: 55,
+      borderStyle: "dashed"
+    },
+    value: value,
+    onChange: e => onChange(e.target.value),
+    placeholder: "\u2014"
+  }), unit);
+}
+function PerfBtn({
+  ok,
+  selected,
+  onClick,
+  children
+}) {
+  const color = ok ? "#2d9e52" : "#e55";
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClick,
+    style: {
+      fontSize: 11,
+      padding: "3px 9px",
+      borderRadius: 99,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      border: `1px solid ${color}`,
+      color,
+      background: selected ? ok ? "#d4f0dc" : "#fee2e2" : "transparent"
+    }
+  }, children);
+}
+function OpsMonthlySummary({
+  items,
+  year,
+  month,
+  person
+}) {
+  const rows = useMemo(() => {
+    const vals = fn => WEEKS.map(w => fn(getWeekData(items, year, month, "ops", person, w)));
+    const scores = vals(w => calcOpsWeeklyScore(w).total);
+    return [{
+      label: "周考核得分",
+      vals: scores,
+      type: "avg",
+      fmt: n => `${n.toFixed(1)}分`,
+      cls: n => n >= 80 ? "g" : n >= 60 ? "a" : n > 0 ? "r" : ""
+    }, {
+      label: "周销售额($)",
+      vals: vals(w => num(w.sales)),
+      type: "sum",
+      fmt: n => `$${Math.round(n).toLocaleString()}`,
+      cls: n => n > 0 ? "g" : ""
+    }, {
+      label: "利润率(%)",
+      vals: vals(w => num(w.prate)),
+      type: "avg",
+      fmt: n => `${n.toFixed(1)}%`,
+      cls: n => n >= 15 ? "g" : n > 0 ? "r" : ""
+    }, {
+      label: "下单款数",
+      vals: vals(w => num(w.lsku)),
+      type: "sum",
+      fmt: n => String(n),
+      cls: () => ""
+    }, {
+      label: "周上新(SKU)",
+      vals: vals(w => num(w.nsku)),
+      type: "sum",
+      fmt: n => String(n),
+      cls: () => ""
+    }, {
+      label: "A品净变化",
+      vals: vals(w => num(w.aadd) - num(w.aout)),
+      type: "sum",
+      fmt: n => `${n >= 0 ? "+" : ""}${n}`,
+      cls: n => n > 0 ? "g" : n < 0 ? "r" : ""
+    }, {
+      label: "整体ACOS(%)",
+      vals: vals(w => num(w.acos)),
+      type: "avg",
+      fmt: n => `${n.toFixed(1)}%`,
+      cls: () => ""
+    }, {
+      label: "广告花费($)",
+      vals: vals(w => num(w.adsp)),
+      type: "sum",
+      fmt: n => `$${Math.round(n).toLocaleString()}`,
+      cls: () => ""
+    }, {
+      label: "A品断货(天)",
+      vals: vals(w => num(w.sout)),
+      type: "sum",
+      fmt: n => String(n),
+      cls: n => n === 0 ? "g" : n > 0 ? "r" : ""
+    }];
+  }, [items, year, month, person]);
+  const summaries = rows.map(row => {
+    const total = row.vals.reduce((a, b) => a + b, 0);
+    const nonZero = row.vals.filter(v => v > 0);
+    const avg = nonZero.length ? total / nonZero.length : 0;
+    const agg = row.type === "sum" ? total : avg;
+    return {
+      ...row,
+      agg
+    };
+  });
+  const avgScore = summaries[0]?.agg || 0;
+  return /*#__PURE__*/React.createElement(MonthlyBlock, {
+    title: "\u8FD0\u8425 \u2014 \u6708\u5EA6\u6C47\u603B",
+    color: "#2d7dd2",
+    cards: [{
+      label: "月均考核得分",
+      value: `${avgScore.toFixed(1)}分`,
+      cls: avgScore >= 80 ? "g" : avgScore >= 60 ? "a" : avgScore > 0 ? "r" : ""
+    }, ...summaries.slice(1, 8).map((r, i) => ({
+      label: ["月销售额($)", "月均利润率", "月下单合计", "月上新合计", "A品净变化", "月均ACOS", "月广告花费($)"][i],
+      value: r.fmt(r.agg),
+      cls: r.cls(r.agg)
+    }))],
+    rows: summaries
+  });
+}
+function DesMonthlySummary({
+  items,
+  year,
+  month,
+  person
+}) {
+  const data = useMemo(() => {
+    const pts = WEEKS.map(w => {
+      const d = getWeekData(items, year, month, "des", person, w);
+      return calcDesSummary(d).total;
+    });
+    const quotaDone = pts.filter(p => p >= 5).length;
+    const vid = WEEKS.map(w => num(getWeekData(items, year, month, "des", person, w).vid));
+    const ap = WEEKS.map(w => num(getWeekData(items, year, month, "des", person, w).aplus));
+    const rw = WEEKS.map(w => num(getWeekData(items, year, month, "des", person, w).rework));
+    const rates = WEEKS.map(w => {
+      const d = getWeekData(items, year, month, "des", person, w);
+      const dm = num(d.demand),
+        ot = num(d.ontime);
+      return dm > 0 ? Math.round(ot / dm * 100) : null;
+    }).filter(r => r != null);
+    const avgRate = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : 0;
+    return {
+      pts,
+      quotaDone,
+      vid,
+      ap,
+      rw,
+      avgRate
+    };
+  }, [items, year, month, person]);
+  const rows = [{
+    label: "当量分(含A+)",
+    vals: data.pts.map(v => Math.round(v * 10) / 10),
+    type: "sum",
+    fmt: n => n.toFixed(1),
+    cls: n => n >= 5 ? "g" : n > 0 ? "a" : ""
+  }, {
+    label: "视频(条)",
+    vals: data.vid,
+    type: "sum",
+    fmt: n => String(n),
+    cls: () => ""
+  }, {
+    label: "A+(套)",
+    vals: data.ap,
+    type: "sum",
+    fmt: n => String(n),
+    cls: () => ""
+  }, {
+    label: "按时交付率",
+    vals: WEEKS.map(w => {
+      const d = getWeekData(items, year, month, "des", person, w);
+      const dm = num(d.demand),
+        ot = num(d.ontime);
+      return dm > 0 ? Math.round(ot / dm * 100) : 0;
+    }),
+    type: "avg",
+    fmt: n => `${n}%`,
+    cls: n => n >= 90 ? "g" : n >= 70 ? "a" : n > 0 ? "r" : ""
+  }, {
+    label: "返工次数",
+    vals: data.rw,
+    type: "sum",
+    fmt: n => String(n),
+    cls: n => n > 0 ? "r" : ""
+  }].map(row => {
+    const total = row.vals.reduce((a, b) => a + b, 0);
+    const nonZero = row.vals.filter(v => v > 0);
+    const avg = nonZero.length ? total / nonZero.length : 0;
+    const agg = row.type === "sum" ? total : Math.round(avg);
+    return {
+      ...row,
+      agg
+    };
+  });
+  return /*#__PURE__*/React.createElement(MonthlyBlock, {
+    title: "\u7F8E\u5DE5 \u2014 \u6708\u5EA6\u6C47\u603B",
+    color: "#6b21a8",
+    cards: [{
+      label: "月当量总分",
+      value: data.pts.reduce((a, b) => a + b, 0).toFixed(1)
+    }, {
+      label: "配额达标周数",
+      value: `${data.quotaDone}/4周`,
+      cls: data.quotaDone === 4 ? "g" : data.quotaDone >= 2 ? "a" : "r"
+    }, {
+      label: "月视频合计",
+      value: String(data.vid.reduce((a, b) => a + b, 0))
+    }, {
+      label: "月A+合计",
+      value: String(data.ap.reduce((a, b) => a + b, 0))
+    }, {
+      label: "月均按时交付率",
+      value: data.avgRate > 0 ? `${data.avgRate}%` : "—",
+      cls: data.avgRate >= 90 ? "g" : data.avgRate >= 70 ? "a" : data.avgRate > 0 ? "r" : ""
+    }, {
+      label: "月返工合计",
+      value: String(data.rw.reduce((a, b) => a + b, 0)),
+      cls: data.rw.reduce((a, b) => a + b, 0) > 0 ? "r" : ""
+    }],
+    rows: rows
+  });
+}
+function DevProgressBox({
+  title,
+  accent,
+  progress
+}) {
+  const barColor = progress.pct > 0 ? progress.color : "var(--border)";
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8,
+      background: accent ? "#ecfdf5" : "var(--bg)",
+      borderRadius: 6,
+      padding: "9px 11px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: accent ? "#00695c" : "var(--tm)",
+      marginBottom: 4
+    }
+  }, title), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--border)",
+      borderRadius: 99,
+      height: 4,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: `${progress.pct}%`,
+      height: "100%",
+      background: barColor,
+      borderRadius: 99,
+      transition: "width 0.2s"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: progress.color,
+      marginTop: 4
+    }
+  }, progress.text));
+}
+function DevWeekForm({
+  data,
+  onChange
+}) {
+  const set = (k, v) => onChange({
+    ...data,
+    [k]: v
+  });
+  const s = calcDevSummary(data);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SummaryBar, {
+    items: [{
+      label: "大货下单（考核）",
+      value: s.order || "—",
+      color: "#00695c"
+    }, {
+      label: "下单达成率",
+      value: s.pOrder.rateText !== "0%" ? s.pOrder.rateText : "—",
+      color: s.pOrder.cls === "g" ? "#2d9e52" : s.pOrder.cls === "a" ? "#e09000" : undefined
+    }, {
+      label: "新开发款",
+      value: s.devNew || "—"
+    }, {
+      label: "开发达成率",
+      value: s.pNew.rateText !== "0%" ? s.pNew.rateText : "—",
+      color: s.pNew.cls === "g" ? "#2d9e52" : s.pNew.cls === "a" ? "#e09000" : undefined
+    }, {
+      label: "收到样板",
+      value: s.sampleIn || "—"
+    }, {
+      label: "收样达成率",
+      value: s.pSample.rateText !== "0%" ? s.pSample.rateText : "—",
+      color: s.pSample.cls === "g" ? "#2d9e52" : s.pSample.cls === "a" ? "#e09000" : undefined
+    }, {
+      label: "异常款数",
+      value: String(s.abn),
+      color: s.abn > 0 ? "#e55" : undefined
+    }]
+  }), /*#__PURE__*/React.createElement(Section, {
+    title: "\u9636\u6BB5\u76EE\u6807\u8BBE\u5B9A"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u9636\u6BB51 \u76EE\u6807 / DEVELOP TARGET",
+    hint: "\u672C\u5468\u5F00\u53D1\u76EE\u6807",
+    teal: true
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.tNew,
+    onChange: v => set("tNew", v),
+    unit: "\u6B3E"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u9636\u6BB52 \u76EE\u6807 / SAMPLE TARGET",
+    hint: "\u672C\u5468\u6536\u6837\u76EE\u6807",
+    teal: true
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.tSample,
+    onChange: v => set("tSample", v),
+    unit: "\u6B3E"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u9636\u6BB53 \u76EE\u6807 / ORDER TARGET\uFF08\u8003\u6838\uFF09",
+    hint: "\u672C\u5468\u5927\u8D27\u4E0B\u5355\u76EE\u6807",
+    teal: true
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.tOrder,
+    onChange: v => set("tOrder", v),
+    unit: "\u6B3E"
+  }), /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge("#ecfdf5", "#00695c")
+  }, "\u4E3B\u8981\u8003\u6838\u9879")))), /*#__PURE__*/React.createElement(Section, {
+    title: "\u672C\u5468\u5B9E\u9645\u5B8C\u6210"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u9636\u6BB51 / NEW DEV",
+    hint: "\u672C\u5468\u65B0\u5F00\u53D1\u6B3E\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.devNew,
+    onChange: v => set("devNew", v),
+    unit: "\u6B3E"
+  }), /*#__PURE__*/React.createElement(DevProgressBox, {
+    title: "\u5F00\u53D1\u8FBE\u6210\u7387\uFF08\u672C\u5468\uFF09",
+    progress: s.pNew
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u9636\u6BB52 / SAMPLE IN",
+    hint: "\u672C\u5468\u6536\u5230\u6837\u677F\u6B3E\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.sampleIn,
+    onChange: v => set("sampleIn", v),
+    unit: "\u6B3E"
+  }), /*#__PURE__*/React.createElement(DevProgressBox, {
+    title: "\u6536\u6837\u8FBE\u6210\u7387\uFF08\u672C\u5468\uFF09",
+    progress: s.pSample
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u9636\u6BB52+ / PASS",
+    hint: "\u672C\u5468\u6837\u677F\u901A\u8FC7\u6B3E\u6570"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.pass,
+    onChange: v => set("pass", v),
+    unit: "\u6B3E"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u9636\u6BB53 / ORDER\uFF08\u8003\u6838\uFF09",
+    hint: "\u672C\u5468\u5927\u8D27\u4E0B\u5355\u6B3E\u6570",
+    teal: true
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.order,
+    onChange: v => set("order", v),
+    unit: "\u6B3E"
+  }), /*#__PURE__*/React.createElement(DevProgressBox, {
+    title: "\u4E0B\u5355\u8FBE\u6210\u7387\uFF08\u672C\u5468\uFF09",
+    accent: true,
+    progress: s.pOrder
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u5F02\u5E38 / ABNORMAL",
+    hint: "\u672C\u5468\u5F02\u5E38\u6B3E\u6570",
+    danger: true
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.abn,
+    onChange: v => set("abn", v),
+    unit: "\u6B3E"
+  }), /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge("#fee2e2", "#e55")
+  }, "\u542B\u5EF6\u671F/\u8D28\u91CF/\u53D6\u6D88"), /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...kpiInp,
+      marginTop: 6,
+      minHeight: 40,
+      fontSize: 11
+    },
+    value: data.abnRemark,
+    onChange: e => set("abnRemark", e.target.value),
+    placeholder: "\u5F02\u5E38\u8BF4\u660E\u2026"
+  })))));
+}
+function DevMonthProgressCard({
+  label,
+  hint,
+  actual,
+  target,
+  onTargetChange
+}) {
+  const p = kpiDevProgress(actual, target);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...kpiCard,
+      borderColor: "#99f6e4",
+      background: "#f0fdfa"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginBottom: 2
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 500,
+      marginBottom: 8
+    }
+  }, hint), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "baseline",
+      gap: 8,
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 22,
+      fontWeight: 700,
+      color: "#00695c"
+    }
+  }, actual), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "var(--tm)"
+    }
+  }, "/ ", /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    style: {
+      ...kpiInpSm,
+      width: 50,
+      borderStyle: "dashed"
+    },
+    value: target,
+    onChange: e => onTargetChange(e.target.value),
+    placeholder: "\u6708\u76EE\u6807",
+    min: "0"
+  }), " \u6B3E")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--border)",
+      borderRadius: 99,
+      height: 4,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: `${p.pct}%`,
+      height: "100%",
+      background: p.pct > 0 ? p.color : "var(--border)",
+      borderRadius: 99
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: p.color,
+      marginTop: 4
+    }
+  }, num(target) > 0 ? `${actual}/${num(target)}款（月累计 ${p.pct}%）${p.pct >= 100 ? " ✓" : ""}` : "请填写月目标"));
+}
+function DevMonthlySummary({
+  items,
+  year,
+  month,
+  person,
+  monthTargets,
+  onMonthTargetsChange,
+  onSaveMonthTargets
+}) {
+  const totals = useMemo(() => {
+    const orderArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).order));
+    const devArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).devNew));
+    const sampleArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).sampleIn));
+    const passArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).pass));
+    const abnArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).abn));
+    return {
+      orderArr,
+      devArr,
+      sampleArr,
+      passArr,
+      abnArr,
+      totalOrder: orderArr.reduce((a, b) => a + b, 0),
+      totalDev: devArr.reduce((a, b) => a + b, 0),
+      totalSample: sampleArr.reduce((a, b) => a + b, 0),
+      totalPass: passArr.reduce((a, b) => a + b, 0),
+      totalAbn: abnArr.reduce((a, b) => a + b, 0)
+    };
+  }, [items, year, month, person]);
+  const rows = [{
+    label: "大货下单（考核）",
+    vals: totals.orderArr,
+    type: "sum",
+    fmt: n => String(n),
+    cls: n => n > 0 ? "t" : ""
+  }, {
+    label: "新开发款",
+    vals: totals.devArr,
+    type: "sum",
+    fmt: n => String(n),
+    cls: () => ""
+  }, {
+    label: "收到样板",
+    vals: totals.sampleArr,
+    type: "sum",
+    fmt: n => String(n),
+    cls: () => ""
+  }, {
+    label: "样板通过",
+    vals: totals.passArr,
+    type: "sum",
+    fmt: n => String(n),
+    cls: n => n > 0 ? "g" : ""
+  }, {
+    label: "异常款数",
+    vals: totals.abnArr,
+    type: "sum",
+    fmt: n => String(n),
+    cls: n => n > 0 ? "r" : ""
+  }].map(row => ({
+    ...row,
+    agg: row.vals.reduce((a, b) => a + b, 0)
+  }));
+  const tagColor = {
+    g: "#2d9e52",
+    r: "#e55",
+    a: "#e09000",
+    t: "#00695c"
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(MonthlyBlock, {
+    title: "\u5F00\u53D1 \u2014 \u6708\u5EA6\u6C47\u603B",
+    color: "#00695c",
+    cards: [{
+      label: "月大货下单合计",
+      value: String(totals.totalOrder),
+      cls: totals.totalOrder > 0 ? "t" : ""
+    }, {
+      label: "月开发款合计",
+      value: String(totals.totalDev)
+    }, {
+      label: "月收样合计",
+      value: String(totals.totalSample)
+    }, {
+      label: "样板通过合计",
+      value: String(totals.totalPass),
+      cls: totals.totalPass > 0 ? "g" : ""
+    }, {
+      label: "平均周期(天)",
+      value: "—"
+    }, {
+      label: "月异常款合计",
+      value: String(totals.totalAbn),
+      cls: totals.totalAbn > 0 ? "r" : ""
+    }],
+    rows: rows,
+    tagColor: tagColor
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...kpiModTitle,
+      color: "#00695c"
+    }
+  }, "\u5404\u9636\u6BB5\u6708\u7D2F\u8BA1\u8FDB\u5EA6"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))",
+      gap: 8,
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement(DevMonthProgressCard, {
+    label: "\u9636\u6BB51 / \u6708\u5F00\u53D1\u76EE\u6807",
+    hint: "\u65B0\u5F00\u53D1\u6B3E \u6708\u7D2F\u8BA1",
+    actual: totals.totalDev,
+    target: monthTargets.tDev,
+    onTargetChange: v => onMonthTargetsChange({
+      ...monthTargets,
+      tDev: v
+    })
+  }), /*#__PURE__*/React.createElement(DevMonthProgressCard, {
+    label: "\u9636\u6BB52 / \u6708\u6536\u6837\u76EE\u6807",
+    hint: "\u6536\u5230\u6837\u677F \u6708\u7D2F\u8BA1",
+    actual: totals.totalSample,
+    target: monthTargets.tSample,
+    onTargetChange: v => onMonthTargetsChange({
+      ...monthTargets,
+      tSample: v
+    })
+  }), /*#__PURE__*/React.createElement(DevMonthProgressCard, {
+    label: "\u9636\u6BB53 / \u6708\u4E0B\u5355\u76EE\u6807\uFF08\u8003\u6838\uFF09",
+    hint: "\u5927\u8D27\u4E0B\u5355 \u6708\u7D2F\u8BA1",
+    actual: totals.totalOrder,
+    target: monthTargets.tOrder,
+    onTargetChange: v => onMonthTargetsChange({
+      ...monthTargets,
+      tOrder: v
+    })
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onSaveMonthTargets,
+    style: {
+      background: "#00695c",
+      color: "#fff",
+      border: "none",
+      borderRadius: 8,
+      padding: "8px 18px",
+      fontSize: 12,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      fontWeight: 600
+    }
+  }, "\u4FDD\u5B58\u6708\u76EE\u6807"))));
+}
+function MonthlyBlock({
+  title,
+  color,
+  cards,
+  rows,
+  tagColor: tagColorProp
+}) {
+  const tagColor = tagColorProp || {
+    g: "#2d9e52",
+    r: "#e55",
+    a: "#e09000",
+    t: "#00695c"
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--card)",
+      border: `1px solid ${color}33`,
+      borderRadius: 10,
+      padding: "14px 16px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      letterSpacing: "0.08em",
+      color,
+      marginBottom: 12
+    }
+  }, title), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))",
+      gap: 8,
+      marginBottom: 14
+    }
+  }, cards.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.label,
+    style: {
+      background: "var(--bg)",
+      borderRadius: 7,
+      padding: "10px 12px",
+      textAlign: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 17,
+      fontWeight: 700,
+      color: c.cls ? tagColor[c.cls] : "var(--text)"
+    }
+  }, c.value), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginTop: 2
+    }
+  }, c.label)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    style: {
+      textAlign: "left",
+      padding: "6px 8px",
+      color: "var(--tm)",
+      borderBottom: "1px solid var(--border)"
+    }
+  }, "\u6307\u6807"), WEEKS.map(w => /*#__PURE__*/React.createElement("th", {
+    key: w,
+    style: {
+      padding: "6px 8px",
+      color: "var(--tm)",
+      borderBottom: "1px solid var(--border)"
+    }
+  }, "\u7B2C", w, "\u5468")), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "6px 8px",
+      color,
+      borderBottom: "1px solid var(--border)"
+    }
+  }, "\u6708\u5408\u8BA1/\u5747\u503C"))), /*#__PURE__*/React.createElement("tbody", null, rows.map(row => /*#__PURE__*/React.createElement("tr", {
+    key: row.label
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "7px 8px",
+      color: "var(--tm)",
+      borderBottom: "1px solid var(--border)"
+    }
+  }, row.label), row.vals.map((v, i) => /*#__PURE__*/React.createElement("td", {
+    key: i,
+    style: {
+      padding: "7px 8px",
+      borderBottom: "1px solid var(--border)",
+      color: row.cls(v) ? tagColor[row.cls(v)] : "inherit"
+    }
+  }, row.fmt(v))), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "7px 8px",
+      borderBottom: "1px solid var(--border)",
+      color,
+      fontWeight: 500
+    }
+  }, row.fmt(row.agg), row.type === "avg" ? " (均)" : " (计)")))))));
+}
+function KpiPanel({
+  active = true
+}) {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [curRole, setCurRole] = useState("ops");
+  const [curWeek, setCurWeek] = useState(1);
+  const [person, setPerson] = useState("");
+  const [draft, setDraft] = useState(emptyOpsWeek());
+  const [monthTargetsDraft, setMonthTargetsDraft] = useState(emptyDevMonthTargets());
+  const [toast, setToast] = useState("");
+  const [staffTick, setStaffTick] = useState(0);
+  const {
+    items,
+    persist,
+    meta,
+    loading,
+    error,
+    reload
+  } = useSharedList(KPI_STORAGE_KEY, [], {
+    active
+  });
+  const roleMeta = KPI_ROLE_META[curRole] || KPI_ROLE_META.ops;
+  const roleLabel = roleMeta.label;
+  const staffList = useMemo(() => {
+    const list = getEmployees().filter(e => e.role === roleLabel && e.name);
+    return list.length ? list : [];
+  }, [roleLabel, staffTick]);
+  useEffect(() => {
+    const onCfg = () => setStaffTick(t => t + 1);
+    window.addEventListener("ops-global-config-updated", onCfg);
+    return () => window.removeEventListener("ops-global-config-updated", onCfg);
+  }, []);
+  useEffect(() => {
+    if (!staffList.length) {
+      setPerson("");
+      return;
+    }
+    if (!staffList.some(s => s.name === person)) setPerson(staffList[0].name);
+  }, [staffList, person]);
+  useEffect(() => {
+    if (!person) {
+      setDraft(emptyWeekForRole(curRole));
+      setMonthTargetsDraft(emptyDevMonthTargets());
+      return;
+    }
+    if (curRole === "dev" && curWeek === 0) {
+      setMonthTargetsDraft(getDevMonthTargets(items, year, month, person));
+      return;
+    }
+    setDraft(getWeekData(items, year, month, curRole, person, curWeek));
+  }, [items, year, month, curRole, person, curWeek]);
+  const weekDone = useMemo(() => {
+    if (!person) return {};
+    const out = {};
+    WEEKS.forEach(w => {
+      const d = getWeekData(items, year, month, curRole, person, w);
+      if (curRole === "ops") out[w] = weekHasOpsData(d);else if (curRole === "dev") out[w] = weekHasDevData(d);else out[w] = weekHasDesData(d);
+    });
+    return out;
+  }, [items, year, month, curRole, person]);
+  const upsertWeek = useCallback(async weekData => {
+    if (!person) return;
+    const next = [...items];
+    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === curRole && r.person === person);
+    if (idx < 0) {
+      next.push({
+        year,
+        month,
+        role: curRole,
+        person,
+        weeks: {}
+      });
+      idx = next.length - 1;
+    }
+    next[idx] = {
+      ...next[idx],
+      weeks: {
+        ...next[idx].weeks,
+        [curWeek]: weekData
+      }
+    };
+    await persist(next);
+    setToast(`第${curWeek}周已保存 ✓`);
+    setTimeout(() => setToast(""), 2000);
+  }, [items, year, month, curRole, person, curWeek, persist]);
+  const upsertMonthTargets = useCallback(async targets => {
+    if (!person || curRole !== "dev") return;
+    const next = [...items];
+    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === "dev" && r.person === person);
+    if (idx < 0) {
+      next.push({
+        year,
+        month,
+        role: "dev",
+        person,
+        weeks: {},
+        monthTargets: targets
+      });
+    } else {
+      next[idx] = {
+        ...next[idx],
+        monthTargets: targets
+      };
+    }
+    await persist(next);
+    setToast("月目标已保存 ✓");
+    setTimeout(() => setToast(""), 2000);
+  }, [items, year, month, person, curRole, persist]);
+  const clearWeek = () => {
+    setDraft(emptyWeekForRole(curRole));
+  };
+  const tabStyle = (activeTab, color) => ({
+    padding: "6px 16px",
+    borderRadius: 7,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    fontSize: 13,
+    border: `1px solid ${activeTab ? color : "var(--border)"}`,
+    background: activeTab ? `${color}18` : "transparent",
+    color: activeTab ? color : "var(--tm)",
+    fontWeight: activeTab ? 600 : 400
+  });
+  const wtabStyle = (w, isMonthly) => {
+    const done = !isMonthly && weekDone[w];
+    const isActive = isMonthly ? curWeek === 0 : curWeek === w;
+    const activeColor = roleMeta.color;
+    return {
+      padding: "5px 14px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      fontSize: 12,
+      border: `1px solid ${isActive ? activeColor : done ? "#86efac" : "var(--border)"}`,
+      background: isActive ? "var(--bg)" : "transparent",
+      color: isActive ? "var(--text)" : done ? "#2d9e52" : "var(--tm)"
+    };
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
+    meta: meta,
+    loading: loading,
+    error: error,
+    onReload: reload
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-end",
+      marginBottom: 16,
+      flexWrap: "wrap",
+      gap: 12,
+      borderBottom: "1px solid var(--border)",
+      paddingBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 18,
+      fontWeight: 700
+    }
+  }, "\u6708\u5EA6 KPI ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#2d7dd2"
+    }
+  }, "\u8DDF\u8E2A\u8868")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginTop: 4
+    }
+  }, "\u6309\u4EBA\u5458\u5206\u522B\u8BB0\u5F55 \xB7 \u4E91\u7AEF\u5171\u4EAB")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, "\u5E74\u4EFD"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    style: {
+      ...kpiInpSm,
+      width: 72
+    },
+    value: year,
+    min: 2020,
+    max: 2099,
+    onChange: e => setYear(+e.target.value || now.getFullYear())
+  }), /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, "\u6708\u4EFD"), /*#__PURE__*/React.createElement("select", {
+    style: {
+      ...kpiInpSm,
+      background: "var(--card)"
+    },
+    value: month,
+    onChange: e => setMonth(+e.target.value)
+  }, Array.from({
+    length: 12
+  }, (_, i) => i + 1).map(m => /*#__PURE__*/React.createElement("option", {
+    key: m,
+    value: m
+  }, m, "\u6708"))), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "var(--tm)"
+    }
+  }, year, "\u5E74", month, "\u6708"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginBottom: 14,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    style: tabStyle(curRole === "ops", "#2d7dd2"),
+    onClick: () => {
+      setCurRole("ops");
+      setCurWeek(1);
+    }
+  }, "\u8FD0\u8425"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    style: tabStyle(curRole === "des", "#6b21a8"),
+    onClick: () => {
+      setCurRole("des");
+      setCurWeek(1);
+    }
+  }, "\u7F8E\u5DE5"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    style: tabStyle(curRole === "dev", "#00695c"),
+    onClick: () => {
+      setCurRole("dev");
+      setCurWeek(1);
+    }
+  }, "\u5F00\u53D1")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 16,
+      flexWrap: "wrap",
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: 10,
+      padding: "10px 14px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "var(--tm)",
+      fontWeight: 500
+    }
+  }, "\u5F53\u524D", roleLabel), staffList.length ? /*#__PURE__*/React.createElement("select", {
+    style: {
+      ...kpiInpSm,
+      minWidth: 140,
+      background: "var(--card)"
+    },
+    value: person,
+    onChange: e => setPerson(e.target.value)
+  }, staffList.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s.name,
+    value: s.name
+  }, s.name))) : /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#e09000"
+    }
+  }, "\u6682\u65E0", roleLabel, "\u4EBA\u5458 \xB7 \u8BF7\u5728 \u2699 \u8BBE\u7F6E \u2192 \u5168\u5C40\u5458\u5DE5\u540D\u5355 \u4E2D\u6DFB\u52A0\uFF08\u89D2\u8272\u9009\u300C", roleLabel, "\u300D\uFF09"), person && /*#__PURE__*/React.createElement(RoleBadge, {
+    role: roleLabel
+  }), person && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginLeft: "auto"
+    }
+  }, "\u6B63\u5728\u67E5\u770B\uFF1A", /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: "var(--text)"
+    }
+  }, person), " \u7684 ", year, "\u5E74", month, "\u6708 KPI")), !person ? null : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 16,
+      flexWrap: "wrap"
+    }
+  }, WEEKS.map(w => /*#__PURE__*/React.createElement("button", {
+    key: w,
+    type: "button",
+    style: wtabStyle(w, false),
+    onClick: () => setCurWeek(w)
+  }, "\u7B2C", w, "\u5468")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    style: {
+      ...wtabStyle(0, true),
+      marginLeft: 4,
+      borderColor: roleMeta.sumBorder,
+      color: roleMeta.color
+    },
+    onClick: () => setCurWeek(0)
+  }, "\u6708\u5EA6\u6C47\u603B")), curWeek === 0 ? curRole === "ops" ? /*#__PURE__*/React.createElement(OpsMonthlySummary, {
+    items: items,
+    year: year,
+    month: month,
+    person: person
+  }) : curRole === "dev" ? /*#__PURE__*/React.createElement(DevMonthlySummary, {
+    items: items,
+    year: year,
+    month: month,
+    person: person,
+    monthTargets: monthTargetsDraft,
+    onMonthTargetsChange: setMonthTargetsDraft,
+    onSaveMonthTargets: () => upsertMonthTargets(monthTargetsDraft)
+  }) : /*#__PURE__*/React.createElement(DesMonthlySummary, {
+    items: items,
+    year: year,
+    month: month,
+    person: person
+  }) : /*#__PURE__*/React.createElement(React.Fragment, null, curRole === "ops" ? /*#__PURE__*/React.createElement(OpsWeekForm, {
+    week: curWeek,
+    data: draft,
+    onChange: setDraft
+  }) : curRole === "dev" ? /*#__PURE__*/React.createElement(DevWeekForm, {
+    data: draft,
+    onChange: setDraft
+  }) : /*#__PURE__*/React.createElement(DesWeekForm, {
+    week: curWeek,
+    data: draft,
+    onChange: setDraft
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 8,
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: clearWeek,
+    style: {
+      background: "transparent",
+      border: "1px solid var(--border)",
+      borderRadius: 8,
+      padding: "8px 14px",
+      fontSize: 12,
+      cursor: "pointer",
+      color: "var(--tm)",
+      fontFamily: "inherit"
+    }
+  }, "\u6E05\u7A7A\u672C\u5468"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => upsertWeek(draft),
+    style: {
+      background: curRole === "dev" ? "#00695c" : "#2d7dd2",
+      color: "#fff",
+      border: "none",
+      borderRadius: 8,
+      padding: "8px 18px",
+      fontSize: 12,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      fontWeight: 600
+    }
+  }, "\u4FDD\u5B58\u7B2C", curWeek, "\u5468")))), toast && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      bottom: 20,
+      right: 20,
+      background: "#d4f0dc",
+      border: "1px solid #86efac",
+      color: "#2d9e52",
+      padding: "9px 16px",
+      borderRadius: 8,
+      fontSize: 12,
+      zIndex: 99
+    }
+  }, toast));
+}
 
 // LogisticsModule.browser.jsx loads storage + GlobalConfig first.
 
@@ -8795,6 +10882,9 @@ const TABS = [{
   key: "production",
   label: "精品生产"
 }, {
+  key: "kpi",
+  label: "考核"
+}, {
   key: "tools",
   label: "工具"
 }, {
@@ -8924,7 +11014,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-24";
+const APP_BUILD = "cloud-28";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {
@@ -9069,9 +11159,10 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      maxWidth: 820,
+      maxWidth: tab === "kpi" ? 1100 : 820,
       margin: "0 auto",
-      padding: "1.5rem 1rem"
+      padding: "1.5rem 1rem",
+      transition: "max-width 0.2s"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9166,6 +11257,12 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(ProductionPanel, {
     active: tab === "production"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: tab === "kpi" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(KpiPanel, {
+    active: tab === "kpi"
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "tools" ? "block" : "none"

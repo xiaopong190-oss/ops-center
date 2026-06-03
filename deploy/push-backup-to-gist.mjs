@@ -25,13 +25,14 @@ function loadConfig() {
 
 const { token, gistId } = loadConfig();
 const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
-const keys = ["logistics", "tasks", "production", "tools-links", "agents"];
+const keys = ["logistics", "tasks", "production", "tools-links", "agents", "kpi-monthly"];
 const fileMap = {
   logistics: "logistics.json",
   tasks: "tasks.json",
   production: "production.json",
   "tools-links": "tools-links.json",
   agents: "agents.json",
+  "kpi-monthly": "kpi-monthly.json",
 };
 
 for (const key of keys) {

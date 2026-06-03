@@ -4,6 +4,7 @@ import { ProductionPanel } from "./ProductionModule.jsx";
 import { ToolsPanel } from "./ToolsModule.jsx";
 import { AgentsPanel } from "./AgentsModule.jsx";
 import { HomePanel } from "./HomeModule.jsx";
+import { KpiPanel } from "./KpiModule.jsx";
 import { GlobalSettingsModal, OwnerField, getStaffRole, RoleBadge, getStaffNames } from "./GlobalConfig.jsx";
 import { UserContext } from "./context/UserContext.jsx";
 import { getCurrentUser, setCurrentUser, useSharedList, SharedMetaLine } from "./utils/storage.js";
@@ -168,7 +169,7 @@ function TasksPanel({ active = true }) {
   );
 }
 
-const TABS = [{ key: "home", label: "首页" }, { key: "tasks", label: "任务跟进" }, { key: "logistics", label: "物流头程" }, { key: "production", label: "精品生产" }, { key: "tools", label: "工具" }, { key: "agents", label: "AI 智能体" }];
+const TABS = [{ key: "home", label: "首页" }, { key: "tasks", label: "任务跟进" }, { key: "logistics", label: "物流头程" }, { key: "production", label: "精品生产" }, { key: "kpi", label: "考核" }, { key: "tools", label: "工具" }, { key: "agents", label: "AI 智能体" }];
 
 function BrandLogo({ size = 28 }) {
   return (
@@ -213,7 +214,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-24";
+const APP_BUILD = "cloud-28";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -273,7 +274,7 @@ export default function App() {
   return (
     <UserContext.Provider value={currentUser}>
     <div style={{ ...css, minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif" }}>
-      <div style={{ maxWidth: 820, margin: "0 auto", padding: "1.5rem 1rem" }}>
+      <div style={{ maxWidth: tab === "kpi" ? 1100 : 820, margin: "0 auto", padding: "1.5rem 1rem", transition: "max-width 0.2s" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>
             <BrandLogo />
@@ -292,6 +293,7 @@ export default function App() {
         <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
         <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
         <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
+        <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
         <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel active={tab === "tools"} /></div>
         <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel active={tab === "agents"} /></div>
       </div>

@@ -15,6 +15,7 @@ const files = [
   "ToolsModule.browser.jsx",
   "AgentsModule.browser.jsx",
   "HomeModule.browser.jsx",
+  "KpiModule.browser.jsx",
   "App.browser.jsx",
 ];
 

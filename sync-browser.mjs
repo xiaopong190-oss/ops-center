@@ -161,6 +161,12 @@ fs.writeFileSync(
   toBrowser(home, { exportName: "HomePanel" })
 );
 
+const kpi = fs.readFileSync(path.join(dir, "KpiModule.jsx"), "utf8");
+fs.writeFileSync(
+  path.join(dir, "KpiModule.browser.jsx"),
+  toBrowser(kpi, { exportName: "KpiPanel" })
+);
+
 const app = fs.readFileSync(path.join(dir, "App.jsx"), "utf8");
 const sharedEnd = app.indexOf("// ─── TASK MODULE");
 const appBrowser =

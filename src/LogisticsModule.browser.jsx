@@ -370,21 +370,16 @@ function getEmployees() { return loadGlobalConfig().staff; }
 function getStaffNames() { return getEmployees().map(e => e.name); }
 function getStaffRole(name) { return getEmployees().find(e => e.name === name)?.role || ""; }
 
-function ownerOptions(...extraLists) {
-  const fromData = extraLists.flat().filter(Boolean);
-  const byName = new Map(getEmployees().map(e => [e.name, e]));
-  for (const n of fromData) {
-    if (!byName.has(n)) byName.set(n, { name: n, role: "" });
-  }
-  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+function ownerOptions() {
+  return getEmployees().slice().sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }
 
-function ownerFilterEntries(...extraLists) {
-  return [{ name: "all", role: "" }, ...ownerOptions(...extraLists)];
+function ownerFilterEntries() {
+  return [{ name: "all", role: "" }, ...ownerOptions()];
 }
 
-function ownerFilterOptions(...extraLists) {
-  return ownerFilterEntries(...extraLists).map(e => e.name);
+function ownerFilterOptions() {
+  return ownerFilterEntries().map(e => e.name);
 }
 
 function formatOwnerLabel(emp) {
@@ -406,37 +401,30 @@ function RoleBadge({ role, style }) {
   );
 }
 
-function OwnerField({ value, onChange, listId = "owner-list", extraOwners = [], placeholder = "选择负责人…", style, inputStyle }) {
+function OwnerField({ value, onChange, placeholder = "选择负责人…", style, inputStyle }) {
   useGlobalConfig();
-  const options = ownerOptions(extraOwners);
-  const known = new Set(options.map(o => o.name));
-  const [manual, setManual] = useState(() => !!(value && !known.has(value)));
+  const employees = ownerOptions();
+  const known = new Set(employees.map(e => e.name));
   const fieldStyle = { ...(inputStyle || style), background: "var(--card)" };
 
-  useEffect(() => {
-    if (value && !known.has(value)) setManual(true);
-    else if (value && known.has(value)) setManual(false);
-  }, [value, options.map(o => o.name).join("\0")]);
-
-  if (manual) {
+  if (!employees.length) {
     return (
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <input list={listId} value={value} onChange={e => onChange(e.target.value)} placeholder="输入姓名…" style={{ ...fieldStyle, flex: 1 }} />
-        <datalist id={listId}>{options.map(o => <option key={o.name} value={o.name}>{formatOwnerLabel(o)}</option>)}</datalist>
-        <button type="button" onClick={() => { setManual(false); if (!known.has(value)) onChange(""); }} style={{ fontSize: 11, padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg)", cursor: "pointer", color: "var(--tm)", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}>从列表选</button>
+      <div style={{ fontSize: 11, color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "7px 10px", lineHeight: 1.45 }}>
+        请先在 ⚙ 设置 → 全局员工名单 中添加人员
       </div>
     );
   }
 
   return (
-    <select value={known.has(value) ? value : ""} onChange={e => {
-      const v = e.target.value;
-      if (v === "__manual__") { setManual(true); onChange(""); return; }
-      onChange(v);
-    }} style={fieldStyle}>
+    <select
+      value={known.has(value) ? value : ""}
+      onChange={e => onChange(e.target.value)}
+      style={fieldStyle}
+    >
       <option value="">{placeholder}</option>
-      {options.map(o => <option key={o.name} value={o.name}>{formatOwnerLabel(o)}</option>)}
-      <option value="__manual__">手动输入…</option>
+      {employees.map(e => (
+        <option key={e.name} value={e.name}>{formatOwnerLabel(e)}</option>
+      ))}
     </select>
   );
 }
@@ -509,7 +497,7 @@ function GlobalSettingsModal({ onClose, onSaved }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 440, color: "var(--text)" }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>全局员工名单</div>
-        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>填写姓名并选择角色，保存后会在各模块「负责人 / 跟进人」中统一出现。</div>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>此处为全员唯一来源：各页「负责人 / 跟进人」只能从此名单选择，不能在其他地方随意添加姓名。</div>
         <div style={{ fontSize: 11, color: "#065f46", background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 8, padding: "6px 10px", marginBottom: 12 }}>{metaLine}</div>
         {error && <div style={{ fontSize: 11, color: "#b91c1c", background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 8, padding: "6px 10px", marginBottom: 10 }}>{error}</div>}
         <StaffListEditor rows={rows} onChange={setRows} />
@@ -1509,7 +1497,7 @@ function FbaEditorRow({ fba, onChange, onRemove }) {
     </div>
   );
 }
-function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
+function ShipmentModal({ item, onSave, onClose, onDelete }) {
   const [form, setForm] = useState(item);
   const [excs, setExcs] = useState(item.exceptions ? item.exceptions.map(e => ({ ...e })) : []);
   const [fbas, setFbas] = useState(item.fbaShipments ? item.fbaShipments.map(s => ({ ...s })) : []);
@@ -1569,7 +1557,7 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>总件数</label><input type="number" value={form.totalQty} onChange={e => set("totalQty", +e.target.value || 0)} style={inp} /></div>
-          <div><label style={lbl}>跟进人</label><OwnerField listId="logistics-owner" value={form.owner} onChange={v => set("owner", v)} extraOwners={ownerExtras} inputStyle={inp} /></div>
+          <div><label style={lbl}>跟进人</label><OwnerField value={form.owner} onChange={v => set("owner", v)} inputStyle={inp} /></div>
           <div><label style={lbl}>头程方式</label><select value={form.transport} onChange={e => set("transport", e.target.value)} style={{ ...inp, background: "var(--card)" }}>{Object.keys(TRANSPORT_META).map(t => <option key={t}>{t}</option>)}</select></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -1646,7 +1634,7 @@ function LogisticsPanel({ active = true }) {
     receiving: list.filter(batchReceiving).length,
     done: list.filter(batchAllDone).length,
   };
-  const owners = ownerFilterEntries(list.map(i => i.owner));
+  const owners = ownerFilterEntries();
   let vis = list.slice();
   if (ownerFilter !== "all") vis = vis.filter(i => i.owner === ownerFilter);
   if (filter === "transit") vis = vis.filter(batchHeadTransit);

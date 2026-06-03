@@ -34,10 +34,10 @@ const taskIsOverdue = (t) => !t.actual && daysDiff(t.due) !== null && daysDiff(t
 const getProgress = (nodes) => { if (!nodes || !nodes.length) return 0; return Math.round(nodes.filter(n => n.status === "done").length / nodes.length * 100); };
 
 const INIT_TASKS = [
-  { id: 1, task: "FB100/101/200/201欧规样品制作", owner: "杨工", cat: "设计", due: "2026-06-20", actual: "", nodes: [{ name: "FB100", status: "done" }, { name: "FB101", status: "done" }, { name: "FB200", status: "current" }, { name: "FB201", status: "todo" }], block: "FB200模具待供应商确认" },
-  { id: 2, task: "43条链接图设计排期", owner: "杨工", cat: "设计", due: "2026-06-05", actual: "", nodes: [{ name: "排期制定", status: "done" }, { name: "初稿输出", status: "current" }, { name: "审核", status: "todo" }, { name: "提交", status: "todo" }], block: "" },
-  { id: 3, task: "FB300多士炉图片", owner: "黄工", cat: "运营", due: "2026-05-28", actual: "", nodes: [{ name: "拍摄", status: "done" }, { name: "修图", status: "blocked" }, { name: "上架", status: "todo" }], block: "修图师生病，预计延迟3天" },
-  { id: 4, task: "FB102感温变色图档样品", owner: "李工", cat: "开发", due: "2026-06-15", actual: "", nodes: [{ name: "工艺确认", status: "blocked" }, { name: "图档", status: "todo" }, { name: "打样", status: "todo" }, { name: "确样", status: "todo" }], block: "油墨供应商报价超预期40%，等待决策" },
+  { id: 1, task: "FB100/101/200/201欧规样品制作", owner: "张工", cat: "设计", due: "2026-06-20", actual: "", nodes: [{ name: "FB100", status: "done" }, { name: "FB101", status: "done" }, { name: "FB200", status: "current" }, { name: "FB201", status: "todo" }], block: "FB200模具待供应商确认" },
+  { id: 2, task: "43条链接图设计排期", owner: "张工", cat: "设计", due: "2026-06-05", actual: "", nodes: [{ name: "排期制定", status: "done" }, { name: "初稿输出", status: "current" }, { name: "审核", status: "todo" }, { name: "提交", status: "todo" }], block: "" },
+  { id: 3, task: "FB300多士炉图片", owner: "杨彬", cat: "运营", due: "2026-05-28", actual: "", nodes: [{ name: "拍摄", status: "done" }, { name: "修图", status: "blocked" }, { name: "上架", status: "todo" }], block: "修图师生病，预计延迟3天" },
+  { id: 4, task: "FB102感温变色图档样品", owner: "张工", cat: "开发", due: "2026-06-15", actual: "", nodes: [{ name: "工艺确认", status: "blocked" }, { name: "图档", status: "todo" }, { name: "打样", status: "todo" }, { name: "确样", status: "todo" }], block: "油墨供应商报价超预期40%，等待决策" },
   { id: 5, task: "FB400豆浆机功能测试", owner: "张工", cat: "开发", due: "2026-06-10", actual: "2026-05-25", nodes: [{ name: "温度测试", status: "done" }, { name: "闪光测试", status: "done" }, { name: "整机", status: "done" }], block: "" },
   { id: 6, task: "FB欧洲德法品牌注册", owner: "王律师", cat: "管理", due: "2026-06-15", actual: "", nodes: [{ name: "材料准备", status: "done" }, { name: "德国提交", status: "current" }, { name: "法国提交", status: "todo" }, { name: "回执", status: "todo" }], block: "" },
 ];
@@ -65,7 +65,7 @@ function TaskModal({ task, tasks, onSave, onClose, onDelete }) {
         <div style={{ marginBottom: 10 }}><label style={lbl}>任务内容</label><textarea value={form.task} onChange={e => set("task", e.target.value)} placeholder="描述任务…" style={{ ...inp, height: 52, resize: "none" }} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>负责人</label>
-            <OwnerField listId="task-owner" value={form.owner} onChange={v => set("owner", v)} extraOwners={tasks.map(t => t.owner)} inputStyle={inp} />
+            <OwnerField value={form.owner} onChange={v => set("owner", v)} inputStyle={inp} />
           </div>
           <div><label style={lbl}>分类（角色）</label>
             <select value={normalizeTaskCat(form.cat)} onChange={e => set("cat", e.target.value)} style={{ ...inp, background: "var(--card)" }}>
@@ -225,7 +225,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-34";
+const APP_BUILD = "cloud-35";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {

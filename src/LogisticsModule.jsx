@@ -359,7 +359,7 @@ function FbaEditorRow({ fba, onChange, onRemove }) {
     </div>
   );
 }
-function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
+function ShipmentModal({ item, onSave, onClose, onDelete }) {
   const [form, setForm] = useState(item);
   const [excs, setExcs] = useState(item.exceptions ? item.exceptions.map(e => ({ ...e })) : []);
   const [fbas, setFbas] = useState(item.fbaShipments ? item.fbaShipments.map(s => ({ ...s })) : []);
@@ -419,7 +419,7 @@ function ShipmentModal({ item, ownerExtras, onSave, onClose, onDelete }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>总件数</label><input type="number" value={form.totalQty} onChange={e => set("totalQty", +e.target.value || 0)} style={inp} /></div>
-          <div><label style={lbl}>跟进人</label><OwnerField listId="logistics-owner" value={form.owner} onChange={v => set("owner", v)} extraOwners={ownerExtras} inputStyle={inp} /></div>
+          <div><label style={lbl}>跟进人</label><OwnerField value={form.owner} onChange={v => set("owner", v)} inputStyle={inp} /></div>
           <div><label style={lbl}>头程方式</label><select value={form.transport} onChange={e => set("transport", e.target.value)} style={{ ...inp, background: "var(--card)" }}>{Object.keys(TRANSPORT_META).map(t => <option key={t}>{t}</option>)}</select></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -496,7 +496,7 @@ export function LogisticsPanel({ active = true }) {
     receiving: list.filter(batchReceiving).length,
     done: list.filter(batchAllDone).length,
   };
-  const owners = ownerFilterEntries(list.map(i => i.owner));
+  const owners = ownerFilterEntries();
   let vis = list.slice();
   if (ownerFilter !== "all") vis = vis.filter(i => i.owner === ownerFilter);
   if (filter === "transit") vis = vis.filter(batchHeadTransit);
@@ -597,7 +597,7 @@ export function LogisticsPanel({ active = true }) {
           />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>
-      {modal && <ShipmentModal item={modal} ownerExtras={list.map(i => i.owner)} onSave={save} onClose={() => {
+      {modal && <ShipmentModal item={modal} onSave={save} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
         setModal(null);
       }} onDelete={() => { persist(list.filter(x => x.id !== modal.id)); setModal(null); }} />}

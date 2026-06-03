@@ -515,7 +515,7 @@ function ProdExceptionEditor({ excs, setExcs }) {
   );
 }
 
-function ProdModal({ item, ownerExtras, onSave, onClose, onDelete }) {
+function ProdModal({ item, onSave, onClose, onDelete }) {
   const [form, setForm] = useState({ ...item, stage: normalizeStage(item.stage) });
   const [excs, setExcs] = useState(item.exceptions ? item.exceptions.map(e => ({ ...e })) : []);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));

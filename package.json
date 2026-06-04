@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "sync:browser": "node sync-browser.mjs",
     "pack:mailwatch": "powershell -NoProfile -ExecutionPolicy Bypass -File deploy/pack-mailwatch.ps1",
-    "pack:pages": "node deploy/build-pages.mjs"
+    "pack:pages": "node deploy/build-pages.mjs",
+    "dingtalk:digest": "node deploy/dingtalk-daily-digest.mjs",
+    "dingtalk:digest:dry": "node deploy/dingtalk-daily-digest.mjs --dry-run",
+    "dingtalk:digest:force": "node deploy/dingtalk-daily-digest.mjs --force"
   },
   "dependencies": {
     "react": "^19.1.0",

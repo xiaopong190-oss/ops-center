@@ -1,0 +1,25 @@
+name: DingTalk Daily Digest
+
+on:
+  schedule:
+    # 北京时间 09:00 = UTC 01:00（仅昨日有 Gist 云端保存时才发送）
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Send daily digest to DingTalk (if updated yesterday)
+        env:
+          GITHUB_GIST_TOKEN: ${{ secrets.OPS_GIST_TOKEN }}
+          GITHUB_GIST_ID: ${{ secrets.OPS_GIST_ID }}
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+        run: node deploy/dingtalk-daily-digest.mjs

@@ -425,6 +425,7 @@ const TOOL_CATALOG = [
   { id: "weight-converter", name: "单位换算", desc: "质量与长度实时换算，支持多单位切换", icon: "⚖️", category: "常用", component: UnitConverterTool },
   { id: "fba-profit", name: "FBA 利润计算器", desc: "全链路利润：体积重、尺寸分档、头程 / 佣金 / 退货", icon: "💰", category: "FBA", openUrl: "fba-profit-calculator.html" },
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },
+  { id: "fba-hanhai", name: "FBA → 瀚海万博转换", desc: "批量上传 FBA 原厂包装 CSV，转换为瀚海万博 B2B 单票导入模版 (.xls) 并打包下载", icon: "🚢", category: "物流", target: "inline", openUrl: "tools/fba-hanhai-converter/index.html" },
   { id: "amazon-tracker", name: "亚马逊推广追踪", desc: "精铺/精品 · 月度规划 · 投入产出分析", icon: "📦", category: "运营", url: "https://xiaopong190-oss.github.io/ops-center/tools/amazon-tracker/" },
   {
     id: "mailwatch",

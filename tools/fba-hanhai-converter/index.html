@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FBA 货件 → 瀚海万博 B2B 导入转换</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">泓森拓创 · 物流单票转换</p>
+        <h1>FBA 货件 CSV 批量清洗工具</h1>
+        <p class="subtitle">可同时上传多份亚马逊原厂包装发货 CSV，批量转换为瀚海万博 B2B 单票导入模版（.xls），并打包下载。</p>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card span-2">
+        <h2>1. 上传 FBA 货件文件（支持多选）</h2>
+        <label class="dropzone" id="csvDropzone">
+          <input type="file" id="csvInput" accept=".csv,text/csv" multiple hidden />
+          <span class="dropzone-title">点击或拖拽多个 CSV 到此处</span>
+          <span class="dropzone-hint">支持一次选择/拖入多份货件文件，每份 CSV 生成一个 XLS</span>
+        </label>
+        <div class="toolbar" style="margin-top: 14px">
+          <button type="button" class="btn secondary" id="clearFilesBtn" disabled>清空列表</button>
+        </div>
+        <div id="batchList" class="batch-list hidden"></div>
+      </section>
+
+      <section class="card span-2">
+        <h2>2. 产品申报配置</h2>
+        <p class="hint">带 <span class="req-star">*</span> 为必填项。本批货件用到的 SKU 必须全部配好，才能导出。</p>
+        <div class="legend">
+          <span class="legend-item legend-ready">已配好</span>
+          <span class="legend-item legend-warn">本批待补全</span>
+          <span class="legend-item legend-missing">必填空缺</span>
+          <span class="legend-item legend-idle">非本批 SKU</span>
+        </div>
+        <div id="configAlert" class="config-alert hidden"></div>
+        <div class="toolbar">
+          <button type="button" class="btn secondary" id="addProductBtn">新增 SKU</button>
+          <button type="button" class="btn secondary" id="exportConfigBtn">导出配置</button>
+          <label class="btn secondary file-btn">
+            导入配置
+            <input type="file" id="importConfigInput" accept=".json,application/json" hidden />
+          </label>
+        </div>
+        <div id="productEditor" class="product-editor"></div>
+      </section>
+
+      <section class="card span-2">
+        <div id="exportAlert" class="export-alert hidden"></div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="convertBtn" disabled>批量生成并下载 ZIP</button>
+          <button type="button" class="btn secondary" id="previewBtn" disabled>预览全部转换结果</button>
+        </div>
+        <div id="status" class="status"></div>
+        <pre id="preview" class="preview hidden"></pre>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

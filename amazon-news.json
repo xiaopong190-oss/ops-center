@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-06-04T03:54:10.338Z",
+  "updatedAt": "2026-06-05T03:38:49.203Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Top 10 Original films and series on Prime Video: See the weekly rankings",
-      "link": "https://www.aboutamazon.com/news/entertainment/prime-video-top-10-movies-shows?utm_source=rss",
-      "pubDate": "Wed, 03 Jun 2026 19:00:28 GMT",
-      "date": "6/3",
-      "summary": "From action-packed films to buzzy series, here are the Original titles Prime Video members watched most from May 25-31.",
-      "category": "Entertainment"
+      "title": "Amazon to provide 2,000 free rapid response technology systems that restore critical services in minutes",
+      "link": "https://www.aboutamazon.com/news/community/amazon-rapid-disaster-relief-technology?utm_source=rss",
+      "pubDate": "Thu, 04 Jun 2026 14:00:10 GMT",
+      "date": "6/4",
+      "summary": "Each system is portable enough for one person to carry and set up, now scaling 50x ahead of hurricane season.",
+      "category": "Community"
     },
     {
-      "title": "How to watch the 2026 NBA Finals on Prime Video around the world",
-      "link": "https://www.aboutamazon.com/news/entertainment/nba-finals-prime-video?utm_source=rss",
-      "pubDate": "Wed, 03 Jun 2026 15:34:21 GMT",
-      "date": "6/3",
-      "summary": "The New York Knicks will face the San Antonio Spurs, concluding Prime Video's inaugural season of global NBA coverage.",
-      "category": "Entertainment"
+      "title": "Pinterest inks $4 billion AI deal with AWS, the largest infrastructure commitment in its history",
+      "link": "https://www.aboutamazon.com/news/aws/pinterest-aws-4-billion-ai-infrastructure-deal?utm_source=rss",
+      "pubDate": "Thu, 04 Jun 2026 13:00:43 GMT",
+      "date": "6/4",
+      "summary": "The visual discovery platform deepens its over decade-long relationship with AWS to accelerate AI innovation for more than 600 million month",
+      "category": "AWS"
     },
     {
-      "title": "What an Amazon GM actually does all day—and why he compares it to running a small town",
-      "link": "https://www.aboutamazon.com/news/retail/what-amazon-fulfillment-center-gm-does?utm_source=rss",
-      "pubDate": "Wed, 03 Jun 2026 13:01:01 GMT",
-      "date": "6/3",
-      "summary": "On a recent episode of the Learn and Be Curious with Doug Herrington podcast, a fulfillment center leader explains what the job actually loo",
-      "category": "Retail"
+      "title": "Amazon announces new robotics, faster delivery expansion in Europe, and $1 billion in employee upskilling",
+      "link": "https://www.aboutamazon.com/news/operations/amazon-europe-robotics-delivery-investment?utm_source=rss",
+      "pubDate": "Thu, 04 Jun 2026 09:28:05 GMT",
+      "date": "6/4",
+      "summary": "Amazon unveiled a next-generation Proteus robot and more ultra-fast delivery options, plus a European fulfillment workforce expansion.",
+      "category": "Operations"
     }
   ]
 }

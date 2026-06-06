@@ -165,10 +165,14 @@ fs.writeFileSync(
   toBrowser(home, { exportName: "HomePanel" })
 );
 
-const kpi = fs.readFileSync(path.join(dir, "KpiModule.jsx"), "utf8");
+const premiumKpi = fs.readFileSync(path.join(dir, "OpsPremiumKpi.jsx"), "utf8")
+  .replace(/^import \{[^}]+\} from "react";\r?\n/, "")
+  .replace(/^export /gm, "");
+const kpi = fs.readFileSync(path.join(dir, "KpiModule.jsx"), "utf8")
+  .replace(/import \{[^}]+\} from "\.\/OpsPremiumKpi\.jsx";\r?\n/g, "");
 fs.writeFileSync(
   path.join(dir, "KpiModule.browser.jsx"),
-  toBrowser(kpi, { exportName: "KpiPanel" })
+  toBrowser(premiumKpi + "\n\n" + kpi, { exportName: "KpiPanel" })
 );
 
 const cloudSyncRaw = fs.readFileSync(path.join(dir, "GlobalCloudSync.jsx"), "utf8");

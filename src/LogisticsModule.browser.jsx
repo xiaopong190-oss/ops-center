@@ -102,6 +102,7 @@ const GIST_SHARED_FILES = {
   agents: "agents.json",
   "kpi-monthly": "kpi-monthly.json",
   "global-config": "global-config.json",
+  "lingxing-sku-db": "lingxing-sku-db.json",
 };
 
 function gistConfigured() {
@@ -817,12 +818,14 @@ function useCurrentUser() {
 
 
 const STATUS = {
-  pending: { label: "待发货", color: "#5F5E5A", bg: "#F4F3EF", dot: "#888780", border: "#C8C6BC" },
-  transit: { label: "运输中", color: "#185FA5", bg: "#EBF4FD", dot: "#378ADD", border: "#85B7EB" },
-  arrived: { label: "已到达", color: "#0F6E56", bg: "#E5F6F0", dot: "#0F6E56", border: "#86efac" },
-  receiving: { label: "接收中", color: "#1a9e8a", bg: "#d1fae5", dot: "#1a9e8a", border: "#5eead4" },
-  done: { label: "已完成", color: "#2d9e52", bg: "#d4f0dc", dot: "#2d9e52", border: "#86efac" },
+  pending: { label: "待发货", color: "#4b5563", bg: "#e5e7eb", dot: "#6b7280", border: "#9ca3af" },
+  transit: { label: "运输中", color: "#1a4e8a", bg: "#bfdbfe", dot: "#2563eb", border: "#60a5fa" },
+  arrived: { label: "已到达", color: "#065f46", bg: "#6ee7b7", dot: "#059669", border: "#34d399" },
+  receiving: { label: "接收中", color: "#0f766e", bg: "#99f6e4", dot: "#14b8a6", border: "#2dd4bf" },
+  done: { label: "已完成", color: "#166534", bg: "#86efac", dot: "#22c55e", border: "#4ade80" },
 };
+const GANTT_TRACKING_CHECK_STAGES = ["已入仓", "清关中", "已起运 (开船/起飞)", "在途"];
+const GANTT_ARRIVED_STAGES = ["到港", "上架中", "完成"];
 
 const SORT_OPTIONS = [
   { key: "name", label: "产品名称" },
@@ -832,6 +835,7 @@ const SORT_OPTIONS = [
 ];
 
 const GANTT_FILTER_KEY = "ops-gantt-filters";
+const GANTT_EXPAND_KEY = "ops-gantt-expanded";
 
 const BTN_PRIMARY = {
   background: "#2d7dd2",
@@ -879,14 +883,90 @@ function saveGanttFilters(filters) {
   try { sessionStorage.setItem(GANTT_FILTER_KEY, JSON.stringify(filters)); } catch { /* ignore */ }
 }
 
-const ganttBatchAllDone = (g) => (g.fbaShipments || []).length > 0 && (g.fbaShipments || []).every(s => s.status === "已完成");
-const ganttBatchReceiving = (g) => (g.fbaShipments || []).some(s => s.status === "接收中");
+function loadGanttExpanded() {
+  try {
+    const raw = sessionStorage.getItem(GANTT_EXPAND_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === "object") return p;
+    }
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveGanttExpanded(state) {
+  try { sessionStorage.setItem(GANTT_EXPAND_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+}
 
 function groupToGanttStatus(g) {
-  if (ganttBatchAllDone(g)) return "done";
-  if (ganttBatchReceiving(g)) return "receiving";
-  if (g.headStatus === "已到港") return "arrived";
-  if (g.headStatus === "已出港" || g.headStatus === "在途") return "transit";
+  const fbas = g.fbaShipments || [];
+  if (!fbas.length) return "pending";
+  const statuses = fbas.map(f => fbaToGanttStatus(f));
+  if (statuses.every(s => s === "done")) return "done";
+  if (statuses.some(s => s === "receiving")) return "receiving";
+  if (statuses.some(s => s === "arrived")) return "arrived";
+  if (statuses.some(s => s === "transit")) return "transit";
+  return "pending";
+}
+
+function fbaMissingTrack(f) {
+  const st = ganttNorm(f.status);
+  return GANTT_TRACKING_CHECK_STAGES.includes(st) && !(f.tracking || "").trim();
+}
+
+function batchGanttMeta(g, today) {
+  const fbas = g.fbaShipments || [];
+  let excCount = (g.exceptions || []).filter(e => !e.resolved).length;
+  fbas.forEach(f => { excCount += (f.exceptions || []).filter(e => !e.resolved).length; });
+  const missingTrack = fbas.some(fbaMissingTrack);
+  const overdue = fbas.some(f => {
+    const eta = parseD(f.etaArrival || g.etaArrival || f.windowEnd);
+    if (!eta) return false;
+    return eta < today && !GANTT_ARRIVED_STAGES.includes(ganttNorm(f.status));
+  }) || (() => {
+    const eta = parseD(g.etaArrival);
+    return eta && eta < today && fbas.length === 0;
+  })();
+  return { excCount, missingTrack, overdue };
+}
+
+function dominantStatus(statuses) {
+  const order = ["pending", "transit", "arrived", "receiving", "done"];
+  if (!statuses.length) return "pending";
+  if (statuses.every(s => s === "done")) return "done";
+  for (let i = order.length - 2; i >= 0; i--) {
+    if (statuses.some(s => s === order[i])) return order[i];
+  }
+  return "pending";
+}
+
+function productGanttSummary(batches) {
+  const ships = batches.map(b => parseD(b.shipDate)).filter(Boolean);
+  const etas = batches.map(b => parseD(b.etaArrival)).filter(Boolean);
+  return {
+    shipDate: ships.length ? new Date(Math.min(...ships.map(d => d.getTime()))).toISOString().slice(0, 10) : "",
+    etaArrival: etas.length ? new Date(Math.max(...etas.map(d => d.getTime()))).toISOString().slice(0, 10) : "",
+    status: dominantStatus(batches.map(b => b.status)),
+    excCount: batches.reduce((s, b) => s + (b.excCount || 0), 0),
+    overdue: batches.some(b => b.overdue),
+    missingTrack: batches.some(b => b.missingTrack),
+    batchCount: batches.length,
+  };
+}
+
+const GANTT_STAGE_MAP = {
+  备货中: "待出库", 准备发货: "待出库", 已发货: "已入仓", 已出港: "已起运 (开船/起飞)",
+  运输中: "在途", 已到港: "到港", 接收中: "上架中", 已完成: "完成",
+};
+const ganttNorm = (s) => GANTT_STAGE_MAP[s] || s;
+const GANTT_TRANSIT_STAGES = ["清关中", "已起运 (开船/起飞)", "在途"];
+
+function fbaToGanttStatus(fba) {
+  const st = ganttNorm(fba.status);
+  if (st === "完成") return "done";
+  if (st === "上架中") return "receiving";
+  if (st === "到港") return "arrived";
+  if (GANTT_TRANSIT_STAGES.includes(st)) return "transit";
   return "pending";
 }
 
@@ -907,7 +987,15 @@ function batchLabel(name, sku) {
   return name;
 }
 
-/** 将下方发货批次列表转为甘特图产品行（按 SKU 聚合） */
+const parseD = (s) => {
+  if (!s) return null;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+/** 按 SKU 聚合产品，每个发货批次占甘特图一行（避免同产品多批次重叠） */
 export function logisticsGroupsToGanttProducts(groups) {
   if (!Array.isArray(groups) || !groups.length) return [];
   const byKey = new Map();
@@ -921,29 +1009,189 @@ export function logisticsGroupsToGanttProducts(groups) {
         batches: [],
       });
     }
+    const fbas = g.fbaShipments || [];
+    const shipCandidates = [g.shipDate, g.etaDeparture, ...fbas.map(f => f.etaDeparture || g.shipDate || g.etaDeparture)].filter(Boolean);
+    const etaCandidates = [g.etaArrival, ...fbas.map(f => f.etaArrival || g.etaArrival || f.windowEnd)].filter(Boolean);
+    const shipDate = shipCandidates.sort()[0] || "";
+    const etaArrival = etaCandidates.sort().slice(-1)[0] || "";
+    const todayNorm = new Date();
+    todayNorm.setHours(0, 0, 0, 0);
+    const meta = batchGanttMeta(g, todayNorm);
+    const label = batchLabel(g.name, g.sku);
     byKey.get(key).batches.push({
-      id: g.id,
-      label: batchLabel(g.name, g.sku),
+      id: `g-${g.id}`,
+      label,
       status: groupToGanttStatus(g),
-      shipDate: g.shipDate || g.etaDeparture || "",
-      etaArrival: g.etaArrival || "",
+      shipDate,
+      etaArrival,
+      fbaCount: fbas.length,
+      sub: fbas.length > 1 ? `${fbas.length} 个货件` : (fbas[0]?.warehouse || ""),
+      excCount: meta.excCount,
+      overdue: meta.overdue,
+      missingTrack: meta.missingTrack,
+    });
+  }
+  for (const p of byKey.values()) {
+    p.batches.sort((a, b) => {
+      const ta = parseD(a.shipDate)?.getTime() || 0;
+      const tb = parseD(b.shipDate)?.getTime() || 0;
+      return tb - ta;
     });
   }
   return Array.from(byKey.values());
 }
 
-const parseD = (s) => {
-  if (!s) return null;
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setHours(0, 0, 0, 0);
-  return d;
-};
-
 const fmtShort = (d) => {
   if (!d) return "—";
+  if (typeof d === "string") {
+    const p = parseD(d);
+    if (!p) return "—";
+    return `${p.getMonth() + 1}/${p.getDate()}`;
+  }
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
+
+function calcBarPos(shipDate, etaArrival, min, totalDays) {
+  const start = parseD(shipDate) || parseD(etaArrival);
+  const end = parseD(etaArrival) || parseD(shipDate);
+  if (!start || !end) return null;
+  const s = start < end ? start : end;
+  const e = start < end ? end : start;
+  return {
+    left: ((s - min) / 86400000 / totalDays) * 100,
+    width: Math.max(8, ((e - s) / 86400000 / totalDays) * 100),
+    start: s,
+    end: e,
+  };
+}
+
+function GanttAlerts({ excCount, overdue, missingTrack, compact }) {
+  const items = [];
+  if (overdue) items.push({ t: "逾期", c: "#E24B4A", bg: "#fee2e2" });
+  if (excCount > 0) items.push({ t: `⚠${excCount}`, c: "#b45309", bg: "#fff0d4" });
+  if (missingTrack) items.push({ t: "缺追踪", c: "#b91c1c", bg: "#fee2e2" });
+  if (!items.length) return null;
+  return (
+    <span style={{ display: "inline-flex", gap: compact ? 3 : 4, flexShrink: 0 }}>
+      {items.map(it => (
+        <span key={it.t} style={{ fontSize: compact ? 9 : 10, fontWeight: 700, padding: compact ? "1px 5px" : "2px 6px", borderRadius: 10, background: it.bg, color: it.c, whiteSpace: "nowrap" }}>{it.t}</span>
+      ))}
+    </span>
+  );
+}
+
+function GanttTrack({ shipDate, etaArrival, status, label, sub, excCount, overdue, missingTrack, min, totalDays, today, height = 40, compact = false, segments, segmentsOnly = false }) {
+  const pos = calcBarPos(shipDate, etaArrival, min, totalDays);
+  const st = STATUS[status] || STATUS.pending;
+  const trackH = height;
+
+  if (segmentsOnly && segments?.length) {
+    return (
+      <div style={{ flex: 1, position: "relative", height: trackH, background: "#f3f4f6", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+        {segments.map(seg => {
+          const sp = calcBarPos(seg.shipDate, seg.etaArrival, min, totalDays);
+          if (!sp) return null;
+          const ss = STATUS[seg.status] || STATUS.pending;
+          return (
+            <div
+              key={seg.id}
+              title={`${seg.label} · ${ss.label} · ${fmtShort(seg.shipDate)}→${fmtShort(seg.etaArrival)}`}
+              style={{
+                position: "absolute",
+                left: `${sp.left}%`,
+                width: `${sp.width}%`,
+                top: 3,
+                bottom: 3,
+                background: `linear-gradient(180deg, ${ss.bg}, ${ss.border}88)`,
+                border: `1.5px solid ${seg.overdue ? "#E24B4A" : ss.border}`,
+                borderRadius: 4,
+                minWidth: 4,
+              }}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (!pos) {
+    return (
+      <div style={{ flex: 1, height: trackH, background: "#f9fafb", borderRadius: 8, border: "2px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#9ca3af" }}>
+        暂无日期区间
+      </div>
+    );
+  }
+
+  const todayInBar = today >= pos.start && today <= pos.end;
+  const todayPctInBar = todayInBar ? ((today - pos.start) / (pos.end - pos.start)) * 100 : null;
+
+  return (
+    <div style={{ flex: 1, position: "relative", height: trackH, background: "#f3f4f6", borderRadius: 8, border: "1px solid #e5e7eb", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)" }}>
+      <div
+        title={`${label || ""} ${fmtShort(pos.start)} → ${fmtShort(pos.end)} · ${st.label}`}
+        style={{
+          position: "absolute",
+          left: `${pos.left}%`,
+          width: `${pos.width}%`,
+          top: 5,
+          bottom: 5,
+          background: `linear-gradient(180deg, ${st.bg} 0%, ${st.border}33 100%)`,
+          border: `2px solid ${overdue ? "#E24B4A" : st.border}`,
+          borderRadius: 6,
+          boxShadow: overdue ? "0 0 0 1px #fecaca" : "0 1px 3px rgba(0,0,0,0.08)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 8px",
+          gap: 6,
+          overflow: "hidden",
+          minWidth: 48,
+        }}
+      >
+        <span style={{ fontSize: compact ? 9 : 10, fontWeight: 700, color: st.color, flexShrink: 0, background: "rgba(255,255,255,0.7)", padding: "1px 4px", borderRadius: 4 }}>
+          {fmtShort(pos.start)}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: 1, justifyContent: "center" }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: st.dot, flexShrink: 0, boxShadow: `0 0 0 2px ${st.bg}` }} />
+          {label && <span style={{ fontSize: compact ? 10 : 11, fontWeight: 700, color: st.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>}
+          {sub && !compact && <span style={{ fontSize: 9, color: st.color, opacity: 0.8, flexShrink: 0 }}>{sub}</span>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <GanttAlerts excCount={excCount} overdue={overdue} missingTrack={missingTrack} compact={compact} />
+          <span style={{ fontSize: compact ? 9 : 10, fontWeight: 700, color: st.color, background: "rgba(255,255,255,0.7)", padding: "1px 4px", borderRadius: 4 }}>
+            {fmtShort(pos.end)}
+          </span>
+        </div>
+        {todayPctInBar != null && (
+          <div style={{ position: "absolute", left: `${todayPctInBar}%`, top: -3, bottom: -3, width: 3, background: "#E24B4A", borderRadius: 2, zIndex: 2, pointerEvents: "none" }} title="今天" />
+        )}
+      </div>
+      {segments?.map(seg => {
+        const sp = calcBarPos(seg.shipDate, seg.etaArrival, min, totalDays);
+        if (!sp) return null;
+        const ss = STATUS[seg.status] || STATUS.pending;
+        return (
+          <div
+            key={seg.id}
+            title={`${seg.label} · ${ss.label}`}
+            style={{
+              position: "absolute",
+              left: `${sp.left}%`,
+              width: `${sp.width}%`,
+              top: "50%",
+              height: 6,
+              marginTop: -3,
+              background: ss.dot,
+              borderRadius: 3,
+              opacity: 0.85,
+              pointerEvents: "none",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 function applyGanttView(products, { productFilter, statusFilter, sortBy }) {
   let list = products.map(p => ({
@@ -1014,7 +1262,15 @@ ${html}
 }
 
 function GanttTimeline({ products, today }) {
-  const { min, totalDays, weeks } = useMemo(() => {
+  const [expanded, setExpanded] = useState(loadGanttExpanded);
+
+  useEffect(() => {
+    saveGanttExpanded(expanded);
+  }, [expanded]);
+
+  const toggleProduct = (id) => setExpanded(prev => ({ ...prev, [id]: prev[id] === false }));
+
+  const { min, totalDays, weeks, todayPct } = useMemo(() => {
     let minD = new Date(today);
     let maxD = new Date(today);
     products.forEach(p => {
@@ -1037,72 +1293,105 @@ function GanttTimeline({ products, today }) {
       weeks.push(new Date(cur));
       cur.setDate(cur.getDate() + 7);
     }
-    return { min: minD, max: maxD, totalDays, weeks };
+    const todayPct = ((today - minD) / 86400000 / totalDays) * 100;
+    return { min: minD, max: maxD, totalDays, weeks, todayPct };
   }, [products, today]);
 
-  const todayPct = ((today - min) / 86400000 / totalDays) * 100;
+  const LABEL_W = 180;
+  const TodayLine = () => todayPct >= 0 && todayPct <= 100 ? (
+    <div style={{ position: "absolute", left: `${todayPct}%`, top: 0, bottom: 0, width: 2, background: "#E24B4A", zIndex: 3, pointerEvents: "none" }}>
+      <div style={{ position: "absolute", top: -14, left: -10, fontSize: 9, color: "#E24B4A", fontWeight: 700, whiteSpace: "nowrap" }}>今天</div>
+    </div>
+  ) : null;
 
   return (
     <div style={{ overflowX: "auto" }}>
-      <div style={{ minWidth: 640 }}>
-        <div style={{ display: "flex", marginLeft: 140, borderBottom: "1px solid var(--border)", paddingBottom: 6, marginBottom: 8 }}>
+      <div style={{ minWidth: 720 }}>
+        <div style={{ display: "flex", marginLeft: LABEL_W, borderBottom: "2px solid var(--border)", paddingBottom: 6, marginBottom: 10 }}>
           {weeks.map((w, i) => (
-            <div key={i} style={{ flex: 1, minWidth: 56, fontSize: 10, color: "var(--tm)", textAlign: "center" }}>
+            <div key={i} style={{ flex: 1, minWidth: 56, fontSize: 10, fontWeight: 600, color: "var(--tm)", textAlign: "center" }}>
               {w.getMonth() + 1}/{w.getDate()}
             </div>
           ))}
         </div>
-        {products.map(p => (
-          <div key={p.id} style={{ display: "flex", alignItems: "center", marginBottom: 10, minHeight: 36 }}>
-            <div style={{ width: 132, flexShrink: 0, paddingRight: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-              {p.sku && <div style={{ fontSize: 10, color: "var(--tm)" }}>{p.sku}</div>}
-            </div>
-            <div style={{ flex: 1, position: "relative", height: 28, background: "var(--bg)", borderRadius: 6, border: "1px solid var(--border)" }}>
-              {todayPct >= 0 && todayPct <= 100 && (
-                <div style={{ position: "absolute", left: `${todayPct}%`, top: 0, bottom: 0, width: 2, background: "#E24B4A", opacity: 0.7, zIndex: 2 }} title="今天" />
-              )}
-              {(p.batches || []).map(b => {
-                const start = parseD(b.shipDate) || parseD(b.etaArrival);
-                const end = parseD(b.etaArrival) || parseD(b.shipDate);
-                if (!start || !end) return null;
-                const s = start < end ? start : end;
-                const e = start < end ? end : start;
-                const left = ((s - min) / 86400000 / totalDays) * 100;
-                const width = Math.max(2, ((e - s) / 86400000 / totalDays) * 100);
-                const st = STATUS[b.status] || STATUS.pending;
-                return (
-                  <div
-                    key={b.id}
-                    title={`${b.label} · ${st.label} · ${fmtShort(s)}–${fmtShort(e)}`}
-                    style={{
-                      position: "absolute",
-                      left: `${left}%`,
-                      width: `${width}%`,
-                      top: 4,
-                      bottom: 4,
-                      background: st.bg,
-                      border: `1px solid ${st.border}`,
-                      borderRadius: 4,
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "0 6px",
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: st.color,
-                      overflow: "hidden",
-                      whiteSpace: "nowrap",
-                      zIndex: 1,
-                    }}
-                  >
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot, marginRight: 4, flexShrink: 0 }} />
-                    {b.label}
+        {products.map(p => {
+          const isOpen = expanded[p.id] !== false;
+          const batches = p.batches || [];
+          const batchCount = batches.length;
+          const summary = productGanttSummary(batches);
+          return (
+            <div key={p.id} style={{ marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minHeight: 44 }}>
+                <button
+                  type="button"
+                  onClick={() => toggleProduct(p.id)}
+                  title={isOpen ? "收起产品" : "展开产品"}
+                  style={{ width: 26, height: 26, flexShrink: 0, background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  {isOpen ? "▼" : "▶"}
+                </button>
+                <div style={{ width: LABEL_W - 32, flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: "var(--tm)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span>{p.sku || "—"} · {batchCount} 批</span>
+                    {summary.shipDate && summary.etaArrival && (
+                      <span style={{ fontWeight: 600, color: "var(--text)" }}>{fmtShort(summary.shipDate)} → {fmtShort(summary.etaArrival)}</span>
+                    )}
+                    <GanttAlerts excCount={summary.excCount} overdue={summary.overdue} missingTrack={summary.missingTrack} compact />
                   </div>
-                );
-              })}
+                </div>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <TodayLine />
+                  <GanttTrack
+                    shipDate={summary.shipDate}
+                    etaArrival={summary.etaArrival}
+                    status={summary.status}
+                    label={isOpen ? null : `${batchCount} 批汇总`}
+                    excCount={isOpen ? 0 : summary.excCount}
+                    overdue={summary.overdue}
+                    missingTrack={isOpen ? false : summary.missingTrack}
+                    min={min}
+                    totalDays={totalDays}
+                    today={today}
+                    height={isOpen ? 18 : 44}
+                    compact={!isOpen}
+                    segments={isOpen ? batches : null}
+                    segmentsOnly={isOpen}
+                  />
+                </div>
+              </div>
+              {isOpen && batches.map(b => (
+                <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, marginLeft: 32 }}>
+                  <div style={{ width: LABEL_W - 32, flexShrink: 0, paddingLeft: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={b.label}>{b.label}</div>
+                    <div style={{ fontSize: 9, color: "var(--tm)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: 600, color: STATUS[b.status]?.color }}>{STATUS[b.status]?.label}</span>
+                      {b.sub && <span>· {b.sub}</span>}
+                      <GanttAlerts excCount={b.excCount} overdue={b.overdue} missingTrack={b.missingTrack} compact />
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, position: "relative" }}>
+                    <TodayLine />
+                    <GanttTrack
+                      shipDate={b.shipDate}
+                      etaArrival={b.etaArrival}
+                      status={b.status}
+                      label={b.label}
+                      sub={b.sub}
+                      excCount={b.excCount}
+                      overdue={b.overdue}
+                      missingTrack={b.missingTrack}
+                      min={min}
+                      totalDays={totalDays}
+                      today={today}
+                      height={44}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1155,7 +1444,7 @@ function FBAGanttCard({ groups = [], today: todayProp }) {
           <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 2 }}>
             甘特时间轴 · 自动同步下方发货批次
             {allProducts.length > 0 && (
-              <span> · 显示 {viewProducts.length}/{allProducts.length} 个产品</span>
+              <span> · {viewProducts.length}/{allProducts.length} 个产品 · 每批次独立一行</span>
             )}
           </div>
         </div>
@@ -1192,13 +1481,16 @@ function FBAGanttCard({ groups = [], today: todayProp }) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
         {Object.entries(STATUS).map(([k, v]) => (
-          <div key={k} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: v.color }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: v.dot }} />
+          <div key={k} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: v.color, fontWeight: 600 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: v.bg, border: `2px solid ${v.border}` }} />
             {v.label}
           </div>
         ))}
+        <span style={{ fontSize: 10, color: "#E24B4A", fontWeight: 600 }}>| 逾期红框</span>
+        <span style={{ fontSize: 10, color: "#b45309", fontWeight: 600 }}>⚠ 异常</span>
+        <span style={{ fontSize: 10, color: "#b91c1c", fontWeight: 600 }}>缺追踪</span>
       </div>
       <div ref={chartRef}>
         {!allProducts.length ? (
@@ -1219,31 +1511,95 @@ function FBAGanttCard({ groups = [], today: todayProp }) {
 }
 
 // ─── LOGISTICS MODULE (Shipment Group + FBA) ─────────────────────────
-const HEAD_STAGES = ["备货中", "已出港", "在途", "已到港"];
-const HEAD_STAGE_SHORT = { 备货中: "备货", 已出港: "出港", 在途: "在途", 已到港: "到港" };
-const headStageColor = (s) => ({ 备货中: "#888", 已出港: "#7a6dd2", 在途: "#2d7dd2", 已到港: "#1a9e8a" }[s] || "#888");
-const FBA_STATUSES = ["准备发货", "运输中", "缺少追踪编码", "接收中", "已完成"];
-const FBA_STATUS_STYLE = {
-  "缺少追踪编码": { bg: "#fee2e2", c: "#E24B4A" },
-  "运输中": { bg: "#dceeff", c: "#2d7dd2" },
-  "接收中": { bg: "#d1fae5", c: "#1a9e8a" },
-  "已完成": { bg: "#d4f0dc", c: "#2d9e52" },
-  "准备发货": { bg: "#f3f4f6", c: "#888" },
+/** 头程状态与 FBA 货件状态共用 */
+const SHIPMENT_STAGES = ["待出库", "已入仓", "清关中", "已起运 (开船/起飞)", "在途", "到港", "上架中", "完成"];
+const LEGACY_STAGE_MAP = {
+  备货中: "待出库", 准备发货: "待出库",
+  已发货: "已入仓", 已出港: "已起运 (开船/起飞)",
+  运输中: "在途", 已到港: "到港", 接收中: "上架中", 已完成: "完成",
 };
+const DEFAULT_SHIPMENT_STAGE = "待出库";
+const normalizeShipmentStage = (s) => LEGACY_STAGE_MAP[s] || (SHIPMENT_STAGES.includes(s) ? s : DEFAULT_SHIPMENT_STAGE);
+const stageColor = (s) => ({
+  待出库: "#9ca3af", 已入仓: "#6b7280", "已起运 (开船/起飞)": "#5b6abf", 清关中: "#7a6dd2",
+  在途: "#2d7dd2", 到港: "#1a9e8a", 上架中: "#7a6dd2", 完成: "#2d9e52",
+}[normalizeShipmentStage(s)] || "#888");
+const STAGE_STYLE = {
+  缺少追踪编码: { bg: "#fee2e2", c: "#E24B4A" },
+  待出库: { bg: "#f3f4f6", c: "#6b7280" },
+  已入仓: { bg: "#e5e7eb", c: "#4b5563" },
+  "已起运 (开船/起飞)": { bg: "#e0e7ff", c: "#3730a3" },
+  清关中: { bg: "#ede9fe", c: "#5b21b6" },
+  在途: { bg: "#dceeff", c: "#2d7dd2" },
+  到港: { bg: "#d1fae5", c: "#1a9e8a" },
+  上架中: { bg: "#ede9fe", c: "#6b21a8" },
+  完成: { bg: "#d4f0dc", c: "#2d9e52" },
+};
+const TRACKING_CHECK_STAGES = ["已入仓", "清关中", "已起运 (开船/起飞)", "在途"];
+const HEAD_TRANSIT_STAGES = ["清关中", "已起运 (开船/起飞)", "在途"];
+const headArrivedOrLater = (s) => ["到港", "上架中", "完成"].includes(normalizeShipmentStage(s));
 const TRANSPORT_META = { 海运: { icon: "🚢", bg: "#dceeff", c: "#1a4e8a" }, 空运: { icon: "✈", bg: "#ede9fe", c: "#4c1d95" }, 快递: { icon: "📦", bg: "#fef3c7", c: "#78350f" } };
 const fmtWindow = (s, e) => (!s && !e) ? "—" : `${s ? fmtD(s) : "?"} – ${e ? fmtD(e) : "?"}`;
 const fbaEffectiveStatus = (fba) => {
-  if (fba.status === "缺少追踪编码") return "缺少追踪编码";
-  if ((fba.status === "准备发货" || !fba.status) && !(fba.tracking || "").trim()) return "缺少追踪编码";
-  return fba.status || "准备发货";
+  const st = normalizeShipmentStage(fba.status);
+  if (TRACKING_CHECK_STAGES.includes(st) && !(fba.tracking || "").trim()) return "缺少追踪编码";
+  return st;
 };
 const batchMissingTrack = (g) => (g.fbaShipments || []).some(s => fbaEffectiveStatus(s) === "缺少追踪编码");
-const batchReceiving = (g) => (g.fbaShipments || []).some(s => s.status === "接收中");
-const batchAllDone = (g) => (g.fbaShipments || []).length > 0 && (g.fbaShipments || []).every(s => s.status === "已完成");
-const batchHeadTransit = (g) => ["已出港", "在途"].includes(g.headStatus);
-const batchHeadOverdue = (g) => { const d = daysDiff(g.etaArrival); return d !== null && d < 0 && g.headStatus !== "已到港"; };
-const openExcCount = (g) => (g.exceptions || []).filter(e => !e.resolved).length;
+const batchReceiving = (g) => (g.fbaShipments || []).some(s => normalizeShipmentStage(s.status) === "上架中");
+const batchAllDone = (g) => (g.fbaShipments || []).length > 0 && (g.fbaShipments || []).every(s => normalizeShipmentStage(s.status) === "完成");
+const deriveHeadStatus = (fbaShipments) => {
+  const fbas = fbaShipments || [];
+  if (!fbas.length) return DEFAULT_SHIPMENT_STAGE;
+  const indices = fbas.map(f => SHIPMENT_STAGES.indexOf(normalizeShipmentStage(f.status))).filter(i => i >= 0);
+  return indices.length ? SHIPMENT_STAGES[Math.min(...indices)] : DEFAULT_SHIPMENT_STAGE;
+};
+const batchHeadTransit = (g) => {
+  const fbas = g.fbaShipments || [];
+  if (fbas.length) return fbas.some(f => HEAD_TRANSIT_STAGES.includes(normalizeShipmentStage(f.status)));
+  return HEAD_TRANSIT_STAGES.includes(normalizeShipmentStage(g.headStatus));
+};
+const fbaEtaArrival = (fba, batch) => fba.etaArrival || batch?.etaArrival || fba.windowEnd || "";
+const fbaOpenExcCount = (fba) => (fba.exceptions || []).filter(e => !e.resolved).length;
+const fbaAllExceptions = (fba, batch, fbaIndex = 0) => {
+  if ((fba.exceptions || []).length) return fba.exceptions;
+  if (fbaIndex === 0 && (batch?.exceptions || []).length) return batch.exceptions;
+  return [];
+};
+const openExcCount = (g) => {
+  let n = (g.exceptions || []).filter(e => !e.resolved).length;
+  (g.fbaShipments || []).forEach(f => { n += fbaOpenExcCount(f); });
+  return n;
+};
+const fbaOverdue = (fba, batch) => {
+  const d = daysDiff(fbaEtaArrival(fba, batch));
+  return d !== null && d < 0 && !headArrivedOrLater(fba.status);
+};
+const batchHeadOverdue = (g) => {
+  const fbas = g.fbaShipments || [];
+  if (fbas.length) return fbas.some(f => fbaOverdue(f, g));
+  const d = daysDiff(g.etaArrival);
+  return d !== null && d < 0;
+};
+const batchEarliestEtaDiff = (g) => {
+  const diffs = (g.fbaShipments || []).map(f => daysDiff(fbaEtaArrival(f, g))).filter(d => d !== null);
+  if (diffs.length) return Math.min(...diffs);
+  return daysDiff(g.etaArrival);
+};
+const batchDisplayQty = (group) => {
+  const fbas = group.fbaShipments || [];
+  if (fbas.length) return sumFbaExpectedQty(fbas);
+  return group.totalQty || 0;
+};
 
+const ensureFbaDefaults = (fba, batch) => ({
+  ...fba,
+  etaArrival: fba.etaArrival || batch?.etaArrival || "",
+  etaDeparture: fba.etaDeparture || batch?.etaDeparture || "",
+  exceptions: fba.exceptions || [],
+});
+const sumFbaExpectedQty = (fbaShipments) =>
+  (fbaShipments || []).reduce((s, f) => s + (Number(f.expectedQty) || 0), 0);
 // ─── Amazon STA CSV import ───────────────────────────────────────────
 const parseCsvRow = (line) => {
   const cells = []; let cur = ""; let inQuote = false;
@@ -1300,7 +1656,7 @@ const parseAmazonStaCsv = (text, id) => {
   if (!expectedQty) warnings.push("商品数量为 0");
   const note = [meta["配送地址"] && `配送 ${meta["配送地址"]}`, meta["箱子数量"] && `${meta["箱子数量"]} 箱`, skuInfo?.fnsku && `FNSKU ${skuInfo.fnsku}`].filter(Boolean).join(" · ");
   return {
-    fba: { id, name, fbaId, internalId: (meta["工作流程名称"] || "").slice(0, 8).toUpperCase(), warehouse, expectedQty, receivedQty: 0, windowStart, windowEnd: addDaysIso(windowStart, 6), tracking: "", status: "准备发货", note },
+    fba: { id, name, fbaId, internalId: (meta["工作流程名称"] || "").slice(0, 8).toUpperCase(), warehouse, expectedQty, receivedQty: 0, windowStart, windowEnd: addDaysIso(windowStart, 6), etaDeparture: "", etaArrival: addDaysIso(windowStart, 6), tracking: "", status: DEFAULT_SHIPMENT_STAGE, exceptions: [], note },
     sku: skuInfo?.sku || "",
     warnings,
   };
@@ -1324,29 +1680,29 @@ const INIT_LOGISTICS = [
     etaDeparture: "2026-05-15", etaArrival: "2026-06-08", headStatus: "在途", note: "正常在途",
     exceptions: [],
     fbaShipments: [
-      { id: 101, name: "FBA STA (04/20/2026 10:14)-RDU2", fbaId: "FBA19BWMS0S7", internalId: "11VGG45G", warehouse: "RDU2", expectedQty: 144, receivedQty: 0, windowStart: "2026-05-31", windowEnd: "2026-06-06", tracking: "", status: "准备发货", note: "" },
-      { id: 102, name: "FBA STA (04/20/2026 10:14)-SWF2", fbaId: "FBA19BWMT1K3", internalId: "22HJK89M", warehouse: "SWF2", expectedQty: 160, receivedQty: 0, windowStart: "2026-06-01", windowEnd: "2026-06-07", tracking: "1Z999AA10123456784", status: "运输中", note: "" },
-      { id: 103, name: "FBA STA (04/20/2026 10:14)-IAH3", fbaId: "FBA19BWMV4P9", internalId: "33PLM12N", warehouse: "IAH3", expectedQty: 168, receivedQty: 120, windowStart: "2026-05-28", windowEnd: "2026-06-03", tracking: "TBA6284731003", status: "接收中", note: "" },
-      { id: 104, name: "FBA STA (04/20/2026 10:14)-MDW2", fbaId: "FBA19BWMX7R2", internalId: "44QRS56T", warehouse: "MDW2", expectedQty: 176, receivedQty: 176, windowStart: "2026-05-20", windowEnd: "2026-05-26", tracking: "FBA6284731004", status: "已完成", note: "" },
-      { id: 105, name: "FBA STA (04/20/2026 10:14)-ORF2", fbaId: "FBA19BWMZ9T5", internalId: "55UVW78X", warehouse: "ORF2", expectedQty: 152, receivedQty: 0, windowStart: "2026-06-05", windowEnd: "2026-06-11", tracking: "", status: "准备发货", note: "" },
+      { id: 101, name: "FBA STA (04/20/2026 10:14)-RDU2", fbaId: "FBA19BWMS0S7", internalId: "11VGG45G", warehouse: "RDU2", expectedQty: 144, receivedQty: 0, windowStart: "2026-05-31", windowEnd: "2026-06-06", etaDeparture: "2026-05-15", etaArrival: "2026-06-08", tracking: "", status: "已入仓", exceptions: [], note: "" },
+      { id: 102, name: "FBA STA (04/20/2026 10:14)-SWF2", fbaId: "FBA19BWMT1K3", internalId: "22HJK89M", warehouse: "SWF2", expectedQty: 160, receivedQty: 0, windowStart: "2026-06-01", windowEnd: "2026-06-07", etaDeparture: "2026-05-15", etaArrival: "2026-06-08", tracking: "1Z999AA10123456784", status: "在途", exceptions: [], note: "" },
+      { id: 103, name: "FBA STA (04/20/2026 10:14)-IAH3", fbaId: "FBA19BWMV4P9", internalId: "33PLM12N", warehouse: "IAH3", expectedQty: 168, receivedQty: 120, windowStart: "2026-05-28", windowEnd: "2026-06-03", etaDeparture: "2026-05-15", etaArrival: "2026-06-08", tracking: "TBA6284731003", status: "上架中", exceptions: [], note: "" },
+      { id: 104, name: "FBA STA (04/20/2026 10:14)-MDW2", fbaId: "FBA19BWMX7R2", internalId: "44QRS56T", warehouse: "MDW2", expectedQty: 176, receivedQty: 176, windowStart: "2026-05-20", windowEnd: "2026-05-26", etaDeparture: "2026-05-15", etaArrival: "2026-06-08", tracking: "FBA6284731004", status: "完成", exceptions: [], note: "" },
+      { id: 105, name: "FBA STA (04/20/2026 10:14)-ORF2", fbaId: "FBA19BWMZ9T5", internalId: "55UVW78X", warehouse: "ORF2", expectedQty: 152, receivedQty: 0, windowStart: "2026-06-05", windowEnd: "2026-06-11", etaDeparture: "2026-05-15", etaArrival: "2026-06-08", tracking: "", status: "已入仓", exceptions: [], note: "" },
     ],
   },
   {
     id: 2, name: "FB101白色第二批", sku: "FB101", totalQty: 300, owner: "陈工",
     shipDate: "2026-05-08", transport: "空运", forwarder: "顺丰国际", blNumber: "SF20260508001",
-    etaDeparture: "2026-05-12", etaArrival: "2026-05-18", headStatus: "已到港", note: "",
-    exceptions: [{ desc: "IAH3 仓库拒收部分箱", date: "2026-05-25", resolved: false, action: "货代协调重新配送" }],
+    etaDeparture: "2026-05-12", etaArrival: "2026-05-18", headStatus: "到港", note: "",
+    exceptions: [],
     fbaShipments: [
-      { id: 201, name: "FBA STA (05/08/2026 09:30)-LAX9", fbaId: "FBA19BXAA1B2", internalId: "66ABC01D", warehouse: "LAX9", expectedQty: 300, receivedQty: 280, windowStart: "2026-05-22", windowEnd: "2026-05-28", tracking: "SF6284732001", status: "接收中", note: "" },
+      { id: 201, name: "FBA STA (05/08/2026 09:30)-LAX9", fbaId: "FBA19BXAA1B2", internalId: "66ABC01D", warehouse: "LAX9", expectedQty: 300, receivedQty: 280, windowStart: "2026-05-22", windowEnd: "2026-05-28", etaDeparture: "2026-05-12", etaArrival: "2026-05-18", tracking: "SF6284732001", status: "上架中", exceptions: [{ desc: "IAH3 仓库拒收部分箱", date: "2026-05-25", resolved: false, action: "货代协调重新配送" }], note: "" },
     ],
   },
   {
     id: 3, name: "FB200黑色第一批", sku: "FB200", totalQty: 200, owner: "李工",
     shipDate: "2026-05-01", transport: "海运", forwarder: "马士基订舱", blNumber: "MAEU9876543",
-    etaDeparture: "2026-05-28", etaArrival: "2026-06-25", headStatus: "备货中", note: "等工厂尾数",
+    etaDeparture: "2026-05-28", etaArrival: "2026-06-25", headStatus: "待出库", note: "等工厂尾数",
     exceptions: [],
     fbaShipments: [
-      { id: 301, name: "FBA STA (05/01/2026 14:00)-ONT8", fbaId: "FBA19BYCC3D4", internalId: "77DEF02G", warehouse: "ONT8", expectedQty: 200, receivedQty: 0, windowStart: "2026-06-20", windowEnd: "2026-06-26", tracking: "", status: "准备发货", note: "" },
+      { id: 301, name: "FBA STA (05/01/2026 14:00)-ONT8", fbaId: "FBA19BYCC3D4", internalId: "77DEF02G", warehouse: "ONT8", expectedQty: 200, receivedQty: 0, windowStart: "2026-06-20", windowEnd: "2026-06-26", etaDeparture: "2026-05-28", etaArrival: "2026-06-25", tracking: "", status: "待出库", exceptions: [], note: "" },
     ],
   },
 ];
@@ -1375,8 +1731,92 @@ function ExceptionEditor({ excs, setExcs }) {
 }
 function FbaStatusBadge({ fba }) {
   const st = fbaEffectiveStatus(fba);
-  const s = FBA_STATUS_STYLE[st] || FBA_STATUS_STYLE["准备发货"];
+  const s = STAGE_STYLE[st] || STAGE_STYLE[DEFAULT_SHIPMENT_STAGE];
   return <span style={badge(s.bg, s.c)}>{st}</span>;
+}
+
+function StageDotLine({ stage, dotSize = 7, connector = true }) {
+  const st = normalizeShipmentStage(stage);
+  const stageIdx = SHIPMENT_STAGES.indexOf(st);
+  return (
+    <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
+      {SHIPMENT_STAGES.map((s, i) => {
+        const done = i < stageIdx;
+        const active = i === stageIdx;
+        const c = active ? stageColor(s) : done ? "#2d9e52" : "var(--border)";
+        const size = active ? dotSize : Math.max(5, dotSize - 2);
+        return (
+          <span key={s} style={{ display: "flex", alignItems: "center", flex: connector && i < SHIPMENT_STAGES.length - 1 ? 1 : "none" }} title={s}>
+            <span style={{ width: size, height: size, borderRadius: "50%", background: c, outline: active ? `2px solid ${c}` : "none", outlineOffset: 1, flexShrink: 0 }} />
+            {connector && i < SHIPMENT_STAGES.length - 1 && (
+              <span style={{ flex: 1, height: 2, background: done ? "#2d9e52" : "var(--border)", margin: "0 1px" }} />
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function FbaArrivalHint({ fba, batch }) {
+  const eta = fbaEtaArrival(fba, batch);
+  const d = daysDiff(eta);
+  if (headArrivedOrLater(fba.status)) return <span style={{ fontSize: 10, color: "var(--tm)" }}>已抵达</span>;
+  if (d === null) return <span style={{ fontSize: 10, color: "var(--tm)" }}>抵达 —</span>;
+  if (d < 0) return <span style={badge("#fee2e2", "#E24B4A")}>逾期 {Math.abs(d)} 天</span>;
+  if (d === 0) return <span style={badge("#fff0d4", "#7a4a00")}>今日抵达</span>;
+  if (d <= 7) return <span style={badge("#dceeff", "#1a4e8a")}>{fmtD(eta)} · {d} 天</span>;
+  return <span style={{ fontSize: 10, color: "var(--tm)" }}>抵达 {fmtD(eta)}</span>;
+}
+
+function FbaExceptionList({ exceptions }) {
+  const list = exceptions || [];
+  if (!list.length) return null;
+  return (
+    <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }} onClick={e => e.stopPropagation()}>
+      {list.map((ex, i) => {
+        const resolved = !!ex.resolved;
+        const desc = (ex.desc || "").trim() || "（未填写描述）";
+        return (
+          <div key={i} style={{ fontSize: 10, lineHeight: 1.45, padding: "6px 8px", borderRadius: 6, background: resolved ? "#f0faf4" : "#fff8e6", border: `1px solid ${resolved ? "#b7e4c7" : "#ffe0a0"}`, color: resolved ? "#2d6a4f" : "#7a4a00" }}>
+            <span style={{ fontWeight: 600 }}>{resolved ? "✓ " : "⚠ "}{desc}</span>
+            {ex.action && <span style={{ marginLeft: 4, opacity: 0.9 }}>· {ex.action}</span>}
+            <span style={{ marginLeft: 4, opacity: 0.75 }}>· {ex.date ? fmtD(ex.date) : "—"}{resolved ? " 已解决" : " 未解决"}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FbaStageTrack({ fba, batch, fbaIndex = 0 }) {
+  const f = ensureFbaDefaults(fba, batch);
+  const st = normalizeShipmentStage(f.status);
+  const stageIdx = SHIPMENT_STAGES.indexOf(st);
+  const prog = stageIdx >= 0 ? Math.round((stageIdx / (SHIPMENT_STAGES.length - 1)) * 100) : 0;
+  const excN = fbaOpenExcCount(f);
+  const overdue = fbaOverdue(f, batch);
+  return (
+    <div style={{ marginBottom: 12, padding: "10px 12px", background: "var(--bg)", borderRadius: 10, border: `1px solid ${overdue ? "#fecaca" : excN ? "#ffe0a0" : "var(--border)"}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <span style={badge("#ede9fe", "#4c1d95", { fontSize: 10, fontWeight: 700, padding: "3px 6px" })}>{f.warehouse || "—"}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.fbaId || f.name || "货件"}</span>
+          {f.expectedQty > 0 && <span style={{ fontSize: 10, color: "var(--tm)" }}>{f.expectedQty} 件</span>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <FbaStatusBadge fba={f} />
+          <FbaArrivalHint fba={f} batch={batch} />
+          {excN > 0 && <span style={badge("#fff0d4", "#e09000")}>⚠ {excN} 异常</span>}
+        </div>
+      </div>
+      <div style={{ height: 3, background: "var(--border)", borderRadius: 2, overflow: "hidden", marginBottom: 4 }}>
+        <div style={{ height: "100%", width: `${prog}%`, background: stageColor(st), borderRadius: 2 }} />
+      </div>
+      <StageDotLine stage={f.status} dotSize={6} />
+      <FbaExceptionList exceptions={fbaAllExceptions(f, batch, fbaIndex)} />
+    </div>
+  );
 }
 function FbaRow({ fba, onEditTracking }) {
   const [editing, setEditing] = useState(false);
@@ -1384,99 +1824,93 @@ function FbaRow({ fba, onEditTracking }) {
   const missing = fbaEffectiveStatus(fba) === "缺少追踪编码";
   const saveTrack = () => { onEditTracking(fba.id, trackVal.trim()); setEditing(false); };
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--border)", fontSize: 11, alignItems: "start" }}>
-      <div>
-        <div style={{ fontWeight: 600, marginBottom: 3, lineHeight: 1.4 }}>{fba.name}</div>
-        <div style={{ color: "var(--tm)", marginBottom: 6 }}>{fba.fbaId}{fba.internalId ? ` · ${fba.internalId}` : ""}</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 4 }}>
-          <span style={badge("#ede9fe", "#4c1d95", { fontWeight: 700, fontSize: 11 })}>{fba.warehouse}</span>
-          <span style={{ color: "var(--tm)" }}>配送 {fmtWindow(fba.windowStart, fba.windowEnd)}</span>
-          <span style={{ color: "var(--tm)" }}>{fba.expectedQty} 件{fba.receivedQty > 0 ? ` / 已收 ${fba.receivedQty}` : ""}</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          {editing ? (
-            <>
-              <input value={trackVal} onChange={e => setTrackVal(e.target.value)} placeholder="输入追踪编码" style={{ ...inpSm, flex: 1, minWidth: 140 }} autoFocus onKeyDown={e => { if (e.key === "Enter") saveTrack(); if (e.key === "Escape") setEditing(false); }} />
-              <button type="button" onClick={saveTrack} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>保存</button>
-            </>
-          ) : missing ? (
-            <button type="button" onClick={e => { e.stopPropagation(); setTrackVal(fba.tracking || ""); setEditing(true); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#E24B4A", fontSize: 11, fontWeight: 600, fontFamily: "inherit" }}>缺少追踪编码 · 点击填写</button>
-          ) : (
-            <span style={{ color: "var(--tm)", cursor: "pointer" }} onClick={e => { e.stopPropagation(); setTrackVal(fba.tracking || ""); setEditing(true); }} title="点击编辑">追踪 {fba.tracking}</span>
-          )}
-        </div>
+    <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", fontSize: 11 }}>
+      <div style={{ fontWeight: 600, marginBottom: 3, lineHeight: 1.4 }}>{fba.name}</div>
+      <div style={{ color: "var(--tm)", marginBottom: 6 }}>{fba.fbaId}{fba.internalId ? ` · ${fba.internalId}` : ""}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 4 }}>
+        <span style={{ color: "var(--tm)" }}>配送 {fmtWindow(fba.windowStart, fba.windowEnd)}</span>
+        <span style={{ color: "var(--tm)" }}>{fba.expectedQty} 件{fba.receivedQty > 0 ? ` / 已收 ${fba.receivedQty}` : ""}</span>
       </div>
-      <FbaStatusBadge fba={fba} />
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        {editing ? (
+          <>
+            <input value={trackVal} onChange={e => setTrackVal(e.target.value)} placeholder="输入追踪编码" style={{ ...inpSm, flex: 1, minWidth: 140 }} autoFocus onKeyDown={e => { if (e.key === "Enter") saveTrack(); if (e.key === "Escape") setEditing(false); }} />
+            <button type="button" onClick={saveTrack} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>保存</button>
+          </>
+        ) : missing ? (
+          <button type="button" onClick={e => { e.stopPropagation(); setTrackVal(fba.tracking || ""); setEditing(true); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#E24B4A", fontSize: 11, fontWeight: 600, fontFamily: "inherit" }}>缺少追踪编码 · 点击填写</button>
+        ) : (
+          <span style={{ color: "var(--tm)", cursor: "pointer" }} onClick={e => { e.stopPropagation(); setTrackVal(fba.tracking || ""); setEditing(true); }} title="点击编辑">追踪 {fba.tracking || "—"}</span>
+        )}
+      </div>
     </div>
   );
 }
 function ShipmentGroupCard({ group, expanded, onToggleExpand, onEdit, onEditTracking, onDelete }) {
-  const stageIdx = HEAD_STAGES.indexOf(group.headStatus);
-  const prog = stageIdx >= 0 ? Math.round((stageIdx / (HEAD_STAGES.length - 1)) * 100) : 0;
-  const bc = batchHeadOverdue(group) ? "#E24B4A" : openExcCount(group) > 0 ? "#e09000" : headStageColor(group.headStatus);
-  const d = daysDiff(group.etaArrival);
+  const fbas = group.fbaShipments || [];
+  const fbaCount = fbas.length;
+  const totalQty = batchDisplayQty(group);
+  const excN = openExcCount(group);
+  const bc = batchHeadOverdue(group) ? "#E24B4A" : excN > 0 ? "#e09000" : "var(--border)";
   const tm = TRANSPORT_META[group.transport] || { icon: "📦", bg: "#f3f4f6", c: "#666" };
-  const fbaCount = (group.fbaShipments || []).length;
-  let etaHint = null;
-  if (group.headStatus !== "已到港" && d !== null) {
-    if (d < 0) etaHint = <span style={badge("#fee2e2", "#E24B4A")}>到港逾期 {Math.abs(d)} 天</span>;
-    else if (d === 0) etaHint = <span style={badge("#fff0d4", "#7a4a00")}>今日预计到港</span>;
-    else if (d <= 7) etaHint = <span style={badge("#dceeff", "#1a4e8a")}>还有 {d} 天到港</span>;
-    else etaHint = <span style={{ fontSize: 11, color: "var(--tm)" }}>预计到港 {fmtD(group.etaArrival)}</span>;
-  }
   return (
-    <div style={{ background: "var(--card)", border: `1px solid ${batchHeadOverdue(group) ? "#fecaca" : "var(--border)"}`, borderLeft: `4px solid ${bc}`, borderRadius: 12, overflow: "hidden" }}>
-      <div style={{ padding: "14px 16px", cursor: "pointer" }} onClick={onEdit}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-              <span style={{ fontSize: 14, fontWeight: 700 }}>{group.name}</span>
-              <span style={{ fontSize: 12, color: "var(--tm)" }}>{group.sku}</span>
-              <span style={badge(tm.bg, tm.c)}>{tm.icon} {group.transport}</span>
-              {openExcCount(group) > 0 && <span style={badge("#fff0d4", "#e09000")}>⚠ {openExcCount(group)} 异常</span>}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--tm)" }}>{fbaCount} 个货件 · 共 {group.totalQty} 件{group.blNumber ? ` · B/L ${group.blNumber}` : ""}</div>
+    <div style={{ background: "var(--card)", border: `1px solid ${batchHeadOverdue(group) ? "#fecaca" : "var(--border)"}`, borderLeft: `4px solid ${bc === "var(--border)" ? "#c8c6bc" : bc}`, borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", background: "var(--bg)", borderBottom: expanded ? "1px solid var(--border)" : "none" }}>
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); onToggleExpand(); }}
+          title={expanded ? "收起批次" : "展开批次"}
+          style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, width: 28, height: 28, flexShrink: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: "#2d7dd2", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2 }}
+        >
+          {expanded ? "▼" : "▶"}
+        </button>
+        <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={onEdit}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>{group.name}</span>
+            {group.sku && <span style={{ fontSize: 12, color: "var(--tm)" }}>{group.sku}</span>}
+            <span style={badge(tm.bg, tm.c)}>{tm.icon} {group.transport}</span>
+            {excN > 0 && <span style={badge("#fff0d4", "#e09000")}>⚠ {excN} 异常</span>}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Avatar name={group.owner} /><span style={{ fontSize: 11, color: "var(--tm)" }}>{group.owner}</span><RoleBadge role={getStaffRole(group.owner)} /></div>
-            {etaHint}
-          </div>
-        </div>
-        <div style={{ marginBottom: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: headStageColor(group.headStatus) }}>头程 {group.headStatus}</span>
-            <span style={{ fontSize: 10, color: "var(--tm)" }}>{prog}%</span>
-          </div>
-          <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>
-            <div style={{ height: "100%", width: `${prog}%`, background: bc, borderRadius: 2 }} />
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
-            {HEAD_STAGES.map((s, i) => {
-              const done = i < stageIdx; const active = i === stageIdx;
-              const c = active ? headStageColor(s) : done ? "#2d9e52" : "var(--border)";
-              return (<span key={s} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}><span style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 36 }}><span style={{ width: active ? 10 : 7, height: active ? 10 : 7, borderRadius: "50%", background: c, outline: active ? `2px solid ${c}` : "none", outlineOffset: 2 }} /><span style={{ fontSize: 9, color: active ? "var(--text)" : done ? "var(--tm)" : "var(--border)", fontWeight: active ? 600 : 400 }}>{HEAD_STAGE_SHORT[s]}</span></span>{i < HEAD_STAGES.length - 1 && <span style={{ width: 16, height: 2, background: done ? "#2d9e52" : "var(--border)", margin: "0 2px", marginBottom: 12 }} />}</span>);
-            })}
+          <div style={{ fontSize: 11, color: "var(--tm)" }}>
+            {fbaCount} 个货件 · 共 <strong style={{ color: "var(--text)", fontWeight: 700 }}>{totalQty}</strong> 件
+            {group.blNumber ? ` · B/L ${group.blNumber}` : ""}
           </div>
         </div>
-      </div>
-      <div style={{ borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", background: "var(--bg)" }}>
-        <span style={{ fontSize: 11, color: "var(--tm)" }}>{expanded ? "收起 FBA 货件" : `展开 ${fbaCount} 个 FBA 货件`}</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button type="button" onClick={e => { e.stopPropagation(); onDelete(); }} style={{ background: "transparent", border: "1px solid #fecaca", borderRadius: 8, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#e55" }}>删除</button>
-          <button type="button" onClick={e => { e.stopPropagation(); onToggleExpand(); }} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>{expanded ? "▲ 收起" : "▼ 展开"}</button>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <Avatar name={group.owner} />
+            <span style={{ fontSize: 11, color: "var(--tm)" }}>{group.owner}</span>
+            <RoleBadge role={getStaffRole(group.owner)} />
+          </div>
+          <button type="button" onClick={e => { e.stopPropagation(); onDelete(); }} style={{ background: "transparent", border: "1px solid #fecaca", borderRadius: 6, padding: "2px 8px", fontSize: 10, cursor: "pointer", fontFamily: "inherit", color: "#e55" }}>删除</button>
         </div>
       </div>
       {expanded && (
-        <div style={{ borderTop: "1px solid var(--border)", background: "var(--bg)" }}>
-          {(group.fbaShipments || []).length ? (group.fbaShipments || []).map(f => <FbaRow key={f.id} fba={f} onEditTracking={(fid, tracking) => onEditTracking(group.id, fid, tracking)} />) : <div style={{ padding: "1rem", textAlign: "center", color: "var(--tm)", fontSize: 12 }}>暂无 FBA 货件</div>}
+        <div style={{ padding: "12px 14px 14px" }}>
+          {fbaCount > 0 ? (
+            <>
+              {fbas.map((f, i) => <FbaStageTrack key={f.id} fba={f} batch={group} fbaIndex={i} />)}
+              <div style={{ borderTop: "1px solid var(--border)", marginTop: 4 }}>
+                {fbas.map(f => <FbaRow key={f.id} fba={f} onEditTracking={(fid, tracking) => onEditTracking(group.id, fid, tracking)} />)}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 11, color: "var(--tm)", padding: "6px 0", cursor: "pointer" }} onClick={onEdit}>暂无货件 · 点击编辑添加</div>
+          )}
         </div>
       )}
     </div>
   );
 }
 function FbaEditorRow({ fba, onChange, onRemove }) {
+  const setExcs = (exceptions) => onChange({ ...fba, exceptions });
+  const excs = fba.exceptions || [];
   return (
     <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "10px", marginBottom: 8, background: "var(--bg)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{fba.warehouse || "货件"}{fba.fbaId ? ` · ${fba.fbaId}` : ""}</span>
+        <button type="button" onClick={onRemove} style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: 18, padding: "0 4px" }}>×</button>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
         <div><label style={lbl}>货件名称</label><input value={fba.name} onChange={e => onChange({ ...fba, name: e.target.value })} style={inp} /></div>
         <div><label style={lbl}>FBA 货件编号</label><input value={fba.fbaId} onChange={e => onChange({ ...fba, fbaId: e.target.value })} placeholder="FBA19..." style={inp} /></div>
@@ -1487,25 +1921,40 @@ function FbaEditorRow({ fba, onChange, onRemove }) {
         <div><label style={lbl}>预计件数</label><input type="number" value={fba.expectedQty} onChange={e => onChange({ ...fba, expectedQty: +e.target.value || 0 })} style={inp} /></div>
         <div><label style={lbl}>已收件数</label><input type="number" value={fba.receivedQty} onChange={e => onChange({ ...fba, receivedQty: +e.target.value || 0 })} style={inp} /></div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+        <div><label style={lbl}>预计出港</label><input type="date" value={fba.etaDeparture || ""} onChange={e => onChange({ ...fba, etaDeparture: e.target.value })} style={inp} /></div>
+        <div><label style={lbl}>预计抵达</label><input type="date" value={fba.etaArrival || ""} onChange={e => onChange({ ...fba, etaArrival: e.target.value })} style={inp} /></div>
         <div><label style={lbl}>配送开始</label><input type="date" value={fba.windowStart} onChange={e => onChange({ ...fba, windowStart: e.target.value })} style={inp} /></div>
         <div><label style={lbl}>配送结束</label><input type="date" value={fba.windowEnd} onChange={e => onChange({ ...fba, windowEnd: e.target.value })} style={inp} /></div>
-        <div><label style={lbl}>追踪编码</label><input value={fba.tracking} onChange={e => onChange({ ...fba, tracking: e.target.value })} style={inp} /></div>
-        <div><label style={lbl}>状态</label><select value={fba.status} onChange={e => onChange({ ...fba, status: e.target.value })} style={{ ...inp, background: "var(--card)" }}>{FBA_STATUSES.map(s => <option key={s}>{s}</option>)}</select></div>
-        <button type="button" onClick={onRemove} style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: 18, padding: "8px 4px" }}>×</button>
       </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+        <div><label style={lbl}>追踪编码</label><input value={fba.tracking} onChange={e => onChange({ ...fba, tracking: e.target.value })} style={inp} /></div>
+        <div><label style={lbl}>状态</label><select value={normalizeShipmentStage(fba.status)} onChange={e => onChange({ ...fba, status: e.target.value })} style={{ ...inp, background: "var(--card)" }}>{SHIPMENT_STAGES.map(s => <option key={s}>{s}</option>)}</select></div>
+      </div>
+      <ExceptionEditor excs={excs} setExcs={setExcs} />
     </div>
   );
 }
 function ShipmentModal({ item, onSave, onClose, onDelete }) {
   const [form, setForm] = useState(item);
-  const [excs, setExcs] = useState(item.exceptions ? item.exceptions.map(e => ({ ...e })) : []);
-  const [fbas, setFbas] = useState(item.fbaShipments ? item.fbaShipments.map(s => ({ ...s })) : []);
+  const [fbas, setFbas] = useState(() => {
+    const legacyExcs = item.exceptions?.length ? item.exceptions.map(e => ({ ...e })) : [];
+    return (item.fbaShipments || []).map((s, i) => ensureFbaDefaults({
+      ...s,
+      exceptions: (s.exceptions?.length ? s.exceptions : (i === 0 ? legacyExcs : [])).map(e => ({ ...e })),
+    }, item));
+  });
   const [nextFbaId, setNextFbaId] = useState(() => Math.max(0, ...(item.fbaShipments || []).map(s => s.id)) + 1);
   const [importMsg, setImportMsg] = useState("");
   const [saveWarn, setSaveWarn] = useState("");
   const fileInputRef = useRef(null);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const applyFbas = (nextFbas) => {
+    setFbas(nextFbas);
+    if (nextFbas.length) {
+      setForm(f => ({ ...f, totalQty: sumFbaExpectedQty(nextFbas) }));
+    }
+  };
   const handleSave = (e) => {
     e?.stopPropagation?.();
     if (!form.name.trim()) {
@@ -1513,9 +1962,21 @@ function ShipmentModal({ item, onSave, onClose, onDelete }) {
       return;
     }
     setSaveWarn("");
-    onSave({ ...form, exceptions: excs, fbaShipments: fbas });
+    const totalQty = fbas.length ? sumFbaExpectedQty(fbas) : form.totalQty;
+    const normalizedFbas = fbas.map(f => ({
+      ...ensureFbaDefaults(f, form),
+      status: normalizeShipmentStage(f.status),
+      exceptions: (f.exceptions || []).map(e => ({ ...e })),
+    }));
+    onSave({
+      ...form,
+      headStatus: deriveHeadStatus(normalizedFbas),
+      totalQty,
+      exceptions: [],
+      fbaShipments: normalizedFbas,
+    });
   };
-  const emptyFba = () => ({ id: nextFbaId, name: "", fbaId: "", internalId: "", warehouse: "", expectedQty: 0, receivedQty: 0, windowStart: "", windowEnd: "", tracking: "", status: "准备发货", note: "" });
+  const emptyFba = () => ({ id: nextFbaId, name: "", fbaId: "", internalId: "", warehouse: "", expectedQty: 0, receivedQty: 0, windowStart: "", windowEnd: "", etaDeparture: "", etaArrival: "", tracking: "", status: DEFAULT_SHIPMENT_STAGE, exceptions: [], note: "" });
   const onCsvPick = async (e) => {
     const files = e.target.files;
     if (!files?.length) return;
@@ -1523,11 +1984,12 @@ function ShipmentModal({ item, onSave, onClose, onDelete }) {
       const { fbaShipments, totalQty, sku, warnings } = await readStaCsvFiles(files);
       let nid = nextFbaId;
       const imported = fbaShipments.map(f => ({ ...f, id: nid++ }));
-      setFbas(prev => [...prev, ...imported]);
+      const merged = [...fbas, ...imported];
+      applyFbas(merged);
       setNextFbaId(nid);
       setForm(f => ({
         ...f,
-        totalQty: f.totalQty ? f.totalQty : totalQty,
+        totalQty: sumFbaExpectedQty(merged),
         sku: f.sku || sku,
         name: f.name || (imported.length === 1 ? imported[0].name : f.name),
       }));
@@ -1556,22 +2018,15 @@ function ShipmentModal({ item, onSave, onClose, onDelete }) {
           <div><label style={lbl}>产品 / SKU</label><input value={form.sku} onChange={e => set("sku", e.target.value)} placeholder="FB100" style={inp} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <div><label style={lbl}>总件数</label><input type="number" value={form.totalQty} onChange={e => set("totalQty", +e.target.value || 0)} style={inp} /></div>
           <div><label style={lbl}>跟进人</label><OwnerField value={form.owner} onChange={v => set("owner", v)} inputStyle={inp} /></div>
           <div><label style={lbl}>头程方式</label><select value={form.transport} onChange={e => set("transport", e.target.value)} style={{ ...inp, background: "var(--card)" }}>{Object.keys(TRANSPORT_META).map(t => <option key={t}>{t}</option>)}</select></div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <div><label style={lbl}>货代公司</label><input value={form.forwarder} onChange={e => set("forwarder", e.target.value)} style={inp} /></div>
-          <div><label style={lbl}>提单号 B/L</label><input value={form.blNumber} onChange={e => set("blNumber", e.target.value)} style={inp} /></div>
           <div><label style={lbl}>国内出货日期</label><input type="date" value={form.shipDate} onChange={e => set("shipDate", e.target.value)} style={inp} /></div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <div><label style={lbl}>预计出港</label><input type="date" value={form.etaDeparture} onChange={e => set("etaDeparture", e.target.value)} style={inp} /></div>
-          <div><label style={lbl}>预计到港</label><input type="date" value={form.etaArrival} onChange={e => set("etaArrival", e.target.value)} style={inp} /></div>
-          <div><label style={lbl}>头程状态</label><select value={form.headStatus} onChange={e => set("headStatus", e.target.value)} style={{ ...inp, background: "var(--card)" }}>{HEAD_STAGES.map(s => <option key={s}>{s}</option>)}</select></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><label style={lbl}>货代公司</label><input value={form.forwarder} onChange={e => set("forwarder", e.target.value)} style={inp} /></div>
+          <div><label style={lbl}>提单号 B/L</label><input value={form.blNumber} onChange={e => set("blNumber", e.target.value)} style={inp} /></div>
         </div>
         <div style={{ marginBottom: 12 }}><label style={lbl}>备注</label><input value={form.note} onChange={e => set("note", e.target.value)} style={inp} /></div>
-        <ExceptionEditor excs={excs} setExcs={setExcs} />
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", borderTop: "1px solid var(--border)", paddingTop: 10, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <span>FBA 货件 ({fbas.length})</span>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1580,8 +2035,8 @@ function ShipmentModal({ item, onSave, onClose, onDelete }) {
           </div>
         </div>
         {importMsg && <div style={{ fontSize: 11, color: importMsg.includes("失败") || importMsg.includes("不是") ? "#E24B4A" : "#1a6b35", marginBottom: 8, padding: "6px 10px", background: importMsg.includes("失败") || importMsg.includes("不是") ? "#fee2e2" : "#f0faf4", borderRadius: 8 }}>{importMsg}</div>}
-        {fbas.map((f, i) => <FbaEditorRow key={f.id} fba={f} onChange={v => { const a = [...fbas]; a[i] = v; setFbas(a); }} onRemove={() => setFbas(fbas.filter((_, j) => j !== i))} />)}
-        <button type="button" onClick={() => { setFbas([...fbas, emptyFba()]); setNextFbaId(nextFbaId + 1); }} style={{ width: "100%", border: "1px dashed var(--border)", borderRadius: 8, padding: "6px 0", fontSize: 12, cursor: "pointer", color: "var(--tm)", background: "transparent", marginBottom: 12, fontFamily: "inherit" }}>+ 添加 FBA 货件</button>
+        {fbas.map((f, i) => <FbaEditorRow key={f.id} fba={f} onChange={v => { const a = [...fbas]; a[i] = v; applyFbas(a); }} onRemove={() => applyFbas(fbas.filter((_, j) => j !== i))} />)}
+        <button type="button" onClick={() => { applyFbas([...fbas, emptyFba()]); setNextFbaId(nextFbaId + 1); }} style={{ width: "100%", border: "1px dashed var(--border)", borderRadius: 8, padding: "6px 0", fontSize: 12, cursor: "pointer", color: "var(--tm)", background: "transparent", marginBottom: 12, fontFamily: "inherit" }}>+ 添加 FBA 货件</button>
         </div>
         <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", padding: "12px 1.5rem 1.5rem", background: "var(--card)" }}>
           {saveWarn && <div style={{ fontSize: 12, color: "#c62828", marginBottom: 8 }}>{saveWarn}</div>}
@@ -1645,9 +2100,7 @@ function LogisticsPanel({ active = true }) {
     const pa = batchHeadOverdue(a) ? 0 : openExcCount(a) ? 1 : 2;
     const pb = batchHeadOverdue(b) ? 0 : openExcCount(b) ? 1 : 2;
     if (pa !== pb) return pa - pb;
-    const da = daysDiff(a.etaArrival), db = daysDiff(b.etaArrival);
-    if (da === null) return 1; if (db === null) return -1;
-    return da - db;
+    return batchEarliestEtaDiff(a) - batchEarliestEtaDiff(b);
   });
   const save = (t) => {
     if (t.id) persist(list.map(x => x.id === t.id ? t : x));
@@ -1660,12 +2113,24 @@ function LogisticsPanel({ active = true }) {
     if (modal?.id === g.id) setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
-    persist(list.map(g => g.id !== gid ? g : {
-      ...g, fbaShipments: (g.fbaShipments || []).map(s => s.id !== fid ? s : { ...s, tracking, status: tracking.trim() && s.status === "准备发货" ? "运输中" : s.status }),
+    persist(list.map(g => {
+      if (g.id !== gid) return g;
+      const fbaShipments = (g.fbaShipments || []).map(s => s.id !== fid ? s : {
+        ...s, tracking,
+        status: tracking.trim() && ["待出库", "已入仓"].includes(normalizeShipmentStage(s.status)) ? "在途" : normalizeShipmentStage(s.status),
+      });
+      return { ...g, fbaShipments, headStatus: deriveHeadStatus(fbaShipments) };
     }));
   };
-  const cloneGroup = (g) => ({ ...g, exceptions: (g.exceptions || []).map(e => ({ ...e })), fbaShipments: (g.fbaShipments || []).map(s => ({ ...s })) });
-  const emptyGroup = { name: "", sku: "", totalQty: 0, owner: "", shipDate: "", transport: "海运", forwarder: "", blNumber: "", etaDeparture: "", etaArrival: "", headStatus: "备货中", note: "", exceptions: [], fbaShipments: [] };
+  const cloneGroup = (g) => ({
+    ...g,
+    exceptions: (g.exceptions || []).map(e => ({ ...e })),
+    fbaShipments: (g.fbaShipments || []).map(s => ({
+      ...ensureFbaDefaults(s, g),
+      exceptions: (s.exceptions || []).map(e => ({ ...e })),
+    })),
+  });
+  const emptyGroup = { name: "", sku: "", totalQty: 0, owner: "", shipDate: "", transport: "海运", forwarder: "", blNumber: "", etaDeparture: "", etaArrival: "", headStatus: DEFAULT_SHIPMENT_STAGE, note: "", exceptions: [], fbaShipments: [] };
   const onPanelCsvImport = async (e) => {
     const files = e.target.files;
     if (!files?.length) return;
@@ -1735,7 +2200,7 @@ function LogisticsPanel({ active = true }) {
           />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>
-      {modal && <ShipmentModal item={modal} ownerExtras={list.map(i => i.owner)} onSave={save} onClose={() => {
+      {modal && <ShipmentModal item={modal} onSave={save} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
         setModal(null);
       }} onDelete={() => { persist(list.filter(x => x.id !== modal.id)); setModal(null); }} />}

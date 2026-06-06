@@ -177,7 +177,9 @@ const GIST_SHARED_FILES = {
   production: "production.json",
   "tools-links": "tools-links.json",
   agents: "agents.json",
-  "kpi-monthly": "kpi-monthly.json"
+  "kpi-monthly": "kpi-monthly.json",
+  "global-config": "global-config.json",
+  "lingxing-sku-db": "lingxing-sku-db.json"
 };
 function gistConfigured() {
   return Boolean(getGistToken() && getGistId());
@@ -369,38 +371,105 @@ function parseStaffText(text) {
 function formatStaffText(staff) {
   return staff.map(e => `${e.name}|${e.role || ""}`).join("\n");
 }
-function loadGlobalConfig() {
+function getCurrentUserName() {
   try {
-    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (!raw) return {
-      staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({
-        ...e
-      }))
-    };
+    const raw = sessionStorage.getItem("ops-center-current-user");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.name) return parsed.name;
+    }
+  } catch {/* ignore */}
+  return "未知";
+}
+function readSharedStaffCache() {
+  try {
+    const raw = localStorage.getItem("shared:global-config");
+    if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed.staff) || !parsed.staff.length) {
+    const staff = parsed?.data?.staff;
+    if (Array.isArray(staff) && staff.length) {
       return {
-        staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({
-          ...e
-        }))
+        staff: staff.map(normalizeStaffEntry).filter(e => e.name)
       };
     }
+  } catch {/* ignore */}
+  return null;
+}
+function loadLegacyLocalConfig() {
+  try {
+    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.staff) || !parsed.staff.length) return null;
     return {
       staff: parsed.staff.map(normalizeStaffEntry).filter(e => e.name)
     };
   } catch {
-    return {
-      staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({
-        ...e
-      }))
-    };
+    return null;
   }
 }
-function saveGlobalConfig(config) {
+function loadGlobalConfig() {
+  const shared = readSharedStaffCache();
+  if (shared) return shared;
+  const legacy = loadLegacyLocalConfig();
+  if (legacy) return legacy;
+  return {
+    staff: DEFAULT_GLOBAL_CONFIG.staff.map(e => ({
+      ...e
+    }))
+  };
+}
+
+/** 从 Gist 拉取员工名单（与其它共享页相同逻辑，结果写入本地缓存） */
+async function fetchGlobalConfigFromCloud() {
+  if (!gistConfigured()) return loadGlobalConfig();
+  try {
+    const record = await sharedStorage.get("global-config");
+    if (record?.data?.staff?.length) {
+      window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
+      return record.data;
+    }
+    const legacy = loadLegacyLocalConfig();
+    if (legacy?.staff?.length) {
+      await sharedStorage.set("global-config", legacy, getCurrentUserName());
+      window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
+      return legacy;
+    }
+  } catch (e) {
+    console.warn("[global-config] 云端读取失败，使用本地缓存", e?.message);
+  }
+  return loadGlobalConfig();
+}
+function getGlobalConfigMeta() {
+  try {
+    const raw = localStorage.getItem("shared:global-config");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.updatedBy ? {
+      updatedBy: parsed.updatedBy,
+      updatedAt: parsed.updatedAt
+    } : null;
+  } catch {
+    return null;
+  }
+}
+async function saveGlobalConfig(config) {
   const next = {
     staff: (config.staff || []).map(normalizeStaffEntry).filter(e => e.name)
   };
-  localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
+  try {
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
+  } catch {/* ignore */}
+  if (gistConfigured()) {
+    await sharedStorage.set("global-config", next, getCurrentUserName());
+  } else {
+    localSet("global-config", {
+      data: next,
+      updatedBy: getCurrentUserName(),
+      updatedAt: Date.now()
+    });
+    window.dispatchEvent(new CustomEvent("ops-shared-updated:global-config"));
+  }
   window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
   return next;
 }
@@ -413,25 +482,17 @@ function getStaffNames() {
 function getStaffRole(name) {
   return getEmployees().find(e => e.name === name)?.role || "";
 }
-function ownerOptions(...extraLists) {
-  const fromData = extraLists.flat().filter(Boolean);
-  const byName = new Map(getEmployees().map(e => [e.name, e]));
-  for (const n of fromData) {
-    if (!byName.has(n)) byName.set(n, {
-      name: n,
-      role: ""
-    });
-  }
-  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+function ownerOptions() {
+  return getEmployees().slice().sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }
-function ownerFilterEntries(...extraLists) {
+function ownerFilterEntries() {
   return [{
     name: "all",
     role: ""
-  }, ...ownerOptions(...extraLists)];
+  }, ...ownerOptions()];
 }
-function ownerFilterOptions(...extraLists) {
-  return ownerFilterEntries(...extraLists).map(e => e.name);
+function ownerFilterOptions() {
+  return ownerFilterEntries().map(e => e.name);
 }
 function formatOwnerLabel(emp) {
   if (!emp) return "";
@@ -465,84 +526,40 @@ function RoleBadge({
 function OwnerField({
   value,
   onChange,
-  listId = "owner-list",
-  extraOwners = [],
   placeholder = "选择负责人…",
   style,
   inputStyle
 }) {
   useGlobalConfig();
-  const options = ownerOptions(extraOwners);
-  const known = new Set(options.map(o => o.name));
-  const [manual, setManual] = useState(() => !!(value && !known.has(value)));
+  const employees = ownerOptions();
+  const known = new Set(employees.map(e => e.name));
   const fieldStyle = {
     ...(inputStyle || style),
     background: "var(--card)"
   };
-  useEffect(() => {
-    if (value && !known.has(value)) setManual(true);else if (value && known.has(value)) setManual(false);
-  }, [value, options.map(o => o.name).join("\0")]);
-  if (manual) {
+  if (!employees.length) {
     return /*#__PURE__*/React.createElement("div", {
       style: {
-        display: "flex",
-        gap: 6,
-        alignItems: "center"
-      }
-    }, /*#__PURE__*/React.createElement("input", {
-      list: listId,
-      value: value,
-      onChange: e => onChange(e.target.value),
-      placeholder: "\u8F93\u5165\u59D3\u540D\u2026",
-      style: {
-        ...fieldStyle,
-        flex: 1
-      }
-    }), /*#__PURE__*/React.createElement("datalist", {
-      id: listId
-    }, options.map(o => /*#__PURE__*/React.createElement("option", {
-      key: o.name,
-      value: o.name
-    }, formatOwnerLabel(o)))), /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      onClick: () => {
-        setManual(false);
-        if (!known.has(value)) onChange("");
-      },
-      style: {
         fontSize: 11,
-        padding: "6px 8px",
-        border: "1px solid var(--border)",
+        color: "#92400e",
+        background: "#fffbeb",
+        border: "1px solid #fcd34d",
         borderRadius: 8,
-        background: "var(--bg)",
-        cursor: "pointer",
-        color: "var(--tm)",
-        fontFamily: "inherit",
-        whiteSpace: "nowrap",
-        flexShrink: 0
+        padding: "7px 10px",
+        lineHeight: 1.45
       }
-    }, "\u4ECE\u5217\u8868\u9009"));
+    }, "\u8BF7\u5148\u5728 \u2699 \u8BBE\u7F6E \u2192 \u5168\u5C40\u5458\u5DE5\u540D\u5355 \u4E2D\u6DFB\u52A0\u4EBA\u5458");
   }
   return /*#__PURE__*/React.createElement("select", {
     value: known.has(value) ? value : "",
-    onChange: e => {
-      const v = e.target.value;
-      if (v === "__manual__") {
-        setManual(true);
-        onChange("");
-        return;
-      }
-      onChange(v);
-    },
+    onChange: e => onChange(e.target.value),
     style: fieldStyle
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
-  }, placeholder), options.map(o => /*#__PURE__*/React.createElement("option", {
-    key: o.name,
-    value: o.name
-  }, formatOwnerLabel(o))), /*#__PURE__*/React.createElement("option", {
-    value: "__manual__"
-  }, "\u624B\u52A8\u8F93\u5165\u2026"));
+  }, placeholder), employees.map(e => /*#__PURE__*/React.createElement("option", {
+    key: e.name,
+    value: e.name
+  }, formatOwnerLabel(e))));
 }
 function StaffListEditor({
   rows,
@@ -682,23 +699,40 @@ function GlobalSettingsModal({
   const [rows, setRows] = useState(() => getEmployees().map(e => ({
     ...e
   })));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [meta, setMeta] = useState(() => getGlobalConfigMeta());
   useEffect(() => {
     const onKey = e => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !saving) onClose();
     };
+    const refreshMeta = () => setMeta(getGlobalConfigMeta());
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  const save = () => {
+    window.addEventListener("ops-global-config-updated", refreshMeta);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("ops-global-config-updated", refreshMeta);
+    };
+  }, [onClose, saving]);
+  const save = async () => {
     const staff = rows.map(r => ({
       name: r.name.trim(),
       role: r.role || ""
     })).filter(r => r.name);
-    saveGlobalConfig({
-      staff
-    });
-    onSaved && onSaved();
+    setSaving(true);
+    setError("");
+    try {
+      await saveGlobalConfig({
+        staff
+      });
+      onSaved && onSaved();
+    } catch (e) {
+      setError(e?.message || "保存失败，请检查网络或 Gist 配置");
+    } finally {
+      setSaving(false);
+    }
   };
+  const metaLine = meta?.updatedBy ? `☁️ 最后由 ${meta.updatedBy} 更新 · 保存后全公司同步` : "☁️ 保存后上传云端，全员实时同步";
   return /*#__PURE__*/React.createElement("div", {
     onClick: onClose,
     style: {
@@ -733,10 +767,30 @@ function GlobalSettingsModal({
     style: {
       fontSize: 11,
       color: "var(--tm)",
-      marginBottom: 14,
+      marginBottom: 8,
       lineHeight: 1.5
     }
-  }, "\u586B\u5199\u59D3\u540D\u5E76\u9009\u62E9\u89D2\u8272\uFF0C\u4FDD\u5B58\u540E\u4F1A\u5728\u5404\u6A21\u5757\u300C\u8D1F\u8D23\u4EBA / \u8DDF\u8FDB\u4EBA\u300D\u4E2D\u7EDF\u4E00\u51FA\u73B0\u3002"), /*#__PURE__*/React.createElement(StaffListEditor, {
+  }, "\u6B64\u5904\u4E3A\u5168\u5458\u552F\u4E00\u6765\u6E90\uFF1A\u5404\u9875\u300C\u8D1F\u8D23\u4EBA / \u8DDF\u8FDB\u4EBA\u300D\u53EA\u80FD\u4ECE\u6B64\u540D\u5355\u9009\u62E9\uFF0C\u4E0D\u80FD\u5728\u5176\u4ED6\u5730\u65B9\u968F\u610F\u6DFB\u52A0\u59D3\u540D\u3002"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#065f46",
+      background: "#ecfdf5",
+      border: "1px solid #6ee7b7",
+      borderRadius: 8,
+      padding: "6px 10px",
+      marginBottom: 12
+    }
+  }, metaLine), error && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#b91c1c",
+      background: "#fee2e2",
+      border: "1px solid #fecaca",
+      borderRadius: 8,
+      padding: "6px 10px",
+      marginBottom: 10
+    }
+  }, error), /*#__PURE__*/React.createElement(StaffListEditor, {
     rows: rows,
     onChange: setRows
   }), /*#__PURE__*/React.createElement("div", {
@@ -748,6 +802,7 @@ function GlobalSettingsModal({
     }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
+    disabled: saving,
     onClick: onClose,
     style: {
       background: "var(--bg)",
@@ -755,36 +810,44 @@ function GlobalSettingsModal({
       borderRadius: 8,
       padding: "6px 14px",
       fontSize: 12,
-      cursor: "pointer",
+      cursor: saving ? "wait" : "pointer",
       fontFamily: "inherit",
       color: "var(--tm)"
     }
   }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
     type: "button",
+    disabled: saving,
     onClick: save,
     style: {
-      background: "#2d7dd2",
+      background: saving ? "#b8d4f0" : "#2d7dd2",
       border: "none",
       borderRadius: 8,
       padding: "6px 14px",
       fontSize: 12,
-      cursor: "pointer",
+      cursor: saving ? "wait" : "pointer",
       fontFamily: "inherit",
       color: "#fff"
     }
-  }, "\u4FDD\u5B58"))));
+  }, saving ? "上传中…" : "☁️ 保存并同步"))));
 }
 function useGlobalConfig() {
   const [version, setVersion] = useState(0);
   useEffect(() => {
     const bump = () => setVersion(v => v + 1);
+    const onShared = () => {
+      fetchGlobalConfigFromCloud().finally(bump);
+    };
     window.addEventListener("ops-global-config-updated", bump);
-    return () => window.removeEventListener("ops-global-config-updated", bump);
+    window.addEventListener("ops-shared-updated:global-config", onShared);
+    return () => {
+      window.removeEventListener("ops-global-config-updated", bump);
+      window.removeEventListener("ops-shared-updated:global-config", onShared);
+    };
   }, []);
   return {
     version,
     staff: getEmployees(),
-    reload: () => setVersion(v => v + 1)
+    reload: () => fetchGlobalConfigFromCloud().then(() => setVersion(v => v + 1))
   };
 }
 window.ROLE_COLORS = ROLE_COLORS;
@@ -799,12 +862,14 @@ window.RoleBadge = RoleBadge;
 window.OwnerField = OwnerField;
 window.GlobalSettingsModal = GlobalSettingsModal;
 window.useGlobalConfig = useGlobalConfig;
+window.fetchGlobalConfigFromCloud = fetchGlobalConfigFromCloud;
+window.getGlobalConfigMeta = getGlobalConfigMeta;
 window.sharedStorage = sharedStorage;
 // ─── STORAGE (shared / private) ─────────────────────────────────────
 const CURRENT_USER_KEY = "ops-center-current-user";
 
-/** 2 分钟轮询；Gist 无 JSONBin 式月度配额，可按需改为 0 关闭 */
-const CLOUD_POLL_MS = 120000;
+/** 后台拉取间隔；0=关闭自动拉取，仅手动「从云端更新」。默认 30 分钟 */
+const CLOUD_POLL_MS = 1800000;
 function getCurrentUser() {
   try {
     const raw = sessionStorage.getItem(CURRENT_USER_KEY);
@@ -966,21 +1031,11 @@ function useSharedList(storageKey, defaultData, {
     return () => window.removeEventListener(`ops-shared-updated:${storageKey}`, handler);
   }, [storageKey, fetchFromCloud]);
   useEffect(() => {
-    if (!active) return;
-    const onVisible = () => {
+    if (!active || CLOUD_POLL_MS <= 0) return;
+    const timer = setInterval(() => {
       if (document.visibilityState === "visible") fetchFromCloud();
-    };
-    window.addEventListener("focus", onVisible);
-    document.addEventListener("visibilitychange", onVisible);
-    let timer = null;
-    if (CLOUD_POLL_MS > 0) {
-      timer = setInterval(() => fetchFromCloud(), CLOUD_POLL_MS);
-    }
-    return () => {
-      window.removeEventListener("focus", onVisible);
-      document.removeEventListener("visibilitychange", onVisible);
-      if (timer) clearInterval(timer);
-    };
+    }, CLOUD_POLL_MS);
+    return () => clearInterval(timer);
   }, [fetchFromCloud, active]);
   const [saving, setSaving] = useState(false);
   const persist = useCallback(async data => {
@@ -1060,7 +1115,7 @@ function SharedMetaLine({
     color = "#991b1b";
     text = `❌ ${error} · 数据已暂存本机，请重试上传`;
   } else if (meta?.updatedBy) {
-    text = CLOUD_POLL_MS > 0 ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 每 ${Math.round(CLOUD_POLL_MS / 1000)} 秒自动同步` : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 点「从云端更新」拉取最新`;
+    text = CLOUD_POLL_MS > 0 ? `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 可见时每 ${Math.round(CLOUD_POLL_MS / 60000)} 分钟自动拉取` : `☁️ 最后由 ${meta.updatedBy} 更新于 ${formatSharedTime(meta.updatedAt)} · 请点「从云端更新」手动拉取`;
   }
   const btnBase = {
     background: "#fff",
@@ -1143,40 +1198,42 @@ function useCurrentUser() {
 const STATUS = {
   pending: {
     label: "待发货",
-    color: "#5F5E5A",
-    bg: "#F4F3EF",
-    dot: "#888780",
-    border: "#C8C6BC"
+    color: "#4b5563",
+    bg: "#e5e7eb",
+    dot: "#6b7280",
+    border: "#9ca3af"
   },
   transit: {
     label: "运输中",
-    color: "#185FA5",
-    bg: "#EBF4FD",
-    dot: "#378ADD",
-    border: "#85B7EB"
+    color: "#1a4e8a",
+    bg: "#bfdbfe",
+    dot: "#2563eb",
+    border: "#60a5fa"
   },
   arrived: {
     label: "已到达",
-    color: "#0F6E56",
-    bg: "#E5F6F0",
-    dot: "#0F6E56",
-    border: "#86efac"
+    color: "#065f46",
+    bg: "#6ee7b7",
+    dot: "#059669",
+    border: "#34d399"
   },
   receiving: {
     label: "接收中",
-    color: "#1a9e8a",
-    bg: "#d1fae5",
-    dot: "#1a9e8a",
-    border: "#5eead4"
+    color: "#0f766e",
+    bg: "#99f6e4",
+    dot: "#14b8a6",
+    border: "#2dd4bf"
   },
   done: {
     label: "已完成",
-    color: "#2d9e52",
-    bg: "#d4f0dc",
-    dot: "#2d9e52",
-    border: "#86efac"
+    color: "#166534",
+    bg: "#86efac",
+    dot: "#22c55e",
+    border: "#4ade80"
   }
 };
+const GANTT_TRACKING_CHECK_STAGES = ["已入仓", "清关中", "已起运 (开船/起飞)", "在途"];
+const GANTT_ARRIVED_STAGES = ["到港", "上架中", "完成"];
 const SORT_OPTIONS = [{
   key: "name",
   label: "产品名称"
@@ -1191,6 +1248,7 @@ const SORT_OPTIONS = [{
   label: "批次数"
 }];
 const GANTT_FILTER_KEY = "ops-gantt-filters";
+const GANTT_EXPAND_KEY = "ops-gantt-expanded";
 const BTN_PRIMARY = {
   background: "#2d7dd2",
   color: "#fff",
@@ -1239,13 +1297,96 @@ function saveGanttFilters(filters) {
     sessionStorage.setItem(GANTT_FILTER_KEY, JSON.stringify(filters));
   } catch {/* ignore */}
 }
-const ganttBatchAllDone = g => (g.fbaShipments || []).length > 0 && (g.fbaShipments || []).every(s => s.status === "已完成");
-const ganttBatchReceiving = g => (g.fbaShipments || []).some(s => s.status === "接收中");
+function loadGanttExpanded() {
+  try {
+    const raw = sessionStorage.getItem(GANTT_EXPAND_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === "object") return p;
+    }
+  } catch {/* ignore */}
+  return {};
+}
+function saveGanttExpanded(state) {
+  try {
+    sessionStorage.setItem(GANTT_EXPAND_KEY, JSON.stringify(state));
+  } catch {/* ignore */}
+}
 function groupToGanttStatus(g) {
-  if (ganttBatchAllDone(g)) return "done";
-  if (ganttBatchReceiving(g)) return "receiving";
-  if (g.headStatus === "已到港") return "arrived";
-  if (g.headStatus === "已出港" || g.headStatus === "在途") return "transit";
+  const fbas = g.fbaShipments || [];
+  if (!fbas.length) return "pending";
+  const statuses = fbas.map(f => fbaToGanttStatus(f));
+  if (statuses.every(s => s === "done")) return "done";
+  if (statuses.some(s => s === "receiving")) return "receiving";
+  if (statuses.some(s => s === "arrived")) return "arrived";
+  if (statuses.some(s => s === "transit")) return "transit";
+  return "pending";
+}
+function fbaMissingTrack(f) {
+  const st = ganttNorm(f.status);
+  return GANTT_TRACKING_CHECK_STAGES.includes(st) && !(f.tracking || "").trim();
+}
+function batchGanttMeta(g, today) {
+  const fbas = g.fbaShipments || [];
+  let excCount = (g.exceptions || []).filter(e => !e.resolved).length;
+  fbas.forEach(f => {
+    excCount += (f.exceptions || []).filter(e => !e.resolved).length;
+  });
+  const missingTrack = fbas.some(fbaMissingTrack);
+  const overdue = fbas.some(f => {
+    const eta = parseD(f.etaArrival || g.etaArrival || f.windowEnd);
+    if (!eta) return false;
+    return eta < today && !GANTT_ARRIVED_STAGES.includes(ganttNorm(f.status));
+  }) || (() => {
+    const eta = parseD(g.etaArrival);
+    return eta && eta < today && fbas.length === 0;
+  })();
+  return {
+    excCount,
+    missingTrack,
+    overdue
+  };
+}
+function dominantStatus(statuses) {
+  const order = ["pending", "transit", "arrived", "receiving", "done"];
+  if (!statuses.length) return "pending";
+  if (statuses.every(s => s === "done")) return "done";
+  for (let i = order.length - 2; i >= 0; i--) {
+    if (statuses.some(s => s === order[i])) return order[i];
+  }
+  return "pending";
+}
+function productGanttSummary(batches) {
+  const ships = batches.map(b => parseD(b.shipDate)).filter(Boolean);
+  const etas = batches.map(b => parseD(b.etaArrival)).filter(Boolean);
+  return {
+    shipDate: ships.length ? new Date(Math.min(...ships.map(d => d.getTime()))).toISOString().slice(0, 10) : "",
+    etaArrival: etas.length ? new Date(Math.max(...etas.map(d => d.getTime()))).toISOString().slice(0, 10) : "",
+    status: dominantStatus(batches.map(b => b.status)),
+    excCount: batches.reduce((s, b) => s + (b.excCount || 0), 0),
+    overdue: batches.some(b => b.overdue),
+    missingTrack: batches.some(b => b.missingTrack),
+    batchCount: batches.length
+  };
+}
+const GANTT_STAGE_MAP = {
+  备货中: "待出库",
+  准备发货: "待出库",
+  已发货: "已入仓",
+  已出港: "已起运 (开船/起飞)",
+  运输中: "在途",
+  已到港: "到港",
+  接收中: "上架中",
+  已完成: "完成"
+};
+const ganttNorm = s => GANTT_STAGE_MAP[s] || s;
+const GANTT_TRANSIT_STAGES = ["清关中", "已起运 (开船/起飞)", "在途"];
+function fbaToGanttStatus(fba) {
+  const st = ganttNorm(fba.status);
+  if (st === "完成") return "done";
+  if (st === "上架中") return "receiving";
+  if (st === "到港") return "arrived";
+  if (GANTT_TRANSIT_STAGES.includes(st)) return "transit";
   return "pending";
 }
 function productDisplayName(name, sku) {
@@ -1263,8 +1404,15 @@ function batchLabel(name, sku) {
   }
   return name;
 }
+const parseD = s => {
+  if (!s) return null;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
 
-/** 将下方发货批次列表转为甘特图产品行（按 SKU 聚合） */
+/** 按 SKU 聚合产品，每个发货批次占甘特图一行（避免同产品多批次重叠） */
 function logisticsGroupsToGanttProducts(groups) {
   if (!Array.isArray(groups) || !groups.length) return [];
   const byKey = new Map();
@@ -1278,27 +1426,300 @@ function logisticsGroupsToGanttProducts(groups) {
         batches: []
       });
     }
+    const fbas = g.fbaShipments || [];
+    const shipCandidates = [g.shipDate, g.etaDeparture, ...fbas.map(f => f.etaDeparture || g.shipDate || g.etaDeparture)].filter(Boolean);
+    const etaCandidates = [g.etaArrival, ...fbas.map(f => f.etaArrival || g.etaArrival || f.windowEnd)].filter(Boolean);
+    const shipDate = shipCandidates.sort()[0] || "";
+    const etaArrival = etaCandidates.sort().slice(-1)[0] || "";
+    const todayNorm = new Date();
+    todayNorm.setHours(0, 0, 0, 0);
+    const meta = batchGanttMeta(g, todayNorm);
+    const label = batchLabel(g.name, g.sku);
     byKey.get(key).batches.push({
-      id: g.id,
-      label: batchLabel(g.name, g.sku),
+      id: `g-${g.id}`,
+      label,
       status: groupToGanttStatus(g),
-      shipDate: g.shipDate || g.etaDeparture || "",
-      etaArrival: g.etaArrival || ""
+      shipDate,
+      etaArrival,
+      fbaCount: fbas.length,
+      sub: fbas.length > 1 ? `${fbas.length} 个货件` : fbas[0]?.warehouse || "",
+      excCount: meta.excCount,
+      overdue: meta.overdue,
+      missingTrack: meta.missingTrack
+    });
+  }
+  for (const p of byKey.values()) {
+    p.batches.sort((a, b) => {
+      const ta = parseD(a.shipDate)?.getTime() || 0;
+      const tb = parseD(b.shipDate)?.getTime() || 0;
+      return tb - ta;
     });
   }
   return Array.from(byKey.values());
 }
-const parseD = s => {
-  if (!s) return null;
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setHours(0, 0, 0, 0);
-  return d;
-};
 const fmtShort = d => {
   if (!d) return "—";
+  if (typeof d === "string") {
+    const p = parseD(d);
+    if (!p) return "—";
+    return `${p.getMonth() + 1}/${p.getDate()}`;
+  }
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
+function calcBarPos(shipDate, etaArrival, min, totalDays) {
+  const start = parseD(shipDate) || parseD(etaArrival);
+  const end = parseD(etaArrival) || parseD(shipDate);
+  if (!start || !end) return null;
+  const s = start < end ? start : end;
+  const e = start < end ? end : start;
+  return {
+    left: (s - min) / 86400000 / totalDays * 100,
+    width: Math.max(8, (e - s) / 86400000 / totalDays * 100),
+    start: s,
+    end: e
+  };
+}
+function GanttAlerts({
+  excCount,
+  overdue,
+  missingTrack,
+  compact
+}) {
+  const items = [];
+  if (overdue) items.push({
+    t: "逾期",
+    c: "#E24B4A",
+    bg: "#fee2e2"
+  });
+  if (excCount > 0) items.push({
+    t: `⚠${excCount}`,
+    c: "#b45309",
+    bg: "#fff0d4"
+  });
+  if (missingTrack) items.push({
+    t: "缺追踪",
+    c: "#b91c1c",
+    bg: "#fee2e2"
+  });
+  if (!items.length) return null;
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      gap: compact ? 3 : 4,
+      flexShrink: 0
+    }
+  }, items.map(it => /*#__PURE__*/React.createElement("span", {
+    key: it.t,
+    style: {
+      fontSize: compact ? 9 : 10,
+      fontWeight: 700,
+      padding: compact ? "1px 5px" : "2px 6px",
+      borderRadius: 10,
+      background: it.bg,
+      color: it.c,
+      whiteSpace: "nowrap"
+    }
+  }, it.t)));
+}
+function GanttTrack({
+  shipDate,
+  etaArrival,
+  status,
+  label,
+  sub,
+  excCount,
+  overdue,
+  missingTrack,
+  min,
+  totalDays,
+  today,
+  height = 40,
+  compact = false,
+  segments,
+  segmentsOnly = false
+}) {
+  const pos = calcBarPos(shipDate, etaArrival, min, totalDays);
+  const st = STATUS[status] || STATUS.pending;
+  const trackH = height;
+  if (segmentsOnly && segments?.length) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        position: "relative",
+        height: trackH,
+        background: "#f3f4f6",
+        borderRadius: 8,
+        border: "1px solid #e5e7eb"
+      }
+    }, segments.map(seg => {
+      const sp = calcBarPos(seg.shipDate, seg.etaArrival, min, totalDays);
+      if (!sp) return null;
+      const ss = STATUS[seg.status] || STATUS.pending;
+      return /*#__PURE__*/React.createElement("div", {
+        key: seg.id,
+        title: `${seg.label} · ${ss.label} · ${fmtShort(seg.shipDate)}→${fmtShort(seg.etaArrival)}`,
+        style: {
+          position: "absolute",
+          left: `${sp.left}%`,
+          width: `${sp.width}%`,
+          top: 3,
+          bottom: 3,
+          background: `linear-gradient(180deg, ${ss.bg}, ${ss.border}88)`,
+          border: `1.5px solid ${seg.overdue ? "#E24B4A" : ss.border}`,
+          borderRadius: 4,
+          minWidth: 4
+        }
+      });
+    }));
+  }
+  if (!pos) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        height: trackH,
+        background: "#f9fafb",
+        borderRadius: 8,
+        border: "2px dashed #d1d5db",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 11,
+        color: "#9ca3af"
+      }
+    }, "\u6682\u65E0\u65E5\u671F\u533A\u95F4");
+  }
+  const todayInBar = today >= pos.start && today <= pos.end;
+  const todayPctInBar = todayInBar ? (today - pos.start) / (pos.end - pos.start) * 100 : null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      position: "relative",
+      height: trackH,
+      background: "#f3f4f6",
+      borderRadius: 8,
+      border: "1px solid #e5e7eb",
+      boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    title: `${label || ""} ${fmtShort(pos.start)} → ${fmtShort(pos.end)} · ${st.label}`,
+    style: {
+      position: "absolute",
+      left: `${pos.left}%`,
+      width: `${pos.width}%`,
+      top: 5,
+      bottom: 5,
+      background: `linear-gradient(180deg, ${st.bg} 0%, ${st.border}33 100%)`,
+      border: `2px solid ${overdue ? "#E24B4A" : st.border}`,
+      borderRadius: 6,
+      boxShadow: overdue ? "0 0 0 1px #fecaca" : "0 1px 3px rgba(0,0,0,0.08)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "0 8px",
+      gap: 6,
+      overflow: "hidden",
+      minWidth: 48
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: compact ? 9 : 10,
+      fontWeight: 700,
+      color: st.color,
+      flexShrink: 0,
+      background: "rgba(255,255,255,0.7)",
+      padding: "1px 4px",
+      borderRadius: 4
+    }
+  }, fmtShort(pos.start)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 5,
+      minWidth: 0,
+      flex: 1,
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 8,
+      height: 8,
+      borderRadius: "50%",
+      background: st.dot,
+      flexShrink: 0,
+      boxShadow: `0 0 0 2px ${st.bg}`
+    }
+  }), label && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: compact ? 10 : 11,
+      fontWeight: 700,
+      color: st.color,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, label), sub && !compact && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: st.color,
+      opacity: 0.8,
+      flexShrink: 0
+    }
+  }, sub)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement(GanttAlerts, {
+    excCount: excCount,
+    overdue: overdue,
+    missingTrack: missingTrack,
+    compact: compact
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: compact ? 9 : 10,
+      fontWeight: 700,
+      color: st.color,
+      background: "rgba(255,255,255,0.7)",
+      padding: "1px 4px",
+      borderRadius: 4
+    }
+  }, fmtShort(pos.end))), todayPctInBar != null && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      left: `${todayPctInBar}%`,
+      top: -3,
+      bottom: -3,
+      width: 3,
+      background: "#E24B4A",
+      borderRadius: 2,
+      zIndex: 2,
+      pointerEvents: "none"
+    },
+    title: "\u4ECA\u5929"
+  })), segments?.map(seg => {
+    const sp = calcBarPos(seg.shipDate, seg.etaArrival, min, totalDays);
+    if (!sp) return null;
+    const ss = STATUS[seg.status] || STATUS.pending;
+    return /*#__PURE__*/React.createElement("div", {
+      key: seg.id,
+      title: `${seg.label} · ${ss.label}`,
+      style: {
+        position: "absolute",
+        left: `${sp.left}%`,
+        width: `${sp.width}%`,
+        top: "50%",
+        height: 6,
+        marginTop: -3,
+        background: ss.dot,
+        borderRadius: 3,
+        opacity: 0.85,
+        pointerEvents: "none"
+      }
+    });
+  }));
+}
 function applyGanttView(products, {
   productFilter,
   statusFilter,
@@ -1367,10 +1788,19 @@ function GanttTimeline({
   products,
   today
 }) {
+  const [expanded, setExpanded] = useState(loadGanttExpanded);
+  useEffect(() => {
+    saveGanttExpanded(expanded);
+  }, [expanded]);
+  const toggleProduct = id => setExpanded(prev => ({
+    ...prev,
+    [id]: prev[id] === false
+  }));
   const {
     min,
     totalDays,
-    weeks
+    weeks,
+    todayPct
   } = useMemo(() => {
     let minD = new Date(today);
     let maxD = new Date(today);
@@ -1394,77 +1824,17 @@ function GanttTimeline({
       weeks.push(new Date(cur));
       cur.setDate(cur.getDate() + 7);
     }
+    const todayPct = (today - minD) / 86400000 / totalDays * 100;
     return {
       min: minD,
       max: maxD,
       totalDays,
-      weeks
+      weeks,
+      todayPct
     };
   }, [products, today]);
-  const todayPct = (today - min) / 86400000 / totalDays * 100;
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      overflowX: "auto"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      minWidth: 640
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      marginLeft: 140,
-      borderBottom: "1px solid var(--border)",
-      paddingBottom: 6,
-      marginBottom: 8
-    }
-  }, weeks.map((w, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    style: {
-      flex: 1,
-      minWidth: 56,
-      fontSize: 10,
-      color: "var(--tm)",
-      textAlign: "center"
-    }
-  }, w.getMonth() + 1, "/", w.getDate()))), products.map(p => /*#__PURE__*/React.createElement("div", {
-    key: p.id,
-    style: {
-      display: "flex",
-      alignItems: "center",
-      marginBottom: 10,
-      minHeight: 36
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 132,
-      flexShrink: 0,
-      paddingRight: 8
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      fontWeight: 600,
-      color: "var(--text)",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap"
-    }
-  }, p.name), p.sku && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "var(--tm)"
-    }
-  }, p.sku)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      position: "relative",
-      height: 28,
-      background: "var(--bg)",
-      borderRadius: 6,
-      border: "1px solid var(--border)"
-    }
-  }, todayPct >= 0 && todayPct <= 100 && /*#__PURE__*/React.createElement("div", {
+  const LABEL_W = 180;
+  const TodayLine = () => todayPct >= 0 && todayPct <= 100 ? /*#__PURE__*/React.createElement("div", {
     style: {
       position: "absolute",
       left: `${todayPct}%`,
@@ -1472,52 +1842,202 @@ function GanttTimeline({
       bottom: 0,
       width: 2,
       background: "#E24B4A",
-      opacity: 0.7,
-      zIndex: 2
-    },
-    title: "\u4ECA\u5929"
-  }), (p.batches || []).map(b => {
-    const start = parseD(b.shipDate) || parseD(b.etaArrival);
-    const end = parseD(b.etaArrival) || parseD(b.shipDate);
-    if (!start || !end) return null;
-    const s = start < end ? start : end;
-    const e = start < end ? end : start;
-    const left = (s - min) / 86400000 / totalDays * 100;
-    const width = Math.max(2, (e - s) / 86400000 / totalDays * 100);
-    const st = STATUS[b.status] || STATUS.pending;
+      zIndex: 3,
+      pointerEvents: "none"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: -14,
+      left: -10,
+      fontSize: 9,
+      color: "#E24B4A",
+      fontWeight: 700,
+      whiteSpace: "nowrap"
+    }
+  }, "\u4ECA\u5929")) : null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      minWidth: 720
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      marginLeft: LABEL_W,
+      borderBottom: "2px solid var(--border)",
+      paddingBottom: 6,
+      marginBottom: 10
+    }
+  }, weeks.map((w, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      flex: 1,
+      minWidth: 56,
+      fontSize: 10,
+      fontWeight: 600,
+      color: "var(--tm)",
+      textAlign: "center"
+    }
+  }, w.getMonth() + 1, "/", w.getDate()))), products.map(p => {
+    const isOpen = expanded[p.id] !== false;
+    const batches = p.batches || [];
+    const batchCount = batches.length;
+    const summary = productGanttSummary(batches);
     return /*#__PURE__*/React.createElement("div", {
-      key: b.id,
-      title: `${b.label} · ${st.label} · ${fmtShort(s)}–${fmtShort(e)}`,
+      key: p.id,
       style: {
-        position: "absolute",
-        left: `${left}%`,
-        width: `${width}%`,
-        top: 4,
-        bottom: 4,
-        background: st.bg,
-        border: `1px solid ${st.border}`,
-        borderRadius: 4,
+        marginBottom: 10,
+        paddingBottom: 8,
+        borderBottom: "1px solid var(--border)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
         display: "flex",
         alignItems: "center",
-        padding: "0 6px",
-        fontSize: 10,
-        fontWeight: 600,
-        color: st.color,
+        gap: 6,
+        marginBottom: 6,
+        minHeight: 44
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: () => toggleProduct(p.id),
+      title: isOpen ? "收起产品" : "展开产品",
+      style: {
+        width: 26,
+        height: 26,
+        flexShrink: 0,
+        background: "#eff6ff",
+        border: "1px solid #93c5fd",
+        borderRadius: 6,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: 11,
+        color: "#2563eb",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }
+    }, isOpen ? "▼" : "▶"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: LABEL_W - 32,
+        flexShrink: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--text)",
         overflow: "hidden",
-        whiteSpace: "nowrap",
-        zIndex: 1
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      }
+    }, p.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "var(--tm)",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("span", null, p.sku || "—", " \xB7 ", batchCount, " \u6279"), summary.shipDate && summary.etaArrival && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 600,
+        color: "var(--text)"
+      }
+    }, fmtShort(summary.shipDate), " \u2192 ", fmtShort(summary.etaArrival)), /*#__PURE__*/React.createElement(GanttAlerts, {
+      excCount: summary.excCount,
+      overdue: summary.overdue,
+      missingTrack: summary.missingTrack,
+      compact: true
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        position: "relative"
+      }
+    }, /*#__PURE__*/React.createElement(TodayLine, null), /*#__PURE__*/React.createElement(GanttTrack, {
+      shipDate: summary.shipDate,
+      etaArrival: summary.etaArrival,
+      status: summary.status,
+      label: isOpen ? null : `${batchCount} 批汇总`,
+      excCount: isOpen ? 0 : summary.excCount,
+      overdue: summary.overdue,
+      missingTrack: isOpen ? false : summary.missingTrack,
+      min: min,
+      totalDays: totalDays,
+      today: today,
+      height: isOpen ? 18 : 44,
+      compact: !isOpen,
+      segments: isOpen ? batches : null,
+      segmentsOnly: isOpen
+    }))), isOpen && batches.map(b => /*#__PURE__*/React.createElement("div", {
+      key: b.id,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        marginBottom: 8,
+        marginLeft: 32
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: LABEL_W - 32,
+        flexShrink: 0,
+        paddingLeft: 4
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        fontWeight: 600,
+        color: "var(--text)",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      },
+      title: b.label
+    }, b.label), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 9,
+        color: "var(--tm)",
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        flexWrap: "wrap"
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        width: 6,
-        height: 6,
-        borderRadius: "50%",
-        background: st.dot,
-        marginRight: 4,
-        flexShrink: 0
+        fontWeight: 600,
+        color: STATUS[b.status]?.color
       }
-    }), b.label);
-  }))))));
+    }, STATUS[b.status]?.label), b.sub && /*#__PURE__*/React.createElement("span", null, "\xB7 ", b.sub), /*#__PURE__*/React.createElement(GanttAlerts, {
+      excCount: b.excCount,
+      overdue: b.overdue,
+      missingTrack: b.missingTrack,
+      compact: true
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        position: "relative"
+      }
+    }, /*#__PURE__*/React.createElement(TodayLine, null), /*#__PURE__*/React.createElement(GanttTrack, {
+      shipDate: b.shipDate,
+      etaArrival: b.etaArrival,
+      status: b.status,
+      label: b.label,
+      sub: b.sub,
+      excCount: b.excCount,
+      overdue: b.overdue,
+      missingTrack: b.missingTrack,
+      min: min,
+      totalDays: totalDays,
+      today: today,
+      height: 44
+    })))));
+  })));
 }
 function FBAGanttCard({
   groups = [],
@@ -1588,7 +2108,7 @@ function FBAGanttCard({
       color: "var(--tm)",
       marginTop: 2
     }
-  }, "\u7518\u7279\u65F6\u95F4\u8F74 \xB7 \u81EA\u52A8\u540C\u6B65\u4E0B\u65B9\u53D1\u8D27\u6279\u6B21", allProducts.length > 0 && /*#__PURE__*/React.createElement("span", null, " \xB7 \u663E\u793A ", viewProducts.length, "/", allProducts.length, " \u4E2A\u4EA7\u54C1"))), /*#__PURE__*/React.createElement("button", {
+  }, "\u7518\u7279\u65F6\u95F4\u8F74 \xB7 \u81EA\u52A8\u540C\u6B65\u4E0B\u65B9\u53D1\u8D27\u6279\u6B21", allProducts.length > 0 && /*#__PURE__*/React.createElement("span", null, " \xB7 ", viewProducts.length, "/", allProducts.length, " \u4E2A\u4EA7\u54C1 \xB7 \u6BCF\u6279\u6B21\u72EC\u7ACB\u4E00\u884C"))), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => captureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试")),
     style: BTN_PRIMARY
@@ -1676,7 +2196,8 @@ function FBAGanttCard({
       display: "flex",
       gap: 12,
       marginBottom: 12,
-      flexWrap: "wrap"
+      flexWrap: "wrap",
+      alignItems: "center"
     }
   }, Object.entries(STATUS).map(([k, v]) => /*#__PURE__*/React.createElement("div", {
     key: k,
@@ -1685,16 +2206,36 @@ function FBAGanttCard({
       alignItems: "center",
       gap: 4,
       fontSize: 10,
-      color: v.color
+      color: v.color,
+      fontWeight: 600
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      width: 8,
-      height: 8,
-      borderRadius: "50%",
-      background: v.dot
+      width: 10,
+      height: 10,
+      borderRadius: 3,
+      background: v.bg,
+      border: `2px solid ${v.border}`
     }
-  }), v.label))), /*#__PURE__*/React.createElement("div", {
+  }), v.label)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "#E24B4A",
+      fontWeight: 600
+    }
+  }, "| \u903E\u671F\u7EA2\u6846"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "#b45309",
+      fontWeight: 600
+    }
+  }, "\u26A0 \u5F02\u5E38"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "#b91c1c",
+      fontWeight: 600
+    }
+  }, "\u7F3A\u8FFD\u8E2A")), /*#__PURE__*/React.createElement("div", {
     ref: chartRef
   }, !allProducts.length ? /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1737,42 +2278,71 @@ function FBAGanttCard({
 }
 
 // ─── LOGISTICS MODULE (Shipment Group + FBA) ─────────────────────────
-const HEAD_STAGES = ["备货中", "已出港", "在途", "已到港"];
-const HEAD_STAGE_SHORT = {
-  备货中: "备货",
-  已出港: "出港",
-  在途: "在途",
-  已到港: "到港"
+/** 头程状态与 FBA 货件状态共用 */
+const SHIPMENT_STAGES = ["待出库", "已入仓", "清关中", "已起运 (开船/起飞)", "在途", "到港", "上架中", "完成"];
+const LEGACY_STAGE_MAP = {
+  备货中: "待出库",
+  准备发货: "待出库",
+  已发货: "已入仓",
+  已出港: "已起运 (开船/起飞)",
+  运输中: "在途",
+  已到港: "到港",
+  接收中: "上架中",
+  已完成: "完成"
 };
-const headStageColor = s => ({
-  备货中: "#888",
-  已出港: "#7a6dd2",
+const DEFAULT_SHIPMENT_STAGE = "待出库";
+const normalizeShipmentStage = s => LEGACY_STAGE_MAP[s] || (SHIPMENT_STAGES.includes(s) ? s : DEFAULT_SHIPMENT_STAGE);
+const stageColor = s => ({
+  待出库: "#9ca3af",
+  已入仓: "#6b7280",
+  "已起运 (开船/起飞)": "#5b6abf",
+  清关中: "#7a6dd2",
   在途: "#2d7dd2",
-  已到港: "#1a9e8a"
-})[s] || "#888";
-const FBA_STATUSES = ["准备发货", "运输中", "缺少追踪编码", "接收中", "已完成"];
-const FBA_STATUS_STYLE = {
-  "缺少追踪编码": {
+  到港: "#1a9e8a",
+  上架中: "#7a6dd2",
+  完成: "#2d9e52"
+})[normalizeShipmentStage(s)] || "#888";
+const STAGE_STYLE = {
+  缺少追踪编码: {
     bg: "#fee2e2",
     c: "#E24B4A"
   },
-  "运输中": {
+  待出库: {
+    bg: "#f3f4f6",
+    c: "#6b7280"
+  },
+  已入仓: {
+    bg: "#e5e7eb",
+    c: "#4b5563"
+  },
+  "已起运 (开船/起飞)": {
+    bg: "#e0e7ff",
+    c: "#3730a3"
+  },
+  清关中: {
+    bg: "#ede9fe",
+    c: "#5b21b6"
+  },
+  在途: {
     bg: "#dceeff",
     c: "#2d7dd2"
   },
-  "接收中": {
+  到港: {
     bg: "#d1fae5",
     c: "#1a9e8a"
   },
-  "已完成": {
+  上架中: {
+    bg: "#ede9fe",
+    c: "#6b21a8"
+  },
+  完成: {
     bg: "#d4f0dc",
     c: "#2d9e52"
-  },
-  "准备发货": {
-    bg: "#f3f4f6",
-    c: "#888"
   }
 };
+const TRACKING_CHECK_STAGES = ["已入仓", "清关中", "已起运 (开船/起飞)", "在途"];
+const HEAD_TRANSIT_STAGES = ["清关中", "已起运 (开船/起飞)", "在途"];
+const headArrivedOrLater = s => ["到港", "上架中", "完成"].includes(normalizeShipmentStage(s));
 const TRANSPORT_META = {
   海运: {
     icon: "🚢",
@@ -1792,20 +2362,65 @@ const TRANSPORT_META = {
 };
 const fmtWindow = (s, e) => !s && !e ? "—" : `${s ? fmtD(s) : "?"} – ${e ? fmtD(e) : "?"}`;
 const fbaEffectiveStatus = fba => {
-  if (fba.status === "缺少追踪编码") return "缺少追踪编码";
-  if ((fba.status === "准备发货" || !fba.status) && !(fba.tracking || "").trim()) return "缺少追踪编码";
-  return fba.status || "准备发货";
+  const st = normalizeShipmentStage(fba.status);
+  if (TRACKING_CHECK_STAGES.includes(st) && !(fba.tracking || "").trim()) return "缺少追踪编码";
+  return st;
 };
 const batchMissingTrack = g => (g.fbaShipments || []).some(s => fbaEffectiveStatus(s) === "缺少追踪编码");
-const batchReceiving = g => (g.fbaShipments || []).some(s => s.status === "接收中");
-const batchAllDone = g => (g.fbaShipments || []).length > 0 && (g.fbaShipments || []).every(s => s.status === "已完成");
-const batchHeadTransit = g => ["已出港", "在途"].includes(g.headStatus);
-const batchHeadOverdue = g => {
-  const d = daysDiff(g.etaArrival);
-  return d !== null && d < 0 && g.headStatus !== "已到港";
+const batchReceiving = g => (g.fbaShipments || []).some(s => normalizeShipmentStage(s.status) === "上架中");
+const batchAllDone = g => (g.fbaShipments || []).length > 0 && (g.fbaShipments || []).every(s => normalizeShipmentStage(s.status) === "完成");
+const deriveHeadStatus = fbaShipments => {
+  const fbas = fbaShipments || [];
+  if (!fbas.length) return DEFAULT_SHIPMENT_STAGE;
+  const indices = fbas.map(f => SHIPMENT_STAGES.indexOf(normalizeShipmentStage(f.status))).filter(i => i >= 0);
+  return indices.length ? SHIPMENT_STAGES[Math.min(...indices)] : DEFAULT_SHIPMENT_STAGE;
 };
-const openExcCount = g => (g.exceptions || []).filter(e => !e.resolved).length;
-
+const batchHeadTransit = g => {
+  const fbas = g.fbaShipments || [];
+  if (fbas.length) return fbas.some(f => HEAD_TRANSIT_STAGES.includes(normalizeShipmentStage(f.status)));
+  return HEAD_TRANSIT_STAGES.includes(normalizeShipmentStage(g.headStatus));
+};
+const fbaEtaArrival = (fba, batch) => fba.etaArrival || batch?.etaArrival || fba.windowEnd || "";
+const fbaOpenExcCount = fba => (fba.exceptions || []).filter(e => !e.resolved).length;
+const fbaAllExceptions = (fba, batch, fbaIndex = 0) => {
+  if ((fba.exceptions || []).length) return fba.exceptions;
+  if (fbaIndex === 0 && (batch?.exceptions || []).length) return batch.exceptions;
+  return [];
+};
+const openExcCount = g => {
+  let n = (g.exceptions || []).filter(e => !e.resolved).length;
+  (g.fbaShipments || []).forEach(f => {
+    n += fbaOpenExcCount(f);
+  });
+  return n;
+};
+const fbaOverdue = (fba, batch) => {
+  const d = daysDiff(fbaEtaArrival(fba, batch));
+  return d !== null && d < 0 && !headArrivedOrLater(fba.status);
+};
+const batchHeadOverdue = g => {
+  const fbas = g.fbaShipments || [];
+  if (fbas.length) return fbas.some(f => fbaOverdue(f, g));
+  const d = daysDiff(g.etaArrival);
+  return d !== null && d < 0;
+};
+const batchEarliestEtaDiff = g => {
+  const diffs = (g.fbaShipments || []).map(f => daysDiff(fbaEtaArrival(f, g))).filter(d => d !== null);
+  if (diffs.length) return Math.min(...diffs);
+  return daysDiff(g.etaArrival);
+};
+const batchDisplayQty = group => {
+  const fbas = group.fbaShipments || [];
+  if (fbas.length) return sumFbaExpectedQty(fbas);
+  return group.totalQty || 0;
+};
+const ensureFbaDefaults = (fba, batch) => ({
+  ...fba,
+  etaArrival: fba.etaArrival || batch?.etaArrival || "",
+  etaDeparture: fba.etaDeparture || batch?.etaDeparture || "",
+  exceptions: fba.exceptions || []
+});
+const sumFbaExpectedQty = fbaShipments => (fbaShipments || []).reduce((s, f) => s + (Number(f.expectedQty) || 0), 0);
 // ─── Amazon STA CSV import ───────────────────────────────────────────
 const parseCsvRow = line => {
   const cells = [];
@@ -1889,8 +2504,11 @@ const parseAmazonStaCsv = (text, id) => {
       receivedQty: 0,
       windowStart,
       windowEnd: addDaysIso(windowStart, 6),
+      etaDeparture: "",
+      etaArrival: addDaysIso(windowStart, 6),
       tracking: "",
-      status: "准备发货",
+      status: DEFAULT_SHIPMENT_STAGE,
+      exceptions: [],
       note
     },
     sku: skuInfo?.sku || "",
@@ -1933,8 +2551,11 @@ const INIT_LOGISTICS = [{
     receivedQty: 0,
     windowStart: "2026-05-31",
     windowEnd: "2026-06-06",
+    etaDeparture: "2026-05-15",
+    etaArrival: "2026-06-08",
     tracking: "",
-    status: "准备发货",
+    status: "已入仓",
+    exceptions: [],
     note: ""
   }, {
     id: 102,
@@ -1946,8 +2567,11 @@ const INIT_LOGISTICS = [{
     receivedQty: 0,
     windowStart: "2026-06-01",
     windowEnd: "2026-06-07",
+    etaDeparture: "2026-05-15",
+    etaArrival: "2026-06-08",
     tracking: "1Z999AA10123456784",
-    status: "运输中",
+    status: "在途",
+    exceptions: [],
     note: ""
   }, {
     id: 103,
@@ -1959,8 +2583,11 @@ const INIT_LOGISTICS = [{
     receivedQty: 120,
     windowStart: "2026-05-28",
     windowEnd: "2026-06-03",
+    etaDeparture: "2026-05-15",
+    etaArrival: "2026-06-08",
     tracking: "TBA6284731003",
-    status: "接收中",
+    status: "上架中",
+    exceptions: [],
     note: ""
   }, {
     id: 104,
@@ -1972,8 +2599,11 @@ const INIT_LOGISTICS = [{
     receivedQty: 176,
     windowStart: "2026-05-20",
     windowEnd: "2026-05-26",
+    etaDeparture: "2026-05-15",
+    etaArrival: "2026-06-08",
     tracking: "FBA6284731004",
-    status: "已完成",
+    status: "完成",
+    exceptions: [],
     note: ""
   }, {
     id: 105,
@@ -1985,8 +2615,11 @@ const INIT_LOGISTICS = [{
     receivedQty: 0,
     windowStart: "2026-06-05",
     windowEnd: "2026-06-11",
+    etaDeparture: "2026-05-15",
+    etaArrival: "2026-06-08",
     tracking: "",
-    status: "准备发货",
+    status: "已入仓",
+    exceptions: [],
     note: ""
   }]
 }, {
@@ -2001,14 +2634,9 @@ const INIT_LOGISTICS = [{
   blNumber: "SF20260508001",
   etaDeparture: "2026-05-12",
   etaArrival: "2026-05-18",
-  headStatus: "已到港",
+  headStatus: "到港",
   note: "",
-  exceptions: [{
-    desc: "IAH3 仓库拒收部分箱",
-    date: "2026-05-25",
-    resolved: false,
-    action: "货代协调重新配送"
-  }],
+  exceptions: [],
   fbaShipments: [{
     id: 201,
     name: "FBA STA (05/08/2026 09:30)-LAX9",
@@ -2019,8 +2647,16 @@ const INIT_LOGISTICS = [{
     receivedQty: 280,
     windowStart: "2026-05-22",
     windowEnd: "2026-05-28",
+    etaDeparture: "2026-05-12",
+    etaArrival: "2026-05-18",
     tracking: "SF6284732001",
-    status: "接收中",
+    status: "上架中",
+    exceptions: [{
+      desc: "IAH3 仓库拒收部分箱",
+      date: "2026-05-25",
+      resolved: false,
+      action: "货代协调重新配送"
+    }],
     note: ""
   }]
 }, {
@@ -2035,7 +2671,7 @@ const INIT_LOGISTICS = [{
   blNumber: "MAEU9876543",
   etaDeparture: "2026-05-28",
   etaArrival: "2026-06-25",
-  headStatus: "备货中",
+  headStatus: "待出库",
   note: "等工厂尾数",
   exceptions: [],
   fbaShipments: [{
@@ -2048,8 +2684,11 @@ const INIT_LOGISTICS = [{
     receivedQty: 0,
     windowStart: "2026-06-20",
     windowEnd: "2026-06-26",
+    etaDeparture: "2026-05-28",
+    etaArrival: "2026-06-25",
     tracking: "",
-    status: "准备发货",
+    status: "待出库",
+    exceptions: [],
     note: ""
   }]
 }];
@@ -2189,10 +2828,224 @@ function FbaStatusBadge({
   fba
 }) {
   const st = fbaEffectiveStatus(fba);
-  const s = FBA_STATUS_STYLE[st] || FBA_STATUS_STYLE["准备发货"];
+  const s = STAGE_STYLE[st] || STAGE_STYLE[DEFAULT_SHIPMENT_STAGE];
   return /*#__PURE__*/React.createElement("span", {
     style: badge(s.bg, s.c)
   }, st);
+}
+function StageDotLine({
+  stage,
+  dotSize = 7,
+  connector = true
+}) {
+  const st = normalizeShipmentStage(stage);
+  const stageIdx = SHIPMENT_STAGES.indexOf(st);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      width: "100%"
+    }
+  }, SHIPMENT_STAGES.map((s, i) => {
+    const done = i < stageIdx;
+    const active = i === stageIdx;
+    const c = active ? stageColor(s) : done ? "#2d9e52" : "var(--border)";
+    const size = active ? dotSize : Math.max(5, dotSize - 2);
+    return /*#__PURE__*/React.createElement("span", {
+      key: s,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        flex: connector && i < SHIPMENT_STAGES.length - 1 ? 1 : "none"
+      },
+      title: s
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: c,
+        outline: active ? `2px solid ${c}` : "none",
+        outlineOffset: 1,
+        flexShrink: 0
+      }
+    }), connector && i < SHIPMENT_STAGES.length - 1 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        flex: 1,
+        height: 2,
+        background: done ? "#2d9e52" : "var(--border)",
+        margin: "0 1px"
+      }
+    }));
+  }));
+}
+function FbaArrivalHint({
+  fba,
+  batch
+}) {
+  const eta = fbaEtaArrival(fba, batch);
+  const d = daysDiff(eta);
+  if (headArrivedOrLater(fba.status)) return /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)"
+    }
+  }, "\u5DF2\u62B5\u8FBE");
+  if (d === null) return /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)"
+    }
+  }, "\u62B5\u8FBE \u2014");
+  if (d < 0) return /*#__PURE__*/React.createElement("span", {
+    style: badge("#fee2e2", "#E24B4A")
+  }, "\u903E\u671F ", Math.abs(d), " \u5929");
+  if (d === 0) return /*#__PURE__*/React.createElement("span", {
+    style: badge("#fff0d4", "#7a4a00")
+  }, "\u4ECA\u65E5\u62B5\u8FBE");
+  if (d <= 7) return /*#__PURE__*/React.createElement("span", {
+    style: badge("#dceeff", "#1a4e8a")
+  }, fmtD(eta), " \xB7 ", d, " \u5929");
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)"
+    }
+  }, "\u62B5\u8FBE ", fmtD(eta));
+}
+function FbaExceptionList({
+  exceptions
+}) {
+  const list = exceptions || [];
+  if (!list.length) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 6,
+      display: "flex",
+      flexDirection: "column",
+      gap: 4
+    },
+    onClick: e => e.stopPropagation()
+  }, list.map((ex, i) => {
+    const resolved = !!ex.resolved;
+    const desc = (ex.desc || "").trim() || "（未填写描述）";
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        fontSize: 10,
+        lineHeight: 1.45,
+        padding: "6px 8px",
+        borderRadius: 6,
+        background: resolved ? "#f0faf4" : "#fff8e6",
+        border: `1px solid ${resolved ? "#b7e4c7" : "#ffe0a0"}`,
+        color: resolved ? "#2d6a4f" : "#7a4a00"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 600
+      }
+    }, resolved ? "✓ " : "⚠ ", desc), ex.action && /*#__PURE__*/React.createElement("span", {
+      style: {
+        marginLeft: 4,
+        opacity: 0.9
+      }
+    }, "\xB7 ", ex.action), /*#__PURE__*/React.createElement("span", {
+      style: {
+        marginLeft: 4,
+        opacity: 0.75
+      }
+    }, "\xB7 ", ex.date ? fmtD(ex.date) : "—", resolved ? " 已解决" : " 未解决"));
+  }));
+}
+function FbaStageTrack({
+  fba,
+  batch,
+  fbaIndex = 0
+}) {
+  const f = ensureFbaDefaults(fba, batch);
+  const st = normalizeShipmentStage(f.status);
+  const stageIdx = SHIPMENT_STAGES.indexOf(st);
+  const prog = stageIdx >= 0 ? Math.round(stageIdx / (SHIPMENT_STAGES.length - 1) * 100) : 0;
+  const excN = fbaOpenExcCount(f);
+  const overdue = fbaOverdue(f, batch);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 12,
+      padding: "10px 12px",
+      background: "var(--bg)",
+      borderRadius: 10,
+      border: `1px solid ${overdue ? "#fecaca" : excN ? "#ffe0a0" : "var(--border)"}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+      marginBottom: 6,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: badge("#ede9fe", "#4c1d95", {
+      fontSize: 10,
+      fontWeight: 700,
+      padding: "3px 6px"
+    })
+  }, f.warehouse || "—"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, f.fbaId || f.name || "货件"), f.expectedQty > 0 && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)"
+    }
+  }, f.expectedQty, " \u4EF6")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement(FbaStatusBadge, {
+    fba: f
+  }), /*#__PURE__*/React.createElement(FbaArrivalHint, {
+    fba: f,
+    batch: batch
+  }), excN > 0 && /*#__PURE__*/React.createElement("span", {
+    style: badge("#fff0d4", "#e09000")
+  }, "\u26A0 ", excN, " \u5F02\u5E38"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 3,
+      background: "var(--border)",
+      borderRadius: 2,
+      overflow: "hidden",
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "100%",
+      width: `${prog}%`,
+      background: stageColor(st),
+      borderRadius: 2
+    }
+  })), /*#__PURE__*/React.createElement(StageDotLine, {
+    stage: f.status,
+    dotSize: 6
+  }), /*#__PURE__*/React.createElement(FbaExceptionList, {
+    exceptions: fbaAllExceptions(f, batch, fbaIndex)
+  }));
 }
 function FbaRow({
   fba,
@@ -2207,15 +3060,11 @@ function FbaRow({
   };
   return /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "grid",
-      gridTemplateColumns: "1fr auto",
-      gap: 8,
       padding: "10px 12px",
       borderBottom: "1px solid var(--border)",
-      fontSize: 11,
-      alignItems: "start"
+      fontSize: 11
     }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontWeight: 600,
       marginBottom: 3,
@@ -2235,11 +3084,6 @@ function FbaRow({
       marginBottom: 4
     }
   }, /*#__PURE__*/React.createElement("span", {
-    style: badge("#ede9fe", "#4c1d95", {
-      fontWeight: 700,
-      fontSize: 11
-    })
-  }, fba.warehouse), /*#__PURE__*/React.createElement("span", {
     style: {
       color: "var(--tm)"
     }
@@ -2309,9 +3153,7 @@ function FbaRow({
       setEditing(true);
     },
     title: "\u70B9\u51FB\u7F16\u8F91"
-  }, "\u8FFD\u8E2A ", fba.tracking))), /*#__PURE__*/React.createElement(FbaStatusBadge, {
-    fba: fba
-  }));
+  }, "\u8FFD\u8E2A ", fba.tracking || "—")));
 }
 function ShipmentGroupCard({
   group,
@@ -2321,57 +3163,63 @@ function ShipmentGroupCard({
   onEditTracking,
   onDelete
 }) {
-  const stageIdx = HEAD_STAGES.indexOf(group.headStatus);
-  const prog = stageIdx >= 0 ? Math.round(stageIdx / (HEAD_STAGES.length - 1) * 100) : 0;
-  const bc = batchHeadOverdue(group) ? "#E24B4A" : openExcCount(group) > 0 ? "#e09000" : headStageColor(group.headStatus);
-  const d = daysDiff(group.etaArrival);
+  const fbas = group.fbaShipments || [];
+  const fbaCount = fbas.length;
+  const totalQty = batchDisplayQty(group);
+  const excN = openExcCount(group);
+  const bc = batchHeadOverdue(group) ? "#E24B4A" : excN > 0 ? "#e09000" : "var(--border)";
   const tm = TRANSPORT_META[group.transport] || {
     icon: "📦",
     bg: "#f3f4f6",
     c: "#666"
   };
-  const fbaCount = (group.fbaShipments || []).length;
-  let etaHint = null;
-  if (group.headStatus !== "已到港" && d !== null) {
-    if (d < 0) etaHint = /*#__PURE__*/React.createElement("span", {
-      style: badge("#fee2e2", "#E24B4A")
-    }, "\u5230\u6E2F\u903E\u671F ", Math.abs(d), " \u5929");else if (d === 0) etaHint = /*#__PURE__*/React.createElement("span", {
-      style: badge("#fff0d4", "#7a4a00")
-    }, "\u4ECA\u65E5\u9884\u8BA1\u5230\u6E2F");else if (d <= 7) etaHint = /*#__PURE__*/React.createElement("span", {
-      style: badge("#dceeff", "#1a4e8a")
-    }, "\u8FD8\u6709 ", d, " \u5929\u5230\u6E2F");else etaHint = /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 11,
-        color: "var(--tm)"
-      }
-    }, "\u9884\u8BA1\u5230\u6E2F ", fmtD(group.etaArrival));
-  }
   return /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--card)",
       border: `1px solid ${batchHeadOverdue(group) ? "#fecaca" : "var(--border)"}`,
-      borderLeft: `4px solid ${bc}`,
+      borderLeft: `4px solid ${bc === "var(--border)" ? "#c8c6bc" : bc}`,
       borderRadius: 12,
       overflow: "hidden"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: "14px 16px",
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 8,
+      padding: "12px 14px",
+      background: "var(--bg)",
+      borderBottom: expanded ? "1px solid var(--border)" : "none"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: e => {
+      e.stopPropagation();
+      onToggleExpand();
+    },
+    title: expanded ? "收起批次" : "展开批次",
+    style: {
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: 8,
+      width: 28,
+      height: 28,
+      flexShrink: 0,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      fontSize: 11,
+      color: "#2d7dd2",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 2
+    }
+  }, expanded ? "▼" : "▶"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0,
       cursor: "pointer"
     },
     onClick: onEdit
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "flex-start",
-      gap: 10,
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      minWidth: 0
-    }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2385,21 +3233,26 @@ function ShipmentGroupCard({
       fontSize: 14,
       fontWeight: 700
     }
-  }, group.name), /*#__PURE__*/React.createElement("span", {
+  }, group.name), group.sku && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 12,
       color: "var(--tm)"
     }
   }, group.sku), /*#__PURE__*/React.createElement("span", {
     style: badge(tm.bg, tm.c)
-  }, tm.icon, " ", group.transport), openExcCount(group) > 0 && /*#__PURE__*/React.createElement("span", {
+  }, tm.icon, " ", group.transport), excN > 0 && /*#__PURE__*/React.createElement("span", {
     style: badge("#fff0d4", "#e09000")
-  }, "\u26A0 ", openExcCount(group), " \u5F02\u5E38")), /*#__PURE__*/React.createElement("div", {
+  }, "\u26A0 ", excN, " \u5F02\u5E38")), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "var(--tm)"
     }
-  }, fbaCount, " \u4E2A\u8D27\u4EF6 \xB7 \u5171 ", group.totalQty, " \u4EF6", group.blNumber ? ` · B/L ${group.blNumber}` : "")), /*#__PURE__*/React.createElement("div", {
+  }, fbaCount, " \u4E2A\u8D27\u4EF6 \xB7 \u5171 ", /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: "var(--text)",
+      fontWeight: 700
+    }
+  }, totalQty), " \u4EF6", group.blNumber ? ` · B/L ${group.blNumber}` : "")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -2422,114 +3275,7 @@ function ShipmentGroupCard({
     }
   }, group.owner), /*#__PURE__*/React.createElement(RoleBadge, {
     role: getStaffRole(group.owner)
-  })), etaHint)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 5
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      fontWeight: 600,
-      color: headStageColor(group.headStatus)
-    }
-  }, "\u5934\u7A0B ", group.headStatus), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 10,
-      color: "var(--tm)"
-    }
-  }, prog, "%")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      height: 4,
-      background: "var(--border)",
-      borderRadius: 2,
-      overflow: "hidden",
-      marginBottom: 8
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      height: "100%",
-      width: `${prog}%`,
-      background: bc,
-      borderRadius: 2
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 0,
-      overflowX: "auto"
-    }
-  }, HEAD_STAGES.map((s, i) => {
-    const done = i < stageIdx;
-    const active = i === stageIdx;
-    const c = active ? headStageColor(s) : done ? "#2d9e52" : "var(--border)";
-    return /*#__PURE__*/React.createElement("span", {
-      key: s,
-      style: {
-        display: "flex",
-        alignItems: "center",
-        flexShrink: 0
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 2,
-        minWidth: 36
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        width: active ? 10 : 7,
-        height: active ? 10 : 7,
-        borderRadius: "50%",
-        background: c,
-        outline: active ? `2px solid ${c}` : "none",
-        outlineOffset: 2
-      }
-    }), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 9,
-        color: active ? "var(--text)" : done ? "var(--tm)" : "var(--border)",
-        fontWeight: active ? 600 : 400
-      }
-    }, HEAD_STAGE_SHORT[s])), i < HEAD_STAGES.length - 1 && /*#__PURE__*/React.createElement("span", {
-      style: {
-        width: 16,
-        height: 2,
-        background: done ? "#2d9e52" : "var(--border)",
-        margin: "0 2px",
-        marginBottom: 12
-      }
-    }));
-  })))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      borderTop: "1px solid var(--border)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "8px 16px",
-      background: "var(--bg)"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: "var(--tm)"
-    }
-  }, expanded ? "收起 FBA 货件" : `展开 ${fbaCount} 个 FBA 货件`), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("button", {
+  })), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: e => {
       e.stopPropagation();
@@ -2538,52 +3284,51 @@ function ShipmentGroupCard({
     style: {
       background: "transparent",
       border: "1px solid #fecaca",
-      borderRadius: 8,
-      padding: "4px 12px",
-      fontSize: 11,
+      borderRadius: 6,
+      padding: "2px 8px",
+      fontSize: 10,
       cursor: "pointer",
       fontFamily: "inherit",
       color: "#e55"
     }
-  }, "\u5220\u9664"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: e => {
-      e.stopPropagation();
-      onToggleExpand();
-    },
+  }, "\u5220\u9664"))), expanded && /*#__PURE__*/React.createElement("div", {
     style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "4px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#2d7dd2"
+      padding: "12px 14px 14px"
     }
-  }, expanded ? "▲ 收起" : "▼ 展开"))), expanded && /*#__PURE__*/React.createElement("div", {
+  }, fbaCount > 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, fbas.map((f, i) => /*#__PURE__*/React.createElement(FbaStageTrack, {
+    key: f.id,
+    fba: f,
+    batch: group,
+    fbaIndex: i
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       borderTop: "1px solid var(--border)",
-      background: "var(--bg)"
+      marginTop: 4
     }
-  }, (group.fbaShipments || []).length ? (group.fbaShipments || []).map(f => /*#__PURE__*/React.createElement(FbaRow, {
+  }, fbas.map(f => /*#__PURE__*/React.createElement(FbaRow, {
     key: f.id,
     fba: f,
     onEditTracking: (fid, tracking) => onEditTracking(group.id, fid, tracking)
-  })) : /*#__PURE__*/React.createElement("div", {
+  })))) : /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: "1rem",
-      textAlign: "center",
+      fontSize: 11,
       color: "var(--tm)",
-      fontSize: 12
-    }
-  }, "\u6682\u65E0 FBA \u8D27\u4EF6")));
+      padding: "6px 0",
+      cursor: "pointer"
+    },
+    onClick: onEdit
+  }, "\u6682\u65E0\u8D27\u4EF6 \xB7 \u70B9\u51FB\u7F16\u8F91\u6DFB\u52A0")));
 }
 function FbaEditorRow({
   fba,
   onChange,
   onRemove
 }) {
+  const setExcs = exceptions => onChange({
+    ...fba,
+    exceptions
+  });
+  const excs = fba.exceptions || [];
   return /*#__PURE__*/React.createElement("div", {
     style: {
       border: "1px solid var(--border)",
@@ -2593,6 +3338,29 @@ function FbaEditorRow({
       background: "var(--bg)"
     }
   }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600
+    }
+  }, fba.warehouse || "货件", fba.fbaId ? ` · ${fba.fbaId}` : ""), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onRemove,
+    style: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      color: "#aaa",
+      fontSize: 18,
+      padding: "0 4px"
+    }
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
@@ -2667,11 +3435,31 @@ function FbaEditorRow({
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr 1fr auto",
+      gridTemplateColumns: "1fr 1fr 1fr 1fr",
       gap: 8,
-      alignItems: "end"
+      marginBottom: 8
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "\u9884\u8BA1\u51FA\u6E2F"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: fba.etaDeparture || "",
+    onChange: e => onChange({
+      ...fba,
+      etaDeparture: e.target.value
+    }),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "\u9884\u8BA1\u62B5\u8FBE"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: fba.etaArrival || "",
+    onChange: e => onChange({
+      ...fba,
+      etaArrival: e.target.value
+    }),
+    style: inp
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
   }, "\u914D\u9001\u5F00\u59CB"), /*#__PURE__*/React.createElement("input", {
     type: "date",
@@ -2691,7 +3479,14 @@ function FbaEditorRow({
       windowEnd: e.target.value
     }),
     style: inp
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 8,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
   }, "\u8FFD\u8E2A\u7F16\u7801"), /*#__PURE__*/React.createElement("input", {
     value: fba.tracking,
@@ -2703,7 +3498,7 @@ function FbaEditorRow({
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
   }, "\u72B6\u6001"), /*#__PURE__*/React.createElement("select", {
-    value: fba.status,
+    value: normalizeShipmentStage(fba.status),
     onChange: e => onChange({
       ...fba,
       status: e.target.value
@@ -2712,35 +3507,31 @@ function FbaEditorRow({
       ...inp,
       background: "var(--card)"
     }
-  }, FBA_STATUSES.map(s => /*#__PURE__*/React.createElement("option", {
+  }, SHIPMENT_STAGES.map(s => /*#__PURE__*/React.createElement("option", {
     key: s
-  }, s)))), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: onRemove,
-    style: {
-      background: "none",
-      border: "none",
-      cursor: "pointer",
-      color: "#aaa",
-      fontSize: 18,
-      padding: "8px 4px"
-    }
-  }, "\xD7")));
+  }, s))))), /*#__PURE__*/React.createElement(ExceptionEditor, {
+    excs: excs,
+    setExcs: setExcs
+  }));
 }
 function ShipmentModal({
   item,
-  ownerExtras,
   onSave,
   onClose,
   onDelete
 }) {
   const [form, setForm] = useState(item);
-  const [excs, setExcs] = useState(item.exceptions ? item.exceptions.map(e => ({
-    ...e
-  })) : []);
-  const [fbas, setFbas] = useState(item.fbaShipments ? item.fbaShipments.map(s => ({
-    ...s
-  })) : []);
+  const [fbas, setFbas] = useState(() => {
+    const legacyExcs = item.exceptions?.length ? item.exceptions.map(e => ({
+      ...e
+    })) : [];
+    return (item.fbaShipments || []).map((s, i) => ensureFbaDefaults({
+      ...s,
+      exceptions: (s.exceptions?.length ? s.exceptions : i === 0 ? legacyExcs : []).map(e => ({
+        ...e
+      }))
+    }, item));
+  });
   const [nextFbaId, setNextFbaId] = useState(() => Math.max(0, ...(item.fbaShipments || []).map(s => s.id)) + 1);
   const [importMsg, setImportMsg] = useState("");
   const [saveWarn, setSaveWarn] = useState("");
@@ -2749,6 +3540,15 @@ function ShipmentModal({
     ...f,
     [k]: v
   }));
+  const applyFbas = nextFbas => {
+    setFbas(nextFbas);
+    if (nextFbas.length) {
+      setForm(f => ({
+        ...f,
+        totalQty: sumFbaExpectedQty(nextFbas)
+      }));
+    }
+  };
   const handleSave = e => {
     e?.stopPropagation?.();
     if (!form.name.trim()) {
@@ -2756,10 +3556,20 @@ function ShipmentModal({
       return;
     }
     setSaveWarn("");
+    const totalQty = fbas.length ? sumFbaExpectedQty(fbas) : form.totalQty;
+    const normalizedFbas = fbas.map(f => ({
+      ...ensureFbaDefaults(f, form),
+      status: normalizeShipmentStage(f.status),
+      exceptions: (f.exceptions || []).map(e => ({
+        ...e
+      }))
+    }));
     onSave({
       ...form,
-      exceptions: excs,
-      fbaShipments: fbas
+      headStatus: deriveHeadStatus(normalizedFbas),
+      totalQty,
+      exceptions: [],
+      fbaShipments: normalizedFbas
     });
   };
   const emptyFba = () => ({
@@ -2772,8 +3582,11 @@ function ShipmentModal({
     receivedQty: 0,
     windowStart: "",
     windowEnd: "",
+    etaDeparture: "",
+    etaArrival: "",
     tracking: "",
-    status: "准备发货",
+    status: DEFAULT_SHIPMENT_STAGE,
+    exceptions: [],
     note: ""
   });
   const onCsvPick = async e => {
@@ -2791,11 +3604,12 @@ function ShipmentModal({
         ...f,
         id: nid++
       }));
-      setFbas(prev => [...prev, ...imported]);
+      const merged = [...fbas, ...imported];
+      applyFbas(merged);
       setNextFbaId(nid);
       setForm(f => ({
         ...f,
-        totalQty: f.totalQty ? f.totalQty : totalQty,
+        totalQty: sumFbaExpectedQty(merged),
         sku: f.sku || sku,
         name: f.name || (imported.length === 1 ? imported[0].name : f.name)
       }));
@@ -2895,18 +3709,9 @@ function ShipmentModal({
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
-  }, "\u603B\u4EF6\u6570"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    value: form.totalQty,
-    onChange: e => set("totalQty", +e.target.value || 0),
-    style: inp
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: lbl
   }, "\u8DDF\u8FDB\u4EBA"), /*#__PURE__*/React.createElement(OwnerField, {
-    listId: "logistics-owner",
     value: form.owner,
     onChange: v => set("owner", v),
-    extraOwners: ownerExtras,
     inputStyle: inp
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
@@ -2919,12 +3724,19 @@ function ShipmentModal({
     }
   }, Object.keys(TRANSPORT_META).map(t => /*#__PURE__*/React.createElement("option", {
     key: t
-  }, t))))), /*#__PURE__*/React.createElement("div", {
+  }, t)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "\u56FD\u5185\u51FA\u8D27\u65E5\u671F"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: form.shipDate,
+    onChange: e => set("shipDate", e.target.value),
+    style: inp
+  }))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr",
+      gridTemplateColumns: "1fr 1fr",
       gap: 10,
-      marginBottom: 10
+      marginBottom: 12
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
@@ -2938,46 +3750,7 @@ function ShipmentModal({
     value: form.blNumber,
     onChange: e => set("blNumber", e.target.value),
     style: inp
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: lbl
-  }, "\u56FD\u5185\u51FA\u8D27\u65E5\u671F"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: form.shipDate,
-    onChange: e => set("shipDate", e.target.value),
-    style: inp
   }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr",
-      gap: 10,
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: lbl
-  }, "\u9884\u8BA1\u51FA\u6E2F"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: form.etaDeparture,
-    onChange: e => set("etaDeparture", e.target.value),
-    style: inp
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: lbl
-  }, "\u9884\u8BA1\u5230\u6E2F"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: form.etaArrival,
-    onChange: e => set("etaArrival", e.target.value),
-    style: inp
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: lbl
-  }, "\u5934\u7A0B\u72B6\u6001"), /*#__PURE__*/React.createElement("select", {
-    value: form.headStatus,
-    onChange: e => set("headStatus", e.target.value),
-    style: {
-      ...inp,
-      background: "var(--card)"
-    }
-  }, HEAD_STAGES.map(s => /*#__PURE__*/React.createElement("option", {
-    key: s
-  }, s))))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 12
     }
@@ -2987,10 +3760,7 @@ function ShipmentModal({
     value: form.note,
     onChange: e => set("note", e.target.value),
     style: inp
-  })), /*#__PURE__*/React.createElement(ExceptionEditor, {
-    excs: excs,
-    setExcs: setExcs
-  }), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       fontWeight: 600,
@@ -3046,13 +3816,13 @@ function ShipmentModal({
     onChange: v => {
       const a = [...fbas];
       a[i] = v;
-      setFbas(a);
+      applyFbas(a);
     },
-    onRemove: () => setFbas(fbas.filter((_, j) => j !== i))
+    onRemove: () => applyFbas(fbas.filter((_, j) => j !== i))
   })), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => {
-      setFbas([...fbas, emptyFba()]);
+      applyFbas([...fbas, emptyFba()]);
       setNextFbaId(nextFbaId + 1);
     },
     style: {
@@ -3140,6 +3910,7 @@ function LogisticsPanel({
     items,
     meta,
     loading,
+    saving,
     error,
     persist,
     reload
@@ -3190,7 +3961,7 @@ function LogisticsPanel({
     receiving: list.filter(batchReceiving).length,
     done: list.filter(batchAllDone).length
   };
-  const owners = ownerFilterEntries(list.map(i => i.owner));
+  const owners = ownerFilterEntries();
   let vis = list.slice();
   if (ownerFilter !== "all") vis = vis.filter(i => i.owner === ownerFilter);
   if (filter === "transit") vis = vis.filter(batchHeadTransit);else if (filter === "missing_track") vis = vis.filter(batchMissingTrack);else if (filter === "receiving") vis = vis.filter(batchReceiving);else if (filter === "done") vis = vis.filter(batchAllDone);
@@ -3198,11 +3969,7 @@ function LogisticsPanel({
     const pa = batchHeadOverdue(a) ? 0 : openExcCount(a) ? 1 : 2;
     const pb = batchHeadOverdue(b) ? 0 : openExcCount(b) ? 1 : 2;
     if (pa !== pb) return pa - pb;
-    const da = daysDiff(a.etaArrival),
-      db = daysDiff(b.etaArrival);
-    if (da === null) return 1;
-    if (db === null) return -1;
-    return da - db;
+    return batchEarliestEtaDiff(a) - batchEarliestEtaDiff(b);
   });
   const save = t => {
     if (t.id) persist(list.map(x => x.id === t.id ? t : x));else persist([...list, {
@@ -3217,13 +3984,18 @@ function LogisticsPanel({
     if (modal?.id === g.id) setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
-    persist(list.map(g => g.id !== gid ? g : {
-      ...g,
-      fbaShipments: (g.fbaShipments || []).map(s => s.id !== fid ? s : {
+    persist(list.map(g => {
+      if (g.id !== gid) return g;
+      const fbaShipments = (g.fbaShipments || []).map(s => s.id !== fid ? s : {
         ...s,
         tracking,
-        status: tracking.trim() && s.status === "准备发货" ? "运输中" : s.status
-      })
+        status: tracking.trim() && ["待出库", "已入仓"].includes(normalizeShipmentStage(s.status)) ? "在途" : normalizeShipmentStage(s.status)
+      });
+      return {
+        ...g,
+        fbaShipments,
+        headStatus: deriveHeadStatus(fbaShipments)
+      };
     }));
   };
   const cloneGroup = g => ({
@@ -3232,7 +4004,10 @@ function LogisticsPanel({
       ...e
     })),
     fbaShipments: (g.fbaShipments || []).map(s => ({
-      ...s
+      ...ensureFbaDefaults(s, g),
+      exceptions: (s.exceptions || []).map(e => ({
+        ...e
+      }))
     }))
   });
   const emptyGroup = {
@@ -3246,7 +4021,7 @@ function LogisticsPanel({
     blNumber: "",
     etaDeparture: "",
     etaArrival: "",
-    headStatus: "备货中",
+    headStatus: DEFAULT_SHIPMENT_STAGE,
     note: "",
     exceptions: [],
     fbaShipments: []
@@ -3294,12 +4069,18 @@ function LogisticsPanel({
     label: "已完成",
     nc: "#2d9e52"
   }];
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
-    meta: meta,
-    loading: loading,
-    error: error,
-    onReload: reload
-  }), /*#__PURE__*/React.createElement(FBAGanttCard, {
+  useCloudSyncPage(active, {
+    label: "物流",
+    save: async () => persist(list),
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+    isDirty: !!modal,
+    dirtyHint: "物流批次编辑弹窗未保存"
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FBAGanttCard, {
     groups: list
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3440,9 +4221,11 @@ function LogisticsPanel({
     }
   }, "\u6682\u65E0\u5339\u914D\u6279\u6B21")), modal && /*#__PURE__*/React.createElement(ShipmentModal, {
     item: modal,
-    ownerExtras: list.map(i => i.owner),
     onSave: save,
-    onClose: () => setModal(null),
+    onClose: () => {
+      if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+      setModal(null);
+    },
     onDelete: () => {
       persist(list.filter(x => x.id !== modal.id));
       setModal(null);
@@ -4458,7 +5241,6 @@ function ProdExceptionEditor({
 }
 function ProdModal({
   item,
-  ownerExtras,
   onSave,
   onClose,
   onDelete
@@ -4557,10 +5339,8 @@ function ProdModal({
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
   }, "\u8DDF\u8FDB\u4EBA"), /*#__PURE__*/React.createElement(OwnerField, {
-    listId: "production-owner",
     value: form.owner,
     onChange: v => set("owner", v),
-    extraOwners: ownerExtras,
     inputStyle: inp
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
@@ -5085,6 +5865,7 @@ function ProductionPanel({
     items,
     meta,
     loading,
+    saving,
     error,
     persist,
     reload
@@ -5105,7 +5886,7 @@ function ProductionPanel({
     qc: items.filter(isQcStage).length,
     done: items.filter(i => i.stage === "已完成").length
   };
-  const owners = ownerFilterEntries(items.map(i => i.owner));
+  const owners = ownerFilterEntries();
   const suppliers = ["all", ...new Set(items.map(i => i.supplier).filter(Boolean))];
   let vis = items.slice();
   if (tabFilter === "blocked") vis = vis.filter(i => prodBatchStatus(i) === "blocked");else if (tabFilter === "overdue") vis = vis.filter(i => prodBatchStatus(i) === "overdue");else if (tabFilter === "producing") vis = vis.filter(isProducing);else if (tabFilter === "qc") vis = vis.filter(isQcStage);else if (tabFilter === "done") vis = vis.filter(i => i.stage === "已完成");
@@ -5197,12 +5978,18 @@ function ProductionPanel({
     label: "已完成",
     nc: "#2d9e52"
   }];
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
-    meta: meta,
-    loading: loading,
-    error: error,
-    onReload: reload
-  }), /*#__PURE__*/React.createElement(ProdGanttCard, {
+  useCloudSyncPage(active, {
+    label: "生产",
+    save: async () => persist(items),
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+    isDirty: !!modal,
+    dirtyHint: "生产批次编辑弹窗未保存"
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(ProdGanttCard, {
     items: items
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5355,9 +6142,11 @@ function ProductionPanel({
     }
   }, "\u6682\u65E0\u5339\u914D\u6279\u6B21")), modal && /*#__PURE__*/React.createElement(ProdModal, {
     item: modal,
-    ownerExtras: items.map(i => i.owner),
     onSave: save,
-    onClose: () => setModal(null),
+    onClose: () => {
+      if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+      setModal(null);
+    },
     onDelete: () => {
       persist(items.filter(x => x.id !== modal.id));
       setModal(null);
@@ -5860,6 +6649,14 @@ const TOOL_CATALOG = [{
   category: "FBA",
   openUrl: "fba-warehouse-tool.html"
 }, {
+  id: "fba-hanhai",
+  name: "FBA → 瀚海万博转换",
+  desc: "批量上传 FBA 原厂包装 CSV，转换为瀚海万博 B2B 单票导入模版 (.xls) 并打包下载",
+  icon: "🚢",
+  category: "物流",
+  target: "inline",
+  openUrl: "tools/fba-hanhai-converter/index.html"
+}, {
   id: "amazon-tracker",
   name: "亚马逊推广追踪",
   desc: "精铺/精品 · 月度规划 · 投入产出分析",
@@ -6223,6 +7020,7 @@ function ToolsPanel({
     items: onlineDocs,
     meta: docsMeta,
     loading: docsLoading,
+    saving: docsSaving,
     error: docsError,
     persist: persistOnlineDocs,
     reload: reloadDocs
@@ -6394,6 +7192,17 @@ function ToolsPanel({
       return dn.includes(s) || t.name.toLowerCase().includes(s) || t.desc.toLowerCase().includes(s);
     });
   }
+  useCloudSyncPage(tabActive, {
+    label: "工具",
+    save: async () => persistOnlineDocs(onlineDocs),
+    reload: reloadDocs,
+    meta: docsMeta,
+    loading: docsLoading,
+    saving: docsSaving,
+    error: docsError,
+    isDirty: editingId !== null,
+    dirtyHint: "在线文档编辑未保存"
+  });
   if (inlineTool) {
     const url = resolveToolUrl(inlineTool._resolvedUrl || toolUrl(inlineTool, customUrls));
     return /*#__PURE__*/React.createElement("div", {
@@ -6488,12 +7297,7 @@ function ToolsPanel({
       }
     }, tool.desc))), /*#__PURE__*/React.createElement(ActiveComponent, null)));
   }
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
-    meta: docsMeta,
-    loading: docsLoading,
-    error: docsError,
-    onReload: reloadDocs
-  }), /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -6902,6 +7706,7 @@ function AgentsPanel({
     items: agents,
     meta,
     loading,
+    saving,
     error,
     persist: persistAgents,
     reload
@@ -7009,12 +7814,18 @@ function AgentsPanel({
     const s = q.trim().toLowerCase();
     list = list.filter(a => (a.name || "").toLowerCase().includes(s) || (a.desc || "").toLowerCase().includes(s) || (a.url || "").toLowerCase().includes(s));
   }
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
-    meta: meta,
-    loading: loading,
-    error: error,
-    onReload: reload
-  }), /*#__PURE__*/React.createElement("div", {
+  useCloudSyncPage(tabActive, {
+    label: "智能体",
+    save: async () => persistAgents(agents),
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+    isDirty: editingId !== null,
+    dirtyHint: "智能体编辑未保存"
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -8081,9 +8892,1216 @@ function HomePanel() {
     onClose: () => setShowModal(false)
   }));
 }
+const PREMIUM_SKU_DIMS = ["利润", "库存", "广告", "转化", "退款", "合规"];
+const STOCK_OPTS = ["无断货，库存充裕(>30天)", "无断货，有补货预警(≤30天)", "1款断货或即将断货", "2款及以上断货"];
+const PREMIUM_CFGS = {
+  new: {
+    label: "新品推广期",
+    kpis: [{
+      id: "tacos",
+      name: "账号整体TACoS",
+      desc: "广告报告 → 总广告花费 ÷ 总销售额",
+      where: "广告管理 → 广告活动报告",
+      unit: "%",
+      placeholder: "如 18",
+      target: "目标 ≤25%",
+      wt: 20,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        if (v <= 20) return w;
+        if (v <= 25) return Math.round(w * 0.8);
+        return Math.max(0, w - Math.floor((v - 25) * 2));
+      }
+    }, {
+      id: "gmv",
+      name: "账号GMV达成率",
+      desc: "实际销售额 ÷ 本月目标销售额",
+      where: "数据报告 → 销售和流量报告",
+      unit: "%",
+      placeholder: "如 105",
+      target: "目标 ≥100%",
+      wt: 25,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        return Math.min(w + 4, Math.max(0, w + (v - 100) * 0.3));
+      }
+    }, {
+      id: "newrank",
+      name: "新品BSR周均提升",
+      desc: "核心新品本周类目排名 vs 上周排名变化",
+      where: "商品页面 → 查看BSR排名",
+      unit: "名",
+      placeholder: "如 12",
+      target: "目标周提升≥5名",
+      wt: 20,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        if (v >= 5) return w;
+        if (v >= 0) return Math.round(w * v / 5);
+        return Math.max(0, w + Math.round(v * 1.5));
+      }
+    }, {
+      id: "refund",
+      name: "账号整体退款率",
+      desc: "退款订单数 ÷ 总订单数",
+      where: "报告 → 退款报告",
+      unit: "%",
+      placeholder: "如 5.5",
+      target: "目标 ≤8%",
+      wt: 15,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        return Math.max(0, w - Math.floor(Math.max(0, v - 8) / 0.5) * 1.5);
+      }
+    }, {
+      id: "stock",
+      name: "断货或库存预警",
+      desc: "核心款是否断货或预计7天内断货",
+      where: "库存管理 → 库存计划",
+      isSelect: true,
+      opts: STOCK_OPTS,
+      target: "目标：无断货",
+      wt: 10,
+      score: (v, w) => {
+        const m = {
+          0: w,
+          1: Math.round(w * 0.7),
+          2: Math.round(w * 0.3),
+          3: 0
+        };
+        return v === "" ? null : m[v] !== undefined ? m[v] : null;
+      }
+    }, {
+      id: "comply",
+      name: "合规与账号健康",
+      desc: "Account Health页面是否有警告/政策违规",
+      where: "绩效 → Account Health",
+      unit: "次",
+      placeholder: "0",
+      target: "目标：0次警告",
+      wt: 10,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        return Math.max(0, w - v * 5);
+      }
+    }]
+  },
+  mature: {
+    label: "成熟维护期",
+    kpis: [{
+      id: "profit",
+      name: "账号净利润达成率",
+      desc: "本月实际净利润 ÷ 目标净利润",
+      where: "财务报告 → 利润报表",
+      unit: "%",
+      placeholder: "如 98",
+      target: "目标 ≥100%",
+      wt: 30,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        return Math.min(w + 5, Math.max(0, w + (v - 100) * 1.5));
+      }
+    }, {
+      id: "tacos",
+      name: "账号整体TACoS",
+      desc: "广告报告 → 总广告花费 ÷ 总销售额",
+      where: "广告管理 → 广告活动报告",
+      unit: "%",
+      placeholder: "如 12",
+      target: "目标 ≤15%",
+      wt: 20,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        if (v < 10) return w + 1;
+        if (v <= 15) return w;
+        return Math.max(0, w - Math.floor((v - 15) * 2));
+      }
+    }, {
+      id: "gmv",
+      name: "账号GMV达成率",
+      desc: "实际销售额 ÷ 本月目标销售额",
+      where: "数据报告 → 销售和流量报告",
+      unit: "%",
+      placeholder: "如 102",
+      target: "目标 ≥95%",
+      wt: 15,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        if (v >= 95) return Math.min(w + 2, w + (v - 100) * 0.2);
+        return Math.max(0, w - (95 - v) * 0.5);
+      }
+    }, {
+      id: "refund",
+      name: "账号整体退款率",
+      desc: "退款订单数 ÷ 总订单数",
+      where: "报告 → 退款报告",
+      unit: "%",
+      placeholder: "如 3.5",
+      target: "目标 ≤5%（严控）",
+      wt: 15,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        return Math.max(0, w - Math.floor(Math.max(0, v - 5) / 0.5) * 2);
+      }
+    }, {
+      id: "stock",
+      name: "断货或库存预警",
+      desc: "核心款是否断货或预计7天内断货",
+      where: "库存管理 → 库存计划",
+      isSelect: true,
+      opts: STOCK_OPTS,
+      target: "目标：无断货",
+      wt: 10,
+      score: (v, w) => {
+        const m = {
+          0: w,
+          1: Math.round(w * 0.7),
+          2: Math.round(w * 0.3),
+          3: 0
+        };
+        return v === "" ? null : m[v] !== undefined ? m[v] : null;
+      }
+    }, {
+      id: "comply",
+      name: "合规与账号健康",
+      desc: "Account Health页面是否有警告/政策违规",
+      where: "绩效 → Account Health",
+      unit: "次",
+      placeholder: "0",
+      target: "目标：0次警告",
+      wt: 10,
+      score: (v, w) => {
+        if (Number.isNaN(v)) return null;
+        return Math.max(0, w - v * 5);
+      }
+    }]
+  }
+};
+function emptyPremiumWeek() {
+  return {
+    mode: "new",
+    redline: false,
+    stage: "self",
+    note: "",
+    vals: {},
+    skuData: {}
+  };
+}
+function weekHasPremiumData(w) {
+  if (!w) return false;
+  if (w.redline || w.note) return true;
+  if (Object.values(w.vals || {}).some(v => v !== "" && v != null)) return true;
+  if (Object.keys(w.skuData || {}).length > 0) return true;
+  return false;
+}
+function calcPremiumWeekScore(data) {
+  if (!data || data.redline) return null;
+  const cfg = PREMIUM_CFGS[data.mode || "new"];
+  if (!cfg) return null;
+  let total = 0;
+  let cnt = 0;
+  cfg.kpis.forEach(kpi => {
+    const raw = (data.vals || {})[kpi.id];
+    const v = kpi.isSelect ? raw : parseFloat(raw);
+    const s = kpi.score(v, kpi.wt);
+    if (s !== null) {
+      total += Math.max(0, s);
+      cnt++;
+    }
+  });
+  return cnt > 0 ? Math.round(total * 10) / 10 : null;
+}
+function premiumGradeInfo(sc, redline) {
+  if (redline) return {
+    g: "红线",
+    b: "0%",
+    cls: "gf",
+    msg: "红线触发，当周当月绩效清零。"
+  };
+  if (sc === null) return {
+    g: "—",
+    b: "—",
+    cls: "",
+    msg: ""
+  };
+  if (sc >= 90) return {
+    g: "S 优秀",
+    b: "100%",
+    cls: "ga",
+    msg: "账号整体健康，全额发放本周绩效。"
+  };
+  if (sc >= 80) return {
+    g: "A 良好",
+    b: "按比例",
+    cls: "gb",
+    msg: "良好，重点改善扣分项，下周冲刺优秀。"
+  };
+  if (sc >= 60) return {
+    g: "B 合格",
+    b: "基础",
+    cls: "gc",
+    msg: "合格，需制定改进计划，防止连续低于此线。"
+  };
+  return {
+    g: "C 不达标",
+    b: "不发",
+    cls: "gf",
+    msg: "未达60分，不发提成，需提交本周复盘报告。"
+  };
+}
+const adviceStyle = {
+  ga: {
+    background: "#EAF3DE",
+    border: "1px solid #97C459",
+    color: "#3B6D11"
+  },
+  gb: {
+    background: "#FAEEDA",
+    border: "1px solid #EF9F27",
+    color: "#854F0B"
+  },
+  gc: {
+    background: "#FAECE7",
+    border: "1px solid #F0997B",
+    color: "#993C1D"
+  },
+  gf: {
+    background: "#FCEBEB",
+    border: "1px solid #F09595",
+    color: "#A32D2D"
+  }
+};
+const premiumInp = {
+  width: "100%",
+  fontSize: 12,
+  padding: "4px 6px",
+  textAlign: "center",
+  border: "1px solid var(--border)",
+  borderRadius: 6,
+  fontFamily: "inherit",
+  background: "var(--card)",
+  color: "inherit"
+};
+function HeroCard({
+  label,
+  value,
+  tone
+}) {
+  const colors = {
+    blue: "#185FA5",
+    green: "#3B6D11",
+    red: "#A32D2D",
+    amber: "#854F0B"
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--bg)",
+      borderRadius: 8,
+      padding: "10px 12px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 4
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 18,
+      fontWeight: 600,
+      color: tone ? colors[tone] : "var(--text)"
+    }
+  }, value));
+}
+function FlowBar({
+  stage
+}) {
+  const steps = [{
+    id: "self",
+    label: "运营自评",
+    icon: "✎"
+  }, {
+    id: "manager",
+    label: "主管审核",
+    icon: "✓"
+  }, {
+    id: "approved",
+    label: "HR存档",
+    icon: "🏢"
+  }];
+  const order = ["self", "manager", "approved"];
+  const idx = order.indexOf(stage);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      border: "1px solid var(--border)",
+      borderRadius: 9,
+      overflow: "hidden",
+      marginBottom: 14
+    }
+  }, steps.map((s, i) => {
+    const cls = i < idx ? "done" : stage === s.id ? "active" : "pending";
+    const bg = cls === "done" ? "#EAF3DE" : cls === "active" ? "#E6F1FB" : "var(--bg)";
+    const color = cls === "done" ? "#3B6D11" : cls === "active" ? "#0C447C" : "var(--tm)";
+    return /*#__PURE__*/React.createElement("div", {
+      key: s.id,
+      style: {
+        flex: 1,
+        padding: "8px 6px",
+        textAlign: "center",
+        fontSize: 11,
+        color,
+        background: bg,
+        borderRight: i < 2 ? "1px solid var(--border)" : "none",
+        fontWeight: cls === "active" ? 600 : 400
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 14,
+        marginBottom: 2
+      }
+    }, s.icon), s.label);
+  }));
+}
+function PremiumScoreForm({
+  data,
+  onChange
+}) {
+  const set = patch => onChange({
+    ...data,
+    ...patch
+  });
+  const setVal = (id, v) => set({
+    vals: {
+      ...(data.vals || {}),
+      [id]: v
+    }
+  });
+  const cfg = PREMIUM_CFGS[data.mode || "new"];
+  const sc = calcPremiumWeekScore(data);
+  const gi = premiumGradeInfo(data.redline ? 0 : sc, data.redline);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 12,
+      flexWrap: "wrap"
+    }
+  }, ["new", "mature"].map(m => /*#__PURE__*/React.createElement("button", {
+    key: m,
+    type: "button",
+    onClick: () => set({
+      mode: m
+    }),
+    style: {
+      fontSize: 12,
+      padding: "4px 12px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      border: `1px solid ${data.mode === m ? m === "new" ? "#85B7EB" : "#97C459" : "var(--border)"}`,
+      background: data.mode === m ? m === "new" ? "#E6F1FB" : "#EAF3DE" : "var(--card)",
+      color: data.mode === m ? m === "new" ? "#0C447C" : "#27500A" : "var(--tm)",
+      fontWeight: data.mode === m ? 600 : 400
+    }
+  }, m === "new" ? "新品期" : "成熟期"))), /*#__PURE__*/React.createElement(FlowBar, {
+    stage: data.stage || "self"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(4,1fr)",
+      gap: 8,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u672C\u5468\u5F97\u5206",
+    value: data.redline ? "0" : sc !== null ? sc.toFixed(1) : "填写中",
+    tone: data.redline ? "red" : "blue"
+  }), /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u7EE9\u6548\u7B49\u7EA7",
+    value: data.redline ? "红线" : gi.g
+  }), /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u63D0\u6210\u7CFB\u6570",
+    value: data.redline ? "0%" : gi.b
+  }), /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u5BA1\u6279\u72B6\u6001",
+    value: data.stage === "self" ? "待提交" : data.stage === "manager" ? "主管审核中" : "已存档"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid #F09595",
+      borderRadius: 9,
+      padding: "10px 12px",
+      marginBottom: 12,
+      background: "#FCEBEB",
+      display: "flex",
+      gap: 10,
+      alignItems: "center",
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: "#A32D2D"
+    }
+  }, "\u7EA2\u7EBF\u4E00\u7968\u5426\u51B3"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "#791F1F",
+      flex: 1
+    }
+  }, "\u8D26\u53F7\u88AB\u5C01 / \u5927\u5356\u94FE\u63A5\u88AB\u79FB\u9664 \u2192 \u5F53\u5468\u5F53\u6708\u7EE9\u6548\u6E05\u96F6"), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      cursor: "pointer",
+      fontSize: 11,
+      color: "#791F1F"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!data.redline,
+    onChange: e => set({
+      redline: e.target.checked
+    })
+  }), data.redline ? "已触发" : "未触发")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid var(--border)",
+      borderRadius: 9,
+      overflow: "hidden",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "8px 12px",
+      background: "var(--bg)",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 600
+    }
+  }, "\u8D26\u53F7\u5C42KPI \u2014 ", cfg.label), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, "\u6570\u636E\u6765\u6E90\uFF1A\u4E9A\u9A6C\u900A\u5356\u5BB6\u540E\u53F0")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 56px 120px 52px",
+      gap: 8,
+      padding: "6px 12px",
+      fontSize: 10,
+      color: "var(--tm)",
+      borderTop: "1px solid var(--border)",
+      background: "var(--card)"
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\u6307\u6807"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      textAlign: "center"
+    }
+  }, "\u6743\u91CD"), /*#__PURE__*/React.createElement("span", null, "\u586B\u5165\u5B9E\u9645\u503C"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      textAlign: "center"
+    }
+  }, "\u5F97\u5206")), cfg.kpis.map(kpi => {
+    const raw = (data.vals || {})[kpi.id] ?? "";
+    const v = kpi.isSelect ? raw : parseFloat(raw);
+    const s = kpi.score(v, kpi.wt);
+    const scCls = s !== null ? s / kpi.wt >= 0.85 ? "#0F6E56" : s / kpi.wt >= 0.6 ? "#854F0B" : "#A32D2D" : "var(--tm)";
+    return /*#__PURE__*/React.createElement("div", {
+      key: kpi.id,
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 56px 120px 52px",
+        gap: 8,
+        alignItems: "center",
+        padding: "10px 12px",
+        borderTop: "1px solid var(--border)"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 600
+      }
+    }, kpi.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "var(--tm)",
+        marginTop: 2
+      }
+    }, kpi.desc), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "#185FA5",
+        marginTop: 2
+      }
+    }, kpi.where), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        padding: "1px 6px",
+        borderRadius: 8,
+        marginTop: 4,
+        display: "inline-block",
+        background: "var(--bg)",
+        color: "var(--tm)"
+      }
+    }, kpi.target)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: "var(--tm)",
+        textAlign: "center"
+      }
+    }, kpi.wt, "%"), kpi.isSelect ? /*#__PURE__*/React.createElement("select", {
+      style: {
+        ...premiumInp,
+        textAlign: "left"
+      },
+      value: raw,
+      onChange: e => setVal(kpi.id, e.target.value)
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "\u8BF7\u9009\u62E9"), kpi.opts.map((o, i) => /*#__PURE__*/React.createElement("option", {
+      key: i,
+      value: String(i)
+    }, o))) : /*#__PURE__*/React.createElement("input", {
+      style: premiumInp,
+      type: "number",
+      step: "0.1",
+      placeholder: kpi.placeholder,
+      value: raw,
+      onChange: e => setVal(kpi.id, e.target.value)
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 600,
+        textAlign: "center",
+        color: scCls
+      }
+    }, s !== null ? s.toFixed(1) : "—"));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid var(--border)",
+      borderRadius: 9,
+      padding: "10px 12px",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      marginBottom: 6
+    }
+  }, "\u8FD0\u8425\u81EA\u8BC4\u5907\u6CE8\uFF08\u5F02\u5E38\u8BF4\u660E / \u4E3B\u52A8\u52A8\u4F5C\uFF09"), /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...premiumInp,
+      textAlign: "left",
+      minHeight: 60,
+      resize: "vertical"
+    },
+    placeholder: "\u5982\uFF1A\u672C\u5468TACoS\u504F\u9AD8\u56E0\u4E3A\u6D4B\u8BD5\u4E863\u7EC4\u65B0\u54C1\u5E7F\u544A\u7EC4\u5408\u2026",
+    value: data.note || "",
+    onChange: e => set({
+      note: e.target.value
+    })
+  })), sc !== null && !data.redline && gi.msg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderRadius: 9,
+      padding: "10px 12px",
+      marginBottom: 12,
+      ...(adviceStyle[gi.cls] || {})
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 500
+    }
+  }, gi.msg)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 8
+    }
+  }, sc !== null && data.stage === "self" && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => set({
+      stage: "manager"
+    }),
+    style: {
+      fontSize: 12,
+      padding: "6px 14px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      background: "#E6F1FB",
+      border: "1px solid #85B7EB",
+      color: "#0C447C"
+    }
+  }, "\u63D0\u4EA4\u4E3B\u7BA1\u5BA1\u6838 \u2192"), data.stage === "manager" && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => set({
+      stage: "approved"
+    }),
+    style: {
+      fontSize: 12,
+      padding: "6px 14px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      background: "#EAF3DE",
+      border: "1px solid #97C459",
+      color: "#27500A"
+    }
+  }, "\u4E3B\u7BA1\u786E\u8BA4\u901A\u8FC7 \u2192 HR\u5B58\u6863"), data.stage === "approved" && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#3B6D11"
+    }
+  }, "\u2713 \u5DF2\u5BA1\u6279\u5B58\u6863")));
+}
+function DotBtn({
+  active,
+  tone,
+  onClick
+}) {
+  const colors = {
+    g: "#3B6D11",
+    y: "#854F0B",
+    r: "#A32D2D"
+  };
+  const bg = {
+    g: "#EAF3DE",
+    y: "#FAEEDA",
+    r: "#FCEBEB"
+  };
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClick,
+    style: {
+      width: 26,
+      height: 26,
+      borderRadius: "50%",
+      border: `1px solid ${active ? "#97C459" : "var(--border)"}`,
+      cursor: "pointer",
+      fontSize: 11,
+      fontWeight: 600,
+      margin: "0 2px",
+      background: active ? bg[tone] : "var(--card)",
+      color: colors[tone],
+      opacity: active ? 1 : 0.35,
+      fontFamily: "inherit"
+    }
+  }, "\u25CF");
+}
+function PremiumSkuForm({
+  week,
+  data,
+  skuList,
+  onChange,
+  onSkuListChange
+}) {
+  const skuData = data.skuData || {};
+  const setDot = (skuIdx, dim, val) => {
+    const row = {
+      ...(skuData[String(skuIdx)] || {})
+    };
+    row[dim] = val;
+    onChange({
+      ...data,
+      skuData: {
+        ...skuData,
+        [String(skuIdx)]: row
+      }
+    });
+  };
+  const addSku = () => {
+    const name = window.prompt("输入SKU名称（如 A001 或 蓝色托特包）");
+    if (!name?.trim()) return;
+    const phase = window.confirm("新品期点确定，成熟期点取消") ? "new" : "mature";
+    const next = [...skuList, {
+      name: name.trim(),
+      phase
+    }];
+    const idx = next.length - 1;
+    const row = {};
+    PREMIUM_SKU_DIMS.forEach(d => {
+      row[d] = "g";
+    });
+    onSkuListChange(next);
+    onChange({
+      ...data,
+      skuData: {
+        ...skuData,
+        [String(idx)]: row
+      }
+    });
+  };
+  const updateSku = (i, patch) => {
+    const next = skuList.map((s, j) => j === i ? {
+      ...s,
+      ...patch
+    } : s);
+    onSkuListChange(next);
+  };
+  let redCount = 0,
+    yellowCount = 0;
+  skuList.forEach((_, i) => {
+    PREMIUM_SKU_DIMS.forEach(dim => {
+      const v = skuData[String(i)]?.[dim] || "g";
+      if (v === "r") redCount++;
+      if (v === "y") yellowCount++;
+    });
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "var(--tm)",
+      marginBottom: 10
+    }
+  }, "\u8FD0\u8425\u8D1F\u8D23\u7684SKU \u2014 \u6BCF\u5468\u626B\u63CF\u4E00\u6B21\uFF0C\u53EA\u6253\u72B6\u6001\uFF0C\u4E0D\u586B\u6570\u5B57"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid var(--border)",
+      borderRadius: 9,
+      overflow: "hidden",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "8px 12px",
+      background: "var(--bg)",
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 600,
+      flex: 1
+    }
+  }, "SKU\u5065\u5EB7\u626B\u63CF \xB7 \u7B2C", week, "\u5468"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      padding: "2px 8px",
+      borderRadius: 10,
+      background: "#EAF3DE",
+      color: "#3B6D11"
+    }
+  }, "\u7EFF=\u6B63\u5E38"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      padding: "2px 8px",
+      borderRadius: 10,
+      background: "#FAEEDA",
+      color: "#854F0B"
+    }
+  }, "\u9EC4=\u5173\u6CE8"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      padding: "2px 8px",
+      borderRadius: 10,
+      background: "#FCEBEB",
+      color: "#A32D2D"
+    }
+  }, "\u7EA2=\u5F02\u5E38")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: "var(--bg)"
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "8px 10px",
+      textAlign: "left",
+      color: "var(--tm)",
+      fontWeight: 500
+    }
+  }, "SKU/\u6B3E\u540D"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "8px 10px",
+      textAlign: "left",
+      color: "var(--tm)",
+      fontWeight: 500
+    }
+  }, "\u9636\u6BB5"), PREMIUM_SKU_DIMS.map(d => /*#__PURE__*/React.createElement("th", {
+    key: d,
+    style: {
+      padding: "8px 6px",
+      textAlign: "center",
+      color: "var(--tm)",
+      fontWeight: 500
+    }
+  }, d)))), /*#__PURE__*/React.createElement("tbody", null, skuList.length === 0 ? /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: 8,
+    style: {
+      padding: 16,
+      textAlign: "center",
+      color: "var(--tm)"
+    }
+  }, "\u6682\u65E0SKU\uFF0C\u70B9\u51FB\u4E0B\u65B9\u6DFB\u52A0")) : skuList.map((sku, i) => /*#__PURE__*/React.createElement("tr", {
+    key: i,
+    style: {
+      borderTop: "1px solid var(--border)"
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "8px 10px"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...premiumInp,
+      width: 90,
+      textAlign: "left"
+    },
+    value: sku.name,
+    onChange: e => updateSku(i, {
+      name: e.target.value
+    })
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      padding: "1px 6px",
+      borderRadius: 8,
+      background: sku.phase === "new" ? "#E6F1FB" : "#EAF3DE",
+      color: sku.phase === "new" ? "#0C447C" : "#27500A"
+    }
+  }, sku.phase === "new" ? "新品" : "成熟"))), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "8px 10px"
+    }
+  }, /*#__PURE__*/React.createElement("select", {
+    style: {
+      fontSize: 10,
+      padding: "2px 4px",
+      borderRadius: 4,
+      border: "1px solid var(--border)"
+    },
+    value: sku.phase,
+    onChange: e => updateSku(i, {
+      phase: e.target.value
+    })
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "new"
+  }, "\u65B0\u54C1"), /*#__PURE__*/React.createElement("option", {
+    value: "mature"
+  }, "\u6210\u719F"))), PREMIUM_SKU_DIMS.map(dim => {
+    const cur = skuData[String(i)]?.[dim] || "g";
+    return /*#__PURE__*/React.createElement("td", {
+      key: dim,
+      style: {
+        padding: "8px 6px",
+        textAlign: "center"
+      }
+    }, ["g", "y", "r"].map(v => /*#__PURE__*/React.createElement(DotBtn, {
+      key: v,
+      tone: v,
+      active: cur === v,
+      onClick: () => setDot(i, dim, v)
+    })));
+  })))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "10px 12px",
+      borderTop: "1px solid var(--border)",
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: addSku,
+    style: {
+      fontSize: 12,
+      padding: "5px 12px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      border: "1px solid var(--border)",
+      background: "var(--card)"
+    }
+  }, "+ \u6DFB\u52A0SKU"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, "\u7EA2\u8272\u5F02\u5E38\u9879\u9700\u5728\u8003\u6838\u5907\u6CE8\u4E2D\u8BF4\u660E\u5904\u7406\u65B9\u6848"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(3,1fr)",
+      gap: 8,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u7EA2\u8272\u5F02\u5E38\u9879",
+    value: String(redCount),
+    tone: redCount > 0 ? "red" : undefined
+  }), /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u9EC4\u8272\u5173\u6CE8\u9879",
+    value: String(yellowCount),
+    tone: yellowCount > 0 ? "amber" : undefined
+  }), /*#__PURE__*/React.createElement(HeroCard, {
+    label: "SKU\u6570\u91CF",
+    value: String(skuList.length)
+  })), redCount > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#A32D2D",
+      padding: "8px 12px",
+      background: "#FCEBEB",
+      borderRadius: 8
+    }
+  }, "\u6709 ", redCount, " \u4E2A\u7EA2\u8272\u5F02\u5E38\u9879\uFF0C\u8BF7\u5728\u8003\u6838\u5907\u6CE8\u4E2D\u8BF4\u660E\u5904\u7406\u65B9\u6848\u3002"));
+}
+function OpsPremiumMonthSummary({
+  items,
+  year,
+  month,
+  person,
+  getWeekData
+}) {
+  const WEEKS = [1, 2, 3, 4];
+  const weekRows = useMemo(() => WEEKS.map(w => {
+    const d = getWeekData(items, year, month, "ops_jp", person, w);
+    return {
+      w,
+      sc: calcPremiumWeekScore(d),
+      red: !!d.redline,
+      mode: d.mode || "new"
+    };
+  }), [items, year, month, person, getWeekData]);
+  const hasRed = weekRows.some(x => x.red);
+  const filled = weekRows.filter(x => x.sc !== null);
+  const monthSc = hasRed ? 0 : filled.length ? filled.reduce((a, x) => a + x.sc, 0) / filled.length : null;
+  const gi = premiumGradeInfo(monthSc, hasRed);
+  const mode = weekRows.find(x => x.sc !== null)?.mode || "new";
+  const cfg = PREMIUM_CFGS[mode];
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      letterSpacing: "0.08em",
+      color: "#0C447C",
+      marginBottom: 12
+    }
+  }, "\u7CBE\u54C1\u8FD0\u8425 \u2014 \u6708\u5EA6\u603B\u8BC4"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(4,1fr)",
+      gap: 8,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u6708\u5EA6\u7EFC\u5408\u5206",
+    value: monthSc !== null ? monthSc.toFixed(1) : "暂无",
+    tone: "blue"
+  }), /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u6708\u5EA6\u7B49\u7EA7",
+    value: hasRed ? "红线触发" : gi.g
+  }), /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u6708\u5EA6\u63D0\u6210",
+    value: hasRed ? "0%" : gi.b
+  }), /*#__PURE__*/React.createElement(HeroCard, {
+    label: "\u5B8C\u6210\u5468\u6B21",
+    value: `${filled.length}/4`
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid var(--border)",
+      borderRadius: 9,
+      overflow: "hidden",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "8px 12px",
+      background: "var(--bg)",
+      fontSize: 13,
+      fontWeight: 600
+    }
+  }, "\u56DB\u5468\u8BC4\u5206\u8D8B\u52BF"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "12px 14px",
+      display: "flex",
+      alignItems: "flex-end",
+      gap: 12,
+      height: 100
+    }
+  }, weekRows.map(ws => {
+    const sc = ws.red ? 0 : ws.sc;
+    const h = sc !== null ? Math.round(sc * 0.7) : 4;
+    const color = sc === null ? "var(--bg)" : sc >= 90 ? "#639922" : sc >= 80 ? "#EF9F27" : sc >= 60 ? "#D85A30" : "#E24B4A";
+    return /*#__PURE__*/React.createElement("div", {
+      key: ws.w,
+      style: {
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 4
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 600
+      }
+    }, sc !== null ? sc.toFixed(0) : "—"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: "100%",
+        background: color,
+        borderRadius: "3px 3px 0 0",
+        height: h,
+        minHeight: 4
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: "var(--tm)"
+      }
+    }, "W", ws.w));
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid var(--border)",
+      borderRadius: 9,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "8px 12px",
+      background: "var(--bg)",
+      display: "flex",
+      justifyContent: "space-between"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 600
+    }
+  }, "\u6708\u5EA6KPI\u5E73\u5747\u8FBE\u6210"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, "\u56DB\u5468\u5747\u503C \xB7 ", cfg.label)), cfg.kpis.map(kpi => {
+    const scores = WEEKS.map(w => {
+      const d = getWeekData(items, year, month, "ops_jp", person, w);
+      const raw = (d.vals || {})[kpi.id];
+      const v = kpi.isSelect ? raw : parseFloat(raw);
+      return kpi.score(v, kpi.wt);
+    }).filter(s => s !== null);
+    const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+    const pct = avg !== null ? Math.min(100, Math.round(avg / kpi.wt * 100)) : 0;
+    const barColor = pct >= 85 ? "#639922" : pct >= 60 ? "#BA7517" : "#E24B4A";
+    const txtColor = avg !== null ? pct >= 85 ? "#3B6D11" : pct >= 60 ? "#854F0B" : "#A32D2D" : "var(--tm)";
+    return /*#__PURE__*/React.createElement("div", {
+      key: kpi.id,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 12px",
+        borderTop: "1px solid var(--border)"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        minWidth: 130
+      }
+    }, kpi.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        height: 5,
+        background: "var(--bg)",
+        borderRadius: 3,
+        overflow: "hidden"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: "100%",
+        width: `${avg !== null ? pct : 0}%`,
+        background: barColor,
+        borderRadius: 3
+      }
+    })), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        fontWeight: 600,
+        minWidth: 52,
+        textAlign: "right",
+        color: txtColor
+      }
+    }, avg !== null ? `${avg.toFixed(1)}/${kpi.wt}` : "暂无"));
+  })));
+}
+function OpsPremiumPanel({
+  page,
+  week,
+  data,
+  skuList,
+  onChange,
+  onSkuListChange,
+  onPageChange
+}) {
+  const tabStyle = id => ({
+    flex: 1,
+    fontSize: 13,
+    padding: "8px 0",
+    textAlign: "center",
+    cursor: "pointer",
+    background: page === id ? "var(--bg)" : "var(--card)",
+    color: page === id ? "var(--text)" : "var(--tm)",
+    border: "none",
+    fontWeight: page === id ? 600 : 400,
+    fontFamily: "inherit",
+    borderRight: id !== "sku" ? "1px solid var(--border)" : "none"
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      border: "1px solid var(--border)",
+      borderRadius: 9,
+      overflow: "hidden",
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    style: tabStyle("score"),
+    onClick: () => onPageChange("score")
+  }, "\u7EE9\u6548\u8003\u6838"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    style: tabStyle("sku"),
+    onClick: () => onPageChange("sku")
+  }, "SKU\u9884\u8B66")), page === "score" ? /*#__PURE__*/React.createElement(PremiumScoreForm, {
+    data: data,
+    onChange: onChange
+  }) : /*#__PURE__*/React.createElement(PremiumSkuForm, {
+    week: week,
+    data: data,
+    skuList: skuList,
+    onChange: onChange,
+    onSkuListChange: onSkuListChange
+  }));
+}
 const WEEKS = [1, 2, 3, 4];
 const KPI_STORAGE_KEY = "kpi-monthly";
 const emptyOpsWeek = () => ({
+  wstyle: "",
   nsku: "",
   lsku: "",
   aadd: "",
@@ -8104,7 +10122,11 @@ const emptyOpsWeek = () => ({
   tsal: "",
   taco: "",
   tadsp: "",
-  torder: ""
+  torder: "",
+  desReview: {
+    person: "",
+    rating: ""
+  }
 });
 const emptyDesWeek = () => ({
   prem: "",
@@ -8114,8 +10136,89 @@ const emptyDesWeek = () => ({
   dad: "",
   ontime: "",
   demand: "",
-  rework: ""
+  rework: "",
+  incompleteReason: "",
+  opsReviews: {}
 });
+const DES_INCOMPLETE_HINTS = ["单品多变体", "产品复杂", "素材需求变更", "等待运营确认", "拍摄/打样延误"];
+function tallyOpsReviews(reviews) {
+  const r = reviews || {};
+  let good = 0,
+    bad = 0;
+  Object.values(r).forEach(v => {
+    if (v === "good") good++;
+    if (v === "bad") bad++;
+  });
+  return {
+    good,
+    bad
+  };
+}
+function removeOpsDesReview(items, year, month, opsPerson, week, desPerson) {
+  const next = [...items];
+  const idx = next.findIndex(r => r.year === year && r.month === month && r.role === "des" && r.person === desPerson);
+  if (idx < 0) return next;
+  const wk = {
+    ...emptyDesWeek(),
+    ...(next[idx].weeks?.[week] || {})
+  };
+  if (!wk.opsReviews?.[opsPerson]) return next;
+  const opsReviews = {
+    ...wk.opsReviews
+  };
+  delete opsReviews[opsPerson];
+  next[idx] = {
+    ...next[idx],
+    weeks: {
+      ...next[idx].weeks,
+      [week]: {
+        ...wk,
+        opsReviews
+      }
+    }
+  };
+  return next;
+}
+function applyOpsDesReviewToItems(items, year, month, opsPerson, week, desReview, prevDesReview) {
+  if (!opsPerson) return items;
+  let next = [...items];
+  const prevPerson = prevDesReview?.person;
+  const newPerson = desReview?.person;
+  if (prevPerson && prevPerson !== newPerson) {
+    next = removeOpsDesReview(next, year, month, opsPerson, week, prevPerson);
+  }
+  if (!newPerson) return next;
+  let idx = next.findIndex(r => r.year === year && r.month === month && r.role === "des" && r.person === newPerson);
+  if (idx < 0) {
+    next.push({
+      year,
+      month,
+      role: "des",
+      person: newPerson,
+      weeks: {}
+    });
+    idx = next.length - 1;
+  }
+  const wk = {
+    ...emptyDesWeek(),
+    ...(next[idx].weeks?.[week] || {})
+  };
+  const opsReviews = {
+    ...(wk.opsReviews || {})
+  };
+  if (desReview.rating === "good" || desReview.rating === "bad") opsReviews[opsPerson] = desReview.rating;else delete opsReviews[opsPerson];
+  next[idx] = {
+    ...next[idx],
+    weeks: {
+      ...next[idx].weeks,
+      [week]: {
+        ...wk,
+        opsReviews
+      }
+    }
+  };
+  return next;
+}
 const emptyDevWeek = () => ({
   tNew: "",
   tSample: "",
@@ -8151,8 +10254,16 @@ const KPI_ROLE_META = {
 };
 function emptyWeekForRole(role) {
   if (role === "ops") return emptyOpsWeek();
+  if (role === "ops_jp") return emptyPremiumWeek();
   if (role === "dev") return emptyDevWeek();
   return emptyDesWeek();
+}
+function getPremiumSkuList(items, year, month, person) {
+  return findRecord(items, year, month, "ops_jp", person)?.skuList || [];
+}
+function opsEffectiveRole(curRole, curOpsSub) {
+  if (curRole !== "ops") return curRole;
+  return curOpsSub === "premium" ? "ops_jp" : "ops";
 }
 const num = v => {
   const n = parseFloat(v);
@@ -8212,11 +10323,33 @@ function findRecord(items, year, month, role, person) {
 function getWeekData(items, year, month, role, person, week) {
   const rec = findRecord(items, year, month, role, person);
   const w = rec?.weeks?.[week];
-  if (!w) return emptyWeekForRole(role);
-  return {
-    ...emptyWeekForRole(role),
+  const base = emptyWeekForRole(role);
+  if (!w) return base;
+  const merged = {
+    ...base,
     ...w
   };
+  if (base.desReview) merged.desReview = {
+    ...base.desReview,
+    ...(w.desReview || {})
+  };
+  return merged;
+}
+function hydrateOpsDesReview(items, year, month, opsPerson, week, desReview) {
+  const cur = {
+    ...emptyOpsWeek().desReview,
+    ...desReview
+  };
+  if (cur.person && cur.rating) return cur;
+  for (const rec of items) {
+    if (rec.role !== "des" || rec.year !== year || rec.month !== month) continue;
+    const rating = rec.weeks?.[week]?.opsReviews?.[opsPerson];
+    if (rating) return {
+      person: rec.person,
+      rating
+    };
+  }
+  return cur;
 }
 function getDevMonthTargets(items, year, month, person) {
   const rec = findRecord(items, year, month, "dev", person);
@@ -8231,13 +10364,15 @@ function calcOpsSummary(w) {
     net = add - out;
   const sales = num(w.sales),
     rate = parseFloat(w.prate);
-  const nsku = num(w.nsku),
+  const wstyle = num(w.wstyle),
+    nsku = num(w.nsku),
     acos = parseFloat(w.acos),
     sout = num(w.sout);
   return {
     net,
     sales,
     rate: Number.isFinite(rate) ? rate : null,
+    wstyle,
     nsku,
     acos: Number.isFinite(acos) ? acos : null,
     sout,
@@ -8249,15 +10384,28 @@ function calcDesSummary(w) {
     std = num(w.std),
     aplus = num(w.aplus);
   const imgPts = prem * 5 + std;
-  const total = imgPts + aplus * 0.5;
+  const imgTotal = imgPts + aplus * 0.5;
+  const vid = num(w.vid);
+  const vidPts = vid * 2;
+  const outputPts = Math.round((imgTotal + vidPts) * 10) / 10;
   const ot = num(w.ontime),
     dm = num(w.demand);
+  const {
+    good: goodReviews,
+    bad: badReviews
+  } = tallyOpsReviews(w.opsReviews);
+  const desReviewPts = goodReviews - badReviews;
   return {
     imgPts,
     aplusPts: aplus * 0.5,
-    total,
-    quotaOk: total >= 5,
-    vid: num(w.vid),
+    total: imgTotal,
+    vid,
+    vidPts,
+    outputPts,
+    goodReviews,
+    badReviews,
+    desReviewPts,
+    quotaOk: outputPts >= 5,
     aplus,
     rework: num(w.rework),
     rate: dm > 0 ? Math.round(ot / dm * 100) : null
@@ -8286,10 +10434,13 @@ function calcOpsWeeklyScore(w) {
   };
 }
 function weekHasOpsData(w) {
-  return ["nsku", "lsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null);
+  if (["wstyle", "nsku", "lsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null)) return true;
+  if (w.desReview?.person && w.desReview?.rating) return true;
+  return false;
 }
 function weekHasDesData(w) {
-  return ["prem", "std", "vid", "aplus"].some(k => w[k] !== "" && w[k] != null);
+  if (["prem", "std", "vid", "aplus", "incompleteReason"].some(k => w[k] !== "" && w[k] != null)) return true;
+  return Object.keys(w.opsReviews || {}).length > 0;
 }
 function weekHasDevData(w) {
   return ["devNew", "sampleIn", "order", "pass", "abn"].some(k => w[k] !== "" && w[k] != null);
@@ -8368,10 +10519,91 @@ function SummaryBar({
     }
   }, it.label))));
 }
+function OpsDesReviewSection({
+  data,
+  onChange,
+  desStaff = []
+}) {
+  const review = data.desReview || {
+    person: "",
+    rating: ""
+  };
+  const setReview = patch => onChange({
+    ...data,
+    desReview: {
+      ...review,
+      ...patch
+    }
+  });
+  const setRating = rating => {
+    if (!review.person) return;
+    setReview({
+      rating: review.rating === rating ? "" : rating
+    });
+  };
+  return /*#__PURE__*/React.createElement(Section, {
+    title: "\u7F8E\u5DE5\u8BC4\u4EF7\uFF08\u533F\u540D\uFF09"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: kpiCard
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 10
+    }
+  }, "\u6BCF\u4F4D\u8FD0\u8425\u6BCF\u5468\u53EF\u8BC4\u4EF7 ", /*#__PURE__*/React.createElement("strong", null, "1 \u4F4D"), " \u7F8E\u5DE5\uFF1A\u2665 \u7F8E\u5DE5 +1 \u5206 \xB7 \uD83D\uDC94 \u7F8E\u5DE5 \u22121 \u5206\u3002\u7F8E\u5DE5\u7AEF\u4EC5\u663E\u793A\u6C47\u603B\uFF0C\u4E0D\u663E\u793A\u8BC4\u4EF7\u4EBA\u59D3\u540D\u3002"), desStaff.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#e09000"
+    }
+  }, "\u6682\u65E0\u7F8E\u5DE5\u4EBA\u5458 \xB7 \u8BF7\u5728 \u2699 \u8BBE\u7F6E\u4E2D\u6DFB\u52A0\uFF08\u89D2\u8272\u9009\u300C\u7F8E\u5DE5\u300D\uFF09") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 10,
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, "\u672C\u5468\u8BC4\u4EF7\u7F8E\u5DE5"), /*#__PURE__*/React.createElement("select", {
+    style: {
+      ...kpiInpSm,
+      minWidth: 140,
+      background: "var(--card)"
+    },
+    value: review.person,
+    onChange: e => setReview({
+      person: e.target.value,
+      rating: ""
+    })
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u8BF7\u9009\u62E9"), desStaff.map(d => /*#__PURE__*/React.createElement("option", {
+    key: d.name,
+    value: d.name
+  }, d.name))), /*#__PURE__*/React.createElement(DesHeartBtn, {
+    kind: "good",
+    active: review.rating === "good",
+    onClick: () => setRating("good")
+  }), /*#__PURE__*/React.createElement(DesHeartBtn, {
+    kind: "bad",
+    active: review.rating === "bad",
+    onClick: () => setRating("bad")
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, review.rating === "good" ? "已评：美工 +1" : review.rating === "bad" ? "已评：美工 −1" : review.person ? "请选择好评或差评" : "请先选择美工"))));
+}
 function OpsWeekForm({
   week,
   data,
-  onChange
+  onChange,
+  desStaff = []
 }) {
   const set = (k, v) => onChange({
     ...data,
@@ -8392,7 +10624,10 @@ function OpsWeekForm({
       value: s.rate != null ? `${s.rate.toFixed(1)}%` : "—",
       color: s.rate != null && s.rate < 15 ? "#e55" : s.rate != null ? "#2d9e52" : undefined
     }, {
-      label: "本周上新",
+      label: "周开款",
+      value: s.wstyle || "—"
+    }, {
+      label: "周上架新品",
       value: s.nsku || "—"
     }, {
       label: "A品净变化",
@@ -8415,8 +10650,15 @@ function OpsWeekForm({
       gap: 7
     }
   }, /*#__PURE__*/React.createElement(FieldCard, {
-    label: "\u4E0A\u65B0 / NEW SKU",
-    hint: "\u5468\u4E0A\u65B0\u6570\u91CF"
+    label: "\u5F00\u6B3E\uFF08\u8FD0\u8425\uFF09",
+    hint: "\u5468\u5F00\u6B3E\u6570\u91CF\uFF08\u8FD0\u8425\uFF09"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.wstyle,
+    onChange: v => set("wstyle", v),
+    unit: "\u6B3E"
+  })), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u4E0A\u67B6\u65B0\u54C1 / LISTED SKU",
+    hint: "\u5468\u4E0A\u67B6\u65B0\u54C1\u6570\u91CF"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: data.nsku,
     onChange: v => set("nsku", v),
@@ -8569,7 +10811,11 @@ function OpsWeekForm({
     onChange: v => set("nacos", v),
     unit: "%",
     step: "0.1"
-  })))), /*#__PURE__*/React.createElement(Section, {
+  })))), /*#__PURE__*/React.createElement(OpsDesReviewSection, {
+    data: data,
+    onChange: onChange,
+    desStaff: desStaff
+  }), /*#__PURE__*/React.createElement(Section, {
     title: "\u8D26\u53F7\u5065\u5EB7\uFF08FBA\uFF09"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8624,6 +10870,31 @@ function OpsWeekForm({
     style: kpiBadge(s.sdays < 30 ? "#fee2e2" : s.sdays < 45 ? "#fff0d4" : "#d4f0dc", s.sdays < 30 ? "#e55" : s.sdays < 45 ? "#e09000" : "#2d9e52")
   }, s.sdays < 30 ? `⚠ 仅${s.sdays}天` : s.sdays < 45 ? `注意${s.sdays}天` : `✓ 充裕${s.sdays}天`)))));
 }
+function DesHeartBtn({
+  active,
+  kind,
+  onClick
+}) {
+  const isGood = kind === "good";
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClick,
+    title: isGood ? "好评" : "差评",
+    style: {
+      width: 34,
+      height: 34,
+      borderRadius: 8,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      fontSize: 18,
+      border: `1px solid ${active ? isGood ? "#fca5a5" : "var(--border)" : "var(--border)"}`,
+      background: active ? isGood ? "#fef2f2" : "var(--bg)" : "var(--card)",
+      color: isGood ? active ? "#e11d48" : "#fda4af" : active ? "#9ca3af" : "#d1d5db",
+      opacity: active ? 1 : 0.85,
+      lineHeight: 1
+    }
+  }, isGood ? "♥" : "💔");
+}
 function DesWeekForm({
   week,
   data,
@@ -8634,8 +10905,29 @@ function DesWeekForm({
     [k]: v
   });
   const s = calcDesSummary(data);
+  const needsReason = !s.quotaOk;
+  const desReviewFmt = s.desReviewPts > 0 ? `+${s.desReviewPts}` : s.desReviewPts < 0 ? String(s.desReviewPts) : "0";
+  const appendHint = hint => {
+    const cur = data.incompleteReason || "";
+    set("incompleteReason", cur ? `${cur}；${hint}` : hint);
+  };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SummaryBar, {
     items: [{
+      label: "考核产出分",
+      value: s.outputPts > 0 ? s.outputPts.toFixed(1) : "—",
+      color: s.quotaOk ? "#2d9e52" : s.outputPts > 0 ? "#e09000" : undefined
+    }, {
+      label: "图片当量",
+      value: s.total > 0 ? s.total.toFixed(1) : "—"
+    }, {
+      label: "视频分",
+      value: s.vidPts > 0 ? String(s.vidPts) : "—",
+      color: s.vidPts > 0 ? "#6b21a8" : undefined
+    }, {
+      label: "美工评价分",
+      value: s.desReviewPts !== 0 ? desReviewFmt : "—",
+      color: s.desReviewPts > 0 ? "#6b21a8" : s.desReviewPts < 0 ? "#9ca3af" : undefined
+    }, {
       label: "图片当量分",
       value: s.imgPts || "—"
     }, {
@@ -8643,11 +10935,7 @@ function DesWeekForm({
       value: s.aplusPts > 0 ? s.aplusPts.toFixed(1) : "—",
       color: s.aplusPts > 0 ? "#6b21a8" : undefined
     }, {
-      label: "合计当量",
-      value: s.total > 0 ? s.total.toFixed(1) : "—",
-      color: s.total >= 5 ? "#2d9e52" : s.total > 0 ? "#e09000" : undefined
-    }, {
-      label: "视频完成数",
+      label: "视频(条)",
       value: s.vid || "—"
     }, {
       label: "A+完成数",
@@ -8660,6 +10948,14 @@ function DesWeekForm({
       label: "返工次数",
       value: String(s.rework),
       color: s.rework > 0 ? "#e55" : undefined
+    }, {
+      label: "好评♥",
+      value: s.goodReviews || "—",
+      color: s.goodReviews > 0 ? "#e11d48" : undefined
+    }, {
+      label: "差评💔",
+      value: s.badReviews || "—",
+      color: s.badReviews > 0 ? "#9ca3af" : undefined
     }]
   }), /*#__PURE__*/React.createElement(Section, {
     title: "\u56FE\u7247\u4EA7\u51FA\uFF08\u7CBE\u54C1 1\u5F20 = \u7CBE\u94FA 5\u5F20\uFF09"
@@ -8678,9 +10974,10 @@ function DesWeekForm({
     onChange: v => set("prem", v),
     unit: "\u5F20"
   }), /*#__PURE__*/React.createElement(QuotaBox, {
-    total: s.total,
+    outputPts: s.outputPts,
     imgPts: s.imgPts,
     aplusPts: s.aplusPts,
+    vidPts: s.vidPts,
     prem: num(data.prem) * 5,
     std: num(data.std)
   })), /*#__PURE__*/React.createElement(FieldCard, {
@@ -8700,12 +10997,14 @@ function DesWeekForm({
     }
   }, /*#__PURE__*/React.createElement(FieldCard, {
     label: "\u89C6\u9891 / VIDEO",
-    hint: "\u89C6\u9891\u5B8C\u6210\u6570"
+    hint: "\u89C6\u9891\u5B8C\u6210\u6570\uFF08\u6BCF\u6761\u8BA1 2 \u5206\uFF09"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: data.vid,
     onChange: v => set("vid", v),
     unit: "\u6761"
-  })))), /*#__PURE__*/React.createElement(Section, {
+  }), /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge("#f3e8ff", "#6b21a8")
+  }, "1 \u6761 = 2 \u5206")))), /*#__PURE__*/React.createElement(Section, {
     title: "\u5176\u4ED6\u4EA4\u4ED8"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8773,7 +11072,94 @@ function DesWeekForm({
     value: data.rework,
     onChange: v => set("rework", v),
     unit: "\u6B21"
-  })))));
+  })))), /*#__PURE__*/React.createElement(Section, {
+    title: "\u8003\u6838\u672A\u5B8C\u6210\u8BF4\u660E"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...kpiCard,
+      borderColor: needsReason && !data.incompleteReason ? "#e9d5ff" : "var(--border)",
+      background: needsReason && !data.incompleteReason ? "#faf5ff" : "var(--card)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: needsReason ? "#6b21a8" : "var(--tm)",
+      marginBottom: 8,
+      fontWeight: needsReason ? 600 : 400
+    }
+  }, needsReason ? "本周考核产出未达 5 分（图片当量 + 视频分），请说明原因" : "如本周未达标，请在此说明原因（如单品多变体、产品复杂等）"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap",
+      marginBottom: 8
+    }
+  }, DES_INCOMPLETE_HINTS.map(h => /*#__PURE__*/React.createElement("button", {
+    key: h,
+    type: "button",
+    onClick: () => appendHint(h),
+    style: {
+      fontSize: 11,
+      padding: "3px 10px",
+      borderRadius: 99,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      border: "1px solid #e9d5ff",
+      background: "#f3e8ff",
+      color: "#6b21a8"
+    }
+  }, "+ ", h))), /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...kpiInp,
+      minHeight: 72,
+      fontSize: 12,
+      resize: "vertical"
+    },
+    value: data.incompleteReason || "",
+    onChange: e => set("incompleteReason", e.target.value),
+    placeholder: "\u5982\uFF1A\u672C\u5468 2 \u6B3E\u5747\u4E3A\u5355\u54C1 8 \u53D8\u4F53\uFF0C\u4E3B\u56FE+A+ \u5DE5\u4F5C\u91CF\u8D85\u9884\u671F\u2026"
+  }))), /*#__PURE__*/React.createElement(Section, {
+    title: "\u8FD0\u8425\u5BF9\u7F8E\u5DE5\u8BC4\u4EF7\uFF08\u533F\u540D\uFF09"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...kpiCard,
+      marginBottom: 10,
+      background: "linear-gradient(135deg,#faf5ff,#fff)",
+      borderColor: "#e9d5ff"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: "#6b21a8",
+      marginBottom: 4
+    }
+  }, "\u7F8E\u5DE5\u672C\u5468\u8BC4\u4EF7\u52A0\u51CF\u5206"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 22,
+      fontWeight: 700,
+      color: s.desReviewPts > 0 ? "#6b21a8" : s.desReviewPts < 0 ? "#9ca3af" : "var(--text)"
+    }
+  }, s.desReviewPts !== 0 ? desReviewFmt : "0", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 500,
+      color: "var(--tm)",
+      marginLeft: 6
+    }
+  }, "\u5206\uFF08\u8FD0\u8425\u8BC4\xB7\u8BA1\u5165\u7F8E\u5DE5\uFF09")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginTop: 4
+    }
+  }, "\u5DF2\u6536\u5230 ", /*#__PURE__*/React.createElement("strong", null, s.goodReviews + s.badReviews), " \u6761\u8FD0\u8425\u8BC4\u4EF7\uFF08\u533F\u540D\uFF09\xB7 \u2665 ", s.goodReviews, " \xB7 \uD83D\uDC94 ", s.badReviews)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...kpiCard,
+      fontSize: 11,
+      color: "var(--tm)"
+    }
+  }, "\u8BC4\u4EF7\u7531\u5404\u4F4D\u8FD0\u8425\u5728 ", /*#__PURE__*/React.createElement("strong", null, "\u8FD0\u8425 \u2192 \u7CBE\u94FA"), " \u8003\u6838\u9875\u63D0\u4EA4\uFF0C\u6B64\u5904\u4E0D\u663E\u793A\u8BC4\u4EF7\u4EBA\u59D3\u540D\u3002")));
 }
 function OpsScorePanel({
   score
@@ -8868,14 +11254,15 @@ function OpsScorePanel({
   }, it.sub)))));
 }
 function QuotaBox({
-  total,
+  outputPts,
   imgPts,
   aplusPts,
+  vidPts,
   prem,
   std
 }) {
-  const pct = Math.min(100, Math.round(total / 5 * 100));
-  const barColor = total >= 5 ? "#2d9e52" : total > 0 ? "#e09000" : "var(--border)";
+  const pct = Math.min(100, Math.round(outputPts / 5 * 100));
+  const barColor = outputPts >= 5 ? "#2d9e52" : outputPts > 0 ? "#e09000" : "var(--border)";
   return /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 8,
@@ -8889,25 +11276,25 @@ function QuotaBox({
       color: "var(--tm)",
       marginBottom: 4
     }
-  }, "\u5468\u914D\u989D\uFF1A5 \u5F53\u91CF\u5206\uFF08\u7CBE\u54C1\xD75 + \u7CBE\u94FA\xD71 + A+\xD70.5\uFF09"), /*#__PURE__*/React.createElement("div", {
+  }, "\u5468\u8003\u6838\u4EA7\u51FA\uFF1A5 \u5206\uFF08\u7CBE\u54C1\xD75 + \u7CBE\u94FA\xD71 + A+\xD70.5 + \u89C6\u9891\xD72\uFF09"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 16,
       fontWeight: 700,
-      color: total >= 5 ? "#2d9e52" : "var(--text)"
+      color: outputPts >= 5 ? "#2d9e52" : "var(--text)"
     }
-  }, Number(total.toFixed(1)), " ", /*#__PURE__*/React.createElement("span", {
+  }, Number(outputPts.toFixed(1)), " ", /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
       fontWeight: 400,
       color: "var(--tm)"
     }
-  }, "/ 5 \u5F53\u91CF\u5206")), (imgPts > 0 || aplusPts > 0) && /*#__PURE__*/React.createElement("div", {
+  }, "/ 5 \u5206")), (imgPts > 0 || aplusPts > 0 || vidPts > 0) && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: "var(--tm)",
       marginTop: 4
     }
-  }, "\u56FE\u7247 ", imgPts, " \u5206", aplusPts > 0 ? ` + A+ ${aplusPts.toFixed(1)} 分` : ""), /*#__PURE__*/React.createElement("div", {
+  }, "\u56FE\u7247 ", imgPts, " \u5206", aplusPts > 0 ? ` + A+ ${aplusPts.toFixed(1)} 分` : "", vidPts > 0 ? ` + 视频 ${vidPts} 分` : ""), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--border)",
       borderRadius: 99,
@@ -9091,7 +11478,13 @@ function OpsMonthlySummary({
       fmt: n => String(n),
       cls: () => ""
     }, {
-      label: "周上新(SKU)",
+      label: "周开款（运营）",
+      vals: vals(w => num(w.wstyle)),
+      type: "sum",
+      fmt: n => String(n),
+      cls: () => ""
+    }, {
+      label: "周上架新品(SKU)",
       vals: vals(w => num(w.nsku)),
       type: "sum",
       fmt: n => String(n),
@@ -9140,8 +11533,8 @@ function OpsMonthlySummary({
       label: "月均考核得分",
       value: `${avgScore.toFixed(1)}分`,
       cls: avgScore >= 80 ? "g" : avgScore >= 60 ? "a" : avgScore > 0 ? "r" : ""
-    }, ...summaries.slice(1, 8).map((r, i) => ({
-      label: ["月销售额($)", "月均利润率", "月下单合计", "月上新合计", "A品净变化", "月均ACOS", "月广告花费($)"][i],
+    }, ...summaries.slice(1, 9).map((r, i) => ({
+      label: ["月销售额($)", "月均利润率", "月下单合计", "月开款合计", "月上架新品合计", "A品净变化", "月均ACOS", "月广告花费($)"][i],
       value: r.fmt(r.agg),
       cls: r.cls(r.agg)
     }))],
@@ -9155,36 +11548,71 @@ function DesMonthlySummary({
   person
 }) {
   const data = useMemo(() => {
-    const pts = WEEKS.map(w => {
-      const d = getWeekData(items, year, month, "des", person, w);
-      return calcDesSummary(d).total;
-    });
-    const quotaDone = pts.filter(p => p >= 5).length;
-    const vid = WEEKS.map(w => num(getWeekData(items, year, month, "des", person, w).vid));
-    const ap = WEEKS.map(w => num(getWeekData(items, year, month, "des", person, w).aplus));
-    const rw = WEEKS.map(w => num(getWeekData(items, year, month, "des", person, w).rework));
-    const rates = WEEKS.map(w => {
-      const d = getWeekData(items, year, month, "des", person, w);
+    const weeks = WEEKS.map(w => getWeekData(items, year, month, "des", person, w));
+    const summaries = weeks.map(d => calcDesSummary(d));
+    const pts = summaries.map(s => s.total);
+    const outputPts = summaries.map(s => s.outputPts);
+    const vidPts = summaries.map(s => s.vidPts);
+    const desReviewPts = summaries.map(s => s.desReviewPts);
+    const quotaDone = outputPts.filter(p => p >= 5).length;
+    const vid = weeks.map(d => num(d.vid));
+    const ap = weeks.map(d => num(d.aplus));
+    const rw = weeks.map(d => num(d.rework));
+    const rates = weeks.map(d => {
       const dm = num(d.demand),
         ot = num(d.ontime);
       return dm > 0 ? Math.round(ot / dm * 100) : null;
     }).filter(r => r != null);
     const avgRate = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : 0;
+    let totalGood = 0,
+      totalBad = 0,
+      reasonWeeks = 0;
+    weeks.forEach(d => {
+      const t = tallyOpsReviews(d.opsReviews);
+      totalGood += t.good;
+      totalBad += t.bad;
+      if (d.incompleteReason) reasonWeeks++;
+    });
     return {
       pts,
+      outputPts,
+      vidPts,
+      desReviewPts,
       quotaDone,
       vid,
       ap,
       rw,
-      avgRate
+      avgRate,
+      totalGood,
+      totalBad,
+      reasonWeeks,
+      weeks
     };
   }, [items, year, month, person]);
   const rows = [{
-    label: "当量分(含A+)",
+    label: "考核产出分",
+    vals: data.outputPts,
+    type: "avg",
+    fmt: n => n.toFixed(1),
+    cls: n => n >= 5 ? "g" : n > 0 ? "a" : ""
+  }, {
+    label: "图片当量(含A+)",
     vals: data.pts.map(v => Math.round(v * 10) / 10),
     type: "sum",
     fmt: n => n.toFixed(1),
     cls: n => n >= 5 ? "g" : n > 0 ? "a" : ""
+  }, {
+    label: "视频分(×2)",
+    vals: data.vidPts,
+    type: "sum",
+    fmt: n => String(n),
+    cls: n => n > 0 ? "g" : ""
+  }, {
+    label: "美工评价分(运营评)",
+    vals: data.desReviewPts,
+    type: "sum",
+    fmt: n => n > 0 ? `+${n}` : String(n),
+    cls: n => n > 0 ? "g" : n < 0 ? "r" : ""
   }, {
     label: "视频(条)",
     vals: data.vid,
@@ -9214,6 +11642,18 @@ function DesMonthlySummary({
     type: "sum",
     fmt: n => String(n),
     cls: n => n > 0 ? "r" : ""
+  }, {
+    label: "运营好评(♥)",
+    vals: data.weeks.map(d => tallyOpsReviews(d.opsReviews).good),
+    type: "sum",
+    fmt: n => String(n),
+    cls: n => n > 0 ? "g" : ""
+  }, {
+    label: "运营差评(💔)",
+    vals: data.weeks.map(d => tallyOpsReviews(d.opsReviews).bad),
+    type: "sum",
+    fmt: n => String(n),
+    cls: n => n > 0 ? "r" : ""
   }].map(row => {
     const total = row.vals.reduce((a, b) => a + b, 0);
     const nonZero = row.vals.filter(v => v > 0);
@@ -9230,6 +11670,13 @@ function DesMonthlySummary({
     cards: [{
       label: "月当量总分",
       value: data.pts.reduce((a, b) => a + b, 0).toFixed(1)
+    }, {
+      label: "月美工评价净分",
+      value: (() => {
+        const t = data.desReviewPts.reduce((a, b) => a + b, 0);
+        return t > 0 ? `+${t}` : String(t);
+      })(),
+      cls: data.desReviewPts.reduce((a, b) => a + b, 0) > 0 ? "g" : data.desReviewPts.reduce((a, b) => a + b, 0) < 0 ? "r" : ""
     }, {
       label: "配额达标周数",
       value: `${data.quotaDone}/4周`,
@@ -9248,6 +11695,18 @@ function DesMonthlySummary({
       label: "月返工合计",
       value: String(data.rw.reduce((a, b) => a + b, 0)),
       cls: data.rw.reduce((a, b) => a + b, 0) > 0 ? "r" : ""
+    }, {
+      label: "月运营好评",
+      value: String(data.totalGood),
+      cls: data.totalGood > 0 ? "g" : ""
+    }, {
+      label: "月运营差评",
+      value: String(data.totalBad),
+      cls: data.totalBad > 0 ? "r" : ""
+    }, {
+      label: "未完成说明",
+      value: data.reasonWeeks > 0 ? `${data.reasonWeeks}周` : "—",
+      cls: data.reasonWeeks > 0 ? "a" : ""
     }],
     rows: rows
   });
@@ -9790,9 +12249,12 @@ function KpiPanel({
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [curRole, setCurRole] = useState("ops");
+  const [curOpsSub, setCurOpsSub] = useState("bulk");
+  const [curPremiumPage, setCurPremiumPage] = useState("score");
   const [curWeek, setCurWeek] = useState(1);
   const [person, setPerson] = useState("");
   const [draft, setDraft] = useState(emptyOpsWeek());
+  const [skuListDraft, setSkuListDraft] = useState([]);
   const [monthTargetsDraft, setMonthTargetsDraft] = useState(emptyDevMonthTargets());
   const [toast, setToast] = useState("");
   const [staffTick, setStaffTick] = useState(0);
@@ -9807,12 +12269,17 @@ function KpiPanel({
   } = useSharedList(KPI_STORAGE_KEY, [], {
     active
   });
+  const effectiveRole = opsEffectiveRole(curRole, curOpsSub);
   const roleMeta = KPI_ROLE_META[curRole] || KPI_ROLE_META.ops;
   const roleLabel = roleMeta.label;
   const staffList = useMemo(() => {
     const list = getEmployees().filter(e => e.role === roleLabel && e.name);
     return list.length ? list : [];
   }, [roleLabel, staffTick]);
+  const desStaffList = useMemo(() => {
+    const list = getEmployees().filter(e => e.role === "美工" && e.name);
+    return list.length ? list : [];
+  }, [staffTick]);
   useEffect(() => {
     const onCfg = () => setStaffTick(t => t + 1);
     window.addEventListener("ops-global-config-updated", onCfg);
@@ -9827,7 +12294,8 @@ function KpiPanel({
   }, [staffList, person]);
   useEffect(() => {
     if (!person) {
-      setDraft(emptyWeekForRole(curRole));
+      setDraft(emptyWeekForRole(effectiveRole));
+      setSkuListDraft([]);
       setMonthTargetsDraft(emptyDevMonthTargets());
       return;
     }
@@ -9835,46 +12303,66 @@ function KpiPanel({
       setMonthTargetsDraft(getDevMonthTargets(items, year, month, person));
       return;
     }
-    setDraft(getWeekData(items, year, month, curRole, person, curWeek));
-  }, [items, year, month, curRole, person, curWeek]);
+    if (curWeek === 0) return;
+    const wk = getWeekData(items, year, month, effectiveRole, person, curWeek);
+    if (effectiveRole === "ops") {
+      setDraft({
+        ...wk,
+        desReview: hydrateOpsDesReview(items, year, month, person, curWeek, wk.desReview)
+      });
+    } else {
+      setDraft(wk);
+    }
+    if (effectiveRole === "ops_jp") {
+      setSkuListDraft(getPremiumSkuList(items, year, month, person));
+    }
+  }, [items, year, month, curRole, curOpsSub, effectiveRole, person, curWeek]);
   const weekDone = useMemo(() => {
     if (!person) return {};
     const out = {};
     WEEKS.forEach(w => {
-      const d = getWeekData(items, year, month, curRole, person, w);
-      if (curRole === "ops") out[w] = weekHasOpsData(d);else if (curRole === "dev") out[w] = weekHasDevData(d);else out[w] = weekHasDesData(d);
+      const d = getWeekData(items, year, month, effectiveRole, person, w);
+      if (effectiveRole === "ops") out[w] = weekHasOpsData(d);else if (effectiveRole === "ops_jp") out[w] = weekHasPremiumData(d);else if (effectiveRole === "dev") out[w] = weekHasDevData(d);else out[w] = weekHasDesData(d);
     });
     return out;
-  }, [items, year, month, curRole, person]);
+  }, [items, year, month, effectiveRole, person]);
   const showToast = (msg, ok = true) => {
     setToast(msg);
     setTimeout(() => setToast(""), ok ? 2200 : 3500);
   };
-  const upsertWeek = useCallback(async weekData => {
+  const upsertWeek = useCallback(async (weekData, skuList) => {
     if (!person) return false;
-    const next = [...items];
-    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === curRole && r.person === person);
+    let next = [...items];
+    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === effectiveRole && r.person === person);
     if (idx < 0) {
       next.push({
         year,
         month,
-        role: curRole,
+        role: effectiveRole,
         person,
         weeks: {}
       });
       idx = next.length - 1;
     }
-    next[idx] = {
-      ...next[idx],
+    const patch = {
       weeks: {
         ...next[idx].weeks,
         [curWeek]: weekData
       }
     };
+    if (effectiveRole === "ops_jp" && skuList) patch.skuList = skuList;
+    next[idx] = {
+      ...next[idx],
+      ...patch
+    };
+    if (effectiveRole === "ops") {
+      const prev = getWeekData(items, year, month, "ops", person, curWeek);
+      next = applyOpsDesReviewToItems(next, year, month, person, curWeek, weekData.desReview || {}, prev.desReview);
+    }
     const ok = await persist(next);
     if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
     return ok;
-  }, [items, year, month, curRole, person, curWeek, persist]);
+  }, [items, year, month, effectiveRole, person, curWeek, persist]);
   const upsertMonthTargets = useCallback(async targets => {
     if (!person || curRole !== "dev") return false;
     const next = [...items];
@@ -9899,15 +12387,41 @@ function KpiPanel({
     return ok;
   }, [items, year, month, person, curRole, persist]);
   const saveCurrentToCloud = useCallback(async () => {
-    if (!person) return;
+    if (!person) return "请先选择人员";
     if (curWeek === 0) {
-      if (curRole === "dev") await upsertMonthTargets(monthTargetsDraft);else showToast("月度汇总为汇总视图，请切换到具体周次填写后保存", false);
-      return;
+      if (curRole === "dev") return upsertMonthTargets(monthTargetsDraft);
+      return "月度汇总为汇总视图，请切换到具体周次填写后保存";
     }
-    await upsertWeek(draft);
-  }, [person, curWeek, curRole, monthTargetsDraft, draft, upsertMonthTargets, upsertWeek]);
+    return effectiveRole === "ops_jp" ? upsertWeek(draft, skuListDraft) : upsertWeek(draft);
+  }, [person, curWeek, curRole, effectiveRole, monthTargetsDraft, draft, skuListDraft, upsertMonthTargets, upsertWeek]);
+  const kpiDirty = useMemo(() => {
+    if (!person) return false;
+    if (curRole === "dev" && curWeek === 0) {
+      const saved = getDevMonthTargets(items, year, month, person);
+      return JSON.stringify(monthTargetsDraft) !== JSON.stringify(saved);
+    }
+    if (curWeek === 0) return false;
+    const saved = getWeekData(items, year, month, effectiveRole, person, curWeek);
+    const weekDirty = JSON.stringify(draft) !== JSON.stringify(saved);
+    if (effectiveRole === "ops_jp") {
+      const savedSku = getPremiumSkuList(items, year, month, person);
+      return weekDirty || JSON.stringify(skuListDraft) !== JSON.stringify(savedSku);
+    }
+    return weekDirty;
+  }, [person, curRole, effectiveRole, curWeek, year, month, items, draft, monthTargetsDraft, skuListDraft]);
+  useCloudSyncPage(active, {
+    label: "考核",
+    save: saveCurrentToCloud,
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+    isDirty: kpiDirty,
+    dirtyHint: curRole === "dev" && curWeek === 0 ? "开发月目标未上传" : `考核第${curWeek}周数据未上传`
+  });
   const clearWeek = () => {
-    setDraft(emptyWeekForRole(curRole));
+    setDraft(emptyWeekForRole(effectiveRole));
   };
   const tabStyle = (activeTab, color) => ({
     padding: "6px 16px",
@@ -9935,14 +12449,7 @@ function KpiPanel({
       color: isActive ? "var(--text)" : done ? "#2d9e52" : "var(--tm)"
     };
   };
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
-    meta: meta,
-    loading: loading,
-    saving: saving,
-    error: error,
-    onReload: reload,
-    onSaveCloud: person ? saveCurrentToCloud : undefined
-  }), /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -10017,7 +12524,8 @@ function KpiPanel({
       display: "flex",
       gap: 8,
       marginBottom: 14,
-      flexWrap: "wrap"
+      flexWrap: "wrap",
+      alignItems: "center"
     }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -10040,7 +12548,34 @@ function KpiPanel({
       setCurRole("dev");
       setCurWeek(1);
     }
-  }, "\u5F00\u53D1")), /*#__PURE__*/React.createElement("div", {
+  }, "\u5F00\u53D1"), curRole === "ops" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4,
+      marginLeft: 8,
+      paddingLeft: 8,
+      borderLeft: "1px solid var(--border)"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    style: tabStyle(curOpsSub === "bulk", "#2d7dd2"),
+    onClick: () => {
+      setCurOpsSub("bulk");
+      setCurWeek(1);
+    }
+  }, "\u7CBE\u94FA"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    style: {
+      ...tabStyle(curOpsSub === "premium", "#0C447C"),
+      borderColor: curOpsSub === "premium" ? "#85B7EB" : "var(--border)",
+      background: curOpsSub === "premium" ? "#E6F1FB" : "transparent"
+    },
+    onClick: () => {
+      setCurOpsSub("premium");
+      setCurWeek(1);
+      setCurPremiumPage("score");
+    }
+  }, "\u7CBE\u54C1"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -10107,7 +12642,13 @@ function KpiPanel({
       color: roleMeta.color
     },
     onClick: () => setCurWeek(0)
-  }, "\u6708\u5EA6\u6C47\u603B")), curWeek === 0 ? curRole === "ops" ? /*#__PURE__*/React.createElement(OpsMonthlySummary, {
+  }, "\u6708\u5EA6\u6C47\u603B")), curWeek === 0 ? curRole === "ops" && curOpsSub === "premium" ? /*#__PURE__*/React.createElement(OpsPremiumMonthSummary, {
+    items: items,
+    year: year,
+    month: month,
+    person: person,
+    getWeekData: getWeekData
+  }) : curRole === "ops" ? /*#__PURE__*/React.createElement(OpsMonthlySummary, {
     items: items,
     year: year,
     month: month,
@@ -10126,10 +12667,19 @@ function KpiPanel({
     year: year,
     month: month,
     person: person
-  }) : /*#__PURE__*/React.createElement(React.Fragment, null, curRole === "ops" ? /*#__PURE__*/React.createElement(OpsWeekForm, {
+  }) : /*#__PURE__*/React.createElement(React.Fragment, null, curRole === "ops" && curOpsSub === "premium" ? /*#__PURE__*/React.createElement(OpsPremiumPanel, {
+    page: curPremiumPage,
     week: curWeek,
     data: draft,
-    onChange: setDraft
+    skuList: skuListDraft,
+    onChange: setDraft,
+    onSkuListChange: setSkuListDraft,
+    onPageChange: setCurPremiumPage
+  }) : curRole === "ops" ? /*#__PURE__*/React.createElement(OpsWeekForm, {
+    week: curWeek,
+    data: draft,
+    onChange: setDraft,
+    desStaff: desStaffList
   }) : curRole === "dev" ? /*#__PURE__*/React.createElement(DevWeekForm, {
     data: draft,
     onChange: setDraft
@@ -10160,10 +12710,10 @@ function KpiPanel({
     }
   }, "\u6E05\u7A7A\u672C\u5468"), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    onClick: () => upsertWeek(draft),
+    onClick: () => effectiveRole === "ops_jp" ? upsertWeek(draft, skuListDraft) : upsertWeek(draft),
     disabled: saving,
     style: {
-      background: curRole === "dev" ? "#00695c" : "#2d7dd2",
+      background: curRole === "dev" ? "#00695c" : curOpsSub === "premium" ? "#0C447C" : "#2d7dd2",
       color: "#fff",
       border: "none",
       borderRadius: 8,
@@ -10215,24 +12765,34 @@ const NODE_STATUSES = [{
   color: "#666"
 }];
 const nsMeta = v => NODE_STATUSES.find(x => x.val === v) || NODE_STATUSES[3];
-const CAT_COLORS = {
-  设计: {
-    bg: "#ede9fe",
-    c: "#4c1d95"
-  },
-  研发: {
-    bg: "#fef3c7",
-    c: "#78350f"
-  },
-  运营: {
-    bg: "#dbeafe",
-    c: "#1e3a8a"
-  },
-  品牌: {
-    bg: "#fce7f3",
-    c: "#831843"
-  }
+/** 旧任务分类 → 全局角色 */
+const TASK_CAT_LEGACY_MAP = {
+  研发: "开发",
+  品牌: "管理"
 };
+function normalizeTaskCat(cat) {
+  if (!cat) return STAFF_ROLE_OPTIONS[0] || "运营";
+  return TASK_CAT_LEGACY_MAP[cat] || cat;
+}
+function taskCatBadge(cat) {
+  const role = normalizeTaskCat(cat);
+  const c = ROLE_COLORS[role];
+  return c ? {
+    bg: c.bg,
+    c: c.color
+  } : {
+    bg: "#f3f4f6",
+    c: "#666"
+  };
+}
+function taskCatOptions(current) {
+  const opts = [...STAFF_ROLE_OPTIONS];
+  const norm = normalizeTaskCat(current);
+  if (norm && !opts.includes(norm)) opts.push(norm);
+  if (current && current !== norm && !opts.includes(current)) opts.push(current);
+  return opts;
+}
+const DEFAULT_TASK_CAT = STAFF_ROLE_OPTIONS[0] || "运营";
 const taskStatusOf = t => {
   if (t.actual) return "done";
   if (t.nodes && t.nodes.some(n => n.status === "blocked")) return "blocked";
@@ -10249,7 +12809,7 @@ const getProgress = nodes => {
 const INIT_TASKS = [{
   id: 1,
   task: "FB100/101/200/201欧规样品制作",
-  owner: "杨工",
+  owner: "张工",
   cat: "设计",
   due: "2026-06-20",
   actual: "",
@@ -10270,7 +12830,7 @@ const INIT_TASKS = [{
 }, {
   id: 2,
   task: "43条链接图设计排期",
-  owner: "杨工",
+  owner: "张工",
   cat: "设计",
   due: "2026-06-05",
   actual: "",
@@ -10291,7 +12851,7 @@ const INIT_TASKS = [{
 }, {
   id: 3,
   task: "FB300多士炉图片",
-  owner: "黄工",
+  owner: "杨彬",
   cat: "运营",
   due: "2026-05-28",
   actual: "",
@@ -10309,8 +12869,8 @@ const INIT_TASKS = [{
 }, {
   id: 4,
   task: "FB102感温变色图档样品",
-  owner: "李工",
-  cat: "研发",
+  owner: "张工",
+  cat: "开发",
   due: "2026-06-15",
   actual: "",
   nodes: [{
@@ -10331,7 +12891,7 @@ const INIT_TASKS = [{
   id: 5,
   task: "FB400豆浆机功能测试",
   owner: "张工",
-  cat: "研发",
+  cat: "开发",
   due: "2026-06-10",
   actual: "2026-05-25",
   nodes: [{
@@ -10349,7 +12909,7 @@ const INIT_TASKS = [{
   id: 6,
   task: "FB欧洲德法品牌注册",
   owner: "王律师",
-  cat: "品牌",
+  cat: "管理",
   due: "2026-06-15",
   actual: "",
   nodes: [{
@@ -10486,22 +13046,21 @@ function TaskModal({
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
   }, "\u8D1F\u8D23\u4EBA"), /*#__PURE__*/React.createElement(OwnerField, {
-    listId: "task-owner",
     value: form.owner,
     onChange: v => set("owner", v),
-    extraOwners: tasks.map(t => t.owner),
     inputStyle: inp
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
-  }, "\u5206\u7C7B"), /*#__PURE__*/React.createElement("select", {
-    value: form.cat,
+  }, "\u5206\u7C7B\uFF08\u89D2\u8272\uFF09"), /*#__PURE__*/React.createElement("select", {
+    value: normalizeTaskCat(form.cat),
     onChange: e => set("cat", e.target.value),
     style: {
       ...inp,
       background: "var(--card)"
     }
-  }, ["设计", "研发", "运营", "品牌"].map(c => /*#__PURE__*/React.createElement("option", {
-    key: c
+  }, taskCatOptions(form.cat).map(c => /*#__PURE__*/React.createElement("option", {
+    key: c,
+    value: c
   }, c))))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -10639,10 +13198,8 @@ function TaskCard({
 }) {
   const st = taskStatusOf(task);
   const prog = getProgress(task.nodes);
-  const cc = CAT_COLORS[task.cat] || {
-    bg: "#f0f0f0",
-    c: "#555"
-  };
+  const cc = taskCatBadge(task.cat);
+  const catLabel = normalizeTaskCat(task.cat);
   const d = daysDiff(task.due);
   const bc = st === "over" ? "#e55" : st === "blocked" ? "#e09000" : st === "done" ? "#2d9e52" : "#2d7dd2";
   let due = null;
@@ -10766,7 +13323,7 @@ function TaskCard({
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: badge(cc.bg, cc.c)
-  }, task.cat), due, prog > 0 && prog < 100 && /*#__PURE__*/React.createElement("span", {
+  }, catLabel), due, prog > 0 && prog < 100 && /*#__PURE__*/React.createElement("span", {
     style: badge("#f3f4f6", "#666")
   }, prog, "%")), task.block && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -10788,6 +13345,7 @@ function TasksPanel({
     items: tasks,
     meta,
     loading,
+    saving,
     error,
     persist,
     reload
@@ -10813,8 +13371,12 @@ function TasksPanel({
   let vis = filter === "all" ? tasks : filter === "over" ? tasks.filter(taskIsOverdue) : tasks.filter(t => taskStatusOf(t) === filter);
   vis = [...vis].sort((a, b) => (sortO[taskStatusOf(a)] || 2) - (sortO[taskStatusOf(b)] || 2));
   const save = t => {
-    if (t.id) persist(tasks.map(x => x.id === t.id ? t : x));else persist([...tasks, {
+    const row = {
       ...t,
+      cat: normalizeTaskCat(t.cat)
+    };
+    if (row.id) persist(tasks.map(x => x.id === row.id ? row : x));else persist([...tasks, {
+      ...row,
       id: nextId()
     }]);
     setModal(null);
@@ -10840,12 +13402,18 @@ function TasksPanel({
     label: "已完成",
     nc: "#2d9e52"
   }];
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SharedMetaLine, {
-    meta: meta,
-    loading: loading,
-    error: error,
-    onReload: reload
-  }), /*#__PURE__*/React.createElement("div", {
+  useCloudSyncPage(active, {
+    label: "任务",
+    save: async () => persist(tasks),
+    reload,
+    meta,
+    loading,
+    saving,
+    error,
+    isDirty: !!modal,
+    dirtyHint: "任务编辑弹窗未保存"
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -10886,7 +13454,7 @@ function TasksPanel({
     onClick: () => setModal({
       task: "",
       owner: "",
-      cat: "设计",
+      cat: DEFAULT_TASK_CAT,
       due: "",
       actual: "",
       nodes: [],
@@ -10930,7 +13498,10 @@ function TasksPanel({
     task: modal,
     tasks: tasks,
     onSave: save,
-    onClose: () => setModal(null),
+    onClose: () => {
+      if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+      setModal(null);
+    },
     onDelete: () => {
       persist(tasks.filter(x => x.id !== modal.id));
       setModal(null);
@@ -11082,7 +13653,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-29";
+const APP_BUILD = "cloud-35";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {
@@ -11194,12 +13765,20 @@ function LoginScreen({
     }
   }, "\u8FDB\u5165")));
 }
-function App() {
-  const [authed, setAuthed] = useState(readAuthSession);
-  const [currentUser, setCurrentUserState] = useState(() => getCurrentUser());
-  const [tab, setTab] = useState("home");
-  const [dark, setDark] = useState(false);
-  const [settingsPanel, setSettingsPanel] = useState(null);
+function AppShell({
+  tab,
+  setTab,
+  dark,
+  setDark,
+  settingsPanel,
+  setSettingsPanel
+}) {
+  const confirmLeave = useConfirmLeave();
+  const trySetTab = key => {
+    if (key === tab) return;
+    if (!confirmLeave()) return;
+    setTab(key);
+  };
   const css = {
     "--bg": dark ? "#111" : "#f8f8f6",
     "--card": dark ? "#1c1c1c" : "#fff",
@@ -11207,17 +13786,7 @@ function App() {
     "--text": dark ? "#eee" : "#111",
     "--tm": dark ? "#777" : "#888"
   };
-  if (!authed) {
-    return /*#__PURE__*/React.createElement(LoginScreen, {
-      onSuccess: () => {
-        setCurrentUserState(getCurrentUser());
-        setAuthed(true);
-      }
-    });
-  }
-  return /*#__PURE__*/React.createElement(UserContext.Provider, {
-    value: currentUser
-  }, /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", {
     style: {
       ...css,
       minHeight: "100vh",
@@ -11290,7 +13859,7 @@ function App() {
     }
   }, TABS.map(t => /*#__PURE__*/React.createElement("button", {
     key: t.key,
-    onClick: () => setTab(t.key),
+    onClick: () => trySetTab(t.key),
     style: {
       background: "transparent",
       border: "none",
@@ -11303,7 +13872,7 @@ function App() {
       fontFamily: "inherit",
       marginBottom: -1
     }
-  }, t.label))), /*#__PURE__*/React.createElement("div", {
+  }, t.label))), /*#__PURE__*/React.createElement(GlobalCloudBar, null), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "home" ? "block" : "none"
     }
@@ -11346,6 +13915,31 @@ function App() {
   }))), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
     onClose: () => setSettingsPanel(null),
     onSaved: () => setSettingsPanel(null)
+  }));
+}
+function App() {
+  const [authed, setAuthed] = useState(readAuthSession);
+  const [currentUser, setCurrentUserState] = useState(() => getCurrentUser());
+  const [tab, setTab] = useState("home");
+  const [dark, setDark] = useState(false);
+  const [settingsPanel, setSettingsPanel] = useState(null);
+  if (!authed) {
+    return /*#__PURE__*/React.createElement(LoginScreen, {
+      onSuccess: () => {
+        setCurrentUserState(getCurrentUser());
+        setAuthed(true);
+      }
+    });
+  }
+  return /*#__PURE__*/React.createElement(UserContext.Provider, {
+    value: currentUser
+  }, /*#__PURE__*/React.createElement(CloudSyncProvider, null, /*#__PURE__*/React.createElement(AppShell, {
+    tab: tab,
+    setTab: setTab,
+    dark: dark,
+    setDark: setDark,
+    settingsPanel: settingsPanel,
+    setSettingsPanel: setSettingsPanel
   })));
 }
 if (!window.__OPS_CENTER_MOUNTED__) {

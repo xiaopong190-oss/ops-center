@@ -532,7 +532,7 @@ function ProdModal({ item, onSave, onClose, onDelete }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>订单数量</label><input value={form.qty} onChange={e => set("qty", e.target.value)} placeholder="500件" style={inp} /></div>
-          <div><label style={lbl}>跟进人</label><OwnerField listId="production-owner" value={form.owner} onChange={v => set("owner", v)} extraOwners={ownerExtras} inputStyle={inp} /></div>
+          <div><label style={lbl}>跟进人</label><OwnerField value={form.owner} onChange={v => set("owner", v)} inputStyle={inp} /></div>
           <div><label style={lbl}>供应商</label><input value={form.supplier || ""} onChange={e => set("supplier", e.target.value)} style={inp} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -681,7 +681,7 @@ function ProductionPanel({ active = true }) {
     qc: items.filter(isQcStage).length,
     done: items.filter(i => i.stage === "已完成").length,
   };
-  const owners = ownerFilterEntries(items.map(i => i.owner));
+  const owners = ownerFilterEntries();
   const suppliers = ["all", ...new Set(items.map(i => i.supplier).filter(Boolean))];
 
   let vis = items.slice();
@@ -783,7 +783,7 @@ function ProductionPanel({ active = true }) {
           <ProductGroup key={`${g.product}-${g.name}`} product={g.product} name={g.name} batches={g.batches} onEdit={b => setModal(clone(b))} />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>
-      {modal && <ProdModal item={modal} ownerExtras={items.map(i => i.owner)} onSave={save} onClose={() => {
+      {modal && <ProdModal item={modal} onSave={save} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
         setModal(null);
       }} onDelete={() => { persist(items.filter(x => x.id !== modal.id)); setModal(null); }} />}

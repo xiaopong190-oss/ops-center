@@ -1,19 +1,558 @@
-const { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext } = React;
+
+const PREMIUM_SKU_DIMS = ["利润", "库存", "广告", "转化", "退款", "合规"];
+
+const STOCK_OPTS = [
+  "无断货，库存充裕(>30天)",
+  "无断货，有补货预警(≤30天)",
+  "1款断货或即将断货",
+  "2款及以上断货",
+];
+
+const PREMIUM_CFGS = {
+  new: {
+    label: "新品推广期",
+    kpis: [
+      { id: "tacos", name: "账号整体TACoS", desc: "广告报告 → 总广告花费 ÷ 总销售额", where: "广告管理 → 广告活动报告", unit: "%", placeholder: "如 18", target: "目标 ≤25%", wt: 20,
+        score: (v, w) => { if (Number.isNaN(v)) return null; if (v <= 20) return w; if (v <= 25) return Math.round(w * 0.8); return Math.max(0, w - Math.floor((v - 25) * 2)); } },
+      { id: "gmv", name: "账号GMV达成率", desc: "实际销售额 ÷ 本月目标销售额", where: "数据报告 → 销售和流量报告", unit: "%", placeholder: "如 105", target: "目标 ≥100%", wt: 25,
+        score: (v, w) => { if (Number.isNaN(v)) return null; return Math.min(w + 4, Math.max(0, w + (v - 100) * 0.3)); } },
+      { id: "newrank", name: "新品BSR周均提升", desc: "核心新品本周类目排名 vs 上周排名变化", where: "商品页面 → 查看BSR排名", unit: "名", placeholder: "如 12", target: "目标周提升≥5名", wt: 20,
+        score: (v, w) => { if (Number.isNaN(v)) return null; if (v >= 5) return w; if (v >= 0) return Math.round(w * v / 5); return Math.max(0, w + Math.round(v * 1.5)); } },
+      { id: "refund", name: "账号整体退款率", desc: "退款订单数 ÷ 总订单数", where: "报告 → 退款报告", unit: "%", placeholder: "如 5.5", target: "目标 ≤8%", wt: 15,
+        score: (v, w) => { if (Number.isNaN(v)) return null; return Math.max(0, w - Math.floor(Math.max(0, v - 8) / 0.5) * 1.5); } },
+      { id: "stock", name: "断货或库存预警", desc: "核心款是否断货或预计7天内断货", where: "库存管理 → 库存计划", isSelect: true, opts: STOCK_OPTS, target: "目标：无断货", wt: 10,
+        score: (v, w) => { const m = { 0: w, 1: Math.round(w * 0.7), 2: Math.round(w * 0.3), 3: 0 }; return v === "" ? null : (m[v] !== undefined ? m[v] : null); } },
+      { id: "comply", name: "合规与账号健康", desc: "Account Health页面是否有警告/政策违规", where: "绩效 → Account Health", unit: "次", placeholder: "0", target: "目标：0次警告", wt: 10,
+        score: (v, w) => { if (Number.isNaN(v)) return null; return Math.max(0, w - v * 5); } },
+    ],
+  },
+  mature: {
+    label: "成熟维护期",
+    kpis: [
+      { id: "profit", name: "账号净利润达成率", desc: "本月实际净利润 ÷ 目标净利润", where: "财务报告 → 利润报表", unit: "%", placeholder: "如 98", target: "目标 ≥100%", wt: 30,
+        score: (v, w) => { if (Number.isNaN(v)) return null; return Math.min(w + 5, Math.max(0, w + (v - 100) * 1.5)); } },
+      { id: "tacos", name: "账号整体TACoS", desc: "广告报告 → 总广告花费 ÷ 总销售额", where: "广告管理 → 广告活动报告", unit: "%", placeholder: "如 12", target: "目标 ≤15%", wt: 20,
+        score: (v, w) => { if (Number.isNaN(v)) return null; if (v < 10) return w + 1; if (v <= 15) return w; return Math.max(0, w - Math.floor((v - 15) * 2)); } },
+      { id: "gmv", name: "账号GMV达成率", desc: "实际销售额 ÷ 本月目标销售额", where: "数据报告 → 销售和流量报告", unit: "%", placeholder: "如 102", target: "目标 ≥95%", wt: 15,
+        score: (v, w) => { if (Number.isNaN(v)) return null; if (v >= 95) return Math.min(w + 2, w + (v - 100) * 0.2); return Math.max(0, w - (95 - v) * 0.5); } },
+      { id: "refund", name: "账号整体退款率", desc: "退款订单数 ÷ 总订单数", where: "报告 → 退款报告", unit: "%", placeholder: "如 3.5", target: "目标 ≤5%（严控）", wt: 15,
+        score: (v, w) => { if (Number.isNaN(v)) return null; return Math.max(0, w - Math.floor(Math.max(0, v - 5) / 0.5) * 2); } },
+      { id: "stock", name: "断货或库存预警", desc: "核心款是否断货或预计7天内断货", where: "库存管理 → 库存计划", isSelect: true, opts: STOCK_OPTS, target: "目标：无断货", wt: 10,
+        score: (v, w) => { const m = { 0: w, 1: Math.round(w * 0.7), 2: Math.round(w * 0.3), 3: 0 }; return v === "" ? null : (m[v] !== undefined ? m[v] : null); } },
+      { id: "comply", name: "合规与账号健康", desc: "Account Health页面是否有警告/政策违规", where: "绩效 → Account Health", unit: "次", placeholder: "0", target: "目标：0次警告", wt: 10,
+        score: (v, w) => { if (Number.isNaN(v)) return null; return Math.max(0, w - v * 5); } },
+    ],
+  },
+};
+
+function emptyPremiumWeek() {
+  return { mode: "new", redline: false, stage: "self", note: "", vals: {}, skuData: {} };
+}
+
+function weekHasPremiumData(w) {
+  if (!w) return false;
+  if (w.redline || w.note) return true;
+  if (Object.values(w.vals || {}).some(v => v !== "" && v != null)) return true;
+  if (Object.keys(w.skuData || {}).length > 0) return true;
+  return false;
+}
+
+function calcPremiumWeekScore(data) {
+  if (!data || data.redline) return null;
+  const cfg = PREMIUM_CFGS[data.mode || "new"];
+  if (!cfg) return null;
+  let total = 0;
+  let cnt = 0;
+  cfg.kpis.forEach(kpi => {
+    const raw = (data.vals || {})[kpi.id];
+    const v = kpi.isSelect ? raw : parseFloat(raw);
+    const s = kpi.score(v, kpi.wt);
+    if (s !== null) { total += Math.max(0, s); cnt++; }
+  });
+  return cnt > 0 ? Math.round(total * 10) / 10 : null;
+}
+
+function premiumGradeInfo(sc, redline) {
+  if (redline) return { g: "红线", b: "0%", cls: "gf", msg: "红线触发，当周当月绩效清零。" };
+  if (sc === null) return { g: "—", b: "—", cls: "", msg: "" };
+  if (sc >= 90) return { g: "S 优秀", b: "100%", cls: "ga", msg: "账号整体健康，全额发放本周绩效。" };
+  if (sc >= 80) return { g: "A 良好", b: "按比例", cls: "gb", msg: "良好，重点改善扣分项，下周冲刺优秀。" };
+  if (sc >= 60) return { g: "B 合格", b: "基础", cls: "gc", msg: "合格，需制定改进计划，防止连续低于此线。" };
+  return { g: "C 不达标", b: "不发", cls: "gf", msg: "未达60分，不发提成，需提交本周复盘报告。" };
+}
+
+const adviceStyle = {
+  ga: { background: "#EAF3DE", border: "1px solid #97C459", color: "#3B6D11" },
+  gb: { background: "#FAEEDA", border: "1px solid #EF9F27", color: "#854F0B" },
+  gc: { background: "#FAECE7", border: "1px solid #F0997B", color: "#993C1D" },
+  gf: { background: "#FCEBEB", border: "1px solid #F09595", color: "#A32D2D" },
+};
+
+const premiumInp = {
+  width: "100%", fontSize: 12, padding: "4px 6px", textAlign: "center",
+  border: "1px solid var(--border)", borderRadius: 6, fontFamily: "inherit",
+  background: "var(--card)", color: "inherit",
+};
+
+function HeroCard({ label, value, tone }) {
+  const colors = { blue: "#185FA5", green: "#3B6D11", red: "#A32D2D", amber: "#854F0B" };
+  return (
+    <div style={{ background: "var(--bg)", borderRadius: 8, padding: "10px 12px" }}>
+      <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 600, color: tone ? colors[tone] : "var(--text)" }}>{value}</div>
+    </div>
+  );
+}
+
+function FlowBar({ stage }) {
+  const steps = [
+    { id: "self", label: "运营自评", icon: "✎" },
+    { id: "manager", label: "主管审核", icon: "✓" },
+    { id: "approved", label: "HR存档", icon: "🏢" },
+  ];
+  const order = ["self", "manager", "approved"];
+  const idx = order.indexOf(stage);
+  return (
+    <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 9, overflow: "hidden", marginBottom: 14 }}>
+      {steps.map((s, i) => {
+        const cls = i < idx ? "done" : stage === s.id ? "active" : "pending";
+        const bg = cls === "done" ? "#EAF3DE" : cls === "active" ? "#E6F1FB" : "var(--bg)";
+        const color = cls === "done" ? "#3B6D11" : cls === "active" ? "#0C447C" : "var(--tm)";
+        return (
+          <div key={s.id} style={{
+            flex: 1, padding: "8px 6px", textAlign: "center", fontSize: 11, color, background: bg,
+            borderRight: i < 2 ? "1px solid var(--border)" : "none", fontWeight: cls === "active" ? 600 : 400,
+          }}>
+            <div style={{ fontSize: 14, marginBottom: 2 }}>{s.icon}</div>
+            {s.label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PremiumScoreForm({ data, onChange }) {
+  const set = (patch) => onChange({ ...data, ...patch });
+  const setVal = (id, v) => set({ vals: { ...(data.vals || {}), [id]: v } });
+  const cfg = PREMIUM_CFGS[data.mode || "new"];
+  const sc = calcPremiumWeekScore(data);
+  const gi = premiumGradeInfo(data.redline ? 0 : sc, data.redline);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        {["new", "mature"].map(m => (
+          <button key={m} type="button" onClick={() => set({ mode: m })} style={{
+            fontSize: 12, padding: "4px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+            border: `1px solid ${data.mode === m ? (m === "new" ? "#85B7EB" : "#97C459") : "var(--border)"}`,
+            background: data.mode === m ? (m === "new" ? "#E6F1FB" : "#EAF3DE") : "var(--card)",
+            color: data.mode === m ? (m === "new" ? "#0C447C" : "#27500A") : "var(--tm)",
+            fontWeight: data.mode === m ? 600 : 400,
+          }}>
+            {m === "new" ? "新品期" : "成熟期"}
+          </button>
+        ))}
+      </div>
+
+      <FlowBar stage={data.stage || "self"} />
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 12 }}>
+        <HeroCard label="本周得分" value={data.redline ? "0" : sc !== null ? sc.toFixed(1) : "填写中"} tone={data.redline ? "red" : "blue"} />
+        <HeroCard label="绩效等级" value={data.redline ? "红线" : gi.g} />
+        <HeroCard label="提成系数" value={data.redline ? "0%" : gi.b} />
+        <HeroCard label="审批状态" value={data.stage === "self" ? "待提交" : data.stage === "manager" ? "主管审核中" : "已存档"} />
+      </div>
+
+      <div style={{
+        border: "1px solid #F09595", borderRadius: 9, padding: "10px 12px", marginBottom: 12,
+        background: "#FCEBEB", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap",
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#A32D2D" }}>红线一票否决</span>
+        <span style={{ fontSize: 11, color: "#791F1F", flex: 1 }}>账号被封 / 大卖链接被移除 → 当周当月绩效清零</span>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, color: "#791F1F" }}>
+          <input type="checkbox" checked={!!data.redline} onChange={e => set({ redline: e.target.checked })} />
+          {data.redline ? "已触发" : "未触发"}
+        </label>
+      </div>
+
+      <div style={{ border: "1px solid var(--border)", borderRadius: 9, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ padding: "8px 12px", background: "var(--bg)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>账号层KPI — {cfg.label}</span>
+          <span style={{ fontSize: 11, color: "var(--tm)" }}>数据来源：亚马逊卖家后台</span>
+        </div>
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 56px 120px 52px", gap: 8, padding: "6px 12px",
+          fontSize: 10, color: "var(--tm)", borderTop: "1px solid var(--border)", background: "var(--card)",
+        }}>
+          <span>指标</span><span style={{ textAlign: "center" }}>权重</span><span>填入实际值</span><span style={{ textAlign: "center" }}>得分</span>
+        </div>
+        {cfg.kpis.map(kpi => {
+          const raw = (data.vals || {})[kpi.id] ?? "";
+          const v = kpi.isSelect ? raw : parseFloat(raw);
+          const s = kpi.score(v, kpi.wt);
+          const scCls = s !== null ? (s / kpi.wt >= 0.85 ? "#0F6E56" : s / kpi.wt >= 0.6 ? "#854F0B" : "#A32D2D") : "var(--tm)";
+          return (
+            <div key={kpi.id} style={{
+              display: "grid", gridTemplateColumns: "1fr 56px 120px 52px", gap: 8, alignItems: "center",
+              padding: "10px 12px", borderTop: "1px solid var(--border)",
+            }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600 }}>{kpi.name}</div>
+                <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 2 }}>{kpi.desc}</div>
+                <div style={{ fontSize: 10, color: "#185FA5", marginTop: 2 }}>{kpi.where}</div>
+                <span style={{
+                  fontSize: 10, padding: "1px 6px", borderRadius: 8, marginTop: 4, display: "inline-block",
+                  background: "var(--bg)", color: "var(--tm)",
+                }}>{kpi.target}</span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--tm)", textAlign: "center" }}>{kpi.wt}%</div>
+              {kpi.isSelect ? (
+                <select style={{ ...premiumInp, textAlign: "left" }} value={raw} onChange={e => setVal(kpi.id, e.target.value)}>
+                  <option value="">请选择</option>
+                  {kpi.opts.map((o, i) => <option key={i} value={String(i)}>{o}</option>)}
+                </select>
+              ) : (
+                <input style={premiumInp} type="number" step="0.1" placeholder={kpi.placeholder} value={raw}
+                  onChange={e => setVal(kpi.id, e.target.value)} />
+              )}
+              <div style={{ fontSize: 13, fontWeight: 600, textAlign: "center", color: scCls }}>
+                {s !== null ? s.toFixed(1) : "—"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ border: "1px solid var(--border)", borderRadius: 9, padding: "10px 12px", marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>运营自评备注（异常说明 / 主动动作）</div>
+        <textarea style={{ ...premiumInp, textAlign: "left", minHeight: 60, resize: "vertical" }} placeholder="如：本周TACoS偏高因为测试了3组新品广告组合…"
+          value={data.note || ""} onChange={e => set({ note: e.target.value })} />
+      </div>
+
+      {sc !== null && !data.redline && gi.msg && (
+        <div style={{
+          borderRadius: 9, padding: "10px 12px", marginBottom: 12,
+          ...adviceStyle[gi.cls] || {},
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 500 }}>{gi.msg}</span>
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        {sc !== null && data.stage === "self" && (
+          <button type="button" onClick={() => set({ stage: "manager" })} style={{
+            fontSize: 12, padding: "6px 14px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+            background: "#E6F1FB", border: "1px solid #85B7EB", color: "#0C447C",
+          }}>提交主管审核 →</button>
+        )}
+        {data.stage === "manager" && (
+          <button type="button" onClick={() => set({ stage: "approved" })} style={{
+            fontSize: 12, padding: "6px 14px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+            background: "#EAF3DE", border: "1px solid #97C459", color: "#27500A",
+          }}>主管确认通过 → HR存档</button>
+        )}
+        {data.stage === "approved" && (
+          <span style={{ fontSize: 12, color: "#3B6D11" }}>✓ 已审批存档</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DotBtn({ active, tone, onClick }) {
+  const colors = { g: "#3B6D11", y: "#854F0B", r: "#A32D2D" };
+  const bg = { g: "#EAF3DE", y: "#FAEEDA", r: "#FCEBEB" };
+  return (
+    <button type="button" onClick={onClick} style={{
+      width: 26, height: 26, borderRadius: "50%", border: `1px solid ${active ? "#97C459" : "var(--border)"}`,
+      cursor: "pointer", fontSize: 11, fontWeight: 600, margin: "0 2px",
+      background: active ? bg[tone] : "var(--card)", color: colors[tone], opacity: active ? 1 : 0.35,
+      fontFamily: "inherit",
+    }}>●</button>
+  );
+}
+
+function PremiumSkuForm({ week, data, skuList, onChange, onSkuListChange }) {
+  const skuData = data.skuData || {};
+
+  const setDot = (skuIdx, dim, val) => {
+    const row = { ...(skuData[String(skuIdx)] || {}) };
+    row[dim] = val;
+    onChange({ ...data, skuData: { ...skuData, [String(skuIdx)]: row } });
+  };
+
+  const addSku = () => {
+    const name = window.prompt("输入SKU名称（如 A001 或 蓝色托特包）");
+    if (!name?.trim()) return;
+    const phase = window.confirm("新品期点确定，成熟期点取消") ? "new" : "mature";
+    const next = [...skuList, { name: name.trim(), phase }];
+    const idx = next.length - 1;
+    const row = {};
+    PREMIUM_SKU_DIMS.forEach(d => { row[d] = "g"; });
+    onSkuListChange(next);
+    onChange({ ...data, skuData: { ...skuData, [String(idx)]: row } });
+  };
+
+  const updateSku = (i, patch) => {
+    const next = skuList.map((s, j) => j === i ? { ...s, ...patch } : s);
+    onSkuListChange(next);
+  };
+
+  let redCount = 0, yellowCount = 0;
+  skuList.forEach((_, i) => {
+    PREMIUM_SKU_DIMS.forEach(dim => {
+      const v = skuData[String(i)]?.[dim] || "g";
+      if (v === "r") redCount++;
+      if (v === "y") yellowCount++;
+    });
+  });
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 10 }}>
+        运营负责的SKU — 每周扫描一次，只打状态，不填数字
+      </div>
+      <div style={{ border: "1px solid var(--border)", borderRadius: 9, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ padding: "8px 12px", background: "var(--bg)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>SKU健康扫描 · 第{week}周</span>
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "#EAF3DE", color: "#3B6D11" }}>绿=正常</span>
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "#FAEEDA", color: "#854F0B" }}>黄=关注</span>
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "#FCEBEB", color: "#A32D2D" }}>红=异常</span>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: "var(--bg)" }}>
+                <th style={{ padding: "8px 10px", textAlign: "left", color: "var(--tm)", fontWeight: 500 }}>SKU/款名</th>
+                <th style={{ padding: "8px 10px", textAlign: "left", color: "var(--tm)", fontWeight: 500 }}>阶段</th>
+                {PREMIUM_SKU_DIMS.map(d => (
+                  <th key={d} style={{ padding: "8px 6px", textAlign: "center", color: "var(--tm)", fontWeight: 500 }}>{d}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {skuList.length === 0 ? (
+                <tr><td colSpan={8} style={{ padding: 16, textAlign: "center", color: "var(--tm)" }}>暂无SKU，点击下方添加</td></tr>
+              ) : skuList.map((sku, i) => (
+                <tr key={i} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td style={{ padding: "8px 10px" }}>
+                    <input style={{ ...premiumInp, width: 90, textAlign: "left" }} value={sku.name}
+                      onChange={e => updateSku(i, { name: e.target.value })} />
+                    <div style={{ marginTop: 4 }}>
+                      <span style={{
+                        fontSize: 10, padding: "1px 6px", borderRadius: 8,
+                        background: sku.phase === "new" ? "#E6F1FB" : "#EAF3DE",
+                        color: sku.phase === "new" ? "#0C447C" : "#27500A",
+                      }}>{sku.phase === "new" ? "新品" : "成熟"}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: "8px 10px" }}>
+                    <select style={{ fontSize: 10, padding: "2px 4px", borderRadius: 4, border: "1px solid var(--border)" }}
+                      value={sku.phase} onChange={e => updateSku(i, { phase: e.target.value })}>
+                      <option value="new">新品</option>
+                      <option value="mature">成熟</option>
+                    </select>
+                  </td>
+                  {PREMIUM_SKU_DIMS.map(dim => {
+                    const cur = skuData[String(i)]?.[dim] || "g";
+                    return (
+                      <td key={dim} style={{ padding: "8px 6px", textAlign: "center" }}>
+                        {["g", "y", "r"].map(v => (
+                          <DotBtn key={v} tone={v} active={cur === v} onClick={() => setDot(i, dim, v)} />
+                        ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button type="button" onClick={addSku} style={{
+            fontSize: 12, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+            border: "1px solid var(--border)", background: "var(--card)",
+          }}>+ 添加SKU</button>
+          <span style={{ fontSize: 11, color: "var(--tm)" }}>红色异常项需在考核备注中说明处理方案</span>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}>
+        <HeroCard label="红色异常项" value={String(redCount)} tone={redCount > 0 ? "red" : undefined} />
+        <HeroCard label="黄色关注项" value={String(yellowCount)} tone={yellowCount > 0 ? "amber" : undefined} />
+        <HeroCard label="SKU数量" value={String(skuList.length)} />
+      </div>
+      {redCount > 0 && (
+        <div style={{ fontSize: 12, color: "#A32D2D", padding: "8px 12px", background: "#FCEBEB", borderRadius: 8 }}>
+          有 {redCount} 个红色异常项，请在考核备注中说明处理方案。
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OpsPremiumMonthSummary({ items, year, month, person, getWeekData }) {
+  const WEEKS = [1, 2, 3, 4];
+  const weekRows = useMemo(() => WEEKS.map(w => {
+    const d = getWeekData(items, year, month, "ops_jp", person, w);
+    return { w, sc: calcPremiumWeekScore(d), red: !!d.redline, mode: d.mode || "new" };
+  }), [items, year, month, person, getWeekData]);
+
+  const hasRed = weekRows.some(x => x.red);
+  const filled = weekRows.filter(x => x.sc !== null);
+  const monthSc = hasRed ? 0 : (filled.length ? filled.reduce((a, x) => a + x.sc, 0) / filled.length : null);
+  const gi = premiumGradeInfo(monthSc, hasRed);
+  const mode = weekRows.find(x => x.sc !== null)?.mode || "new";
+  const cfg = PREMIUM_CFGS[mode];
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#0C447C", marginBottom: 12 }}>精品运营 — 月度总评</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
+        <HeroCard label="月度综合分" value={monthSc !== null ? monthSc.toFixed(1) : "暂无"} tone="blue" />
+        <HeroCard label="月度等级" value={hasRed ? "红线触发" : gi.g} />
+        <HeroCard label="月度提成" value={hasRed ? "0%" : gi.b} />
+        <HeroCard label="完成周次" value={`${filled.length}/4`} />
+      </div>
+
+      <div style={{ border: "1px solid var(--border)", borderRadius: 9, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ padding: "8px 12px", background: "var(--bg)", fontSize: 13, fontWeight: 600 }}>四周评分趋势</div>
+        <div style={{ padding: "12px 14px", display: "flex", alignItems: "flex-end", gap: 12, height: 100 }}>
+          {weekRows.map(ws => {
+            const sc = ws.red ? 0 : ws.sc;
+            const h = sc !== null ? Math.round(sc * 0.7) : 4;
+            const color = sc === null ? "var(--bg)" : sc >= 90 ? "#639922" : sc >= 80 ? "#EF9F27" : sc >= 60 ? "#D85A30" : "#E24B4A";
+            return (
+              <div key={ws.w} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>{sc !== null ? sc.toFixed(0) : "—"}</span>
+                <div style={{ width: "100%", background: color, borderRadius: "3px 3px 0 0", height: h, minHeight: 4 }} />
+                <span style={{ fontSize: 10, color: "var(--tm)" }}>W{ws.w}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ border: "1px solid var(--border)", borderRadius: 9, overflow: "hidden" }}>
+        <div style={{ padding: "8px 12px", background: "var(--bg)", display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>月度KPI平均达成</span>
+          <span style={{ fontSize: 11, color: "var(--tm)" }}>四周均值 · {cfg.label}</span>
+        </div>
+        {cfg.kpis.map(kpi => {
+          const scores = WEEKS.map(w => {
+            const d = getWeekData(items, year, month, "ops_jp", person, w);
+            const raw = (d.vals || {})[kpi.id];
+            const v = kpi.isSelect ? raw : parseFloat(raw);
+            return kpi.score(v, kpi.wt);
+          }).filter(s => s !== null);
+          const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+          const pct = avg !== null ? Math.min(100, Math.round(avg / kpi.wt * 100)) : 0;
+          const barColor = pct >= 85 ? "#639922" : pct >= 60 ? "#BA7517" : "#E24B4A";
+          const txtColor = avg !== null ? (pct >= 85 ? "#3B6D11" : pct >= 60 ? "#854F0B" : "#A32D2D") : "var(--tm)";
+          return (
+            <div key={kpi.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderTop: "1px solid var(--border)" }}>
+              <span style={{ fontSize: 12, minWidth: 130 }}>{kpi.name}</span>
+              <div style={{ flex: 1, height: 5, background: "var(--bg)", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${avg !== null ? pct : 0}%`, background: barColor, borderRadius: 3 }} />
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, minWidth: 52, textAlign: "right", color: txtColor }}>
+                {avg !== null ? `${avg.toFixed(1)}/${kpi.wt}` : "暂无"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function OpsPremiumPanel({ page, week, data, skuList, onChange, onSkuListChange, onPageChange }) {
+  const tabStyle = (id) => ({
+    flex: 1, fontSize: 13, padding: "8px 0", textAlign: "center", cursor: "pointer",
+    background: page === id ? "var(--bg)" : "var(--card)", color: page === id ? "var(--text)" : "var(--tm)",
+    border: "none", fontWeight: page === id ? 600 : 400, fontFamily: "inherit",
+    borderRight: id !== "sku" ? "1px solid var(--border)" : "none",
+  });
+
+  return (
+    <div>
+      <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 9, overflow: "hidden", marginBottom: 14 }}>
+        <button type="button" style={tabStyle("score")} onClick={() => onPageChange("score")}>绩效考核</button>
+        <button type="button" style={tabStyle("sku")} onClick={() => onPageChange("sku")}>SKU预警</button>
+      </div>
+      {page === "score"
+        ? <PremiumScoreForm data={data} onChange={onChange} />
+        : <PremiumSkuForm week={week} data={data} skuList={skuList} onChange={onChange} onSkuListChange={onSkuListChange} />}
+    </div>
+  );
+}
+
+
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { getEmployees, RoleBadge } from "./GlobalConfig.jsx";
 
 const WEEKS = [1, 2, 3, 4];
 const KPI_STORAGE_KEY = "kpi-monthly";
 
 const emptyOpsWeek = () => ({
-  nsku: "", lsku: "", aadd: "", aout: "", atot: "", sales: "", prate: "",
+  wstyle: "", nsku: "", lsku: "", aadd: "", aout: "", atot: "", sales: "", prate: "",
   acos: "", adsp: "", ador: "", nacos: "", perfOk: null, sout: "", sdays: "",
   perfRemark: "", profitRemark: "",
   tnsku: "", tsal: "", taco: "", tadsp: "", torder: "",
+  desReview: { person: "", rating: "" },
 });
 
 const emptyDesWeek = () => ({
   prem: "", std: "", vid: "", aplus: "", dad: "", ontime: "", demand: "", rework: "",
+  incompleteReason: "", opsReviews: {},
 });
+
+const DES_INCOMPLETE_HINTS = ["单品多变体", "产品复杂", "素材需求变更", "等待运营确认", "拍摄/打样延误"];
+
+function tallyOpsReviews(reviews) {
+  const r = reviews || {};
+  let good = 0, bad = 0;
+  Object.values(r).forEach(v => { if (v === "good") good++; if (v === "bad") bad++; });
+  return { good, bad };
+}
+
+function removeOpsDesReview(items, year, month, opsPerson, week, desPerson) {
+  const next = [...items];
+  const idx = next.findIndex(r =>
+    r.year === year && r.month === month && r.role === "des" && r.person === desPerson
+  );
+  if (idx < 0) return next;
+  const wk = { ...emptyDesWeek(), ...(next[idx].weeks?.[week] || {}) };
+  if (!wk.opsReviews?.[opsPerson]) return next;
+  const opsReviews = { ...wk.opsReviews };
+  delete opsReviews[opsPerson];
+  next[idx] = { ...next[idx], weeks: { ...next[idx].weeks, [week]: { ...wk, opsReviews } } };
+  return next;
+}
+
+function applyOpsDesReviewToItems(items, year, month, opsPerson, week, desReview, prevDesReview) {
+  if (!opsPerson) return items;
+  let next = [...items];
+  const prevPerson = prevDesReview?.person;
+  const newPerson = desReview?.person;
+  if (prevPerson && prevPerson !== newPerson) {
+    next = removeOpsDesReview(next, year, month, opsPerson, week, prevPerson);
+  }
+  if (!newPerson) return next;
+  let idx = next.findIndex(r =>
+    r.year === year && r.month === month && r.role === "des" && r.person === newPerson
+  );
+  if (idx < 0) {
+    next.push({ year, month, role: "des", person: newPerson, weeks: {} });
+    idx = next.length - 1;
+  }
+  const wk = { ...emptyDesWeek(), ...(next[idx].weeks?.[week] || {}) };
+  const opsReviews = { ...(wk.opsReviews || {}) };
+  if (desReview.rating === "good" || desReview.rating === "bad") opsReviews[opsPerson] = desReview.rating;
+  else delete opsReviews[opsPerson];
+  next[idx] = { ...next[idx], weeks: { ...next[idx].weeks, [week]: { ...wk, opsReviews } } };
+  return next;
+}
 
 const emptyDevWeek = () => ({
   tNew: "", tSample: "", tOrder: "",
@@ -31,8 +570,18 @@ const KPI_ROLE_META = {
 
 function emptyWeekForRole(role) {
   if (role === "ops") return emptyOpsWeek();
+  if (role === "ops_jp") return emptyPremiumWeek();
   if (role === "dev") return emptyDevWeek();
   return emptyDesWeek();
+}
+
+function getPremiumSkuList(items, year, month, person) {
+  return findRecord(items, year, month, "ops_jp", person)?.skuList || [];
+}
+
+function opsEffectiveRole(curRole, curOpsSub) {
+  if (curRole !== "ops") return curRole;
+  return curOpsSub === "premium" ? "ops_jp" : "ops";
 }
 
 const num = (v) => {
@@ -67,8 +616,22 @@ function findRecord(items, year, month, role, person) {
 function getWeekData(items, year, month, role, person, week) {
   const rec = findRecord(items, year, month, role, person);
   const w = rec?.weeks?.[week];
-  if (!w) return emptyWeekForRole(role);
-  return { ...emptyWeekForRole(role), ...w };
+  const base = emptyWeekForRole(role);
+  if (!w) return base;
+  const merged = { ...base, ...w };
+  if (base.desReview) merged.desReview = { ...base.desReview, ...(w.desReview || {}) };
+  return merged;
+}
+
+function hydrateOpsDesReview(items, year, month, opsPerson, week, desReview) {
+  const cur = { ...emptyOpsWeek().desReview, ...desReview };
+  if (cur.person && cur.rating) return cur;
+  for (const rec of items) {
+    if (rec.role !== "des" || rec.year !== year || rec.month !== month) continue;
+    const rating = rec.weeks?.[week]?.opsReviews?.[opsPerson];
+    if (rating) return { person: rec.person, rating };
+  }
+  return cur;
 }
 
 function getDevMonthTargets(items, year, month, person) {
@@ -79,11 +642,12 @@ function getDevMonthTargets(items, year, month, person) {
 function calcOpsSummary(w) {
   const add = num(w.aadd), out = num(w.aout), net = add - out;
   const sales = num(w.sales), rate = parseFloat(w.prate);
-  const nsku = num(w.nsku), acos = parseFloat(w.acos), sout = num(w.sout);
+  const wstyle = num(w.wstyle), nsku = num(w.nsku), acos = parseFloat(w.acos), sout = num(w.sout);
   return {
     net,
     sales,
     rate: Number.isFinite(rate) ? rate : null,
+    wstyle,
     nsku,
     acos: Number.isFinite(acos) ? acos : null,
     sout,
@@ -94,14 +658,24 @@ function calcOpsSummary(w) {
 function calcDesSummary(w) {
   const prem = num(w.prem), std = num(w.std), aplus = num(w.aplus);
   const imgPts = prem * 5 + std;
-  const total = imgPts + aplus * 0.5;
+  const imgTotal = imgPts + aplus * 0.5;
+  const vid = num(w.vid);
+  const vidPts = vid * 2;
+  const outputPts = Math.round((imgTotal + vidPts) * 10) / 10;
   const ot = num(w.ontime), dm = num(w.demand);
+  const { good: goodReviews, bad: badReviews } = tallyOpsReviews(w.opsReviews);
+  const desReviewPts = goodReviews - badReviews;
   return {
     imgPts,
     aplusPts: aplus * 0.5,
-    total,
-    quotaOk: total >= 5,
-    vid: num(w.vid),
+    total: imgTotal,
+    vid,
+    vidPts,
+    outputPts,
+    goodReviews,
+    badReviews,
+    desReviewPts,
+    quotaOk: outputPts >= 5,
     aplus,
     rework: num(w.rework),
     rate: dm > 0 ? Math.round(ot / dm * 100) : null,
@@ -131,11 +705,14 @@ function calcOpsWeeklyScore(w) {
 }
 
 function weekHasOpsData(w) {
-  return ["nsku", "lsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null);
+  if (["wstyle", "nsku", "lsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null)) return true;
+  if (w.desReview?.person && w.desReview?.rating) return true;
+  return false;
 }
 
 function weekHasDesData(w) {
-  return ["prem", "std", "vid", "aplus"].some(k => w[k] !== "" && w[k] != null);
+  if (["prem", "std", "vid", "aplus", "incompleteReason"].some(k => w[k] !== "" && w[k] != null)) return true;
+  return Object.keys(w.opsReviews || {}).length > 0;
 }
 
 function weekHasDevData(w) {
@@ -183,7 +760,59 @@ function SummaryBar({ items, role }) {
   );
 }
 
-function OpsWeekForm({ week, data, onChange }) {
+function DesHeartBtn({ active, kind, onClick }) {
+  const isGood = kind === "good";
+  return (
+    <button type="button" onClick={onClick} title={isGood ? "好评" : "差评"} style={{
+      width: 34, height: 34, borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 18,
+      border: `1px solid ${active ? (isGood ? "#fca5a5" : "var(--border)") : "var(--border)"}`,
+      background: active ? (isGood ? "#fef2f2" : "var(--bg)") : "var(--card)",
+      color: isGood ? (active ? "#e11d48" : "#fda4af") : (active ? "#9ca3af" : "#d1d5db"),
+      opacity: active ? 1 : 0.85,
+      lineHeight: 1,
+    }}>
+      {isGood ? "♥" : "💔"}
+    </button>
+  );
+}
+
+function OpsDesReviewSection({ data, onChange, desStaff = [] }) {
+  const review = data.desReview || { person: "", rating: "" };
+  const setReview = (patch) => onChange({ ...data, desReview: { ...review, ...patch } });
+  const setRating = (rating) => {
+    if (!review.person) return;
+    setReview({ rating: review.rating === rating ? "" : rating });
+  };
+
+  return (
+    <Section title="美工评价（匿名）">
+      <div style={kpiCard}>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 10 }}>
+          每位运营每周可评价 <strong>1 位</strong> 美工：♥ 美工 +1 分 · 💔 美工 −1 分。美工端仅显示汇总，不显示评价人姓名。
+        </div>
+        {desStaff.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#e09000" }}>暂无美工人员 · 请在 ⚙ 设置中添加（角色选「美工」）</div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <label style={{ fontSize: 11, color: "var(--tm)" }}>本周评价美工</label>
+            <select style={{ ...kpiInpSm, minWidth: 140, background: "var(--card)" }} value={review.person}
+              onChange={e => setReview({ person: e.target.value, rating: "" })}>
+              <option value="">请选择</option>
+              {desStaff.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+            </select>
+            <DesHeartBtn kind="good" active={review.rating === "good"} onClick={() => setRating("good")} />
+            <DesHeartBtn kind="bad" active={review.rating === "bad"} onClick={() => setRating("bad")} />
+            <span style={{ fontSize: 11, color: "var(--tm)" }}>
+              {review.rating === "good" ? "已评：美工 +1" : review.rating === "bad" ? "已评：美工 −1" : review.person ? "请选择好评或差评" : "请先选择美工"}
+            </span>
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+function OpsWeekForm({ week, data, onChange, desStaff = [] }) {
   const set = (k, v) => onChange({ ...data, [k]: v });
   const s = calcOpsSummary(data);
   const score = calcOpsWeeklyScore(data);
@@ -195,7 +824,8 @@ function OpsWeekForm({ week, data, onChange }) {
       <SummaryBar items={[
         { label: "周销售额($)", value: s.sales > 0 ? `$${Math.round(s.sales).toLocaleString()}` : "—", color: "#2d9e52" },
         { label: "利润率", value: s.rate != null ? `${s.rate.toFixed(1)}%` : "—", color: s.rate != null && s.rate < 15 ? "#e55" : s.rate != null ? "#2d9e52" : undefined },
-        { label: "本周上新", value: s.nsku || "—" },
+        { label: "周开款", value: s.wstyle || "—" },
+        { label: "周上架新品", value: s.nsku || "—" },
         { label: "A品净变化", value: net !== 0 ? `${net >= 0 ? "+" : ""}${net}` : "—", color: net > 0 ? "#2d9e52" : net < 0 ? "#e55" : undefined },
         { label: "整体ACOS", value: s.acos != null ? `${s.acos}%` : "—" },
         { label: "A品断货天", value: String(s.sout), color: s.sout === 0 ? "#2d9e52" : "#e55" },
@@ -203,7 +833,10 @@ function OpsWeekForm({ week, data, onChange }) {
 
       <Section title="上新">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 7 }}>
-          <FieldCard label="上新 / NEW SKU" hint="周上新数量">
+          <FieldCard label="开款（运营）" hint="周开款数量（运营）">
+            <NumInput value={data.wstyle} onChange={v => set("wstyle", v)} unit="款" />
+          </FieldCard>
+          <FieldCard label="上架新品 / LISTED SKU" hint="周上架新品数量">
             <NumInput value={data.nsku} onChange={v => set("nsku", v)} unit="SKU" />
             <TargetRow label="计划目标" value={data.tnsku} onChange={v => set("tnsku", v)} unit="SKU" />
           </FieldCard>
@@ -269,6 +902,8 @@ function OpsWeekForm({ week, data, onChange }) {
         </div>
       </Section>
 
+      <OpsDesReviewSection data={data} onChange={onChange} desStaff={desStaff} />
+
       <Section title="账号健康（FBA）">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 7 }}>
           <FieldCard label="绩效 / PERFORMANCE" hint="绩效指标本周是否达标" danger>
@@ -302,24 +937,36 @@ function OpsWeekForm({ week, data, onChange }) {
 function DesWeekForm({ week, data, onChange }) {
   const set = (k, v) => onChange({ ...data, [k]: v });
   const s = calcDesSummary(data);
+  const needsReason = !s.quotaOk;
+  const desReviewFmt = s.desReviewPts > 0 ? `+${s.desReviewPts}` : s.desReviewPts < 0 ? String(s.desReviewPts) : "0";
+
+  const appendHint = (hint) => {
+    const cur = data.incompleteReason || "";
+    set("incompleteReason", cur ? `${cur}；${hint}` : hint);
+  };
 
   return (
     <div>
       <SummaryBar items={[
+        { label: "考核产出分", value: s.outputPts > 0 ? s.outputPts.toFixed(1) : "—", color: s.quotaOk ? "#2d9e52" : s.outputPts > 0 ? "#e09000" : undefined },
+        { label: "图片当量", value: s.total > 0 ? s.total.toFixed(1) : "—" },
+        { label: "视频分", value: s.vidPts > 0 ? String(s.vidPts) : "—", color: s.vidPts > 0 ? "#6b21a8" : undefined },
+        { label: "美工评价分", value: s.desReviewPts !== 0 ? desReviewFmt : "—", color: s.desReviewPts > 0 ? "#6b21a8" : s.desReviewPts < 0 ? "#9ca3af" : undefined },
         { label: "图片当量分", value: s.imgPts || "—" },
         { label: "A+当量分", value: s.aplusPts > 0 ? s.aplusPts.toFixed(1) : "—", color: s.aplusPts > 0 ? "#6b21a8" : undefined },
-        { label: "合计当量", value: s.total > 0 ? s.total.toFixed(1) : "—", color: s.total >= 5 ? "#2d9e52" : s.total > 0 ? "#e09000" : undefined },
-        { label: "视频完成数", value: s.vid || "—" },
+        { label: "视频(条)", value: s.vid || "—" },
         { label: "A+完成数", value: s.aplus || "—" },
         { label: "按时交付率", value: s.rate != null ? `${s.rate}%` : "—", color: s.rate != null && s.rate >= 90 ? "#2d9e52" : s.rate != null && s.rate >= 70 ? "#e09000" : s.rate != null ? "#e55" : undefined },
         { label: "返工次数", value: String(s.rework), color: s.rework > 0 ? "#e55" : undefined },
+        { label: "好评♥", value: s.goodReviews || "—", color: s.goodReviews > 0 ? "#e11d48" : undefined },
+        { label: "差评💔", value: s.badReviews || "—", color: s.badReviews > 0 ? "#9ca3af" : undefined },
       ]} />
 
       <Section title="图片产出（精品 1张 = 精铺 5张）">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 7 }}>
           <FieldCard label="精品图 / PREMIUM" hint="精品图完成数" accent="#6b21a8">
             <NumInput value={data.prem} onChange={v => set("prem", v)} unit="张" />
-            <QuotaBox total={s.total} imgPts={s.imgPts} aplusPts={s.aplusPts} prem={num(data.prem) * 5} std={num(data.std)} />
+            <QuotaBox outputPts={s.outputPts} imgPts={s.imgPts} aplusPts={s.aplusPts} vidPts={s.vidPts} prem={num(data.prem) * 5} std={num(data.std)} />
           </FieldCard>
           <FieldCard label="精铺图 / STANDARD" hint="精铺图完成数">
             <NumInput value={data.std} onChange={v => set("std", v)} unit="张" />
@@ -329,8 +976,9 @@ function DesWeekForm({ week, data, onChange }) {
 
       <Section title="视频">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 7 }}>
-          <FieldCard label="视频 / VIDEO" hint="视频完成数">
+          <FieldCard label="视频 / VIDEO" hint="视频完成数（每条计 2 分）">
             <NumInput value={data.vid} onChange={v => set("vid", v)} unit="条" />
+            <span style={kpiBadge("#f3e8ff", "#6b21a8")}>1 条 = 2 分</span>
           </FieldCard>
         </div>
       </Section>
@@ -355,6 +1003,52 @@ function DesWeekForm({ week, data, onChange }) {
           <FieldCard label="返工 / REWORK" hint="返工次数（大改重做）">
             <NumInput value={data.rework} onChange={v => set("rework", v)} unit="次" />
           </FieldCard>
+        </div>
+      </Section>
+
+      <Section title="考核未完成说明">
+          <div style={{
+            ...kpiCard,
+            borderColor: needsReason && !data.incompleteReason ? "#e9d5ff" : "var(--border)",
+            background: needsReason && !data.incompleteReason ? "#faf5ff" : "var(--card)",
+          }}>
+            <div style={{ fontSize: 11, color: needsReason ? "#6b21a8" : "var(--tm)", marginBottom: 8, fontWeight: needsReason ? 600 : 400 }}>
+              {needsReason
+                ? "本周考核产出未达 5 分（图片当量 + 视频分），请说明原因"
+                : "如本周未达标，请在此说明原因（如单品多变体、产品复杂等）"}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              {DES_INCOMPLETE_HINTS.map(h => (
+                <button key={h} type="button" onClick={() => appendHint(h)} style={{
+                  fontSize: 11, padding: "3px 10px", borderRadius: 99, cursor: "pointer", fontFamily: "inherit",
+                  border: "1px solid #e9d5ff", background: "#f3e8ff", color: "#6b21a8",
+                }}>+ {h}</button>
+              ))}
+            </div>
+            <textarea style={{ ...kpiInp, minHeight: 72, fontSize: 12, resize: "vertical" }}
+              value={data.incompleteReason || ""} onChange={e => set("incompleteReason", e.target.value)}
+              placeholder="如：本周 2 款均为单品 8 变体，主图+A+ 工作量超预期…" />
+          </div>
+      </Section>
+
+      <Section title="运营对美工评价（匿名）">
+        <div style={{
+          ...kpiCard,
+          marginBottom: 10,
+          background: "linear-gradient(135deg,#faf5ff,#fff)",
+          borderColor: "#e9d5ff",
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#6b21a8", marginBottom: 4 }}>美工本周评价加减分</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: s.desReviewPts > 0 ? "#6b21a8" : s.desReviewPts < 0 ? "#9ca3af" : "var(--text)" }}>
+            {s.desReviewPts !== 0 ? desReviewFmt : "0"}
+            <span style={{ fontSize: 12, fontWeight: 500, color: "var(--tm)", marginLeft: 6 }}>分（运营评·计入美工）</span>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 4 }}>
+            已收到 <strong>{s.goodReviews + s.badReviews}</strong> 条运营评价（匿名）· ♥ {s.goodReviews} · 💔 {s.badReviews}
+          </div>
+        </div>
+        <div style={{ ...kpiCard, fontSize: 11, color: "var(--tm)" }}>
+          评价由各位运营在 <strong>运营 → 精铺</strong> 考核页提交，此处不显示评价人姓名。
         </div>
       </Section>
     </div>
@@ -390,25 +1084,25 @@ function OpsScorePanel({ score }) {
   );
 }
 
-function QuotaBox({ total, imgPts, aplusPts, prem, std }) {
-  const pct = Math.min(100, Math.round(total / 5 * 100));
-  const barColor = total >= 5 ? "#2d9e52" : total > 0 ? "#e09000" : "var(--border)";
+function QuotaBox({ outputPts, imgPts, aplusPts, vidPts, prem, std }) {
+  const pct = Math.min(100, Math.round(outputPts / 5 * 100));
+  const barColor = outputPts >= 5 ? "#2d9e52" : outputPts > 0 ? "#e09000" : "var(--border)";
   return (
     <div style={{ marginTop: 8, background: "var(--bg)", borderRadius: 6, padding: "9px 11px" }}>
-      <div style={{ fontSize: 10, color: "var(--tm)", marginBottom: 4 }}>周配额：5 当量分（精品×5 + 精铺×1 + A+×0.5）</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: total >= 5 ? "#2d9e52" : "var(--text)" }}>
-        {Number(total.toFixed(1))} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--tm)" }}>/ 5 当量分</span>
+      <div style={{ fontSize: 10, color: "var(--tm)", marginBottom: 4 }}>周考核产出：5 分（精品×5 + 精铺×1 + A+×0.5 + 视频×2）</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: outputPts >= 5 ? "#2d9e52" : "var(--text)" }}>
+        {Number(outputPts.toFixed(1))} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--tm)" }}>/ 5 分</span>
       </div>
-      {(imgPts > 0 || aplusPts > 0) && (
+      {(imgPts > 0 || aplusPts > 0 || vidPts > 0) && (
         <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 4 }}>
-          图片 {imgPts} 分{aplusPts > 0 ? ` + A+ ${aplusPts.toFixed(1)} 分` : ""}
+          图片 {imgPts} 分{aplusPts > 0 ? ` + A+ ${aplusPts.toFixed(1)} 分` : ""}{vidPts > 0 ? ` + 视频 ${vidPts} 分` : ""}
         </div>
       )}
       <div style={{ background: "var(--border)", borderRadius: 99, height: 4, marginTop: 6, overflow: "hidden" }}>
         <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 99, transition: "width 0.2s" }} />
       </div>
-      <div style={{ fontSize: 10, color: total >= 5 ? "#2d9e52" : total > 0 ? "#e09000" : "var(--tm)", marginTop: 4 }}>
-        {total >= 5 ? `✓ 达标（超出${(total - 5).toFixed(1)}分）` : total > 0 ? `进行中，还差${(5 - total).toFixed(1)}分` : "尚未开始"}
+      <div style={{ fontSize: 10, color: outputPts >= 5 ? "#2d9e52" : outputPts > 0 ? "#e09000" : "var(--tm)", marginTop: 4 }}>
+        {outputPts >= 5 ? `✓ 达标（超出${(outputPts - 5).toFixed(1)}分）` : outputPts > 0 ? `进行中，还差${(5 - outputPts).toFixed(1)}分` : "尚未开始"}
       </div>
     </div>
   );
@@ -476,7 +1170,8 @@ function OpsMonthlySummary({ items, year, month, person }) {
       { label: "周销售额($)", vals: vals(w => num(w.sales)), type: "sum", fmt: n => `$${Math.round(n).toLocaleString()}`, cls: n => n > 0 ? "g" : "" },
       { label: "利润率(%)", vals: vals(w => num(w.prate)), type: "avg", fmt: n => `${n.toFixed(1)}%`, cls: n => n >= 15 ? "g" : n > 0 ? "r" : "" },
       { label: "下单款数", vals: vals(w => num(w.lsku)), type: "sum", fmt: n => String(n), cls: () => "" },
-      { label: "周上新(SKU)", vals: vals(w => num(w.nsku)), type: "sum", fmt: n => String(n), cls: () => "" },
+      { label: "周开款（运营）", vals: vals(w => num(w.wstyle)), type: "sum", fmt: n => String(n), cls: () => "" },
+      { label: "周上架新品(SKU)", vals: vals(w => num(w.nsku)), type: "sum", fmt: n => String(n), cls: () => "" },
       { label: "A品净变化", vals: vals(w => num(w.aadd) - num(w.aout)), type: "sum", fmt: n => `${n >= 0 ? "+" : ""}${n}`, cls: n => n > 0 ? "g" : n < 0 ? "r" : "" },
       { label: "整体ACOS(%)", vals: vals(w => num(w.acos)), type: "avg", fmt: n => `${n.toFixed(1)}%`, cls: () => "" },
       { label: "广告花费($)", vals: vals(w => num(w.adsp)), type: "sum", fmt: n => `$${Math.round(n).toLocaleString()}`, cls: () => "" },
@@ -497,8 +1192,8 @@ function OpsMonthlySummary({ items, year, month, person }) {
     <MonthlyBlock title="运营 — 月度汇总" color="#2d7dd2"
       cards={[
         { label: "月均考核得分", value: `${avgScore.toFixed(1)}分`, cls: avgScore >= 80 ? "g" : avgScore >= 60 ? "a" : avgScore > 0 ? "r" : "" },
-        ...summaries.slice(1, 8).map((r, i) => ({
-          label: ["月销售额($)", "月均利润率", "月下单合计", "月上新合计", "A品净变化", "月均ACOS", "月广告花费($)"][i],
+        ...summaries.slice(1, 9).map((r, i) => ({
+          label: ["月销售额($)", "月均利润率", "月下单合计", "月开款合计", "月上架新品合计", "A品净变化", "月均ACOS", "月广告花费($)"][i],
           value: r.fmt(r.agg),
           cls: r.cls(r.agg),
         })),
@@ -510,25 +1205,36 @@ function OpsMonthlySummary({ items, year, month, person }) {
 
 function DesMonthlySummary({ items, year, month, person }) {
   const data = useMemo(() => {
-    const pts = WEEKS.map(w => {
-      const d = getWeekData(items, year, month, "des", person, w);
-      return calcDesSummary(d).total;
-    });
-    const quotaDone = pts.filter(p => p >= 5).length;
-    const vid = WEEKS.map(w => num(getWeekData(items, year, month, "des", person, w).vid));
-    const ap = WEEKS.map(w => num(getWeekData(items, year, month, "des", person, w).aplus));
-    const rw = WEEKS.map(w => num(getWeekData(items, year, month, "des", person, w).rework));
-    const rates = WEEKS.map(w => {
-      const d = getWeekData(items, year, month, "des", person, w);
+    const weeks = WEEKS.map(w => getWeekData(items, year, month, "des", person, w));
+    const summaries = weeks.map(d => calcDesSummary(d));
+    const pts = summaries.map(s => s.total);
+    const outputPts = summaries.map(s => s.outputPts);
+    const vidPts = summaries.map(s => s.vidPts);
+    const desReviewPts = summaries.map(s => s.desReviewPts);
+    const quotaDone = outputPts.filter(p => p >= 5).length;
+    const vid = weeks.map(d => num(d.vid));
+    const ap = weeks.map(d => num(d.aplus));
+    const rw = weeks.map(d => num(d.rework));
+    const rates = weeks.map(d => {
       const dm = num(d.demand), ot = num(d.ontime);
       return dm > 0 ? Math.round(ot / dm * 100) : null;
     }).filter(r => r != null);
     const avgRate = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : 0;
-    return { pts, quotaDone, vid, ap, rw, avgRate };
+    let totalGood = 0, totalBad = 0, reasonWeeks = 0;
+    weeks.forEach(d => {
+      const t = tallyOpsReviews(d.opsReviews);
+      totalGood += t.good;
+      totalBad += t.bad;
+      if (d.incompleteReason) reasonWeeks++;
+    });
+    return { pts, outputPts, vidPts, desReviewPts, quotaDone, vid, ap, rw, avgRate, totalGood, totalBad, reasonWeeks, weeks };
   }, [items, year, month, person]);
 
   const rows = [
-    { label: "当量分(含A+)", vals: data.pts.map(v => Math.round(v * 10) / 10), type: "sum", fmt: n => n.toFixed(1), cls: n => n >= 5 ? "g" : n > 0 ? "a" : "" },
+    { label: "考核产出分", vals: data.outputPts, type: "avg", fmt: n => n.toFixed(1), cls: n => n >= 5 ? "g" : n > 0 ? "a" : "" },
+    { label: "图片当量(含A+)", vals: data.pts.map(v => Math.round(v * 10) / 10), type: "sum", fmt: n => n.toFixed(1), cls: n => n >= 5 ? "g" : n > 0 ? "a" : "" },
+    { label: "视频分(×2)", vals: data.vidPts, type: "sum", fmt: n => String(n), cls: n => n > 0 ? "g" : "" },
+    { label: "美工评价分(运营评)", vals: data.desReviewPts, type: "sum", fmt: n => n > 0 ? `+${n}` : String(n), cls: n => n > 0 ? "g" : n < 0 ? "r" : "" },
     { label: "视频(条)", vals: data.vid, type: "sum", fmt: n => String(n), cls: () => "" },
     { label: "A+(套)", vals: data.ap, type: "sum", fmt: n => String(n), cls: () => "" },
     { label: "按时交付率", vals: WEEKS.map(w => {
@@ -537,6 +1243,8 @@ function DesMonthlySummary({ items, year, month, person }) {
       return dm > 0 ? Math.round(ot / dm * 100) : 0;
     }), type: "avg", fmt: n => `${n}%`, cls: n => n >= 90 ? "g" : n >= 70 ? "a" : n > 0 ? "r" : "" },
     { label: "返工次数", vals: data.rw, type: "sum", fmt: n => String(n), cls: n => n > 0 ? "r" : "" },
+    { label: "运营好评(♥)", vals: data.weeks.map(d => tallyOpsReviews(d.opsReviews).good), type: "sum", fmt: n => String(n), cls: n => n > 0 ? "g" : "" },
+    { label: "运营差评(💔)", vals: data.weeks.map(d => tallyOpsReviews(d.opsReviews).bad), type: "sum", fmt: n => String(n), cls: n => n > 0 ? "r" : "" },
   ].map(row => {
     const total = row.vals.reduce((a, b) => a + b, 0);
     const nonZero = row.vals.filter(v => v > 0);
@@ -549,11 +1257,15 @@ function DesMonthlySummary({ items, year, month, person }) {
     <MonthlyBlock title="美工 — 月度汇总" color="#6b21a8"
       cards={[
         { label: "月当量总分", value: data.pts.reduce((a, b) => a + b, 0).toFixed(1) },
+        { label: "月美工评价净分", value: (() => { const t = data.desReviewPts.reduce((a, b) => a + b, 0); return t > 0 ? `+${t}` : String(t); })(), cls: data.desReviewPts.reduce((a, b) => a + b, 0) > 0 ? "g" : data.desReviewPts.reduce((a, b) => a + b, 0) < 0 ? "r" : "" },
         { label: "配额达标周数", value: `${data.quotaDone}/4周`, cls: data.quotaDone === 4 ? "g" : data.quotaDone >= 2 ? "a" : "r" },
         { label: "月视频合计", value: String(data.vid.reduce((a, b) => a + b, 0)) },
         { label: "月A+合计", value: String(data.ap.reduce((a, b) => a + b, 0)) },
         { label: "月均按时交付率", value: data.avgRate > 0 ? `${data.avgRate}%` : "—", cls: data.avgRate >= 90 ? "g" : data.avgRate >= 70 ? "a" : data.avgRate > 0 ? "r" : "" },
         { label: "月返工合计", value: String(data.rw.reduce((a, b) => a + b, 0)), cls: data.rw.reduce((a, b) => a + b, 0) > 0 ? "r" : "" },
+        { label: "月运营好评", value: String(data.totalGood), cls: data.totalGood > 0 ? "g" : "" },
+        { label: "月运营差评", value: String(data.totalBad), cls: data.totalBad > 0 ? "r" : "" },
+        { label: "未完成说明", value: data.reasonWeeks > 0 ? `${data.reasonWeeks}周` : "—", cls: data.reasonWeeks > 0 ? "a" : "" },
       ]}
       rows={rows}
     />
@@ -767,21 +1479,30 @@ function KpiPanel({ active = true }) {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [curRole, setCurRole] = useState("ops");
+  const [curOpsSub, setCurOpsSub] = useState("bulk");
+  const [curPremiumPage, setCurPremiumPage] = useState("score");
   const [curWeek, setCurWeek] = useState(1);
   const [person, setPerson] = useState("");
   const [draft, setDraft] = useState(emptyOpsWeek());
+  const [skuListDraft, setSkuListDraft] = useState([]);
   const [monthTargetsDraft, setMonthTargetsDraft] = useState(emptyDevMonthTargets());
   const [toast, setToast] = useState("");
   const [staffTick, setStaffTick] = useState(0);
 
   const { items, persist, meta, loading, saving, error, reload } = useSharedList(KPI_STORAGE_KEY, [], { active });
 
+  const effectiveRole = opsEffectiveRole(curRole, curOpsSub);
   const roleMeta = KPI_ROLE_META[curRole] || KPI_ROLE_META.ops;
   const roleLabel = roleMeta.label;
   const staffList = useMemo(() => {
     const list = getEmployees().filter(e => e.role === roleLabel && e.name);
     return list.length ? list : [];
   }, [roleLabel, staffTick]);
+
+  const desStaffList = useMemo(() => {
+    const list = getEmployees().filter(e => e.role === "美工" && e.name);
+    return list.length ? list : [];
+  }, [staffTick]);
 
   useEffect(() => {
     const onCfg = () => setStaffTick(t => t + 1);
@@ -796,7 +1517,8 @@ function KpiPanel({ active = true }) {
 
   useEffect(() => {
     if (!person) {
-      setDraft(emptyWeekForRole(curRole));
+      setDraft(emptyWeekForRole(effectiveRole));
+      setSkuListDraft([]);
       setMonthTargetsDraft(emptyDevMonthTargets());
       return;
     }
@@ -804,43 +1526,56 @@ function KpiPanel({ active = true }) {
       setMonthTargetsDraft(getDevMonthTargets(items, year, month, person));
       return;
     }
-    setDraft(getWeekData(items, year, month, curRole, person, curWeek));
-  }, [items, year, month, curRole, person, curWeek]);
+    if (curWeek === 0) return;
+    const wk = getWeekData(items, year, month, effectiveRole, person, curWeek);
+    if (effectiveRole === "ops") {
+      setDraft({ ...wk, desReview: hydrateOpsDesReview(items, year, month, person, curWeek, wk.desReview) });
+    } else {
+      setDraft(wk);
+    }
+    if (effectiveRole === "ops_jp") {
+      setSkuListDraft(getPremiumSkuList(items, year, month, person));
+    }
+  }, [items, year, month, curRole, curOpsSub, effectiveRole, person, curWeek]);
 
   const weekDone = useMemo(() => {
     if (!person) return {};
     const out = {};
     WEEKS.forEach(w => {
-      const d = getWeekData(items, year, month, curRole, person, w);
-      if (curRole === "ops") out[w] = weekHasOpsData(d);
-      else if (curRole === "dev") out[w] = weekHasDevData(d);
+      const d = getWeekData(items, year, month, effectiveRole, person, w);
+      if (effectiveRole === "ops") out[w] = weekHasOpsData(d);
+      else if (effectiveRole === "ops_jp") out[w] = weekHasPremiumData(d);
+      else if (effectiveRole === "dev") out[w] = weekHasDevData(d);
       else out[w] = weekHasDesData(d);
     });
     return out;
-  }, [items, year, month, curRole, person]);
+  }, [items, year, month, effectiveRole, person]);
 
   const showToast = (msg, ok = true) => {
     setToast(msg);
     setTimeout(() => setToast(""), ok ? 2200 : 3500);
   };
 
-  const upsertWeek = useCallback(async (weekData) => {
+  const upsertWeek = useCallback(async (weekData, skuList) => {
     if (!person) return false;
-    const next = [...items];
-    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === curRole && r.person === person);
+    let next = [...items];
+    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === effectiveRole && r.person === person);
     if (idx < 0) {
-      next.push({ year, month, role: curRole, person, weeks: {} });
+      next.push({ year, month, role: effectiveRole, person, weeks: {} });
       idx = next.length - 1;
     }
-    next[idx] = {
-      ...next[idx],
-      weeks: { ...next[idx].weeks, [curWeek]: weekData },
-    };
+    const patch = { weeks: { ...next[idx].weeks, [curWeek]: weekData } };
+    if (effectiveRole === "ops_jp" && skuList) patch.skuList = skuList;
+    next[idx] = { ...next[idx], ...patch };
+    if (effectiveRole === "ops") {
+      const prev = getWeekData(items, year, month, "ops", person, curWeek);
+      next = applyOpsDesReviewToItems(next, year, month, person, curWeek, weekData.desReview || {}, prev.desReview);
+    }
     const ok = await persist(next);
     if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);
     else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
     return ok;
-  }, [items, year, month, curRole, person, curWeek, persist]);
+  }, [items, year, month, effectiveRole, person, curWeek, persist]);
 
   const upsertMonthTargets = useCallback(async (targets) => {
     if (!person || curRole !== "dev") return false;
@@ -863,8 +1598,10 @@ function KpiPanel({ active = true }) {
       if (curRole === "dev") return upsertMonthTargets(monthTargetsDraft);
       return "月度汇总为汇总视图，请切换到具体周次填写后保存";
     }
-    return upsertWeek(draft);
-  }, [person, curWeek, curRole, monthTargetsDraft, draft, upsertMonthTargets, upsertWeek]);
+    return effectiveRole === "ops_jp"
+      ? upsertWeek(draft, skuListDraft)
+      : upsertWeek(draft);
+  }, [person, curWeek, curRole, effectiveRole, monthTargetsDraft, draft, skuListDraft, upsertMonthTargets, upsertWeek]);
 
   const kpiDirty = useMemo(() => {
     if (!person) return false;
@@ -873,9 +1610,14 @@ function KpiPanel({ active = true }) {
       return JSON.stringify(monthTargetsDraft) !== JSON.stringify(saved);
     }
     if (curWeek === 0) return false;
-    const saved = getWeekData(items, year, month, curRole, person, curWeek);
-    return JSON.stringify(draft) !== JSON.stringify(saved);
-  }, [person, curRole, curWeek, year, month, items, draft, monthTargetsDraft]);
+    const saved = getWeekData(items, year, month, effectiveRole, person, curWeek);
+    const weekDirty = JSON.stringify(draft) !== JSON.stringify(saved);
+    if (effectiveRole === "ops_jp") {
+      const savedSku = getPremiumSkuList(items, year, month, person);
+      return weekDirty || JSON.stringify(skuListDraft) !== JSON.stringify(savedSku);
+    }
+    return weekDirty;
+  }, [person, curRole, effectiveRole, curWeek, year, month, items, draft, monthTargetsDraft, skuListDraft]);
 
   useCloudSyncPage(active, {
     label: "考核",
@@ -890,7 +1632,7 @@ function KpiPanel({ active = true }) {
   });
 
   const clearWeek = () => {
-    setDraft(emptyWeekForRole(curRole));
+    setDraft(emptyWeekForRole(effectiveRole));
   };
 
   const tabStyle = (activeTab, color) => ({
@@ -931,10 +1673,17 @@ function KpiPanel({ active = true }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
         <button type="button" style={tabStyle(curRole === "ops", "#2d7dd2")} onClick={() => { setCurRole("ops"); setCurWeek(1); }}>运营</button>
         <button type="button" style={tabStyle(curRole === "des", "#6b21a8")} onClick={() => { setCurRole("des"); setCurWeek(1); }}>美工</button>
         <button type="button" style={tabStyle(curRole === "dev", "#00695c")} onClick={() => { setCurRole("dev"); setCurWeek(1); }}>开发</button>
+        {curRole === "ops" && (
+          <div style={{ display: "flex", gap: 4, marginLeft: 8, paddingLeft: 8, borderLeft: "1px solid var(--border)" }}>
+            <button type="button" style={tabStyle(curOpsSub === "bulk", "#2d7dd2")} onClick={() => { setCurOpsSub("bulk"); setCurWeek(1); }}>精铺</button>
+            <button type="button" style={{ ...tabStyle(curOpsSub === "premium", "#0C447C"), borderColor: curOpsSub === "premium" ? "#85B7EB" : "var(--border)", background: curOpsSub === "premium" ? "#E6F1FB" : "transparent" }}
+              onClick={() => { setCurOpsSub("premium"); setCurWeek(1); setCurPremiumPage("score"); }}>精品</button>
+          </div>
+        )}
       </div>
 
       <div style={{
@@ -968,8 +1717,10 @@ function KpiPanel({ active = true }) {
           </div>
 
           {curWeek === 0 ? (
-            curRole === "ops"
-              ? <OpsMonthlySummary items={items} year={year} month={month} person={person} />
+            curRole === "ops" && curOpsSub === "premium"
+              ? <OpsPremiumMonthSummary items={items} year={year} month={month} person={person} getWeekData={getWeekData} />
+              : curRole === "ops"
+                ? <OpsMonthlySummary items={items} year={year} month={month} person={person} />
               : curRole === "dev"
                 ? <DevMonthlySummary items={items} year={year} month={month} person={person}
                     monthTargets={monthTargetsDraft}
@@ -979,15 +1730,18 @@ function KpiPanel({ active = true }) {
                 : <DesMonthlySummary items={items} year={year} month={month} person={person} />
           ) : (
             <>
-              {curRole === "ops"
-                ? <OpsWeekForm week={curWeek} data={draft} onChange={setDraft} />
-                : curRole === "dev"
-                  ? <DevWeekForm data={draft} onChange={setDraft} />
-                  : <DesWeekForm week={curWeek} data={draft} onChange={setDraft} />}
+              {curRole === "ops" && curOpsSub === "premium"
+                ? <OpsPremiumPanel page={curPremiumPage} week={curWeek} data={draft} skuList={skuListDraft}
+                    onChange={setDraft} onSkuListChange={setSkuListDraft} onPageChange={setCurPremiumPage} />
+                : curRole === "ops"
+                  ? <OpsWeekForm week={curWeek} data={draft} onChange={setDraft} desStaff={desStaffList} />
+                  : curRole === "dev"
+                    ? <DevWeekForm data={draft} onChange={setDraft} />
+                    : <DesWeekForm week={curWeek} data={draft} onChange={setDraft} />}
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
                 <button type="button" onClick={clearWeek} disabled={saving} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", color: "var(--tm)", fontFamily: "inherit" }}>清空本周</button>
-                <button type="button" onClick={() => upsertWeek(draft)} disabled={saving}
-                  style={{ background: curRole === "dev" ? "#00695c" : "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: saving ? 0.85 : 1 }}>
+                <button type="button" onClick={() => (effectiveRole === "ops_jp" ? upsertWeek(draft, skuListDraft) : upsertWeek(draft))} disabled={saving}
+                  style={{ background: curRole === "dev" ? "#00695c" : curOpsSub === "premium" ? "#0C447C" : "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: saving ? 0.85 : 1 }}>
                   {saving ? "上传中…" : `☁️ 保存并上传第${curWeek}周`}
                 </button>
               </div>

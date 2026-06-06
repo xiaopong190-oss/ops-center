@@ -1,6 +1,8 @@
 const STORAGE_KEY = "ops-center-fba-hanhai-product-config-v1";
 const STORAGE_KEY_DB = "ops-center-fba-hanhai-sku-db-v1";
 const STORAGE_KEY_DB_META = "ops-center-fba-hanhai-sku-db-meta-v1";
+/** 每次打开工具为空白会话，不恢复上一位同事的浏览器缓存；团队数据仅通过 Gist 手动同步 */
+const SESSION_ONLY = true;
 const GIST_SKU_DB_FILE = "lingxing-sku-db.json";
 const GIST_API = "https://api.github.com/gists";
 const CLOUD_SNAPSHOT_URLS = [
@@ -186,6 +188,7 @@ const OUTPUT_MANUAL_FIELDS = new Set(REQUIRED_FIELDS.map(([key]) => key));
 const OPTIONAL_FIELDS = new Set(["electric", "model"]);
 
 let parsedShipments = [];
+clearPersistedSessionState();
 let skuDatabase = loadSkuDatabase();
 let skuDatabaseMeta = loadSkuDatabaseMeta();
 let productConfig = loadProductConfigDraft();
@@ -218,7 +221,19 @@ const els = {
   exportSection: document.getElementById("exportSection"),
 };
 
+function clearPersistedSessionState() {
+  if (!SESSION_ONLY) return;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY_DB);
+    localStorage.removeItem(STORAGE_KEY_DB_META);
+  } catch {
+    /* ignore */
+  }
+}
+
 function loadSkuDatabase() {
+  if (SESSION_ONLY) return {};
   try {
     const rawDb = localStorage.getItem(STORAGE_KEY_DB);
     if (rawDb) {
@@ -237,10 +252,12 @@ function loadSkuDatabase() {
 }
 
 function saveSkuDatabase() {
+  if (SESSION_ONLY) return;
   localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(skuDatabase));
 }
 
 function loadSkuDatabaseMeta() {
+  if (SESSION_ONLY) return {};
   try {
     const raw = localStorage.getItem(STORAGE_KEY_DB_META);
     return raw ? JSON.parse(raw) : {};
@@ -250,6 +267,7 @@ function loadSkuDatabaseMeta() {
 }
 
 function saveSkuDatabaseMeta() {
+  if (SESSION_ONLY) return;
   localStorage.setItem(STORAGE_KEY_DB_META, JSON.stringify(skuDatabaseMeta));
 }
 
@@ -591,6 +609,7 @@ function getBatchLingxingMatchSummary() {
 }
 
 function loadProductConfigDraft() {
+  if (SESSION_ONLY) return {};
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -600,6 +619,7 @@ function loadProductConfigDraft() {
 }
 
 function saveProductConfigDraft() {
+  if (SESSION_ONLY) return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(productConfig));
 }
 
@@ -739,8 +759,10 @@ function renderDbStats() {
     ? new Date(skuDatabaseMeta.importedAt).toLocaleString("zh-CN")
     : null;
   const importHint = importedAt
-    ? `上次导入：${importedAt}（${sourceLabel}，${skuDatabaseMeta.fileName || "文件"}）。已自动保存在浏览器，刷新后仍可用。`
-    : "尚未导入领星 SKU 库。请从领星 ERP「产品管理 → 导出」下载 CSV / XLS 后导入，导入后自动保存。";
+    ? `本次会话已导入：${importedAt}（${sourceLabel}，${skuDatabaseMeta.fileName || "文件"}）。`
+    : SESSION_ONLY
+      ? "每次打开为空白状态。需要 SKU 库时点「从团队库更新」，或从领星 ERP 导出 CSV / XLS 导入。"
+      : "尚未导入领星 SKU 库。请从领星 ERP「产品管理 → 导出」下载 CSV / XLS 后导入，导入后自动保存。";
   const reimportHint =
     count > 0 ? " 再次导入时相同 SKU 自动跳过，仅新增库中没有的 SKU。" : "";
   const cloudCount = skuDatabaseMeta.cloudUpdatedAt
@@ -2398,7 +2420,7 @@ async function importConfig(file) {
     refreshUi();
     const sourceNote = isLingxing ? "（领星导出）" : "";
     showStatus(
-      `领星 SKU 库已自动保存${sourceNote}：新增 ${result.added} 条，已有 SKU 跳过 ${result.ignored} 条，无效 ${result.skipped} 条（共 ${result.total} 行）。`,
+      `领星 SKU 库已导入${sourceNote}：新增 ${result.added} 条，已有 SKU 跳过 ${result.ignored} 条，无效 ${result.skipped} 条（共 ${result.total} 行）。`,
       "success"
     );
     if (cloudGistConfigured() && (result.added > 0 || result.total > 0)) {
@@ -2475,4 +2497,4 @@ if (els.pushCloudDbBtn) {
   });
 }
 
-initCloudSkuDatabase().finally(() => refreshUi());
+refreshUi();

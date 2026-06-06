@@ -451,7 +451,7 @@ function GanttTimeline({ products, today }) {
     saveGanttExpanded(expanded);
   }, [expanded]);
 
-  const toggleProduct = (id) => setExpanded(prev => ({ ...prev, [id]: prev[id] === false }));
+  const toggleProduct = (id) => setExpanded(prev => ({ ...prev, [id]: prev[id] !== true }));
 
   const { min, totalDays, weeks, todayPct } = useMemo(() => {
     let minD = new Date(today);
@@ -498,7 +498,7 @@ function GanttTimeline({ products, today }) {
           ))}
         </div>
         {products.map(p => {
-          const isOpen = expanded[p.id] !== false;
+          const isOpen = expanded[p.id] === true;
           const batches = p.batches || [];
           const batchCount = batches.length;
           const summary = productGanttSummary(batches);

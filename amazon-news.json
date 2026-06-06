@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-06-05T03:38:49.203Z",
+  "updatedAt": "2026-06-06T03:22:19.165Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon to provide 2,000 free rapid response technology systems that restore critical services in minutes",
-      "link": "https://www.aboutamazon.com/news/community/amazon-rapid-disaster-relief-technology?utm_source=rss",
-      "pubDate": "Thu, 04 Jun 2026 14:00:10 GMT",
-      "date": "6/4",
-      "summary": "Each system is portable enough for one person to carry and set up, now scaling 50x ahead of hurricane season.",
+      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
+      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
+      "pubDate": "Fri, 05 Jun 2026 22:12:00 GMT",
+      "date": "6/5",
+      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
       "category": "Community"
     },
     {
-      "title": "Pinterest inks $4 billion AI deal with AWS, the largest infrastructure commitment in its history",
-      "link": "https://www.aboutamazon.com/news/aws/pinterest-aws-4-billion-ai-infrastructure-deal?utm_source=rss",
-      "pubDate": "Thu, 04 Jun 2026 13:00:43 GMT",
-      "date": "6/4",
-      "summary": "The visual discovery platform deepens its over decade-long relationship with AWS to accelerate AI innovation for more than 600 million month",
-      "category": "AWS"
+      "title": "Amazon in the community: Service, community, and commitment at HQ2",
+      "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
+      "pubDate": "Fri, 05 Jun 2026 19:52:00 GMT",
+      "date": "6/5",
+      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
+      "category": "Community"
     },
     {
-      "title": "Amazon announces new robotics, faster delivery expansion in Europe, and $1 billion in employee upskilling",
-      "link": "https://www.aboutamazon.com/news/operations/amazon-europe-robotics-delivery-investment?utm_source=rss",
-      "pubDate": "Thu, 04 Jun 2026 09:28:05 GMT",
-      "date": "6/4",
-      "summary": "Amazon unveiled a next-generation Proteus robot and more ultra-fast delivery options, plus a European fulfillment workforce expansion.",
-      "category": "Operations"
+      "title": "Amazon Leo's largest Arianespace launch yet will feature upgraded boosters to deploy more satellites",
+      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-rocket-satellite-update?utm_source=rss",
+      "pubDate": "Fri, 05 Jun 2026 13:55:12 GMT",
+      "date": "6/5",
+      "summary": "Amazon Leo will launch 36 satellites on its next mission, the largest payload to date for Amazon and Ariane 6.",
+      "category": "Amazon Leo"
     }
   ]
 }

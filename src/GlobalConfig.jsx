@@ -27,6 +27,7 @@ const GIST_SHARED_FILES = {
   agents: "agents.json",
   "kpi-monthly": "kpi-monthly.json",
   "global-config": "global-config.json",
+  "lingxing-sku-db": "lingxing-sku-db.json",
 };
 
 function gistConfigured() {

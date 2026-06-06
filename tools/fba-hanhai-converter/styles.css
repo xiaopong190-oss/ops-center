@@ -123,6 +123,189 @@ body {
   color: #4b5563;
 }
 
+.legend-fba {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.legend-db {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.lingxing-db-card {
+  border-color: #c4b5fd;
+  background: linear-gradient(180deg, #faf5ff 0%, #fff 100%);
+}
+
+.batch-match-stats.match-ok {
+  color: #065f46;
+}
+
+.batch-match-stats.match-warn {
+  color: #92400e;
+}
+
+.db-stats {
+  margin-top: 4px;
+  color: #5b21b6;
+  font-size: 13px;
+}
+
+.product-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.tag-db {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.tag-new {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.field-hint.db {
+  color: #5b21b6;
+  background: #ede9fe;
+}
+
+.field-hint.saved-db {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.field-hint.pending-save {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.fields-section-title {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.fields-section-manual {
+  color: #991b1b;
+}
+
+.fba-context {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #1e3a8a;
+}
+
+.fba-context-label {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.product-fields input.field-from-fba {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.product-fields input.field-from-db {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  color: #5b21b6;
+}
+
+.product-fields input.field-fba-missing {
+  border-color: #fca5a5;
+  background: #fff1f2;
+}
+
+.field-hint.fba {
+  color: #1d4ed8;
+}
+
+.warehouse-fix-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fffbeb;
+  border: 2px solid #fcd34d;
+}
+
+.warehouse-fix-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 12px;
+}
+
+.warehouse-fix-item {
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #fcd34d;
+  margin-bottom: 10px;
+}
+
+.warehouse-fix-item:last-child {
+  margin-bottom: 0;
+}
+
+.warehouse-fix-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.warehouse-fix-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.warehouse-fix-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.warehouse-fix-input {
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.warehouse-fix-input.field-ok {
+  border-color: #6ee7b7;
+  background: #f0fdf4;
+}
+
+.warehouse-fix-input.field-missing {
+  border-color: #fca5a5;
+  background: #fff1f2;
+}
+
 .config-alert,
 .export-alert {
   margin-bottom: 14px;

@@ -36,6 +36,9 @@ const files = {
   "tools-links.json": { content: emptyPayload("tools-links") },
   "agents.json": { content: emptyPayload("agents") },
   "kpi-monthly.json": { content: emptyPayload("kpi-monthly") },
+  "lingxing-sku-db.json": {
+    content: JSON.stringify({ data: {}, updatedBy: "seed", updatedAt: Date.now() }, null, 2),
+  },
 };
 
 const res = await fetch("https://api.github.com/gists", {

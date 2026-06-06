@@ -1,0 +1,6 @@
+{
+  "data": {},
+  "updatedBy": "system",
+  "updatedAt": 0,
+  "note": "泓森拓创 FBA 领星 SKU 团队库种子。在线读写见 GitHub Gist 文件 lingxing-sku-db.json；部署后通过 /docs/data/shared-lingxing-sku-db.json 只读拉取。"
+}

@@ -1,70 +1,175 @@
 <!DOCTYPE html>
+
 <html lang="zh-CN">
+
 <head>
+
   <meta charset="UTF-8" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>FBA 货件 → 瀚海万博 B2B 导入转换</title>
+
   <link rel="stylesheet" href="styles.css" />
+
+  <script src="/gist-config.js"></script>
+  <script src="/gist-config.local.js" onerror="void 0"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
 </head>
+
 <body>
+
   <div class="page">
+
     <header class="hero">
+
       <div>
+
         <p class="eyebrow">泓森拓创 · 物流单票转换</p>
+
         <h1>FBA 货件 CSV 批量清洗工具</h1>
-        <p class="subtitle">可同时上传多份亚马逊原厂包装发货 CSV，批量转换为瀚海万博 B2B 单票导入模版（.xls），并打包下载。</p>
+
+        <p class="subtitle">领星 SKU 库 + FBA 货件 CSV → 瀚海万博 B2B 单票导入模版（.xls），批量打包下载。</p>
+
       </div>
+
     </header>
 
+
+
     <main class="grid">
-      <section class="card span-2">
-        <h2>1. 上传 FBA 货件文件（支持多选）</h2>
-        <label class="dropzone" id="csvDropzone">
-          <input type="file" id="csvInput" accept=".csv,text/csv" multiple hidden />
-          <span class="dropzone-title">点击或拖拽多个 CSV 到此处</span>
-          <span class="dropzone-hint">支持一次选择/拖入多份货件文件，每份 CSV 生成一个 XLS</span>
-        </label>
-        <div class="toolbar" style="margin-top: 14px">
-          <button type="button" class="btn secondary" id="clearFilesBtn" disabled>清空列表</button>
-        </div>
-        <div id="batchList" class="batch-list hidden"></div>
-      </section>
 
-      <section class="card span-2">
-        <h2>2. 产品申报配置</h2>
-        <p class="hint">带 <span class="req-star">*</span> 为必填项。本批货件用到的 SKU 必须全部配好，才能导出。</p>
-        <div class="legend">
-          <span class="legend-item legend-ready">已配好</span>
-          <span class="legend-item legend-warn">本批待补全</span>
-          <span class="legend-item legend-missing">必填空缺</span>
-          <span class="legend-item legend-idle">非本批 SKU</span>
-        </div>
-        <div id="configAlert" class="config-alert hidden"></div>
+      <section class="card span-2 lingxing-db-card" id="lingxingDbSection">
+
+        <h2>领星 SKU 库（GitHub 团队共享）</h2>
+
+        <p class="hint">数据保存在 <strong>GitHub Gist</strong>（与运营中心物流/任务同一套云端），全员可「从团队库更新」调用。也可从领星 ERP 导出 CSV/XLS 导入；<strong>相同 SKU 不覆盖</strong>，只新增。只读备份：<code>docs/data/shared-lingxing-sku-db.json</code>。</p>
+
+        <p class="hint db-stats" id="dbStats"></p>
+
+        <p class="hint batch-match-stats hidden" id="batchMatchStats"></p>
+
         <div class="toolbar">
-          <button type="button" class="btn secondary" id="addProductBtn">新增 SKU</button>
-          <button type="button" class="btn secondary" id="exportConfigBtn">导出配置</button>
-          <label class="btn secondary file-btn">
-            导入配置
-            <input type="file" id="importConfigInput" accept=".json,application/json" hidden />
+
+          <label class="btn primary file-btn">
+
+            导入领星 SKU 库
+
+            <input type="file" id="importConfigInput" accept=".json,.csv,.xls,.xlsx,application/json,text/csv" hidden />
+
           </label>
+
+          <button type="button" class="btn secondary" id="pullCloudDbBtn">从团队库更新</button>
+          <button type="button" class="btn secondary" id="pushCloudDbBtn">同步到团队库</button>
+          <button type="button" class="btn secondary" id="exportConfigBtn">导出 CSV</button>
+
+          <button type="button" class="btn secondary" id="exportConfigXlsBtn">导出 XLS</button>
+
+          <button type="button" class="btn secondary" id="exportConfigJsonBtn">导出 JSON</button>
+
         </div>
-        <div id="productEditor" class="product-editor"></div>
+
       </section>
 
+
+
       <section class="card span-2">
-        <div id="exportAlert" class="export-alert hidden"></div>
-        <div class="actions">
-          <button type="button" class="btn primary" id="convertBtn" disabled>批量生成并下载 ZIP</button>
-          <button type="button" class="btn secondary" id="previewBtn" disabled>预览全部转换结果</button>
+
+        <h2>1. 上传 FBA 货件文件（支持多选）</h2>
+
+        <p class="hint" id="uploadHint">上传货件 CSV 后，将按 SKU 与领星库自动匹配，并显示本批产品申报配置。一份 CSV 可含多个 SKU。</p>
+
+        <label class="dropzone" id="csvDropzone">
+
+          <input type="file" id="csvInput" accept=".csv,text/csv" multiple hidden />
+
+          <span class="dropzone-title">点击或拖拽多个 CSV 到此处</span>
+
+          <span class="dropzone-hint">支持一次选择/拖入多份货件文件，每份 CSV 生成一个 XLS</span>
+
+        </label>
+
+        <div class="toolbar" style="margin-top: 14px">
+
+          <button type="button" class="btn secondary" id="clearFilesBtn" disabled>清空列表</button>
+
         </div>
-        <div id="status" class="status"></div>
-        <pre id="preview" class="preview hidden"></pre>
+
+        <div id="batchList" class="batch-list hidden"></div>
+
+        <div id="warehouseFixPanel" class="warehouse-fix-panel hidden"></div>
+
       </section>
+
+
+
+      <section class="card span-2 hidden" id="productConfigSection">
+
+        <h2>2. 产品申报配置（领星库自动匹配）</h2>
+
+        <p class="hint">紫色「领星库」来自领星导入；<strong>申报单价、材质</strong>等须手填后点「保存到 SKU 库」入库，下次同 SKU 自动匹配（绿色「已入库」）。</p>
+
+        <div class="legend">
+
+          <span class="legend-item legend-ready">已配好</span>
+
+          <span class="legend-item legend-warn">待补全</span>
+
+          <span class="legend-item legend-missing">模版必填空缺</span>
+
+          <span class="legend-item legend-fba">FBA 已带入</span>
+
+          <span class="legend-item legend-db">领星库已匹配</span>
+
+        </div>
+
+        <div id="configAlert" class="config-alert hidden"></div>
+
+        <div class="toolbar">
+
+          <button type="button" class="btn primary" id="saveBatchDbBtn">保存本批到 SKU 库</button>
+
+          <button type="button" class="btn secondary" id="addProductBtn">新增 SKU</button>
+
+        </div>
+
+        <div id="productEditor" class="product-editor"></div>
+
+      </section>
+
+
+
+      <section class="card span-2 hidden" id="exportSection">
+
+        <div id="exportAlert" class="export-alert hidden"></div>
+
+        <div class="actions">
+
+          <button type="button" class="btn primary" id="convertBtn" disabled>批量生成并下载 ZIP</button>
+
+          <button type="button" class="btn secondary" id="previewBtn" disabled>预览全部转换结果</button>
+
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <pre id="preview" class="preview hidden"></pre>
+
+      </section>
+
     </main>
+
   </div>
 
+
+
   <script src="app.js"></script>
+
 </body>
+
 </html>
+
+

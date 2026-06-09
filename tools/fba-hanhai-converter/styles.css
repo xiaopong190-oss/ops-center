@@ -306,6 +306,28 @@ body {
   background: #fff1f2;
 }
 
+.tracking-fix-input {
+  width: 100%;
+  max-width: 280px;
+  padding: 8px 10px;
+  border: 2px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: ui-monospace, Consolas, monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tracking-fix-input.field-ok {
+  border-color: #34d399;
+  background: #f0fdf4;
+}
+
+.tracking-fix-input.field-missing {
+  border-color: #fca5a5;
+  background: #fff1f2;
+}
+
 .config-alert,
 .export-alert {
   margin-bottom: 14px;
@@ -345,6 +367,42 @@ body {
 .export-alert strong {
   display: block;
   margin-bottom: 4px;
+}
+
+.export-settings {
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 16px;
+}
+
+.export-settings-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.field-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 420px;
+  font-size: 13px;
+  color: var(--muted, #64748b);
+}
+
+.field-select select {
+  padding: 10px 12px;
+  border: 2px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--text, #0f172a);
+  background: #fff;
+  cursor: pointer;
+}
+
+.field-select select:focus {
+  outline: none;
+  border-color: var(--primary, #2563eb);
 }
 
 .dropzone {

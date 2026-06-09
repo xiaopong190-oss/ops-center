@@ -14,6 +14,7 @@
 
   <script src="/gist-config.js"></script>
   <script src="/gist-config.local.js" onerror="void 0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -32,7 +33,7 @@
 
         <h1>FBA 货件 CSV 批量清洗工具</h1>
 
-        <p class="subtitle">领星 SKU 库 + FBA 货件 CSV → 瀚海万博 B2B 单票导入模版（.xls），批量打包下载。</p>
+        <p class="subtitle">领星 SKU 库 + FBA 货件 CSV → 瀚海万博 B2B 单票导入模版（.xlsx，含服务渠道下拉），批量打包下载。</p>
 
       </div>
 
@@ -46,7 +47,7 @@
 
         <h2>领星 SKU 库（GitHub 团队共享）</h2>
 
-        <p class="hint">团队数据保存在 <strong>GitHub Gist</strong>（与运营中心物流/任务同一套云端）。<strong>每次打开为空白状态</strong>，不会带上一位同事的本机数据；需要 SKU 库时点「从团队库更新」。填完可「同步到团队库」供他人调用。也可从领星 ERP 导出 CSV/XLS 导入；<strong>相同 SKU 不覆盖</strong>，只新增。</p>
+        <p class="hint">团队数据保存在 <strong>GitHub Gist</strong>（与运营中心物流/任务同一套云端）。<strong>每次打开为空白状态</strong>，不会带上一位同事的本机数据；需要 SKU 库时点「从团队库更新」。填完可「同步到团队库」供他人调用。也可从领星 ERP 导出 CSV/XLS 导入；<strong>相同 SKU 不覆盖</strong>，只新增。产品图可单独导入领星「导出产品-按SKU」ZIP，按 SKU 合并到库中。</p>
 
         <p class="hint db-stats" id="dbStats"></p>
 
@@ -59,6 +60,14 @@
             导入领星 SKU 库
 
             <input type="file" id="importConfigInput" accept=".json,.csv,.xls,.xlsx,application/json,text/csv" hidden />
+
+          </label>
+
+          <label class="btn secondary file-btn">
+
+            导入领星产品图 ZIP
+
+            <input type="file" id="importSkuImageZipInput" accept=".zip,application/zip" hidden />
 
           </label>
 
@@ -80,7 +89,7 @@
 
         <h2>1. 上传 FBA 货件文件（支持多选）</h2>
 
-        <p class="hint" id="uploadHint">上传货件 CSV 后，将按 SKU 与领星库自动匹配，并显示本批产品申报配置。一份 CSV 可含多个 SKU。</p>
+        <p class="hint" id="uploadHint">上传货件 CSV 后，须为<strong>每个货件</strong>填写「货件追踪编号」（例：4KKJA95Q，每票不同）；再按 SKU 与领星库自动匹配申报配置。</p>
 
         <label class="dropzone" id="csvDropzone">
 
@@ -88,7 +97,7 @@
 
           <span class="dropzone-title">点击或拖拽多个 CSV 到此处</span>
 
-          <span class="dropzone-hint">支持一次选择/拖入多份货件文件，每份 CSV 生成一个 XLS</span>
+          <span class="dropzone-hint">支持一次选择/拖入多份货件文件，每份 CSV 生成一个 XLSX</span>
 
         </label>
 
@@ -99,6 +108,8 @@
         </div>
 
         <div id="batchList" class="batch-list hidden"></div>
+
+        <div id="trackingPanel" class="warehouse-fix-panel hidden"></div>
 
         <div id="warehouseFixPanel" class="warehouse-fix-panel hidden"></div>
 
@@ -143,6 +154,27 @@
 
 
       <section class="card span-2 hidden" id="exportSection">
+
+        <h2>3. 导出设置</h2>
+        <div class="export-settings">
+          <label class="field-select">
+            <span>服务类型 <span class="req-star">*</span></span>
+            <select id="serviceTypeSelect"></select>
+          </label>
+          <label class="field-select">
+            <span>报关方式 <span class="req-star">*</span></span>
+            <select id="customsMethodSelect"></select>
+          </label>
+          <label class="field-select">
+            <span>交税方式 <span class="req-star">*</span></span>
+            <select id="taxMethodSelect"></select>
+          </label>
+          <label class="field-select">
+            <span>申报币种 <span class="req-star">*</span></span>
+            <select id="declareCurrencySelect"></select>
+          </label>
+          <p class="hint export-settings-hint">与瀚海官方模版一致，导出 Excel 对应单元格带下拉：服务 B2、报关 F6、交税 F8、币种 F17。美国渠道默认「美元」；欧洲「欧元」；英国「英镑」。非单独报关选「买单报关」，单独报关选「报关退税」。<strong>产品图</strong>：先导入领星 ZIP，库统计须显示「含产品图」；导出 XLSX 时 S 列嵌入缩略图。</p>
+        </div>
 
         <div id="exportAlert" class="export-alert hidden"></div>
 

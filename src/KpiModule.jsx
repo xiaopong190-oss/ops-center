@@ -197,7 +197,32 @@ function calcDesSummary(w) {
   };
 }
 
-/** 运营周考核：下单款数 50% + 赢利 20% + 赢利且利润率≥15% 30% */
+/** 利润率得分（50 分）：≥15% 足分 · 10–15% 20 分 · 2–10% 10 分 · <2% 0 分 */
+function calcProfitMarginScore(rate) {
+  if (!Number.isFinite(rate)) return 0;
+  if (rate >= 15) return 50;
+  if (rate >= 10) return 20;
+  if (rate >= 2) return 10;
+  return 0;
+}
+
+function profitMarginTierLabel(rate) {
+  if (!Number.isFinite(rate)) return "未填";
+  if (rate >= 15) return "≥15% 足分";
+  if (rate >= 10) return "10–15%";
+  if (rate >= 2) return "2–10%";
+  return "<2%";
+}
+
+function profitRateCls(rate) {
+  if (!Number.isFinite(rate)) return "";
+  if (rate >= 15) return "g";
+  if (rate >= 10) return "a";
+  if (rate >= 2) return "a";
+  return "r";
+}
+
+/** 运营周考核：下单款数 50% + 利润率 50% */
 function calcOpsWeeklyScore(w) {
   const orderCount = num(w.lsku);
   const target = num(w.torder) || num(w.tnsku) || 1;
@@ -205,15 +230,14 @@ function calcOpsWeeklyScore(w) {
   const hasRate = Number.isFinite(rate);
   const orderPct = Math.min(1, orderCount / target);
   const orderScore = orderPct * 50;
-  const profitScore = hasRate && rate > 0 ? 20 : 0;
-  const profit15Score = hasRate && rate >= 15 ? 30 : 0;
-  const total = Math.round((orderScore + profitScore + profit15Score) * 10) / 10;
+  const profitMarginScore = calcProfitMarginScore(rate);
+  const total = Math.round((orderScore + profitMarginScore) * 10) / 10;
   return {
     orderCount,
     target,
     orderScore: Math.round(orderScore * 10) / 10,
-    profitScore,
-    profit15Score,
+    profitMarginScore,
+    profitMarginTier: hasRate ? profitMarginTierLabel(rate) : null,
     total,
     rate: hasRate ? rate : null,
   };
@@ -338,7 +362,8 @@ function OpsWeekForm({ week, data, onChange, desStaff = [] }) {
       <OpsScorePanel score={score} />
       <SummaryBar items={[
         { label: "周销售额($)", value: s.sales > 0 ? `$${Math.round(s.sales).toLocaleString()}` : "—", color: "#2d9e52" },
-        { label: "利润率", value: s.rate != null ? `${s.rate.toFixed(1)}%` : "—", color: s.rate != null && s.rate < 15 ? "#e55" : s.rate != null ? "#2d9e52" : undefined },
+        { label: "利润率", value: s.rate != null ? `${s.rate.toFixed(1)}%` : "—",
+          color: s.rate != null ? (s.rate >= 15 ? "#2d9e52" : s.rate >= 10 ? "#e09000" : s.rate >= 2 ? "#e09000" : "#e55") : undefined },
         { label: "周开款", value: s.wstyle || "—" },
         { label: "周上架新品", value: s.nsku || "—" },
         { label: "A品净变化", value: net !== 0 ? `${net >= 0 ? "+" : ""}${net}` : "—", color: net > 0 ? "#2d9e52" : net < 0 ? "#e55" : undefined },
@@ -388,8 +413,16 @@ function OpsWeekForm({ week, data, onChange, desStaff = [] }) {
             <NumInput value={data.sales} onChange={v => set("sales", v)} unit="USD" />
             <TargetRow label="目标" value={data.tsal} onChange={v => set("tsal", v)} unit="USD" />
           </FieldCard>
-          <FieldCard label="利润 / PROFIT" hint="利润率（考核：赢利 20% + ≥15% 另 30%）">
+          <FieldCard label="利润 / PROFIT" hint="利润率（考核 50 分：≥15% 足分 · 10–15% 20 · 2–10% 10 · <2% 0）">
             <NumInput value={data.prate} onChange={v => set("prate", v)} unit="%" step="0.1" />
+            {score.rate != null && (
+              <span style={kpiBadge(
+                score.profitMarginScore >= 50 ? "#d4f0dc" : score.profitMarginScore >= 20 ? "#fff0d4" : score.profitMarginScore > 0 ? "#fff8e6" : "#fee2e2",
+                score.profitMarginScore >= 50 ? "#2d9e52" : score.profitMarginScore >= 20 ? "#e09000" : score.profitMarginScore > 0 ? "#e09000" : "#e55",
+              )}>
+                {score.profitMarginTier} → {score.profitMarginScore}分
+              </span>
+            )}
             {s.rate != null && s.rate < 15 && (
               <textarea style={{ ...kpiInp, marginTop: 6, minHeight: 40, fontSize: 11 }} value={data.profitRemark}
                 onChange={e => set("profitRemark", e.target.value)} placeholder="低于 15% 请说明原因…" />
@@ -574,8 +607,7 @@ function OpsScorePanel({ score }) {
   const color = score.total >= 80 ? "#2d9e52" : score.total >= 60 ? "#e09000" : score.total > 0 ? "#e55" : "var(--text)";
   const items = [
     { label: "下单款数", pct: "50%", value: `${score.orderScore}分`, sub: `${score.orderCount}/${score.target}款` },
-    { label: "赢利", pct: "20%", value: `${score.profitScore}分`, sub: score.profitScore ? "已赢利" : "未达" },
-    { label: "利润率≥15%", pct: "30%", value: `${score.profit15Score}分`, sub: score.rate != null ? `${score.rate.toFixed(1)}%` : "—" },
+    { label: "利润率", pct: "50%", value: `${score.profitMarginScore}分`, sub: score.rate != null ? `${score.rate.toFixed(1)}% · ${score.profitMarginTier}` : "未填" },
   ];
   return (
     <div style={{
@@ -586,7 +618,8 @@ function OpsScorePanel({ score }) {
         <div style={{ fontSize: 12, fontWeight: 600, color: "#2d7dd2" }}>本周考核得分</div>
         <div style={{ fontSize: 22, fontWeight: 700, color }}>{score.total}<span style={{ fontSize: 12, fontWeight: 500, color: "var(--tm)" }}> / 100</span></div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+      <div style={{ fontSize: 10, color: "var(--tm)", marginBottom: 8 }}>利润率：≥15% 50分 · 10–15% 20分 · 2–10% 10分 · &lt;2% 0分</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
         {items.map(it => (
           <div key={it.label} style={{ background: "var(--card)", borderRadius: 8, padding: "8px 10px", border: "1px solid var(--border)" }}>
             <div style={{ fontSize: 10, color: "var(--tm)" }}>{it.label} <span style={{ color: "#2d7dd2" }}>{it.pct}</span></div>
@@ -683,7 +716,8 @@ function OpsMonthlySummary({ items, year, month, person }) {
     return [
       { label: "周考核得分", vals: scores, type: "avg", fmt: n => `${n.toFixed(1)}分`, cls: n => n >= 80 ? "g" : n >= 60 ? "a" : n > 0 ? "r" : "" },
       { label: "周销售额($)", vals: vals(w => num(w.sales)), type: "sum", fmt: n => `$${Math.round(n).toLocaleString()}`, cls: n => n > 0 ? "g" : "" },
-      { label: "利润率(%)", vals: vals(w => num(w.prate)), type: "avg", fmt: n => `${n.toFixed(1)}%`, cls: n => n >= 15 ? "g" : n > 0 ? "r" : "" },
+      { label: "利润率(%)", vals: vals(w => num(w.prate)), type: "avg", fmt: n => `${n.toFixed(1)}%`, cls: n => profitRateCls(n) },
+      { label: "利润率得分", vals: vals(w => calcOpsWeeklyScore(w).profitMarginScore), type: "avg", fmt: n => `${n.toFixed(0)}分`, cls: n => n >= 50 ? "g" : n >= 20 ? "a" : n > 0 ? "a" : "" },
       { label: "下单款数", vals: vals(w => num(w.lsku)), type: "sum", fmt: n => String(n), cls: () => "" },
       { label: "周开款（运营）", vals: vals(w => num(w.wstyle)), type: "sum", fmt: n => String(n), cls: () => "" },
       { label: "周上架新品(SKU)", vals: vals(w => num(w.nsku)), type: "sum", fmt: n => String(n), cls: () => "" },
@@ -707,8 +741,8 @@ function OpsMonthlySummary({ items, year, month, person }) {
     <MonthlyBlock title="运营 — 月度汇总" color="#2d7dd2"
       cards={[
         { label: "月均考核得分", value: `${avgScore.toFixed(1)}分`, cls: avgScore >= 80 ? "g" : avgScore >= 60 ? "a" : avgScore > 0 ? "r" : "" },
-        ...summaries.slice(1, 9).map((r, i) => ({
-          label: ["月销售额($)", "月均利润率", "月下单合计", "月开款合计", "月上架新品合计", "A品净变化", "月均ACOS", "月广告花费($)"][i],
+        ...summaries.slice(1, 10).map((r, i) => ({
+          label: ["月销售额($)", "月均利润率", "月均利润率得分", "月下单合计", "月开款合计", "月上架新品合计", "A品净变化", "月均ACOS", "月广告花费($)"][i],
           value: r.fmt(r.agg),
           cls: r.cls(r.agg),
         })),
@@ -986,8 +1020,7 @@ function buildOpsStatsRow(items, year, month, name) {
   const filled = weekScores.filter(s => s > 0);
   const avg = filled.length ? Math.round(filled.reduce((a, b) => a + b, 0) / filled.length * 10) / 10 : 0;
   const avgOrder = avgFilled(weekBreakdowns.map(s => s.orderScore));
-  const avgProfit = avgFilled(weekBreakdowns.map(s => s.profitScore));
-  const avgProfit15 = avgFilled(weekBreakdowns.map(s => s.profit15Score));
+  const avgProfitMargin = avgFilled(weekBreakdowns.map(s => s.profitMarginScore));
   let totalSales = 0, totalNsku = 0, totalLsku = 0;
   WEEKS.forEach(w => {
     const d = getWeekData(items, year, month, "ops", name, w);
@@ -996,7 +1029,7 @@ function buildOpsStatsRow(items, year, month, name) {
     totalLsku += num(d.lsku);
   });
   return {
-    name, weekScores, weekBreakdowns, weekFilled, avg, avgOrder, avgProfit, avgProfit15,
+    name, weekScores, weekBreakdowns, weekFilled, avg, avgOrder, avgProfitMargin,
     totalSales, totalNsku, totalLsku, filledWeeks: weekFilled.filter(Boolean).length,
   };
 }
@@ -1032,8 +1065,7 @@ function opsWeekDetail(s) {
   if (!s.total) return "";
   const parts = [
     s.orderScore ? `下单${s.orderScore}` : null,
-    s.profitScore ? `赢${s.profitScore}` : null,
-    s.profit15Score ? `利${s.profit15Score}` : null,
+    s.rate != null ? `利润${s.profitMarginScore}` : null,
   ].filter(Boolean);
   return parts.join("+");
 }
@@ -1071,9 +1103,9 @@ function KpiStatsFormulaCards() {
         <div style={{ fontWeight: 700, color: "#2d7dd2", marginBottom: 6 }}>运营 100 分制 · 怎么算</div>
         <div><strong>① 下单款数 50 分</strong> = min(本周下单款 ÷ 周目标, 1) × 50</div>
         <div style={{ color: "var(--tm)" }}>周目标取自「周目标下单款」或「月目标开款」</div>
-        <div style={{ marginTop: 4 }}><strong>② 赢利 20 分</strong> = 本周有正利润率 → 20，否则 0</div>
-        <div style={{ marginTop: 4 }}><strong>③ 利润率≥15% 30 分</strong> = 利润率 ≥15% → 30，否则 0</div>
-        <div style={{ marginTop: 6, fontWeight: 600, color: "#2d7dd2" }}>周得分 = ① + ② + ③（满分 100）</div>
+        <div style={{ marginTop: 4 }}><strong>② 利润率 50 分</strong>（按本周利润率档位）</div>
+        <div style={{ paddingLeft: 8, color: "var(--tm)" }}>≥15% → 50 分（足分）· 10–15% → 20 分 · 2–10% → 10 分 · &lt;2% → 0 分</div>
+        <div style={{ marginTop: 6, fontWeight: 600, color: "#2d7dd2" }}>周得分 = ① + ②（满分 100）</div>
       </div>
       <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 12px", fontSize: 11, lineHeight: 1.65 }}>
         <div style={{ fontWeight: 700, color: "#6b21a8", marginBottom: 6 }}>美工 5 分制 · 怎么算</div>
@@ -1099,8 +1131,7 @@ function OpsStatsExpandRow({ row, colSpan, expanded }) {
               <tr style={{ color: "var(--tm)" }}>
                 <th style={{ textAlign: "left", padding: "4px 6px" }}>周</th>
                 <th style={{ padding: "4px 6px" }}>下单(50%)</th>
-                <th style={{ padding: "4px 6px" }}>赢利(20%)</th>
-                <th style={{ padding: "4px 6px" }}>利润≥15%(30%)</th>
+                <th style={{ padding: "4px 6px" }}>利润率(50%)</th>
                 <th style={{ padding: "4px 6px" }}>合计</th>
                 <th style={{ textAlign: "left", padding: "4px 6px" }}>计算依据</th>
               </tr>
@@ -1110,8 +1141,7 @@ function OpsStatsExpandRow({ row, colSpan, expanded }) {
                 <tr key={s.week}>
                   <td style={{ padding: "5px 6px", fontWeight: 600 }}>第{s.week}周</td>
                   <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.orderScore || "—"}</td>
-                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.profitScore || "—"}</td>
-                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.profit15Score || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.rate != null ? s.profitMarginScore : "—"}</td>
                   <td style={{ padding: "5px 6px", textAlign: "center", fontWeight: 700, color: opsScoreCls(s.total) ? STAT_COLORS[opsScoreCls(s.total)] : "var(--text)" }}>
                     {s.total ? `${s.total}/100` : "—"}
                   </td>
@@ -1119,9 +1149,9 @@ function OpsStatsExpandRow({ row, colSpan, expanded }) {
                     {!s.total ? "未填写" : (
                       <>
                         下单 {s.orderCount}/{s.target}款 → {s.orderScore}分
-                        {s.rate != null ? ` · 利润率 ${s.rate.toFixed(1)}%` : " · 利润率未填"}
-                        {s.profitScore ? " · 已赢利" : " · 未赢利"}
-                        {s.profit15Score ? " · 达15%" : ""}
+                        {s.rate != null
+                          ? ` · 利润率 ${s.rate.toFixed(1)}%（${s.profitMarginTier}）→ ${s.profitMarginScore}分`
+                          : " · 利润率未填"}
                       </>
                     )}
                   </td>
@@ -1130,11 +1160,10 @@ function OpsStatsExpandRow({ row, colSpan, expanded }) {
               <tr style={{ background: "#eef6ff" }}>
                 <td style={{ padding: "5px 6px", fontWeight: 600 }}>月均</td>
                 <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgOrder ? row.avgOrder.toFixed(1) : "—"}</td>
-                <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgProfit ? row.avgProfit.toFixed(1) : "—"}</td>
-                <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgProfit15 ? row.avgProfit15.toFixed(1) : "—"}</td>
+                <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgProfitMargin ? row.avgProfitMargin.toFixed(1) : "—"}</td>
                 <td style={{ padding: "5px 6px", textAlign: "center", fontWeight: 700 }}>{row.avg ? `${row.avg.toFixed(1)}/100` : "—"}</td>
                 <td style={{ padding: "5px 6px", fontSize: 10, color: "var(--tm)" }}>
-                  {row.avg ? `${row.avgOrder.toFixed(1)}+${row.avgProfit.toFixed(1)}+${row.avgProfit15.toFixed(1)}` : "—"}
+                  {row.avg ? `${row.avgOrder.toFixed(1)}+${row.avgProfitMargin.toFixed(1)}` : "—"}
                 </td>
               </tr>
             </tbody>
@@ -1293,7 +1322,7 @@ function KpiStatsPage({ items, year, month, staffTick = 0 }) {
 
       <KpiStatsTable
         title="运营 · 精铺考核"
-        subtitle="100 分制 · 下单50% + 赢利20% + 利润率≥15%占30%"
+        subtitle="100 分制 · 下单50% + 利润率50%（≥15%足分/10–15%得20/2–10%得10/<2%得0）"
         color="#2d7dd2"
         headers={["姓名", "W1", "W2", "W3", "W4", "月均", "月均构成", "月销售额", "月上新", "填写"]}
         emptyHint="暂无运营人员 · 请在设置中添加"
@@ -1306,12 +1335,12 @@ function KpiStatsPage({ items, year, month, staffTick = 0 }) {
               <StatWeekCell key={i} value={s.total} cls={opsScoreCls(s.total)} fmt={v => v.toFixed(0)} scale={100} detail={opsWeekDetail(s)} />
             ))}
             <StatWeekCell value={r.avg} cls={opsScoreCls(r.avg)} fmt={v => v.toFixed(1)} scale={100}
-              detail={r.avg ? `${r.avgOrder.toFixed(0)}+${r.avgProfit.toFixed(0)}+${r.avgProfit15.toFixed(0)}` : ""} />
+              detail={r.avg ? `${r.avgOrder.toFixed(0)}+${r.avgProfitMargin.toFixed(0)}` : ""} />
             <td style={{ padding: "7px 6px", textAlign: "center", borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)", fontSize: 10, color: "var(--tm)", lineHeight: 1.3 }}>
               {r.avg ? (
                 <>
                   <div>下单{r.avgOrder.toFixed(0)}</div>
-                  <div>赢利{r.avgProfit.toFixed(0)}+利15%{r.avgProfit15.toFixed(0)}</div>
+                  <div>利润率{r.avgProfitMargin.toFixed(0)}</div>
                 </>
               ) : "—"}
             </td>

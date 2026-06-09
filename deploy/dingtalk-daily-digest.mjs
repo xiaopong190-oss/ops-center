@@ -129,7 +129,29 @@ function taskStatus(t) {
   return "inprog";
 }
 
-function calcOpsScore(w) {
+function tallyOpsReviews(reviews) {
+  const r = reviews || {};
+  let good = 0, bad = 0;
+  Object.values(r).forEach(v => { if (v === "good") good++; if (v === "bad") bad++; });
+  return { good, bad };
+}
+
+function calcDesSummary(w) {
+  const prem = num(w.prem), std = num(w.std), aplus = num(w.aplus);
+  const imgPts = prem * 5 + std;
+  const imgTotal = imgPts + aplus * 0.5;
+  const vid = num(w.vid);
+  const vidPts = vid * 2;
+  const outputPts = Math.round((imgTotal + vidPts) * 10) / 10;
+  const { good: goodReviews, bad: badReviews } = tallyOpsReviews(w.opsReviews);
+  return {
+    imgPts, aplusPts: aplus * 0.5, vid, vidPts, outputPts,
+    goodReviews, badReviews, desReviewPts: goodReviews - badReviews,
+    quotaOk: outputPts >= 5, rework: num(w.rework),
+  };
+}
+
+function calcOpsWeeklyScore(w) {
   const orderCount = num(w.lsku);
   const target = num(w.torder) || num(w.tnsku) || 1;
   const rate = parseFloat(w.prate);
@@ -137,7 +159,188 @@ function calcOpsScore(w) {
   const orderScore = Math.min(1, orderCount / target) * 50;
   const profitScore = hasRate && rate > 0 ? 20 : 0;
   const profit15Score = hasRate && rate >= 15 ? 30 : 0;
-  return Math.round((orderScore + profitScore + profit15Score) * 10) / 10;
+  const total = Math.round((orderScore + profitScore + profit15Score) * 10) / 10;
+  return {
+    orderScore: Math.round(orderScore * 10) / 10,
+    profitScore,
+    profit15Score,
+    total,
+    rate: hasRate ? rate : null,
+  };
+}
+
+function kpiDevProgress(actual, target) {
+  const a = num(actual), t = num(target);
+  if (t <= 0) return `${a}款`;
+  const pct = Math.min(100, Math.round(a / t * 100));
+  return `${a}/${t}款 ${pct}%`;
+}
+
+function calcDevSummary(w) {
+  return {
+    devNew: kpiDevProgress(num(w.devNew), w.tNew),
+    sampleIn: kpiDevProgress(num(w.sampleIn), w.tSample),
+    order: kpiDevProgress(num(w.order), w.tOrder),
+    pass: num(w.pass),
+    abn: num(w.abn),
+  };
+}
+
+function weekHasOpsData(w) {
+  return ["wstyle", "nsku", "lsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null);
+}
+
+function weekHasDesData(w) {
+  if (["prem", "std", "vid", "aplus", "incompleteReason"].some(k => w[k] !== "" && w[k] != null)) return true;
+  return Object.keys(w.opsReviews || {}).length > 0;
+}
+
+function weekHasDevData(w) {
+  return ["devNew", "sampleIn", "order", "pass", "abn"].some(k => w[k] !== "" && w[k] != null);
+}
+
+function opsWeekDetail(s) {
+  if (!s.total) return "";
+  return [
+    s.orderScore ? `下单${s.orderScore}` : null,
+    s.profitScore ? `赢${s.profitScore}` : null,
+    s.profit15Score ? `利${s.profit15Score}` : null,
+  ].filter(Boolean).join("+");
+}
+
+function desWeekDetail(s) {
+  if (!s.outputPts) return "";
+  const parts = [];
+  if (s.imgPts) parts.push(`图${s.imgPts}`);
+  if (s.aplusPts) parts.push(`A+${s.aplusPts.toFixed(1)}`);
+  if (s.vidPts) parts.push(`视${s.vidPts}`);
+  return parts.join("+");
+}
+
+function avgScore(vals) {
+  const filled = vals.filter(v => v > 0);
+  return filled.length ? Math.round(filled.reduce((a, b) => a + b, 0) / filled.length * 10) / 10 : 0;
+}
+
+function collectLogisticsExceptions(gList) {
+  const items = [];
+  for (const g of gList) {
+    const batch = clip(g.name || g.sku, 22);
+    for (const e of (g.exceptions || []).filter(x => !x.resolved)) {
+      items.push({ batch, fba: "", e });
+    }
+    for (const fba of g.fbaShipments || []) {
+      for (const e of (fba.exceptions || []).filter(x => !x.resolved)) {
+        items.push({
+          batch,
+          fba: clip(fba.warehouse || fba.name, 16),
+          e,
+        });
+      }
+    }
+  }
+  return items;
+}
+
+function fmtLogisticsExc({ batch, fba, e }) {
+  const where = fba ? `**${batch}·${fba}**` : `**${batch}**`;
+  const bits = [clip(e.desc, 40)];
+  if (e.date) bits.push(e.date);
+  if (e.action) bits.push(`处理：${clip(e.action, 24)}`);
+  return `- ${where} ${bits.join(" · ")}`;
+}
+
+function collectProductionExceptions(pList) {
+  return pList.flatMap(b =>
+    (b.exceptions || []).filter(e => !e.resolved).map(e => ({ b, e }))
+  );
+}
+
+function fmtProductionExc({ b, e }) {
+  const label = [b.product, b.batch].filter(Boolean).join("-") || clip(b.name, 18);
+  const bits = [clip(e.desc, 36)];
+  if (e.date) bits.push(e.date);
+  if (e.impact) bits.push(`影响：${clip(e.impact, 16)}`);
+  if (e.action) bits.push(`处理：${clip(e.action, 20)}`);
+  if (e.responsible) bits.push(`@${e.responsible}`);
+  return `- **${label}** ${bits.join(" · ")}`;
+}
+
+function buildKpiLines(kList, today) {
+  const lines = [];
+  const roleLabel = { ops: "运营", des: "美工", dev: "开发" };
+  const monthRecs = kList.filter(r => r.year === today.y && r.month === today.m);
+  if (!monthRecs.length) {
+    lines.push("- 本月暂无考核记录");
+    return lines;
+  }
+
+  const byRole = { ops: [], des: [], dev: [] };
+  for (const r of monthRecs) {
+    if (byRole[r.role]) byRole[r.role].push(r);
+  }
+
+  if (byRole.ops.length) {
+    lines.push("**运营考核**");
+    for (const r of byRole.ops) {
+      const weeks = r.weeks || {};
+      const breakdown = [1, 2, 3, 4].map(w => {
+        const d = weeks[w] || {};
+        if (!weekHasOpsData(d)) return null;
+        const s = calcOpsWeeklyScore(d);
+        const detail = opsWeekDetail(s);
+        return `W${w}:${s.total}分${detail ? `(${detail})` : ""}`;
+      }).filter(Boolean);
+      if (!breakdown.length) continue;
+      const scores = [1, 2, 3, 4].map(w => calcOpsWeeklyScore(weeks[w] || {}).total);
+      const avg = avgScore(scores);
+      lines.push(`- **${r.person}** 周均 **${avg}** 分 · ${breakdown.join(" · ")}`);
+    }
+  }
+
+  if (byRole.des.length) {
+    lines.push("");
+    lines.push("**美工考核**");
+    for (const r of byRole.des) {
+      const weeks = r.weeks || {};
+      const breakdown = [1, 2, 3, 4].map(w => {
+        const d = weeks[w] || {};
+        if (!weekHasDesData(d)) return null;
+        const s = calcDesSummary(d);
+        const detail = desWeekDetail(s);
+        const review = s.desReviewPts ? ` 评${s.desReviewPts > 0 ? "+" : ""}${s.desReviewPts}` : "";
+        return `W${w}:${s.outputPts}分${detail ? `(${detail})` : ""}${review}`;
+      }).filter(Boolean);
+      if (!breakdown.length) continue;
+      const scores = [1, 2, 3, 4].map(w => calcDesSummary(weeks[w] || {}).outputPts);
+      const avg = avgScore(scores);
+      const quota = [1, 2, 3, 4].filter(w => calcDesSummary(weeks[w] || {}).quotaOk).length;
+      lines.push(`- **${r.person}** 周均 **${avg}** 分 · 达标 **${quota}/4** 周 · ${breakdown.join(" · ")}`);
+    }
+  }
+
+  if (byRole.dev.length) {
+    lines.push("");
+    lines.push("**开发考核**");
+    for (const r of byRole.dev) {
+      const weeks = r.weeks || {};
+      const breakdown = [1, 2, 3, 4].map(w => {
+        const d = weeks[w] || {};
+        if (!weekHasDevData(d)) return null;
+        const s = calcDevSummary(d);
+        return `W${w}: 新品${s.devNew} · 打样${s.sampleIn} · 下单${s.order}${s.pass ? ` · 通过${s.pass}款` : ""}${s.abn ? ` · 异常${s.abn}款` : ""}`;
+      }).filter(Boolean);
+      if (!breakdown.length) continue;
+      lines.push(`- **${r.person}** ${breakdown.join(" · ")}`);
+    }
+  }
+
+  if (lines.length === 1 && lines[0].startsWith("- 本月")) return lines;
+  if (!lines.some(l => l.startsWith("- **"))) {
+    lines.length = 0;
+    lines.push("- 本月暂无已填考核数据");
+  }
+  return lines;
 }
 
 function prodStatus(b) {
@@ -196,13 +399,21 @@ function buildDigest({ tasks, production, logistics, kpi, yesterday }) {
   const lMeta = logistics.meta;
   const inTransit = lList.filter(g => g.headStatus === "在途" || g.headStatus === "已到港");
   const missing = lList.filter(logisticsMissingTrack);
-  const openExc = lList.flatMap(g => (g.exceptions || []).filter(e => !e.resolved).map(e => ({ g, e })));
-  lines.push(`- 批次 **${lList.length}** · 在途/到港 **${inTransit.length}** · 缺追踪码 **${missing.length}** · 未解决异常 **${openExc.length}**`);
+  const logExcs = collectLogisticsExceptions(lList);
+  lines.push(`- 批次 **${lList.length}** · 在途/到港 **${inTransit.length}** · 缺追踪码 **${missing.length}** · 未解决异常 **${logExcs.length}**`);
   if (lMeta?.updatedAt) {
     lines.push(`- 云端最后更新：**${lMeta.updatedBy || "未知"}** ${fmtTime(lMeta.updatedAt)}${wasUpdatedOnDay(lMeta, yesterday) ? "（含昨日更新）" : ""}`);
   }
   if (missing.length) {
     lines.push(`- ⚠️ 缺追踪：${missing.slice(0, 3).map(g => clip(g.name, 22)).join("；")}`);
+  }
+  if (logExcs.length) {
+    lines.push("");
+    lines.push("#### 物流异常明细");
+    logExcs.slice(0, 10).forEach(x => lines.push(fmtLogisticsExc(x)));
+    if (logExcs.length > 10) lines.push(`- …另有 **${logExcs.length - 10}** 条未列出`);
+  } else {
+    lines.push("- ✅ 当前无未解决物流异常");
   }
   lines.push("");
 
@@ -223,32 +434,24 @@ function buildDigest({ tasks, production, logistics, kpi, yesterday }) {
   if (pOver.length) {
     lines.push(`- ⚠️ 逾期：${pOver.slice(0, 3).map(b => `${b.product}-${b.batch}（${b.owner || "—"}）`).join("；")}`);
   }
+  const prodExcs = collectProductionExceptions(pList);
+  if (prodExcs.length) {
+    lines.push("");
+    lines.push("#### 精品异常明细");
+    prodExcs.slice(0, 10).forEach(x => lines.push(fmtProductionExc(x)));
+    if (prodExcs.length > 10) lines.push(`- …另有 **${prodExcs.length - 10}** 条未列出`);
+  } else {
+    lines.push("- ✅ 当前无未解决生产异常");
+  }
   lines.push("");
 
   // ── 考核 ──
-  lines.push("### 📊 考核（本月周报）");
+  lines.push("### 📊 考核结果");
   const kList = kpi.data || [];
   const kMeta = kpi.meta;
-  const roleLabel = { ops: "运营", des: "美工", dev: "开发" };
-  const monthRecs = kList.filter(r => r.year === today.y && r.month === today.m);
-  if (!monthRecs.length) {
-    lines.push("- 本月暂无考核记录");
-  } else {
-    for (const r of monthRecs.slice(0, 12)) {
-      const weeks = r.weeks || {};
-      const filled = [1, 2, 3, 4].filter(w => weeks[w] && Object.values(weeks[w]).some(v => v !== "" && v != null));
-      if (!filled.length) continue;
-      if (r.role === "ops") {
-        const scores = filled.map(w => `W${w}:${calcOpsScore(weeks[w])}分`);
-        lines.push(`- **${roleLabel.ops}·${r.person}** 已填 ${filled.join(",")} 周 ${scores.length ? `（${scores.join(" ")}）` : ""}`);
-      } else if (r.role === "des") {
-        lines.push(`- **${roleLabel.des}·${r.person}** 已填第 ${filled.join(",")} 周`);
-      } else if (r.role === "dev") {
-        lines.push(`- **${roleLabel.dev}·${r.person}** 已填第 ${filled.join(",")} 周`);
-      }
-    }
-  }
+  lines.push(...buildKpiLines(kList, today));
   if (kMeta?.updatedAt) {
+    lines.push("");
     lines.push(`- 云端最后更新：**${kMeta.updatedBy || "未知"}** ${fmtTime(kMeta.updatedAt)}${wasUpdatedOnDay(kMeta, yesterday) ? "（含昨日更新）" : ""}`);
   }
 

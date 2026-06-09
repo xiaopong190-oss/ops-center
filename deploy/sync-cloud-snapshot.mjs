@@ -1,152 +1,303 @@
-/**
- * 从 JSONBin / GitHub Gist 拉取最新数据，写入 docs/data/ 供 GitHub Pages 同源读取（国内可访问）
- */
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(__dirname, "..");
-const outDir = path.join(root, "docs", "data");
-const seedDir = path.join(__dirname, "snapshot-seeds");
-
-const JSONBIN_API_KEY = "$2a$10$2ozXoCjldhmBsjtHria.3.Qe9IGP3lPWQnxGsvO4fOBdlfDogsBZq";
-const JSONBIN_API_BASE = "https://api.jsonbin.io/v3/b";
-const BINS = {
-  logistics: "6a1d27c321f9ee59d2a3c1c4",
-  tasks: "6a1d27fd21f9ee59d2a3c26e",
-  production: "6a1d282721f9ee59d2a3c30a",
-  "tools-links": "6a1d284521f9ee59d2a3c375",
-};
-
-const GIST_API = "https://api.github.com/gists";
-const GIST_LINGXING_FILE = "lingxing-sku-db.json";
-const GIST_LINGXING_SNAPSHOT = "shared-lingxing-sku-db.json";
-
-function loadGistCredentials() {
-  const token = (
-    process.env.GITHUB_GIST_TOKEN ||
-    process.env.OPS_GIST_TOKEN ||
-    process.env.GH_TOKEN ||
-    ""
-  ).trim();
-  let gistId = (process.env.GITHUB_GIST_ID || process.env.OPS_GIST_ID || "").trim();
-  if (!gistId) {
-    const cfgPath = path.join(root, "src", "cloud-sync-config.js");
-    if (fs.existsSync(cfgPath)) {
-      const src = fs.readFileSync(cfgPath, "utf8");
-      gistId = (src.match(/GITHUB_GIST_ID\s*=\s*"([^"]*)"/) || [])[1]?.trim() || "";
-    }
-  }
-  if (!gistId) {
-    const gistCfgPath = path.join(root, "gist-config.js");
-    if (fs.existsSync(gistCfgPath)) {
-      const src = fs.readFileSync(gistCfgPath, "utf8");
-      gistId = (src.match(/__OPS_GIST__\.id\s*=\s*"([^"]*)"/) || [])[1]?.trim() || "";
-    }
-  }
-  if (!token) {
-    const secretPath = path.join(root, "src", "cloud-sync-config.secret.js");
-    if (fs.existsSync(secretPath)) {
-      const src = fs.readFileSync(secretPath, "utf8");
-      const m = src.match(/GITHUB_GIST_TOKEN\s*=\s*"([^"]+)"/);
-      if (m?.[1]) return { token: m[1], gistId };
-    }
-  }
-  return token && gistId ? { token, gistId } : null;
-}
-
-async function fetchBin(binId) {
-  const res = await fetch(`${JSONBIN_API_BASE}/${binId}/latest`, {
-    headers: { "X-Master-Key": JSONBIN_API_KEY },
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`JSONBin ${binId} HTTP ${res.status}`);
-  const json = await res.json();
-  return json.record ?? null;
-}
-
-async function fetchLingxingSkuDbFromGist() {
-  const creds = loadGistCredentials();
-  if (!creds) return null;
-  const res = await fetch(`${GIST_API}/${creds.gistId}`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${creds.token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-  if (!res.ok) throw new Error(`Gist HTTP ${res.status}`);
-  const gist = await res.json();
-  const content = gist?.files?.[GIST_LINGXING_FILE]?.content;
-  if (!content) return null;
-  return JSON.parse(content);
-}
-
-function readLingxingSkuDbSeed() {
-  const seedPath = path.join(seedDir, GIST_LINGXING_SNAPSHOT);
-  if (!fs.existsSync(seedPath)) return null;
-  return JSON.parse(fs.readFileSync(seedPath, "utf8"));
-}
-
-function writeSnapshot(destName, record) {
-  fs.writeFileSync(path.join(outDir, destName), JSON.stringify(record, null, 0));
-}
-
-function countSkuItems(record) {
-  const data = record?.data;
-  if (!data) return 0;
-  if (Array.isArray(data)) return data.length;
-  if (typeof data === "object") return Object.keys(data).length;
-  return "?";
-}
-
-fs.mkdirSync(outDir, { recursive: true });
-
-let ok = 0;
-for (const [key, binId] of Object.entries(BINS)) {
-  try {
-    const record = await fetchBin(binId);
-    if (record == null) {
-      console.warn("skip (empty):", key);
-      continue;
-    }
-    writeSnapshot(`shared-${key}.json`, record);
-    const count = Array.isArray(record?.data) ? record.data.length : "?";
-    console.log("snapshot ok:", key, "items:", count);
-    ok++;
-  } catch (e) {
-    console.warn("snapshot failed:", key, e.message);
-  }
-}
-
-try {
-  let lingxingRecord = null;
-  let source = "seed";
-  try {
-    lingxingRecord = await fetchLingxingSkuDbFromGist();
-    if (lingxingRecord) source = "gist";
-  } catch (e) {
-    console.warn("lingxing gist fetch failed:", e.message);
-  }
-  if (!lingxingRecord) {
-    lingxingRecord = readLingxingSkuDbSeed();
-  }
-  if (lingxingRecord) {
-    writeSnapshot(GIST_LINGXING_SNAPSHOT, lingxingRecord);
-    console.log("snapshot ok: lingxing-sku-db", "items:", countSkuItems(lingxingRecord), `(${source})`);
-    ok++;
-  } else {
-    console.warn("skip (empty): lingxing-sku-db");
-  }
-} catch (e) {
-  console.warn("snapshot failed: lingxing-sku-db", e.message);
-}
-
-fs.writeFileSync(
-  path.join(outDir, "README.txt"),
-  "Cloud snapshots for GitHub Pages fallback. Generated by deploy/sync-cloud-snapshot.mjs\n"
-);
-
-console.log(`\nCloud snapshots: ${ok}/${Object.keys(BINS).length + 1} -> ${outDir}`);
-
+/**
+
+ * 从 JSONBin / GitHub Gist 拉取最新数据，写入 docs/data/ 供 GitHub Pages 同源读取（国内可访问）
+
+ */
+
+import fs from "fs";
+
+import path from "path";
+
+import { fileURLToPath } from "url";
+
+
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const root = path.join(__dirname, "..");
+
+const outDir = path.join(root, "docs", "data");
+
+const seedDir = path.join(__dirname, "snapshot-seeds");
+
+
+
+const JSONBIN_API_KEY = "$2a$10$2ozXoCjldhmBsjtHria.3.Qe9IGP3lPWQnxGsvO4fOBdlfDogsBZq";
+
+const JSONBIN_API_BASE = "https://api.jsonbin.io/v3/b";
+
+const BINS = {
+
+  logistics: "6a1d27c321f9ee59d2a3c1c4",
+
+  tasks: "6a1d27fd21f9ee59d2a3c26e",
+
+  production: "6a1d282721f9ee59d2a3c30a",
+
+  "tools-links": "6a1d284521f9ee59d2a3c375",
+
+};
+
+
+
+const GIST_API = "https://api.github.com/gists";
+
+const GIST_LINGXING_FILE = "lingxing-sku-db.json";
+
+const GIST_LINGXING_SNAPSHOT = "shared-lingxing-sku-db.json";
+
+
+
+function loadGistCredentials() {
+
+  const token = (
+
+    process.env.GITHUB_GIST_TOKEN ||
+
+    process.env.OPS_GIST_TOKEN ||
+
+    process.env.GH_TOKEN ||
+
+    ""
+
+  ).trim();
+
+  let gistId = (process.env.GITHUB_GIST_ID || process.env.OPS_GIST_ID || "").trim();
+
+  if (!gistId) {
+
+    const cfgPath = path.join(root, "src", "cloud-sync-config.js");
+
+    if (fs.existsSync(cfgPath)) {
+
+      const src = fs.readFileSync(cfgPath, "utf8");
+
+      gistId = (src.match(/GITHUB_GIST_ID\s*=\s*"([^"]*)"/) || [])[1]?.trim() || "";
+
+    }
+
+  }
+
+  if (!gistId) {
+
+    const gistCfgPath = path.join(root, "gist-config.js");
+
+    if (fs.existsSync(gistCfgPath)) {
+
+      const src = fs.readFileSync(gistCfgPath, "utf8");
+
+      gistId = (src.match(/__OPS_GIST__\.id\s*=\s*"([^"]*)"/) || [])[1]?.trim() || "";
+
+    }
+
+  }
+
+  if (!token) {
+
+    const secretPath = path.join(root, "src", "cloud-sync-config.secret.js");
+
+    if (fs.existsSync(secretPath)) {
+
+      const src = fs.readFileSync(secretPath, "utf8");
+
+      const m = src.match(/GITHUB_GIST_TOKEN\s*=\s*"([^"]+)"/);
+
+      if (m?.[1]) return { token: m[1], gistId };
+
+    }
+
+  }
+
+  return token && gistId ? { token, gistId } : null;
+
+}
+
+
+
+async function fetchBin(binId) {
+
+  const res = await fetch(`${JSONBIN_API_BASE}/${binId}/latest`, {
+
+    headers: { "X-Master-Key": JSONBIN_API_KEY },
+
+  });
+
+  if (res.status === 404) return null;
+
+  if (!res.ok) throw new Error(`JSONBin ${binId} HTTP ${res.status}`);
+
+  const json = await res.json();
+
+  return json.record ?? null;
+
+}
+
+
+
+async function fetchLingxingSkuDbFromGist() {
+
+  const creds = loadGistCredentials();
+
+  if (!creds) return null;
+
+  const res = await fetch(`${GIST_API}/${creds.gistId}`, {
+
+    headers: {
+
+      Accept: "application/vnd.github+json",
+
+      Authorization: `Bearer ${creds.token}`,
+
+      "X-GitHub-Api-Version": "2022-11-28",
+
+    },
+
+  });
+
+  if (!res.ok) throw new Error(`Gist HTTP ${res.status}`);
+
+  const gist = await res.json();
+
+  const content = gist?.files?.[GIST_LINGXING_FILE]?.content;
+
+  if (!content) return null;
+
+  return JSON.parse(content);
+
+}
+
+
+
+function readLingxingSkuDbSeed() {
+
+  const seedPath = path.join(seedDir, GIST_LINGXING_SNAPSHOT);
+
+  if (!fs.existsSync(seedPath)) return null;
+
+  return JSON.parse(fs.readFileSync(seedPath, "utf8"));
+
+}
+
+
+
+function writeSnapshot(destName, record) {
+
+  fs.writeFileSync(path.join(outDir, destName), JSON.stringify(record, null, 0));
+
+}
+
+
+
+function countSkuItems(record) {
+
+  const data = record?.data;
+
+  if (!data) return 0;
+
+  if (Array.isArray(data)) return data.length;
+
+  if (typeof data === "object") return Object.keys(data).length;
+
+  return "?";
+
+}
+
+
+
+fs.mkdirSync(outDir, { recursive: true });
+
+
+
+let ok = 0;
+
+for (const [key, binId] of Object.entries(BINS)) {
+
+  try {
+
+    const record = await fetchBin(binId);
+
+    if (record == null) {
+
+      console.warn("skip (empty):", key);
+
+      continue;
+
+    }
+
+    writeSnapshot(`shared-${key}.json`, record);
+
+    const count = Array.isArray(record?.data) ? record.data.length : "?";
+
+    console.log("snapshot ok:", key, "items:", count);
+
+    ok++;
+
+  } catch (e) {
+
+    console.warn("snapshot failed:", key, e.message);
+
+  }
+
+}
+
+
+
+try {
+
+  let lingxingRecord = null;
+
+  let source = "seed";
+
+  try {
+
+    lingxingRecord = await fetchLingxingSkuDbFromGist();
+
+    if (lingxingRecord) source = "gist";
+
+  } catch (e) {
+
+    console.warn("lingxing gist fetch failed:", e.message);
+
+  }
+
+  if (!lingxingRecord) {
+
+    lingxingRecord = readLingxingSkuDbSeed();
+
+  }
+
+  if (lingxingRecord) {
+
+    writeSnapshot(GIST_LINGXING_SNAPSHOT, lingxingRecord);
+
+    console.log("snapshot ok: lingxing-sku-db", "items:", countSkuItems(lingxingRecord), `(${source})`);
+
+    ok++;
+
+  } else {
+
+    console.warn("skip (empty): lingxing-sku-db");
+
+  }
+
+} catch (e) {
+
+  console.warn("snapshot failed: lingxing-sku-db", e.message);
+
+}
+
+
+
+fs.writeFileSync(
+
+  path.join(outDir, "README.txt"),
+
+  "Cloud snapshots for GitHub Pages fallback. Generated by deploy/sync-cloud-snapshot.mjs\n"
+
+);
+
+
+
+console.log(`\nCloud snapshots: ${ok}/${Object.keys(BINS).length + 1} -> ${outDir}`);
+
+

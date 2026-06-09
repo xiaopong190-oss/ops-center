@@ -428,6 +428,17 @@ const TOOL_CATALOG = [
   { id: "fba-hanhai", name: "FBA → 瀚海万博转换", desc: "批量上传 FBA 原厂包装 CSV，转换为瀚海万博 B2B 单票导入模版 (.xls) 并打包下载", icon: "🚢", category: "物流", target: "inline", openUrl: "tools/fba-hanhai-converter/index.html" },
   { id: "amazon-tracker", name: "亚马逊推广追踪", desc: "精铺/精品 · 月度规划 · 投入产出分析", icon: "📦", category: "运营", url: "https://xiaopong190-oss.github.io/ops-center/tools/amazon-tracker/" },
   {
+    id: "amazon-top-rank",
+    name: "亚马逊 Top 榜",
+    desc: "类目 Best Seller / 排名爬取与查询（局域网爬虫服务）",
+    icon: "🏆",
+    category: "运营",
+    target: "inline",
+    intranetOnly: true,
+    configurableUrl: true,
+    defaultUrl: "http://192.168.0.42:3456/?token=X888888",
+  },
+  {
     id: "mailwatch",
     name: "MailWatch 邮件分析",
     desc: "亚马逊邮件 AI 分析 · 解压后双击「启动 MailWatch.bat」；本机 run.bat 可一键打开",
@@ -541,6 +552,7 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
           </span>
           <span style={badge("#f3f4f6", "#666")}>{tool.category}</span>
           {tool.runtime === "local" && <span style={badge("#fce4ec", "#c62828")}>本机工具</span>}
+          {tool.intranetOnly && <span style={badge("#fff3e0", "#e65100")}>仅内网</span>}
           {tool.downloadUrl && !isLocalOpsServer() && <span style={badge("#e8eaf6", "#3949ab")}>下载</span>}
           {configurable && <span style={badge("#fff3e0", "#e65100")}>可编辑</span>}
           {href && inline && <span style={badge("#e8f5e9", "#2e7d32")}>内嵌</span>}
@@ -846,7 +858,13 @@ function ToolsPanel({ active: tabActive = true }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
           <button type="button" onClick={() => setInlineTool(null)} style={{ background: "transparent", border: "none", color: "#2d7dd2", fontSize: 13, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>← 返回工具列表</button>
           <span style={{ fontSize: 14, fontWeight: 600 }}>{inlineTool.icon} {inlineTool.name}</span>
+          {inlineTool.intranetOnly && <span style={badge("#fff3e0", "#e65100")}>仅内网</span>}
         </div>
+        {inlineTool.intranetOnly && (
+          <div style={{ fontSize: 11, color: "#e65100", marginBottom: 8, flexShrink: 0 }}>
+            此工具仅在公司内网可用，外网或 GitHub Pages 无法访问爬虫服务。
+          </div>
+        )}
         <iframe src={url} title={inlineTool.name} style={{ flex: 1, width: "100%", minHeight: 0, border: "none", borderRadius: 8, background: "#fff" }} />
       </div>
     );

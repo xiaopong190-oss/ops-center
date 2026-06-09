@@ -604,9 +604,9 @@ function QuotaBox({ outputPts, imgPts, aplusPts, vidPts, prem, std }) {
   const barColor = outputPts >= 5 ? "#2d9e52" : outputPts > 0 ? "#e09000" : "var(--border)";
   return (
     <div style={{ marginTop: 8, background: "var(--bg)", borderRadius: 6, padding: "9px 11px" }}>
-      <div style={{ fontSize: 10, color: "var(--tm)", marginBottom: 4 }}>周考核产出：5 分（精品×5 + 精铺×1 + A+×0.5 + 视频×2）</div>
+      <div style={{ fontSize: 10, color: "var(--tm)", marginBottom: 4 }}>周考核 5 分制 · 每天约 1 分合格（精品×5 + 精铺×1 + A+×0.5 + 视频×2）</div>
       <div style={{ fontSize: 16, fontWeight: 700, color: outputPts >= 5 ? "#2d9e52" : "var(--text)" }}>
-        {Number(outputPts.toFixed(1))} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--tm)" }}>/ 5 分</span>
+        {Number(outputPts.toFixed(1))} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--tm)" }}>/ 5</span>
       </div>
       {(imgPts > 0 || aplusPts > 0 || vidPts > 0) && (
         <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 4 }}>
@@ -948,6 +948,447 @@ function DevMonthlySummary({ items, year, month, person, monthTargets, onMonthTa
   );
 }
 
+const STAT_COLORS = { g: "#2d9e52", a: "#e09000", r: "#e55" };
+
+function opsScoreCls(n) {
+  if (!n) return "";
+  if (n >= 80) return "g";
+  if (n >= 60) return "a";
+  return "r";
+}
+
+/** 美工 5 分制：≥5 周达标 · ≥3 部分达标 · <3 未达标（每天约 1 分合格） */
+function desScoreCls(n) {
+  if (!n) return "";
+  if (n >= 5) return "g";
+  if (n >= 3) return "a";
+  return "r";
+}
+
+/** 美工周考核得分（5 分制，即产出分；周满分 5，每天约 1 分合格） */
+function calcDesWeeklyScore(w) {
+  return calcDesSummary(w).outputPts;
+}
+
+function avgFilled(vals) {
+  const filled = vals.filter(v => v > 0);
+  return filled.length ? Math.round(filled.reduce((a, b) => a + b, 0) / filled.length * 10) / 10 : 0;
+}
+
+function buildOpsStatsRow(items, year, month, name) {
+  const weekBreakdowns = WEEKS.map(w => {
+    const d = getWeekData(items, year, month, "ops", name, w);
+    const s = calcOpsWeeklyScore(d);
+    return { week: w, filled: weekHasOpsData(d), ...s };
+  });
+  const weekScores = weekBreakdowns.map(s => s.total);
+  const weekFilled = weekBreakdowns.map(s => s.filled);
+  const filled = weekScores.filter(s => s > 0);
+  const avg = filled.length ? Math.round(filled.reduce((a, b) => a + b, 0) / filled.length * 10) / 10 : 0;
+  const avgOrder = avgFilled(weekBreakdowns.map(s => s.orderScore));
+  const avgProfit = avgFilled(weekBreakdowns.map(s => s.profitScore));
+  const avgProfit15 = avgFilled(weekBreakdowns.map(s => s.profit15Score));
+  let totalSales = 0, totalNsku = 0, totalLsku = 0;
+  WEEKS.forEach(w => {
+    const d = getWeekData(items, year, month, "ops", name, w);
+    totalSales += num(d.sales);
+    totalNsku += num(d.nsku);
+    totalLsku += num(d.lsku);
+  });
+  return {
+    name, weekScores, weekBreakdowns, weekFilled, avg, avgOrder, avgProfit, avgProfit15,
+    totalSales, totalNsku, totalLsku, filledWeeks: weekFilled.filter(Boolean).length,
+  };
+}
+
+function buildDesStatsRow(items, year, month, name) {
+  const weeks = WEEKS.map(w => getWeekData(items, year, month, "des", name, w));
+  const weekBreakdowns = weeks.map((d, i) => {
+    const s = calcDesSummary(d);
+    return {
+      week: WEEKS[i],
+      filled: weekHasDesData(d),
+      prem: num(d.prem), std: num(d.std), vid: num(d.vid), aplus: num(d.aplus),
+      ...s,
+    };
+  });
+  const weekScores = weekBreakdowns.map(s => s.outputPts);
+  const weekFilled = weekBreakdowns.map(s => s.filled);
+  const filled = weekScores.filter(v => v > 0);
+  const avg = filled.length ? Math.round(filled.reduce((a, b) => a + b, 0) / filled.length * 10) / 10 : 0;
+  const avgImg = avgFilled(weekBreakdowns.map(s => s.imgPts));
+  const avgVid = avgFilled(weekBreakdowns.map(s => s.vidPts));
+  const avgAplus = avgFilled(weekBreakdowns.map(s => s.aplusPts));
+  const quotaDone = weekBreakdowns.filter(s => s.quotaOk).length;
+  const reviewNet = weekBreakdowns.reduce((a, s) => a + s.desReviewPts, 0);
+  const rework = weeks.reduce((a, d) => a + num(d.rework), 0);
+  return {
+    name, weekScores, weekBreakdowns, weekFilled, avg, avgImg, avgVid, avgAplus,
+    quotaDone, reviewNet, rework, filledWeeks: weekFilled.filter(Boolean).length,
+  };
+}
+
+function opsWeekDetail(s) {
+  if (!s.total) return "";
+  const parts = [
+    s.orderScore ? `下单${s.orderScore}` : null,
+    s.profitScore ? `赢${s.profitScore}` : null,
+    s.profit15Score ? `利${s.profit15Score}` : null,
+  ].filter(Boolean);
+  return parts.join("+");
+}
+
+function desWeekDetail(s) {
+  if (!s.outputPts) return "";
+  const parts = [];
+  if (s.imgPts) parts.push(`图${s.imgPts}`);
+  if (s.aplusPts) parts.push(`A+${s.aplusPts.toFixed(1)}`);
+  if (s.vidPts) parts.push(`视${s.vidPts}`);
+  return parts.join("+") || "";
+}
+
+function StatWeekCell({ value, cls, fmt = v => String(v), scale, detail }) {
+  const has = value > 0;
+  const display = has ? fmt(value) : "—";
+  const bg = cls === "g" ? "#eafaf1" : cls === "a" ? "#fff8e6" : cls === "r" ? "#fef2f2" : "transparent";
+  return (
+    <td style={{
+      padding: "7px 4px", textAlign: "center", fontSize: 12, borderBottom: "1px solid var(--border)",
+      background: bg, color: has ? (STAT_COLORS[cls] || "var(--text)") : "var(--tm)",
+      fontWeight: has ? 600 : 400, minWidth: scale === 100 ? 52 : 48,
+    }}>
+      <div>{display}</div>
+      {scale && has && <div style={{ fontSize: 9, color: "var(--tm)", marginTop: 1, fontWeight: 400 }}>/{scale}</div>}
+      {detail && has && <div style={{ fontSize: 8, color: "var(--tm)", marginTop: 2, fontWeight: 400, lineHeight: 1.2 }}>{detail}</div>}
+    </td>
+  );
+}
+
+function KpiStatsFormulaCards() {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 10 }}>
+      <div style={{ background: "#eef6ff", border: "1px solid #b8d4f0", borderRadius: 8, padding: "10px 12px", fontSize: 11, lineHeight: 1.65 }}>
+        <div style={{ fontWeight: 700, color: "#2d7dd2", marginBottom: 6 }}>运营 100 分制 · 怎么算</div>
+        <div><strong>① 下单款数 50 分</strong> = min(本周下单款 ÷ 周目标, 1) × 50</div>
+        <div style={{ color: "var(--tm)" }}>周目标取自「周目标下单款」或「月目标开款」</div>
+        <div style={{ marginTop: 4 }}><strong>② 赢利 20 分</strong> = 本周有正利润率 → 20，否则 0</div>
+        <div style={{ marginTop: 4 }}><strong>③ 利润率≥15% 30 分</strong> = 利润率 ≥15% → 30，否则 0</div>
+        <div style={{ marginTop: 6, fontWeight: 600, color: "#2d7dd2" }}>周得分 = ① + ② + ③（满分 100）</div>
+      </div>
+      <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 12px", fontSize: 11, lineHeight: 1.65 }}>
+        <div style={{ fontWeight: 700, color: "#6b21a8", marginBottom: 6 }}>美工 5 分制 · 怎么算</div>
+        <div><strong>精铺图</strong> 1 张 = 1 分（≈ 每天 1 张即合格）</div>
+        <div><strong>精品图</strong> 1 张 = 5 分（≈ 一周合格量）</div>
+        <div><strong>A+</strong> 1 套 = 0.5 分 · <strong>视频</strong> 1 条 = 2 分</div>
+        <div style={{ marginTop: 6, fontWeight: 600, color: "#6b21a8" }}>周得分 = 图片 + A+ + 视频（满分 5，每天约 1 分合格）</div>
+        <div style={{ marginTop: 4, color: "var(--tm)" }}>运营评价（♥+1 / 💔−1）单独统计，不计入周得分</div>
+      </div>
+    </div>
+  );
+}
+
+function OpsStatsExpandRow({ row, colSpan, expanded }) {
+  if (!expanded) return null;
+  return (
+    <tr>
+      <td colSpan={colSpan} style={{ padding: "0 8px 10px", borderBottom: "1px solid var(--border)", background: "#f8fbff" }}>
+        <div style={{ fontSize: 10, color: "#2d7dd2", fontWeight: 600, marginBottom: 6 }}>{row.name} · 各周得分明细</div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+            <thead>
+              <tr style={{ color: "var(--tm)" }}>
+                <th style={{ textAlign: "left", padding: "4px 6px" }}>周</th>
+                <th style={{ padding: "4px 6px" }}>下单(50%)</th>
+                <th style={{ padding: "4px 6px" }}>赢利(20%)</th>
+                <th style={{ padding: "4px 6px" }}>利润≥15%(30%)</th>
+                <th style={{ padding: "4px 6px" }}>合计</th>
+                <th style={{ textAlign: "left", padding: "4px 6px" }}>计算依据</th>
+              </tr>
+            </thead>
+            <tbody>
+              {row.weekBreakdowns.map(s => (
+                <tr key={s.week}>
+                  <td style={{ padding: "5px 6px", fontWeight: 600 }}>第{s.week}周</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.orderScore || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.profitScore || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.profit15Score || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center", fontWeight: 700, color: opsScoreCls(s.total) ? STAT_COLORS[opsScoreCls(s.total)] : "var(--text)" }}>
+                    {s.total ? `${s.total}/100` : "—"}
+                  </td>
+                  <td style={{ padding: "5px 6px", color: "var(--tm)", fontSize: 10 }}>
+                    {!s.total ? "未填写" : (
+                      <>
+                        下单 {s.orderCount}/{s.target}款 → {s.orderScore}分
+                        {s.rate != null ? ` · 利润率 ${s.rate.toFixed(1)}%` : " · 利润率未填"}
+                        {s.profitScore ? " · 已赢利" : " · 未赢利"}
+                        {s.profit15Score ? " · 达15%" : ""}
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ background: "#eef6ff" }}>
+                <td style={{ padding: "5px 6px", fontWeight: 600 }}>月均</td>
+                <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgOrder ? row.avgOrder.toFixed(1) : "—"}</td>
+                <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgProfit ? row.avgProfit.toFixed(1) : "—"}</td>
+                <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgProfit15 ? row.avgProfit15.toFixed(1) : "—"}</td>
+                <td style={{ padding: "5px 6px", textAlign: "center", fontWeight: 700 }}>{row.avg ? `${row.avg.toFixed(1)}/100` : "—"}</td>
+                <td style={{ padding: "5px 6px", fontSize: 10, color: "var(--tm)" }}>
+                  {row.avg ? `${row.avgOrder.toFixed(1)}+${row.avgProfit.toFixed(1)}+${row.avgProfit15.toFixed(1)}` : "—"}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function DesStatsExpandRow({ row, colSpan, expanded }) {
+  if (!expanded) return null;
+  return (
+    <tr>
+      <td colSpan={colSpan} style={{ padding: "0 8px 10px", borderBottom: "1px solid var(--border)", background: "#faf5ff" }}>
+        <div style={{ fontSize: 10, color: "#6b21a8", fontWeight: 600, marginBottom: 6 }}>{row.name} · 各周产出明细</div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+            <thead>
+              <tr style={{ color: "var(--tm)" }}>
+                <th style={{ textAlign: "left", padding: "4px 6px" }}>周</th>
+                <th style={{ padding: "4px 6px" }}>精品图</th>
+                <th style={{ padding: "4px 6px" }}>精铺图</th>
+                <th style={{ padding: "4px 6px" }}>A+</th>
+                <th style={{ padding: "4px 6px" }}>视频</th>
+                <th style={{ padding: "4px 6px" }}>图片分</th>
+                <th style={{ padding: "4px 6px" }}>A+分</th>
+                <th style={{ padding: "4px 6px" }}>视频分</th>
+                <th style={{ padding: "4px 6px" }}>周得分</th>
+                <th style={{ textAlign: "left", padding: "4px 6px" }}>评价/返工</th>
+              </tr>
+            </thead>
+            <tbody>
+              {row.weekBreakdowns.map(s => (
+                <tr key={s.week}>
+                  <td style={{ padding: "5px 6px", fontWeight: 600 }}>第{s.week}周</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.prem || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.std || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.aplus || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.vid || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.imgPts || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.aplusPts ? s.aplusPts.toFixed(1) : "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center" }}>{s.vidPts || "—"}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "center", fontWeight: 700, color: desScoreCls(s.outputPts) ? STAT_COLORS[desScoreCls(s.outputPts)] : "var(--text)" }}>
+                    {s.outputPts ? `${s.outputPts.toFixed(1)}/5` : "—"}
+                    {s.quotaOk && <span style={{ fontSize: 9, color: "#2d9e52", marginLeft: 2 }}>✓</span>}
+                  </td>
+                  <td style={{ padding: "5px 6px", fontSize: 10, color: "var(--tm)" }}>
+                    {!s.outputPts && !s.goodReviews && !s.badReviews ? "未填写" : (
+                      <>
+                        {s.prem ? `精品${s.prem}×5` : ""}{s.std ? `${s.prem ? "+" : ""}精铺${s.std}×1` : ""}
+                        {s.aplus ? ` + A+${s.aplus}×0.5` : ""}{s.vid ? ` + 视频${s.vid}×2` : ""}
+                        {(s.goodReviews || s.badReviews) ? ` · ♥${s.goodReviews} 💔${s.badReviews}` : ""}
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ background: "#f3e8ff" }}>
+                <td style={{ padding: "5px 6px", fontWeight: 600 }}>月均</td>
+                <td colSpan={4} style={{ padding: "5px 6px", textAlign: "center", color: "var(--tm)", fontSize: 10 }}>—</td>
+                <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgImg ? row.avgImg.toFixed(1) : "—"}</td>
+                <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgAplus ? row.avgAplus.toFixed(1) : "—"}</td>
+                <td style={{ padding: "5px 6px", textAlign: "center" }}>{row.avgVid ? row.avgVid.toFixed(1) : "—"}</td>
+                <td style={{ padding: "5px 6px", textAlign: "center", fontWeight: 700 }}>{row.avg ? `${row.avg.toFixed(1)}/5` : "—"}</td>
+                <td style={{ padding: "5px 6px", fontSize: 10, color: "var(--tm)" }}>
+                  {row.avg ? `图${row.avgImg.toFixed(1)}+A+${row.avgAplus.toFixed(1)}+视${row.avgVid.toFixed(1)}` : "—"}
+                  {row.reviewNet !== 0 ? ` · 月评${row.reviewNet > 0 ? "+" : ""}${row.reviewNet}` : ""}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function KpiStatsSummaryChips({ chips, color }) {
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+      {chips.map(c => (
+        <div key={c.label} style={{ background: "var(--bg)", borderRadius: 8, padding: "8px 14px", minWidth: 88, textAlign: "center", border: `1px solid ${color}22` }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: c.cls ? STAT_COLORS[c.cls] : color }}>{c.value}</div>
+          <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 2 }}>{c.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function KpiStatsTable({ title, subtitle, color, headers, rows, emptyHint }) {
+  return (
+    <div style={{ background: "var(--card)", border: `1px solid ${color}33`, borderRadius: 10, padding: "14px 16px" }}>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 2 }}>{subtitle}</div>}
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ fontSize: 12, color: "var(--tm)", padding: "1.5rem 0", textAlign: "center" }}>{emptyHint}</div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr>
+                {headers.map(h => (
+                  <th key={h} style={{
+                    padding: "6px 8px", color: "var(--tm)", borderBottom: `2px solid ${color}44`,
+                    textAlign: h === "姓名" ? "left" : "center", fontWeight: 600, whiteSpace: "nowrap",
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KpiStatsPage({ items, year, month, staffTick = 0 }) {
+  const [expandedOps, setExpandedOps] = useState({});
+  const [expandedDes, setExpandedDes] = useState({});
+  const toggleOps = (name) => setExpandedOps(p => ({ ...p, [name]: !p[name] }));
+  const toggleDes = (name) => setExpandedDes(p => ({ ...p, [name]: !p[name] }));
+
+  const opsStaff = useMemo(() => getEmployees().filter(e => e.role === "运营" && e.name), [year, month, staffTick]);
+  const desStaff = useMemo(() => getEmployees().filter(e => e.role === "美工" && e.name), [year, month, staffTick]);
+
+  const opsRows = useMemo(() => opsStaff.map(s => buildOpsStatsRow(items, year, month, s.name)), [items, year, month, opsStaff]);
+  const desRows = useMemo(() => desStaff.map(s => buildDesStatsRow(items, year, month, s.name)), [items, year, month, desStaff]);
+
+  const opsAvg = opsRows.filter(r => r.avg > 0);
+  const teamOpsAvg = opsAvg.length ? Math.round(opsAvg.reduce((a, r) => a + r.avg, 0) / opsAvg.length * 10) / 10 : 0;
+  const desAvg = desRows.filter(r => r.avg > 0);
+  const teamDesAvg = desAvg.length ? Math.round(desAvg.reduce((a, r) => a + r.avg, 0) / desAvg.length * 10) / 10 : 0;
+
+  const OPS_COLS = 10;
+  const DES_COLS = 11;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ fontSize: 12, color: "var(--tm)", padding: "10px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", lineHeight: 1.6 }}>
+        <div>{year}年{month}月 · 运营与美工团队一览（两套分制，请勿混比）</div>
+        <div style={{ marginTop: 4 }}>
+          <span style={{ color: "#2d7dd2", fontWeight: 600 }}>运营 100 分制</span>：≥80 优 · ≥60 良 &nbsp;|&nbsp;
+          <span style={{ color: "#6b21a8", fontWeight: 600 }}>美工 5 分制</span>：满分 5 · 每天约 1 分合格 · 周≥5 达标
+        </div>
+        <div style={{ marginTop: 4, fontSize: 11 }}>点击姓名展开各周得分明细 · 单元格下方为分项构成</div>
+      </div>
+
+      <KpiStatsFormulaCards />
+
+      <KpiStatsTable
+        title="运营 · 精铺考核"
+        subtitle="100 分制 · 下单50% + 赢利20% + 利润率≥15%占30%"
+        color="#2d7dd2"
+        headers={["姓名", "W1", "W2", "W3", "W4", "月均", "月均构成", "月销售额", "月上新", "填写"]}
+        emptyHint="暂无运营人员 · 请在设置中添加"
+        rows={opsRows.flatMap(r => [
+          <tr key={r.name} style={{ cursor: "pointer" }} onClick={() => toggleOps(r.name)}>
+            <td style={{ padding: "7px 8px", fontWeight: 600, borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)", whiteSpace: "nowrap", color: "#2d7dd2" }}>
+              <span style={{ fontSize: 9, marginRight: 4 }}>{expandedOps[r.name] ? "▼" : "▶"}</span>{r.name}
+            </td>
+            {r.weekBreakdowns.map((s, i) => (
+              <StatWeekCell key={i} value={s.total} cls={opsScoreCls(s.total)} fmt={v => v.toFixed(0)} scale={100} detail={opsWeekDetail(s)} />
+            ))}
+            <StatWeekCell value={r.avg} cls={opsScoreCls(r.avg)} fmt={v => v.toFixed(1)} scale={100}
+              detail={r.avg ? `${r.avgOrder.toFixed(0)}+${r.avgProfit.toFixed(0)}+${r.avgProfit15.toFixed(0)}` : ""} />
+            <td style={{ padding: "7px 6px", textAlign: "center", borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)", fontSize: 10, color: "var(--tm)", lineHeight: 1.3 }}>
+              {r.avg ? (
+                <>
+                  <div>下单{r.avgOrder.toFixed(0)}</div>
+                  <div>赢利{r.avgProfit.toFixed(0)}+利15%{r.avgProfit15.toFixed(0)}</div>
+                </>
+              ) : "—"}
+            </td>
+            <td style={{ padding: "7px 8px", textAlign: "center", borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)", fontSize: 12 }}>
+              {r.totalSales > 0 ? `$${Math.round(r.totalSales).toLocaleString()}` : "—"}
+            </td>
+            <td style={{ padding: "7px 8px", textAlign: "center", borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)", fontSize: 12 }}>
+              {r.totalNsku > 0 ? r.totalNsku : "—"}
+            </td>
+            <td style={{ padding: "7px 8px", textAlign: "center", borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)", fontSize: 11, color: r.filledWeeks === 4 ? "#2d9e52" : "var(--tm)" }}>
+              {r.filledWeeks}/4
+            </td>
+          </tr>,
+          <OpsStatsExpandRow key={`${r.name}-detail`} row={r} colSpan={OPS_COLS} expanded={expandedOps[r.name]} />,
+        ])}
+      />
+      {opsRows.length > 0 && (
+        <KpiStatsSummaryChips color="#2d7dd2" chips={[
+          { label: "运营人数", value: String(opsRows.length) },
+          { label: "团队月均得分", value: teamOpsAvg > 0 ? `${teamOpsAvg.toFixed(1)}/100` : "—", cls: opsScoreCls(teamOpsAvg) },
+          { label: "月销合计", value: opsRows.some(r => r.totalSales > 0) ? `$${Math.round(opsRows.reduce((a, r) => a + r.totalSales, 0)).toLocaleString()}` : "—" },
+          { label: "月上新合计", value: String(opsRows.reduce((a, r) => a + r.totalNsku, 0)) || "—" },
+        ]} />
+      )}
+
+      <KpiStatsTable
+        title="美工 · 周考核"
+        subtitle="5 分制 · 每天约 1 分合格 · 精铺1分/精品5分/A+0.5/视频2 · 运营评价另计"
+        color="#6b21a8"
+        headers={["姓名", "W1", "W2", "W3", "W4", "月均", "月均构成", "达标周", "月评价", "返工", "填写"]}
+        emptyHint="暂无美工人员 · 请在设置中添加"
+        rows={desRows.flatMap(r => [
+          <tr key={r.name} style={{ cursor: "pointer" }} onClick={() => toggleDes(r.name)}>
+            <td style={{ padding: "7px 8px", fontWeight: 600, borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)", whiteSpace: "nowrap", color: "#6b21a8" }}>
+              <span style={{ fontSize: 9, marginRight: 4 }}>{expandedDes[r.name] ? "▼" : "▶"}</span>{r.name}
+            </td>
+            {r.weekBreakdowns.map((s, i) => (
+              <StatWeekCell key={i} value={s.outputPts} cls={desScoreCls(s.outputPts)} fmt={v => v.toFixed(1)} scale={5} detail={desWeekDetail(s)} />
+            ))}
+            <StatWeekCell value={r.avg} cls={desScoreCls(r.avg)} fmt={v => v.toFixed(1)} scale={5}
+              detail={r.avg ? `图${r.avgImg.toFixed(0)}+视${r.avgVid.toFixed(0)}` : ""} />
+            <td style={{ padding: "7px 6px", textAlign: "center", borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)", fontSize: 10, color: "var(--tm)", lineHeight: 1.3 }}>
+              {r.avg ? (
+                <>
+                  <div>图{r.avgImg.toFixed(1)}</div>
+                  <div>A+{r.avgAplus.toFixed(1)}+视{r.avgVid.toFixed(1)}</div>
+                </>
+              ) : "—"}
+            </td>
+            <td style={{ padding: "7px 8px", textAlign: "center", borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)", fontSize: 12, fontWeight: 600, color: r.quotaDone === 4 ? "#2d9e52" : r.quotaDone >= 2 ? "#e09000" : r.quotaDone > 0 ? "#e55" : "var(--tm)" }}>
+              {r.quotaDone}/4
+            </td>
+            <td style={{ padding: "7px 8px", textAlign: "center", borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)", fontSize: 12, color: r.reviewNet > 0 ? "#6b21a8" : r.reviewNet < 0 ? "#9ca3af" : "var(--tm)" }}>
+              {r.reviewNet !== 0 ? (r.reviewNet > 0 ? `+${r.reviewNet}` : String(r.reviewNet)) : "—"}
+            </td>
+            <td style={{ padding: "7px 8px", textAlign: "center", borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)", fontSize: 12, color: r.rework > 0 ? "#e55" : "var(--tm)" }}>
+              {r.rework > 0 ? r.rework : "—"}
+            </td>
+            <td style={{ padding: "7px 8px", textAlign: "center", borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)", fontSize: 11, color: r.filledWeeks === 4 ? "#2d9e52" : "var(--tm)" }}>
+              {r.filledWeeks}/4
+            </td>
+          </tr>,
+          <DesStatsExpandRow key={`${r.name}-detail`} row={r} colSpan={DES_COLS} expanded={expandedDes[r.name]} />,
+        ])}
+      />
+      {desRows.length > 0 && (
+        <KpiStatsSummaryChips color="#6b21a8" chips={[
+          { label: "美工人数", value: String(desRows.length) },
+          { label: "团队月均得分", value: teamDesAvg > 0 ? `${teamDesAvg.toFixed(1)}/5` : "—", cls: desScoreCls(teamDesAvg) },
+          { label: "全员达标周", value: `${desRows.reduce((a, r) => a + r.quotaDone, 0)}次` },
+          { label: "月评价净分", value: (() => { const t = desRows.reduce((a, r) => a + r.reviewNet, 0); return t !== 0 ? (t > 0 ? `+${t}` : String(t)) : "—"; })() },
+        ]} />
+      )}
+    </div>
+  );
+}
+
 function MonthlyBlock({ title, color, cards, rows, tagColor: tagColorProp }) {
   const tagColor = tagColorProp || { g: "#2d9e52", r: "#e55", a: "#e09000", t: "#00695c" };
   return (
@@ -1006,9 +1447,10 @@ export function KpiPanel({ active = true }) {
 
   const { items, persist, meta, loading, saving, error, reload } = useSharedList(KPI_STORAGE_KEY, [], { active });
 
-  const effectiveRole = opsEffectiveRole(curRole, curOpsSub);
+  const isStatsView = curRole === "stats";
+  const effectiveRole = isStatsView ? "ops" : opsEffectiveRole(curRole, curOpsSub);
   const roleMeta = KPI_ROLE_META[curRole] || KPI_ROLE_META.ops;
-  const roleLabel = roleMeta.label;
+  const roleLabel = isStatsView ? "统计" : roleMeta.label;
   const staffList = useMemo(() => {
     const list = getEmployees().filter(e => e.role === roleLabel && e.name);
     return list.length ? list : [];
@@ -1189,6 +1631,7 @@ export function KpiPanel({ active = true }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+        <button type="button" style={tabStyle(isStatsView, "#5c6bc0")} onClick={() => setCurRole("stats")}>统计</button>
         <button type="button" style={tabStyle(curRole === "ops", "#2d7dd2")} onClick={() => { setCurRole("ops"); setCurWeek(1); }}>运营</button>
         <button type="button" style={tabStyle(curRole === "des", "#6b21a8")} onClick={() => { setCurRole("des"); setCurWeek(1); }}>美工</button>
         <button type="button" style={tabStyle(curRole === "dev", "#00695c")} onClick={() => { setCurRole("dev"); setCurWeek(1); }}>开发</button>
@@ -1201,6 +1644,9 @@ export function KpiPanel({ active = true }) {
         )}
       </div>
 
+      {isStatsView ? (
+        <KpiStatsPage items={items} year={year} month={month} staffTick={staffTick} />
+      ) : (
       <div style={{
         display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap",
         background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px",
@@ -1220,8 +1666,9 @@ export function KpiPanel({ active = true }) {
           </span>
         )}
       </div>
+      )}
 
-      {!person ? null : (
+      {!isStatsView && !person ? null : !isStatsView ? (
         <>
           <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
             {WEEKS.map(w => (
@@ -1263,7 +1710,7 @@ export function KpiPanel({ active = true }) {
             </>
           )}
         </>
-      )}
+      ) : null}
 
       {toast && (
         <div style={{

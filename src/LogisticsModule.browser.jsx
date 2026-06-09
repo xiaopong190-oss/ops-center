@@ -1672,6 +1672,39 @@ const readStaCsvFiles = async (fileList) => {
     warnings: parsed.flatMap((p, i) => p.warnings.map(w => `${files[i].name}: ${w}`)),
   };
 };
+const normalizeFbaId = (id) => (id || "").trim().toUpperCase();
+const collectFbaIdsFromGroups = (groups, excludeGroupId = null) => {
+  const ids = new Set();
+  for (const g of groups || []) {
+    if (excludeGroupId != null && g.id === excludeGroupId) continue;
+    for (const s of g.fbaShipments || []) {
+      const fid = normalizeFbaId(s.fbaId);
+      if (fid) ids.add(fid);
+    }
+  }
+  return ids;
+};
+const splitDuplicateFbaImports = (incoming, existingIds) => {
+  const seen = new Set(existingIds);
+  const unique = [];
+  const dupes = [];
+  for (const f of incoming) {
+    const fid = normalizeFbaId(f.fbaId);
+    if (fid && seen.has(fid)) {
+      dupes.push(fid);
+      continue;
+    }
+    if (fid) seen.add(fid);
+    unique.push(f);
+  }
+  return { unique, dupes };
+};
+const formatDuplicateFbaMsg = (dupes, action) => {
+  const list = [...new Set(dupes)].join("、");
+  return dupes.length === 1
+    ? `FBA 货件编号 ${list} 已存在，${action}`
+    : `以下 FBA 货件编号已存在，${action}：${list}`;
+};
 
 const INIT_LOGISTICS = [
   {
@@ -1874,6 +1907,7 @@ function ShipmentGroupCard({ group, expanded, onToggleExpand, onEdit, onEditTrac
           <div style={{ fontSize: 11, color: "var(--tm)" }}>
             {fbaCount} 个货件 · 共 <strong style={{ color: "var(--text)", fontWeight: 700 }}>{totalQty}</strong> 件
             {group.blNumber ? ` · B/L ${group.blNumber}` : ""}
+            {group.updatedAt ? ` · 更新 ${formatSharedTime(group.updatedAt)}` : ""}
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
@@ -1935,7 +1969,7 @@ function FbaEditorRow({ fba, onChange, onRemove }) {
     </div>
   );
 }
-function ShipmentModal({ item, onSave, onClose, onDelete }) {
+function ShipmentModal({ item, onSave, onClose, onDelete, getExistingFbaIds }) {
   const [form, setForm] = useState(item);
   const [fbas, setFbas] = useState(() => {
     const legacyExcs = item.exceptions?.length ? item.exceptions.map(e => ({ ...e })) : [];
@@ -1982,8 +2016,19 @@ function ShipmentModal({ item, onSave, onClose, onDelete }) {
     if (!files?.length) return;
     try {
       const { fbaShipments, totalQty, sku, warnings } = await readStaCsvFiles(files);
+      const existingIds = new Set(getExistingFbaIds ? getExistingFbaIds() : []);
+      fbas.forEach(f => {
+        const fid = normalizeFbaId(f.fbaId);
+        if (fid) existingIds.add(fid);
+      });
+      const { unique, dupes } = splitDuplicateFbaImports(fbaShipments, existingIds);
+      if (!unique.length) {
+        setImportMsg(formatDuplicateFbaMsg(dupes, "无法重复导入"));
+        e.target.value = "";
+        return;
+      }
       let nid = nextFbaId;
-      const imported = fbaShipments.map(f => ({ ...f, id: nid++ }));
+      const imported = unique.map(f => ({ ...f, id: nid++ }));
       const merged = [...fbas, ...imported];
       applyFbas(merged);
       setNextFbaId(nid);
@@ -1993,7 +2038,8 @@ function ShipmentModal({ item, onSave, onClose, onDelete }) {
         sku: f.sku || sku,
         name: f.name || (imported.length === 1 ? imported[0].name : f.name),
       }));
-      setImportMsg(warnings.length ? `已导入 ${imported.length} 个货件（${warnings.join("；")}）` : `已导入 ${imported.length} 个 STA 货件`);
+      const baseMsg = warnings.length ? `已导入 ${imported.length} 个货件（${warnings.join("；")}）` : `已导入 ${imported.length} 个 STA 货件`;
+      setImportMsg(dupes.length ? `${baseMsg}；${formatDuplicateFbaMsg(dupes, "已跳过")}` : baseMsg);
     } catch (err) {
       setImportMsg(err.message || "CSV 解析失败");
     }
@@ -2103,8 +2149,10 @@ function LogisticsPanel({ active = true }) {
     return batchEarliestEtaDiff(a) - batchEarliestEtaDiff(b);
   });
   const save = (t) => {
-    if (t.id) persist(list.map(x => x.id === t.id ? t : x));
-    else persist([...list, { ...t, id: nextId() }]);
+    const now = Date.now();
+    const withTime = { ...t, updatedAt: now };
+    if (t.id) persist(list.map(x => x.id === t.id ? withTime : x));
+    else persist([...list, { ...withTime, id: nextId() }]);
     setModal(null);
   };
   const deleteGroup = (g) => {
@@ -2113,13 +2161,14 @@ function LogisticsPanel({ active = true }) {
     if (modal?.id === g.id) setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
+    const now = Date.now();
     persist(list.map(g => {
       if (g.id !== gid) return g;
       const fbaShipments = (g.fbaShipments || []).map(s => s.id !== fid ? s : {
         ...s, tracking,
         status: tracking.trim() && ["待出库", "已入仓"].includes(normalizeShipmentStage(s.status)) ? "在途" : normalizeShipmentStage(s.status),
       });
-      return { ...g, fbaShipments, headStatus: deriveHeadStatus(fbaShipments) };
+      return { ...g, fbaShipments, headStatus: deriveHeadStatus(fbaShipments), updatedAt: now };
     }));
   };
   const cloneGroup = (g) => ({
@@ -2136,8 +2185,16 @@ function LogisticsPanel({ active = true }) {
     if (!files?.length) return;
     try {
       const { fbaShipments, totalQty, sku } = await readStaCsvFiles(files);
-      const label = files.length === 1 ? fbaShipments[0]?.fbaId || "新批次" : `导入 ${files.length} 个货件`;
-      setModal({ ...emptyGroup, name: label, sku, totalQty, fbaShipments });
+      const existingIds = collectFbaIdsFromGroups(list);
+      const { unique, dupes } = splitDuplicateFbaImports(fbaShipments, existingIds);
+      if (!unique.length) {
+        alert(formatDuplicateFbaMsg(dupes, "无法重复导入"));
+        e.target.value = "";
+        return;
+      }
+      if (dupes.length) alert(formatDuplicateFbaMsg(dupes, "已跳过重复项"));
+      const label = files.length === 1 ? unique[0]?.fbaId || "新批次" : `导入 ${unique.length} 个货件`;
+      setModal({ ...emptyGroup, name: label, sku, totalQty, fbaShipments: unique });
     } catch (err) {
       alert(err.message || "CSV 解析失败");
     }
@@ -2200,7 +2257,7 @@ function LogisticsPanel({ active = true }) {
           />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
       </div>
-      {modal && <ShipmentModal item={modal} onSave={save} onClose={() => {
+      {modal && <ShipmentModal item={modal} onSave={save} getExistingFbaIds={() => collectFbaIdsFromGroups(list, modal.id)} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
         setModal(null);
       }} onDelete={() => { persist(list.filter(x => x.id !== modal.id)); setModal(null); }} />}

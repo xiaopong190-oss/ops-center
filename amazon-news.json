@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-06-08T03:55:00.356Z",
+  "updatedAt": "2026-06-10T03:36:30.072Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
-      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
-      "pubDate": "Fri, 05 Jun 2026 22:12:00 GMT",
-      "date": "6/5",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
-      "category": "Community"
+      "title": "Claude Fable 5 from Anthropic now available on AWS",
+      "link": "https://www.aboutamazon.com/news/aws/claude-fable-5-anthropic-available-amazon-bedrock?utm_source=rss",
+      "pubDate": "Tue, 09 Jun 2026 17:41:41 GMT",
+      "date": "6/9",
+      "summary": "Anthropic's 5th-generation AI model makes Mythos-level capabilities available to all customers and shows exceptional performance in coding, ",
+      "category": "AWS"
     },
     {
-      "title": "Amazon in the community: Service, community, and commitment at HQ2",
-      "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
-      "pubDate": "Fri, 05 Jun 2026 19:52:00 GMT",
-      "date": "6/5",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
-      "category": "Community"
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Tue, 09 Jun 2026 16:33:00 GMT",
+      "date": "6/9",
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
     },
     {
-      "title": "Amazon Leo's largest Arianespace launch yet will feature upgraded boosters to deploy more satellites",
-      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-rocket-satellite-update?utm_source=rss",
-      "pubDate": "Fri, 05 Jun 2026 13:55:12 GMT",
-      "date": "6/5",
-      "summary": "Amazon Leo will launch 36 satellites on its next mission, the largest payload to date for Amazon and Ariane 6.",
-      "category": "Amazon Leo"
+      "title": "How to watch every FIFA World Cup 2026™ match on Fire TV",
+      "link": "https://www.aboutamazon.com/news/devices/fire-tv-fifa-world-cup-2026-how-to-watch?utm_source=rss",
+      "pubDate": "Mon, 08 Jun 2026 15:00:28 GMT",
+      "date": "6/8",
+      "summary": "The Fire TV experience is designed to get customers quickly to live matches, the best highlights, and full replays all tournament long.",
+      "category": "Devices"
     }
   ]
 }

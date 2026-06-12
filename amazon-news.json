@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-06-11T03:53:01.508Z",
+  "updatedAt": "2026-06-12T03:51:34.740Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "A first look at ‘The Love Hypothesis,’ a new rom-com coming to Prime Video September 23",
+      "link": "https://www.aboutamazon.com/news/entertainment/love-hypothesis-prime-video?utm_source=rss",
+      "pubDate": "Thu, 11 Jun 2026 15:30:27 GMT",
+      "date": "6/11",
+      "summary": "The adaptation of Ali Hazelwood's bestselling novel stars Lili Reinhart and Tom Bateman.",
+      "category": "Entertainment"
+    },
+    {
+      "title": "Amazon's data centers are 7x more water-efficient than the industry average. Here’s how we do it.",
+      "link": "https://www.aboutamazon.com/news/sustainability/amazon-data-center-water-usage?utm_source=rss",
+      "pubDate": "Thu, 11 Jun 2026 13:00:18 GMT",
+      "date": "6/11",
+      "summary": "Amazon is constantly innovating to reduce the amount of water we use in our data centers, resulting in a 52% improvement in water efficiency",
+      "category": "Sustainability"
+    },
     {
       "title": "The best books of 2026 so far, according to the Amazon Editors",
       "link": "https://www.aboutamazon.com/news/books-and-authors/best-books-2026?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "6/10",
       "summary": "Tayari Jones’s ‘Kin’—a nuanced portrait of family, friendship, and race—comes in at No. 1 from Amazon’s wide selection of books released so ",
       "category": "Books and authors"
-    },
-    {
-      "title": "Claude Fable 5 from Anthropic now available on AWS",
-      "link": "https://www.aboutamazon.com/news/aws/claude-fable-5-anthropic-available-amazon-bedrock?utm_source=rss",
-      "pubDate": "Tue, 09 Jun 2026 17:41:41 GMT",
-      "date": "6/9",
-      "summary": "Anthropic's 5th-generation AI model makes Mythos-level capabilities available to all customers and shows exceptional performance in coding, ",
-      "category": "AWS"
-    },
-    {
-      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Tue, 09 Jun 2026 16:32:00 GMT",
-      "date": "6/9",
-      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
-      "category": "AWS"
     }
   ]
 }

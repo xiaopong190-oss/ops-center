@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSharedList } from "./utils/storage.js";
 import { useCloudSyncPage } from "./GlobalCloudSync.jsx";
-import { confirmDeleteWarning } from "./utils/confirmDelete.js";
 
 const inpSm = { fontSize: 12, padding: "5px 8px", border: "1px solid var(--border)", borderRadius: 6, fontFamily: "inherit", background: "transparent", color: "inherit" };
 const inp = { width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", background: "transparent", color: "inherit", display: "block" };
@@ -45,6 +44,11 @@ const resolveAgentUrl = (url) => {
     return url;
   }
 };
+
+const confirmDeleteWarning = (name, typeLabel) =>
+  window.confirm(
+    `⚠️ 警告\n\n确定删除${typeLabel}「${name}」吗？\n\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`
+  );
 
 const openAgentUrl = (url) => {
   const target = resolveAgentUrl(url);

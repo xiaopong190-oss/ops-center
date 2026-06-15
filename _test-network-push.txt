@@ -1,0 +1,60 @@
+﻿
+[12:05:45] ========== TEST START ==========
+[12:05:45] --- 1) 环境变量代理 ---
+[12:05:45] HTTP_PROXY  = []
+[12:05:45] HTTPS_PROXY = []
+[12:05:45] ALL_PROXY   = []
+[12:05:45] NO_PROXY    = []
+[12:05:45] --- 2) Git 代理配置（Hermes/Clash 常会改这里）---
+[12:05:45] git config http.proxy  = [http://127.0.0.1:10808]
+[12:05:45] git config https.proxy = [http://127.0.0.1:10808]
+[12:05:45] --- 3) TCP 443 到 github.com ---
+[12:05:51] TcpTestSucceeded = True
+[12:05:51] --- 4) git ls-remote（能否连上 GitHub）---
+[12:05:53] e00dc1b2aa2ab73462ce38987eaea4619f2f2c33	HEAD
+[12:05:53] ls-remote: OK
+[12:05:53] --- 5) 本地状态 ---
+[12:05:53] origin	https://github.com/xiaopong190-oss/ops-center.git (fetch)
+[12:05:53] origin	https://github.com/xiaopong190-oss/ops-center.git (push)
+[12:05:53] ## main...origin/main
+[12:05:53] UU amazon-news.json
+[12:05:53] M  packages/disk-cleaner-win.zip
+[12:05:53]  M tools/fba-hanhai-converter/app.js
+[12:05:54]  M tools/fba-hanhai-converter/index.html
+[12:05:54]  M tools/fba-hanhai-converter/styles.css
+[12:05:54] ?? PUSH-NOW.cmd
+[12:05:54] ?? RETRY-PUSH.ps1
+[12:05:54] ?? TEST-NETWORK-PUSH.cmd
+[12:05:54] ?? TEST-NETWORK-PUSH.ps1
+[12:05:54] ?? _agent-status.cmd
+[12:05:54] ?? _do-push.cmd
+[12:05:54] ?? _git-push.ps1
+[12:05:54] ?? _push-fba-now.ps1
+[12:05:54] ?? _push-log.txt
+[12:05:54] ?? _push-out.txt
+[12:05:54] ?? _push-result.txt
+[12:05:54] ?? _run-push.cmd
+[12:05:54] ?? _test-network-push.txt
+[12:05:54] ?? "sync-browser (1).mjs"
+[12:05:54] ahead of origin/main: 0 | behind: 0
+[12:05:54] HEAD: 9e22a11 Add FBA to Hanhai B2B converter tool to tools page
+[12:05:54] --- 6) 暂存 FBA 工具（如有改动）---
+[12:05:55] error: Committing is not possible because you have unmerged files.
+[12:05:55] U	amazon-news.json
+[12:05:55] hint: Fix them up in the work tree, and then use 'git add/rm <file>'
+[12:05:55] hint: as appropriate to mark resolution and make a commit.
+[12:05:55] fatal: Exiting because of an unresolved conflict.
+[12:05:55] new HEAD: 9e22a11 Add FBA to Hanhai B2B converter tool to tools page
+[12:05:55] --- 7) 若落后远程，先 pull --rebase ---
+[12:05:57] From https://github.com/xiaopong190-oss/ops-center
+[12:05:57]  * branch            main       -> FETCH_HEAD
+[12:05:57]    9e22a11..e00dc1b  main       -> origin/main
+[12:05:57] behind 1 commits, running pull --rebase...
+[12:05:57] error: Pulling is not possible because you have unmerged files.
+[12:05:57] hint: Fix them up in the work tree, and then use 'git add/rm <file>'
+[12:05:57] hint: as appropriate to mark resolution and make a commit.
+[12:05:57] fatal: Exiting because of an unresolved conflict.
+[12:05:57] REBASE FAILED — 若有 amazon-news.json 冲突，可：
+[12:05:57]   git checkout --theirs amazon-news.json; git add amazon-news.json; git rebase --continue
+[12:05:57]   或: git rebase --abort
+[12:05:57] ========== TEST END (rebase blocked) ==========

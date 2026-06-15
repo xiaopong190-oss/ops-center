@@ -1,0 +1,24 @@
+﻿[17:24:41] remote is 1 commit(s) ahead; rebasing local changes...
+[17:24:41] git pull --rebase origin main
+From https://github.com/xiaopong190-oss/ops-center
+ * branch            main       -> FETCH_HEAD
+Rebasing (1/6)
+Rebasing (2/6)
+Rebasing (3/6)
+Rebasing (4/6)
+Rebasing (5/6)
+Auto-merging amazon-news.json
+CONFLICT (content): Merge conflict in amazon-news.json
+Rebasing (6/6)
+error: could not apply 3b9c384... fix: JSONBin cloud sync and visible sync bar (cloud-8)
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+hint: Disable this message with "git config set advice.mergeConflict false"
+Could not apply 3b9c384... # fix: JSONBin cloud sync and visible sync bar (cloud-8)
+[17:24:45] git stash pop
+error: could not write index
+amazon-news.json: needs merge
+The stash entry is kept in case you need it again.
+[17:24:45] FAILED: git pull --rebase origin main failed (exit 1): Rebasing (6/6) | error: could not apply 3b9c384... fix: JSONBin cloud sync and visible sync bar (cloud-8) | hint: Resolve all conflicts manually, mark them as resolved with | hint: "git add/rm <conflicted_files>", then run "git rebase --continue". | hint: You can instead skip this commit: run "git rebase --skip". | hint: To abort and get back to the state before "git rebase", run "git rebase --abort". | hint: Disable this message with "git config set advice.mergeConflict false" | Could not apply 3b9c384... # fix: JSONBin cloud sync and visible sync bar (cloud-8)

@@ -136,16 +136,23 @@ function tallyOpsReviews(reviews) {
   return { good, bad };
 }
 
+function desSelfScore(v) {
+  const n = parseInt(v, 10);
+  return n === 1 || n === 2 ? n : 0;
+}
+
 function calcDesSummary(w) {
   const prem = num(w.prem), std = num(w.std), aplus = num(w.aplus);
   const imgPts = prem * 5 + std;
   const imgTotal = imgPts + aplus * 0.5;
   const vid = num(w.vid);
   const vidPts = vid * 2;
-  const outputPts = Math.round((imgTotal + vidPts) * 10) / 10;
+  const manualPts = desSelfScore(w.manualScore);
+  const packagingPts = desSelfScore(w.packagingScore);
+  const outputPts = Math.round((imgTotal + vidPts + manualPts + packagingPts) * 10) / 10;
   const { good: goodReviews, bad: badReviews } = tallyOpsReviews(w.opsReviews);
   return {
-    imgPts, aplusPts: aplus * 0.5, vid, vidPts, outputPts,
+    imgPts, aplusPts: aplus * 0.5, vid, vidPts, manualPts, packagingPts, outputPts,
     goodReviews, badReviews, desReviewPts: goodReviews - badReviews,
     quotaOk: outputPts >= 5, rework: num(w.rework),
   };
@@ -191,7 +198,7 @@ function weekHasOpsData(w) {
 }
 
 function weekHasDesData(w) {
-  if (["prem", "std", "vid", "aplus", "incompleteReason"].some(k => w[k] !== "" && w[k] != null)) return true;
+  if (["prem", "std", "vid", "aplus", "incompleteReason", "manualScore", "packagingScore"].some(k => w[k] !== "" && w[k] != null)) return true;
   return Object.keys(w.opsReviews || {}).length > 0;
 }
 
@@ -214,6 +221,8 @@ function desWeekDetail(s) {
   if (s.imgPts) parts.push(`图${s.imgPts}`);
   if (s.aplusPts) parts.push(`A+${s.aplusPts.toFixed(1)}`);
   if (s.vidPts) parts.push(`视${s.vidPts}`);
+  if (s.manualPts) parts.push(`说${s.manualPts}`);
+  if (s.packagingPts) parts.push(`包${s.packagingPts}`);
   return parts.join("+");
 }
 
@@ -308,8 +317,7 @@ function buildKpiLines(kList, today) {
         if (!weekHasDesData(d)) return null;
         const s = calcDesSummary(d);
         const detail = desWeekDetail(s);
-        const review = s.desReviewPts ? ` 评${s.desReviewPts > 0 ? "+" : ""}${s.desReviewPts}` : "";
-        return `W${w}:${s.outputPts}分${detail ? `(${detail})` : ""}${review}`;
+        return `W${w}:${s.outputPts}分${detail ? `(${detail})` : ""}`;
       }).filter(Boolean);
       if (!breakdown.length) continue;
       const scores = [1, 2, 3, 4].map(w => calcDesSummary(weeks[w] || {}).outputPts);

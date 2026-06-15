@@ -495,17 +495,24 @@ const WEEKS = [1, 2, 3, 4];
 const KPI_STORAGE_KEY = "kpi-monthly";
 
 const emptyOpsWeek = () => ({
-  wstyle: "", nsku: "", lsku: "", aadd: "", aout: "", atot: "", sales: "", prate: "",
+  wstyle: "", nsku: "", lsku: "", selfsku: "", aadd: "", aout: "", atot: "", sales: "", prate: "",
   acos: "", adsp: "", ador: "", nacos: "", perfOk: null, sout: "", sdays: "",
   perfRemark: "", profitRemark: "",
-  tnsku: "", tsal: "", taco: "", tadsp: "", torder: "",
+  tnsku: "", tsal: "", taco: "", tadsp: "", torder: "", tselfsku: "",
   desReview: { person: "", rating: "" },
 });
 
 const emptyDesWeek = () => ({
   prem: "", std: "", vid: "", aplus: "", dad: "", ontime: "", demand: "", rework: "",
+  manualScore: "", packagingScore: "",
   incompleteReason: "", opsReviews: {},
 });
+
+/** 美工自选项：说明书 / 包材设计，每项 1–2 分 */
+function desSelfScore(v) {
+  const n = parseInt(v, 10);
+  return n === 1 || n === 2 ? n : 0;
+}
 
 const DES_INCOMPLETE_HINTS = ["单品多变体", "产品复杂", "素材需求变更", "等待运营确认", "拍摄/打样延误"];
 
@@ -661,7 +668,10 @@ function calcDesSummary(w) {
   const imgTotal = imgPts + aplus * 0.5;
   const vid = num(w.vid);
   const vidPts = vid * 2;
-  const outputPts = Math.round((imgTotal + vidPts) * 10) / 10;
+  const manualPts = desSelfScore(w.manualScore);
+  const packagingPts = desSelfScore(w.packagingScore);
+  const extraPts = manualPts + packagingPts;
+  const outputPts = Math.round((imgTotal + vidPts + extraPts) * 10) / 10;
   const ot = num(w.ontime), dm = num(w.demand);
   const { good: goodReviews, bad: badReviews } = tallyOpsReviews(w.opsReviews);
   const desReviewPts = goodReviews - badReviews;
@@ -671,6 +681,9 @@ function calcDesSummary(w) {
     total: imgTotal,
     vid,
     vidPts,
+    manualPts,
+    packagingPts,
+    extraPts,
     outputPts,
     goodReviews,
     badReviews,
@@ -729,13 +742,13 @@ function calcOpsWeeklyScore(w) {
 }
 
 function weekHasOpsData(w) {
-  if (["wstyle", "nsku", "lsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null)) return true;
+  if (["wstyle", "nsku", "lsku", "selfsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null)) return true;
   if (w.desReview?.person && w.desReview?.rating) return true;
   return false;
 }
 
 function weekHasDesData(w) {
-  if (["prem", "std", "vid", "aplus", "incompleteReason"].some(k => w[k] !== "" && w[k] != null)) return true;
+  if (["prem", "std", "vid", "aplus", "incompleteReason", "manualScore", "packagingScore"].some(k => w[k] !== "" && w[k] != null)) return true;
   return Object.keys(w.opsReviews || {}).length > 0;
 }
 
@@ -800,7 +813,10 @@ function DesHeartBtn({ active, kind, onClick }) {
   );
 }
 
-function OpsDesReviewSection({ data, onChange, desStaff = [] }) {
+function OpsDesReviewSection({ data, onChange, desStaff = [], opsPerson = "", viewerName = "" }) {
+  const isSelf = Boolean(viewerName && opsPerson && viewerName === opsPerson);
+  if (!isSelf) return null;
+
   const review = data.desReview || { person: "", rating: "" };
   const setReview = (patch) => onChange({ ...data, desReview: { ...review, ...patch } });
   const setRating = (rating) => {
@@ -836,7 +852,7 @@ function OpsDesReviewSection({ data, onChange, desStaff = [] }) {
   );
 }
 
-function OpsWeekForm({ week, data, onChange, desStaff = [] }) {
+function OpsWeekForm({ week, data, onChange, desStaff = [], opsPerson = "", viewerName = "" }) {
   const set = (k, v) => onChange({ ...data, [k]: v });
   const s = calcOpsSummary(data);
   const score = calcOpsWeeklyScore(data);
@@ -869,6 +885,10 @@ function OpsWeekForm({ week, data, onChange, desStaff = [] }) {
             <NumInput value={data.lsku} onChange={v => set("lsku", v)} unit="款" />
             <TargetRow label="下单目标" value={data.torder} onChange={v => set("torder", v)} unit="款" />
             <span style={kpiBadge("#eef6ff", "#2d7dd2")}>考核权重 50%</span>
+          </FieldCard>
+          <FieldCard label="自开 / SELF OPEN" hint="本周下单款数（运营自开）">
+            <NumInput value={data.selfsku} onChange={v => set("selfsku", v)} unit="款" />
+            <TargetRow label="自开目标" value={data.tselfsku} onChange={v => set("tselfsku", v)} unit="款" />
           </FieldCard>
         </div>
       </Section>
@@ -935,7 +955,7 @@ function OpsWeekForm({ week, data, onChange, desStaff = [] }) {
         </div>
       </Section>
 
-      <OpsDesReviewSection data={data} onChange={onChange} desStaff={desStaff} />
+      <OpsDesReviewSection data={data} onChange={onChange} desStaff={desStaff} opsPerson={opsPerson} viewerName={viewerName} />
 
       <Section title="账号健康（FBA）">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 7 }}>
@@ -967,6 +987,30 @@ function OpsWeekForm({ week, data, onChange, desStaff = [] }) {
   );
 }
 
+function DesSelfScorePicker({ label, hint, value, onChange }) {
+  const opts = [
+    { v: "", label: "未做" },
+    { v: "1", label: "1 分" },
+    { v: "2", label: "2 分" },
+  ];
+  return (
+    <FieldCard label={label} hint={hint} accent="#6b21a8">
+      <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+        {opts.map(o => (
+          <button key={o.v || "none"} type="button" onClick={() => onChange(o.v)} style={{
+            padding: "5px 12px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
+            border: `1px solid ${value === o.v ? "#6b21a8" : "var(--border)"}`,
+            background: value === o.v ? "#f3e8ff" : "var(--card)",
+            color: value === o.v ? "#6b21a8" : "var(--tm)",
+            fontWeight: value === o.v ? 600 : 400,
+          }}>{o.label}</button>
+        ))}
+      </div>
+      <span style={kpiBadge("#f3e8ff", "#6b21a8")}>自选 1–2 分 · 计入周产出</span>
+    </FieldCard>
+  );
+}
+
 function DesWeekForm({ week, data, onChange }) {
   const set = (k, v) => onChange({ ...data, [k]: v });
   const s = calcDesSummary(data);
@@ -988,18 +1032,19 @@ function DesWeekForm({ week, data, onChange }) {
         { label: "图片当量分", value: s.imgPts || "—" },
         { label: "A+当量分", value: s.aplusPts > 0 ? s.aplusPts.toFixed(1) : "—", color: s.aplusPts > 0 ? "#6b21a8" : undefined },
         { label: "视频(条)", value: s.vid || "—" },
+        { label: "说明书", value: s.manualPts ? `${s.manualPts}分` : "—", color: s.manualPts ? "#6b21a8" : undefined },
+        { label: "包材设计", value: s.packagingPts ? `${s.packagingPts}分` : "—", color: s.packagingPts ? "#6b21a8" : undefined },
         { label: "A+完成数", value: s.aplus || "—" },
         { label: "按时交付率", value: s.rate != null ? `${s.rate}%` : "—", color: s.rate != null && s.rate >= 90 ? "#2d9e52" : s.rate != null && s.rate >= 70 ? "#e09000" : s.rate != null ? "#e55" : undefined },
         { label: "返工次数", value: String(s.rework), color: s.rework > 0 ? "#e55" : undefined },
-        { label: "好评♥", value: s.goodReviews || "—", color: s.goodReviews > 0 ? "#e11d48" : undefined },
-        { label: "差评💔", value: s.badReviews || "—", color: s.badReviews > 0 ? "#9ca3af" : undefined },
       ]} />
 
       <Section title="图片产出（精品 1张 = 精铺 5张）">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 7 }}>
           <FieldCard label="精品图 / PREMIUM" hint="精品图完成数" accent="#6b21a8">
             <NumInput value={data.prem} onChange={v => set("prem", v)} unit="张" />
-            <QuotaBox outputPts={s.outputPts} imgPts={s.imgPts} aplusPts={s.aplusPts} vidPts={s.vidPts} prem={num(data.prem) * 5} std={num(data.std)} />
+            <QuotaBox outputPts={s.outputPts} imgPts={s.imgPts} aplusPts={s.aplusPts} vidPts={s.vidPts}
+              manualPts={s.manualPts} packagingPts={s.packagingPts} prem={num(data.prem) * 5} std={num(data.std)} />
           </FieldCard>
           <FieldCard label="精铺图 / STANDARD" hint="精铺图完成数">
             <NumInput value={data.std} onChange={v => set("std", v)} unit="张" />
@@ -1013,6 +1058,15 @@ function DesWeekForm({ week, data, onChange }) {
             <NumInput value={data.vid} onChange={v => set("vid", v)} unit="条" />
             <span style={kpiBadge("#f3e8ff", "#6b21a8")}>1 条 = 2 分</span>
           </FieldCard>
+        </div>
+      </Section>
+
+      <Section title="说明书与包材（自选计分）">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 7 }}>
+          <DesSelfScorePicker label="说明书 / MANUAL" hint="本周说明书设计工作量，自选 1–2 分"
+            value={data.manualScore || ""} onChange={v => set("manualScore", v)} />
+          <DesSelfScorePicker label="包材设计 / PACKAGING" hint="本周包材设计工作量，自选 1–2 分"
+            value={data.packagingScore || ""} onChange={v => set("packagingScore", v)} />
         </div>
       </Section>
 
@@ -1047,7 +1101,7 @@ function DesWeekForm({ week, data, onChange }) {
           }}>
             <div style={{ fontSize: 11, color: needsReason ? "#6b21a8" : "var(--tm)", marginBottom: 8, fontWeight: needsReason ? 600 : 400 }}>
               {needsReason
-                ? "本周考核产出未达 5 分（图片当量 + 视频分），请说明原因"
+                ? "本周考核产出未达 5 分（图片 + 视频 + 说明书/包材自选），请说明原因"
                 : "如本周未达标，请在此说明原因（如单品多变体、产品复杂等）"}
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
@@ -1076,12 +1130,9 @@ function DesWeekForm({ week, data, onChange }) {
             {s.desReviewPts !== 0 ? desReviewFmt : "0"}
             <span style={{ fontSize: 12, fontWeight: 500, color: "var(--tm)", marginLeft: 6 }}>分（运营评·计入美工）</span>
           </div>
-          <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 4 }}>
-            已收到 <strong>{s.goodReviews + s.badReviews}</strong> 条运营评价（匿名）· ♥ {s.goodReviews} · 💔 {s.badReviews}
-          </div>
         </div>
         <div style={{ ...kpiCard, fontSize: 11, color: "var(--tm)" }}>
-          评价由各位运营在 <strong>运营 → 精铺</strong> 考核页提交，此处不显示评价人姓名。
+          评价由运营在 <strong>运营 → 精铺</strong> 考核页匿名提交；此处仅显示加减分合计，不显示评价人及好评/差评条数。
         </div>
       </Section>
     </div>
@@ -1117,18 +1168,19 @@ function OpsScorePanel({ score }) {
   );
 }
 
-function QuotaBox({ outputPts, imgPts, aplusPts, vidPts, prem, std }) {
+function QuotaBox({ outputPts, imgPts, aplusPts, vidPts, manualPts = 0, packagingPts = 0, prem, std }) {
   const pct = Math.min(100, Math.round(outputPts / 5 * 100));
   const barColor = outputPts >= 5 ? "#2d9e52" : outputPts > 0 ? "#e09000" : "var(--border)";
   return (
     <div style={{ marginTop: 8, background: "var(--bg)", borderRadius: 6, padding: "9px 11px" }}>
-      <div style={{ fontSize: 10, color: "var(--tm)", marginBottom: 4 }}>周考核 5 分制 · 每天约 1 分合格（精品×5 + 精铺×1 + A+×0.5 + 视频×2）</div>
+      <div style={{ fontSize: 10, color: "var(--tm)", marginBottom: 4 }}>周考核 5 分制 · 精品×5 + 精铺×1 + A+×0.5 + 视频×2 + 说明书/包材自选(各1–2)</div>
       <div style={{ fontSize: 16, fontWeight: 700, color: outputPts >= 5 ? "#2d9e52" : "var(--text)" }}>
         {Number(outputPts.toFixed(1))} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--tm)" }}>/ 5</span>
       </div>
-      {(imgPts > 0 || aplusPts > 0 || vidPts > 0) && (
+      {(imgPts > 0 || aplusPts > 0 || vidPts > 0 || manualPts > 0 || packagingPts > 0) && (
         <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 4 }}>
           图片 {imgPts} 分{aplusPts > 0 ? ` + A+ ${aplusPts.toFixed(1)} 分` : ""}{vidPts > 0 ? ` + 视频 ${vidPts} 分` : ""}
+          {manualPts > 0 ? ` + 说明书 ${manualPts} 分` : ""}{packagingPts > 0 ? ` + 包材 ${packagingPts} 分` : ""}
         </div>
       )}
       <div style={{ background: "var(--border)", borderRadius: 99, height: 4, marginTop: 6, overflow: "hidden" }}>
@@ -1203,7 +1255,8 @@ function OpsMonthlySummary({ items, year, month, person }) {
       { label: "周销售额($)", vals: vals(w => num(w.sales)), type: "sum", fmt: n => `$${Math.round(n).toLocaleString()}`, cls: n => n > 0 ? "g" : "" },
       { label: "利润率(%)", vals: vals(w => num(w.prate)), type: "avg", fmt: n => `${n.toFixed(1)}%`, cls: n => profitRateCls(n) },
       { label: "利润率得分", vals: vals(w => calcOpsWeeklyScore(w).profitMarginScore), type: "avg", fmt: n => `${n.toFixed(0)}分`, cls: n => n >= 50 ? "g" : n >= 20 ? "a" : n > 0 ? "a" : "" },
-      { label: "下单款数", vals: vals(w => num(w.lsku)), type: "sum", fmt: n => String(n), cls: () => "" },
+      { label: "下单款数(大货)", vals: vals(w => num(w.lsku)), type: "sum", fmt: n => String(n), cls: () => "" },
+      { label: "下单款数(运营自开)", vals: vals(w => num(w.selfsku)), type: "sum", fmt: n => String(n), cls: () => "" },
       { label: "周开款（运营）", vals: vals(w => num(w.wstyle)), type: "sum", fmt: n => String(n), cls: () => "" },
       { label: "周上架新品(SKU)", vals: vals(w => num(w.nsku)), type: "sum", fmt: n => String(n), cls: () => "" },
       { label: "A品净变化", vals: vals(w => num(w.aadd) - num(w.aout)), type: "sum", fmt: n => `${n >= 0 ? "+" : ""}${n}`, cls: n => n > 0 ? "g" : n < 0 ? "r" : "" },
@@ -1254,20 +1307,19 @@ function DesMonthlySummary({ items, year, month, person }) {
       return dm > 0 ? Math.round(ot / dm * 100) : null;
     }).filter(r => r != null);
     const avgRate = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : 0;
-    let totalGood = 0, totalBad = 0, reasonWeeks = 0;
+    let reasonWeeks = 0;
     weeks.forEach(d => {
-      const t = tallyOpsReviews(d.opsReviews);
-      totalGood += t.good;
-      totalBad += t.bad;
       if (d.incompleteReason) reasonWeeks++;
     });
-    return { pts, outputPts, vidPts, desReviewPts, quotaDone, vid, ap, rw, avgRate, totalGood, totalBad, reasonWeeks, weeks };
+    return { pts, outputPts, vidPts, desReviewPts, quotaDone, vid, ap, rw, avgRate, reasonWeeks, weeks };
   }, [items, year, month, person]);
 
   const rows = [
     { label: "考核产出分", vals: data.outputPts, type: "avg", fmt: n => n.toFixed(1), cls: n => n >= 5 ? "g" : n > 0 ? "a" : "" },
     { label: "图片当量(含A+)", vals: data.pts.map(v => Math.round(v * 10) / 10), type: "sum", fmt: n => n.toFixed(1), cls: n => n >= 5 ? "g" : n > 0 ? "a" : "" },
     { label: "视频分(×2)", vals: data.vidPts, type: "sum", fmt: n => String(n), cls: n => n > 0 ? "g" : "" },
+    { label: "说明书(自选)", vals: data.weeks.map(d => desSelfScore(d.manualScore)), type: "sum", fmt: n => String(n), cls: n => n > 0 ? "g" : "" },
+    { label: "包材设计(自选)", vals: data.weeks.map(d => desSelfScore(d.packagingScore)), type: "sum", fmt: n => String(n), cls: n => n > 0 ? "g" : "" },
     { label: "美工评价分(运营评)", vals: data.desReviewPts, type: "sum", fmt: n => n > 0 ? `+${n}` : String(n), cls: n => n > 0 ? "g" : n < 0 ? "r" : "" },
     { label: "视频(条)", vals: data.vid, type: "sum", fmt: n => String(n), cls: () => "" },
     { label: "A+(套)", vals: data.ap, type: "sum", fmt: n => String(n), cls: () => "" },
@@ -1277,8 +1329,6 @@ function DesMonthlySummary({ items, year, month, person }) {
       return dm > 0 ? Math.round(ot / dm * 100) : 0;
     }), type: "avg", fmt: n => `${n}%`, cls: n => n >= 90 ? "g" : n >= 70 ? "a" : n > 0 ? "r" : "" },
     { label: "返工次数", vals: data.rw, type: "sum", fmt: n => String(n), cls: n => n > 0 ? "r" : "" },
-    { label: "运营好评(♥)", vals: data.weeks.map(d => tallyOpsReviews(d.opsReviews).good), type: "sum", fmt: n => String(n), cls: n => n > 0 ? "g" : "" },
-    { label: "运营差评(💔)", vals: data.weeks.map(d => tallyOpsReviews(d.opsReviews).bad), type: "sum", fmt: n => String(n), cls: n => n > 0 ? "r" : "" },
   ].map(row => {
     const total = row.vals.reduce((a, b) => a + b, 0);
     const nonZero = row.vals.filter(v => v > 0);
@@ -1297,8 +1347,6 @@ function DesMonthlySummary({ items, year, month, person }) {
         { label: "月A+合计", value: String(data.ap.reduce((a, b) => a + b, 0)) },
         { label: "月均按时交付率", value: data.avgRate > 0 ? `${data.avgRate}%` : "—", cls: data.avgRate >= 90 ? "g" : data.avgRate >= 70 ? "a" : data.avgRate > 0 ? "r" : "" },
         { label: "月返工合计", value: String(data.rw.reduce((a, b) => a + b, 0)), cls: data.rw.reduce((a, b) => a + b, 0) > 0 ? "r" : "" },
-        { label: "月运营好评", value: String(data.totalGood), cls: data.totalGood > 0 ? "g" : "" },
-        { label: "月运营差评", value: String(data.totalBad), cls: data.totalBad > 0 ? "r" : "" },
         { label: "未完成说明", value: data.reasonWeeks > 0 ? `${data.reasonWeeks}周` : "—", cls: data.reasonWeeks > 0 ? "a" : "" },
       ]}
       rows={rows}
@@ -1402,7 +1450,7 @@ function DevMonthProgressCard({ label, hint, actual, target, onTargetChange }) {
   );
 }
 
-function DevMonthlySummary({ items, year, month, person, monthTargets, onMonthTargetsChange, onSaveMonthTargets, saving }) {
+function DevMonthlySummary({ items, year, month, person, monthTargets, onMonthTargetsChange }) {
   const totals = useMemo(() => {
     const orderArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).order));
     const devArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).devNew));
@@ -1455,12 +1503,6 @@ function DevMonthlySummary({ items, year, month, person, monthTargets, onMonthTa
           <DevMonthProgressCard label="阶段3 / 月下单目标（考核）" hint="大货下单 月累计"
             actual={totals.totalOrder} target={monthTargets.tOrder}
             onTargetChange={v => onMonthTargetsChange({ ...monthTargets, tOrder: v })} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-          <button type="button" onClick={onSaveMonthTargets} disabled={saving}
-            style={{ background: "#00695c", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: saving ? 0.8 : 1 }}>
-            {saving ? "上传中…" : "☁️ 保存并上传月目标"}
-          </button>
         </div>
       </div>
     </div>
@@ -1561,6 +1603,8 @@ function desWeekDetail(s) {
   if (s.imgPts) parts.push(`图${s.imgPts}`);
   if (s.aplusPts) parts.push(`A+${s.aplusPts.toFixed(1)}`);
   if (s.vidPts) parts.push(`视${s.vidPts}`);
+  if (s.manualPts) parts.push(`说${s.manualPts}`);
+  if (s.packagingPts) parts.push(`包${s.packagingPts}`);
   return parts.join("+") || "";
 }
 
@@ -1597,7 +1641,8 @@ function KpiStatsFormulaCards() {
         <div><strong>精铺图</strong> 1 张 = 1 分（≈ 每天 1 张即合格）</div>
         <div><strong>精品图</strong> 1 张 = 5 分（≈ 一周合格量）</div>
         <div><strong>A+</strong> 1 套 = 0.5 分 · <strong>视频</strong> 1 条 = 2 分</div>
-        <div style={{ marginTop: 6, fontWeight: 600, color: "#6b21a8" }}>周得分 = 图片 + A+ + 视频（满分 5，每天约 1 分合格）</div>
+        <div><strong>说明书 / 包材设计</strong> 各自选 1–2 分（计入周产出）</div>
+        <div style={{ marginTop: 6, fontWeight: 600, color: "#6b21a8" }}>周得分 = 图片 + A+ + 视频 + 说明书 + 包材（满分 5，每天约 1 分合格）</div>
         <div style={{ marginTop: 4, color: "var(--tm)" }}>运营评价（♥+1 / 💔−1）单独统计，不计入周得分</div>
       </div>
     </div>
@@ -1697,11 +1742,12 @@ function DesStatsExpandRow({ row, colSpan, expanded }) {
                     {s.quotaOk && <span style={{ fontSize: 9, color: "#2d9e52", marginLeft: 2 }}>✓</span>}
                   </td>
                   <td style={{ padding: "5px 6px", fontSize: 10, color: "var(--tm)" }}>
-                    {!s.outputPts && !s.goodReviews && !s.badReviews ? "未填写" : (
+                    {!s.outputPts && !s.desReviewPts ? "未填写" : (
                       <>
                         {s.prem ? `精品${s.prem}×5` : ""}{s.std ? `${s.prem ? "+" : ""}精铺${s.std}×1` : ""}
                         {s.aplus ? ` + A+${s.aplus}×0.5` : ""}{s.vid ? ` + 视频${s.vid}×2` : ""}
-                        {(s.goodReviews || s.badReviews) ? ` · ♥${s.goodReviews} 💔${s.badReviews}` : ""}
+                        {s.manualPts ? ` + 说明书${s.manualPts}分` : ""}{s.packagingPts ? ` + 包材${s.packagingPts}分` : ""}
+                        {s.desReviewPts ? ` · 运营评${s.desReviewPts > 0 ? "+" : ""}${s.desReviewPts}` : ""}
                       </>
                     )}
                   </td>
@@ -1945,6 +1991,7 @@ function MonthlyBlock({ title, color, cards, rows, tagColor: tagColorProp }) {
 }
 
 function KpiPanel({ active = true }) {
+  const currentUser = useCurrentUser();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -2035,12 +2082,19 @@ function KpiPanel({ active = true }) {
       next.push({ year, month, role: effectiveRole, person, weeks: {} });
       idx = next.length - 1;
     }
-    const patch = { weeks: { ...next[idx].weeks, [curWeek]: weekData } };
+    let weekPayload = weekData;
+    let desReviewPatch = null;
+    if (effectiveRole === "ops") {
+      const { desReview, ...rest } = weekData;
+      weekPayload = rest;
+      desReviewPatch = desReview || {};
+    }
+    const patch = { weeks: { ...next[idx].weeks, [curWeek]: weekPayload } };
     if (effectiveRole === "ops_jp" && skuList) patch.skuList = skuList;
     next[idx] = { ...next[idx], ...patch };
     if (effectiveRole === "ops") {
       const prev = getWeekData(items, year, month, "ops", person, curWeek);
-      next = applyOpsDesReviewToItems(next, year, month, person, curWeek, weekData.desReview || {}, prev.desReview);
+      next = applyOpsDesReviewToItems(next, year, month, person, curWeek, desReviewPatch, prev.desReview);
     }
     const ok = await persist(next);
     if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);
@@ -2200,9 +2254,7 @@ function KpiPanel({ active = true }) {
               : curRole === "dev"
                 ? <DevMonthlySummary items={items} year={year} month={month} person={person}
                     monthTargets={monthTargetsDraft}
-                    onMonthTargetsChange={setMonthTargetsDraft}
-                    onSaveMonthTargets={() => upsertMonthTargets(monthTargetsDraft)}
-                    saving={saving} />
+                    onMonthTargetsChange={setMonthTargetsDraft} />
                 : <DesMonthlySummary items={items} year={year} month={month} person={person} />
           ) : (
             <>
@@ -2210,16 +2262,13 @@ function KpiPanel({ active = true }) {
                 ? <OpsPremiumPanel page={curPremiumPage} week={curWeek} data={draft} skuList={skuListDraft}
                     onChange={setDraft} onSkuListChange={setSkuListDraft} onPageChange={setCurPremiumPage} />
                 : curRole === "ops"
-                  ? <OpsWeekForm week={curWeek} data={draft} onChange={setDraft} desStaff={desStaffList} />
+                  ? <OpsWeekForm week={curWeek} data={draft} onChange={setDraft} desStaff={desStaffList}
+                      opsPerson={person} viewerName={currentUser?.name || ""} />
                   : curRole === "dev"
                     ? <DevWeekForm data={draft} onChange={setDraft} />
                     : <DesWeekForm week={curWeek} data={draft} onChange={setDraft} />}
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
                 <button type="button" onClick={clearWeek} disabled={saving} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", color: "var(--tm)", fontFamily: "inherit" }}>清空本周</button>
-                <button type="button" onClick={() => (effectiveRole === "ops_jp" ? upsertWeek(draft, skuListDraft) : upsertWeek(draft))} disabled={saving}
-                  style={{ background: curRole === "dev" ? "#00695c" : curOpsSub === "premium" ? "#0C447C" : "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: saving ? 0.85 : 1 }}>
-                  {saving ? "上传中…" : `☁️ 保存并上传第${curWeek}周`}
-                </button>
               </div>
             </>
           )}

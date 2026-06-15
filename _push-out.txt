@@ -1,0 +1,67 @@
+﻿=== fetch ===
+git : From https://github.com/xiaopong190-oss/ops-center
+At D:\Projects\ops-center\REBASE-AND-PUSH.ps1:6 char:6
++ Log (git fetch origin main 2>&1 | Out-String)
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (From https://gi...-oss/ops-center:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ * branch            main       -> FETCH_HEAD
+   ce25566..6109f79  main       -> origin/main
+
+=== pull --rebase --autostash ===
+git : From https://github.com/xiaopong190-oss/ops-center
+At D:\Projects\ops-center\REBASE-AND-PUSH.ps1:9 char:6
++ Log (git pull --rebase --autostash origin main 2>&1 | Out-String)
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (From https://gi...-oss/ops-center:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ * branch            main       -> FETCH_HEAD
+warning: in the working copy of 'amazon-news.json', LF will be replaced by CRLF the next time Git touches it
+Created autostash: 7325a5b
+Rebasing (1/1)
+Applying autostash resulted in conflicts.
+Your changes are safe in the stash.
+You can run "git stash pop" or "git stash drop" at any time.
+Successfully rebased and updated refs/heads/main.
+
+=== push ===
+git : To https://github.com/xiaopong190-oss/ops-center.git
+At D:\Projects\ops-center\REBASE-AND-PUSH.ps1:18 char:6
++ Log (git push origin main 2>&1 | Out-String)
++      ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://gith.../ops-center.git:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   6109f79..a93328e  main -> main
+
+=== final ===
+a93328e FBA Hanhai converter: embed 100x100 product images, fix hyperlink import, auto-save on ZIP import
+
+## main...origin/main
+UU amazon-news.json
+M  deploy/sync-cloud-snapshot.mjs
+M  packages/disk-cleaner-win.zip
+M  src/ToolsModule.browser.jsx
+M  src/ToolsModule.jsx
+?? FIX-AND-PUSH.cmd
+?? FIX-AND-PUSH.ps1
+?? PUSH-NOW.cmd
+?? REBASE-AND-PUSH.ps1
+?? RETRY-PUSH.ps1
+?? TEST-NETWORK-PUSH.cmd
+?? TEST-NETWORK-PUSH.ps1
+?? _agent-status.cmd
+?? _do-push.cmd
+?? _git-push.ps1
+?? _push-fba-now.ps1
+?? _push-log.txt
+?? _push-out.txt
+?? _push-result.txt
+?? _run-push.cmd
+?? _test-network-push.txt
+?? local-tools/disk-cleaner/Remove-SysClean.ps1
+?? "local-tools/disk-cleaner/\346\270\205\351\231\244\347\263\273\347\273\237\347\230\246\350\272\253.bat"
+?? "sync-browser (1).mjs"
+

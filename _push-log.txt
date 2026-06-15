@@ -1,0 +1,64 @@
+﻿
+[01:07:15] DEPLOY cloud-20 start
+[01:07:15] write-local-gist-config.mjs
+[01:07:16] gist-config.local.js ok (local only, not for git)
+[01:07:16] sync-browser.mjs
+[01:07:16] sync-browser ok
+[01:07:16] build-browser-bundle.mjs
+[01:07:16] build-browser-bundle ok: D:\Projects\ops-center\app.bundle.js (225796 bytes)
+[01:07:17] git fetch origin
+[01:07:18] git reset --soft origin/main
+[01:07:18] warning: in the working copy of 'src/AgentsModule.browser.jsx', LF will be replaced by CRLF the next time Git touches it
+[01:07:18] warning: in the working copy of 'src/AgentsModule.jsx', LF will be replaced by CRLF the next time Git touches it
+[01:07:18] warning: in the working copy of 'src/App.browser.jsx', LF will be replaced by CRLF the next time Git touches it
+[01:07:18] warning: in the working copy of 'src/GlobalConfig.jsx', LF will be replaced by CRLF the next time Git touches it
+[01:07:18] warning: in the working copy of 'src/HomeModule.browser.jsx', LF will be replaced by CRLF the next time Git touches it
+[01:07:18] warning: in the working copy of 'src/LogisticsModule.browser.jsx', LF will be replaced by CRLF the next time Git touches it
+[01:07:18] warning: in the working copy of 'src/ProductionModule.browser.jsx', LF will be replaced by CRLF the next time Git touches it
+[01:07:18] warning: in the working copy of 'src/ToolsModule.browser.jsx', LF will be replaced by CRLF the next time Git touches it
+[01:07:19] warning: in the working copy of 'app.bundle.js', LF will be replaced by CRLF the next time Git touches it
+[01:07:21] ## main...origin/main
+[01:07:21]  M .gitignore
+[01:07:21]  M README.txt
+[01:07:21] M  app.bundle.js
+[01:07:21]  M build-browser.mjs
+[01:07:21]  M copy-fba-tool.mjs
+[01:07:21]  M copy-fba-tools.mjs
+[01:07:21] M  deploy/GIST-SETUP.md
+[01:07:21] A  deploy/add-gist-agents-file.mjs
+[01:07:21] M  deploy/push-backup-to-gist.mjs
+[01:07:21] M  deploy/seed-github-gist.mjs
+[01:07:21]  M fix-app.mjs
+[01:07:21] A  gist-config.js
+[01:07:21]  M index.html
+[01:07:21]  M launch-hidden.vbs
+[01:07:21]  M launch.vbs
+[01:07:21]  M logo.svg
+[01:07:21]  M merge-logistics.mjs
+[01:07:21]  M package.json
+[01:07:21] M  src/AgentsModule.browser.jsx
+[01:07:21] M  src/AgentsModule.jsx
+[01:07:21] M  src/App.browser.jsx
+[01:07:21] M  src/App.jsx
+[01:07:21] M  src/GlobalConfig.jsx
+[01:07:21] M  src/LogisticsModule.browser.jsx
+[01:07:21]  M sync-browser.ps1
+[01:07:21]  M vite.config.js
+[01:07:21]  M "\344\270\200\351\224\256\346\211\223\345\274\200.html"
+[01:07:21]  M "\344\275\277\347\224\250\350\257\264\346\230\216.txt"
+[01:07:21]  M "\345\220\257\345\212\250\350\277\220\350\220\245\344\270\255\345\277\203.vbs"
+[01:07:21]  M "\346\211\223\345\274\200\347\225\214\351\235\242.html"
+[01:07:21] ?? RETRY-PUSH.ps1
+[01:07:21] ?? _agent-status.cmd
+[01:07:21] ?? _push-log.txt
+[01:07:21] ?? _push-result.txt
+[01:07:21] ?? _run-push.cmd
+[01:07:21] ?? "sync-browser (1).mjs"
+[01:07:22] [main 023ad26] feat: GitHub Gist 云端同步（Token 不进仓库）
+[01:07:22]  12 files changed, 176 insertions(+), 62 deletions(-)
+[01:07:22]  create mode 100644 deploy/add-gist-agents-file.mjs
+[01:07:22]  create mode 100644 gist-config.js
+[01:07:22] git push origin main
+[01:07:26] To https://github.com/xiaopong190-oss/ops-center.git
+[01:07:26]    4c7e61a..023ad26  main -> main
+[01:07:26] DONE OK — wait 1-2 min, Ctrl+F5, look for cloud-20

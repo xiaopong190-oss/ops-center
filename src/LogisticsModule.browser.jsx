@@ -87,6 +87,13 @@ function getGistId() {
   return GITHUB_GIST_ID || "";
 }
 
+// ─── CONFIRM DELETE (shared — Tools / Agents 共用，只声明一次) ─────
+function confirmDeleteWarning(name, typeLabel) {
+  return window.confirm(
+    `⚠️ 警告\n\n确定删除${typeLabel}「${name}」吗？\n\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`
+  );
+}
+
 // ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────
 const CONFIG_STORAGE_KEY = "ops-center-global-config";
 
@@ -814,15 +821,6 @@ const UserContext = createContext(getCurrentUser());
 function useCurrentUser() {
   return useContext(UserContext);
 }
-
-// ─── CONFIRM DELETE ─────────────────────────────────────────────
-function confirmDeleteWarning(name, typeLabel) {
-  return window.confirm(
-    `⚠️ 警告\n\n确定删除${typeLabel}「${name}」吗？\n\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`
-  );
-}
-
-
 
 const STATUS = {
   pending: { label: "待发货", color: "#4b5563", bg: "#e5e7eb", dot: "#6b7280", border: "#9ca3af" },

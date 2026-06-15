@@ -46,7 +46,7 @@
         }
 
         try {
-          var SYNC_VER = "37";
+          var SYNC_VER = "40";
           await loadGistConfig();
           // 强制走 runtime .browser.jsx（bundle 已禁用，避免旧 cloud-9 bundle 干扰）
           var bundleRes = await fetch("app.bundle.js?v=" + SYNC_VER);
@@ -81,9 +81,24 @@
             code = code.replace(/^import .+;\s*\r?\n/gm, "");
             code = code.replace(/^export default /gm, "");
             code = code.replace(/^export /gm, "");
+            // 非 Logistics 块去掉 confirmDeleteWarning 定义（避免合并后重复声明）
+            if (i > 0) {
+              code = code.replace(/const confirmDeleteWarning\s*=\s*\([\s\S]*?\);\s*\n/g, "");
+              code = code.replace(/function confirmDeleteWarning\s*\([\s\S]*?\}\s*\n/g, "");
+            }
             chunks.push(code);
           }
           var bundled = chunks.join("\n\n");
+          // 兜底：全文件只保留第一个 confirmDeleteWarning
+          var _confirmDeleteKept = false;
+          bundled = bundled.replace(
+            /(?:const confirmDeleteWarning\s*=\s*\([\s\S]*?\);|function confirmDeleteWarning\s*\([\s\S]*?\}\s*)\n/g,
+            function (block) {
+              if (_confirmDeleteKept) return "";
+              _confirmDeleteKept = true;
+              return block + "\n";
+            }
+          );
           var compiled = Babel.transform(bundled, { presets: ["react"], filename: "ops-center.bundle.jsx" }).code;
           prepareRoot();
           (0, eval)(compiled);

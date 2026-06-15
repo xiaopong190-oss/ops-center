@@ -29,13 +29,11 @@ function toBrowser(src, { exportName, stripUtilsThrough = null }) {
   if (exportName) {
     out = out.replace(new RegExp(`^export function ${exportName}`, "m"), `function ${exportName}`);
   }
+  // confirmDeleteWarning 由 app.html 启动脚本统一注入，生成文件里不应再声明
+  out = out.replace(/\/\/[^\n]*CONFIRM DELETE[^\n]*\r?\n/g, "");
+  out = out.replace(/const confirmDeleteWarning[\s\S]*?\);\s*\r?\n/g, "");
+  out = out.replace(/function confirmDeleteWarning\s*\([^)]*\)\s*\{[\s\S]*?\}\s*\r?\n/g, "");
   return out;
-}
-
-function confirmDeleteBrowserBlock() {
-  let src = fs.readFileSync(path.join(dir, "utils/confirmDelete.js"), "utf8");
-  src = src.replace(/^export function confirmDeleteWarning/m, "function confirmDeleteWarning");
-  return "// ─── CONFIRM DELETE (shared) ─────────────────────────────────────\n" + src.trim() + "\n\n";
 }
 
 function storageBrowserBlock() {
@@ -124,7 +122,7 @@ function injectGlobalConfig(logisticsBrowser, afterStorage = "") {
   const marker = "// ─── LOGISTICS MODULE";
   const idx = logisticsBrowser.indexOf(marker);
   if (idx < 0) return logisticsBrowser;
-  return logisticsBrowser.slice(0, idx) + globalConfigBrowserBlock() + confirmDeleteBrowserBlock() + storageBrowserBlock() + "\n" + afterStorage + logisticsBrowser.slice(idx);
+  return logisticsBrowser.slice(0, idx) + globalConfigBrowserBlock() + storageBrowserBlock() + "\n" + afterStorage + logisticsBrowser.slice(idx);
 }
 
 const logRaw = fs.readFileSync(path.join(dir, "LogisticsModule.jsx"), "utf8");

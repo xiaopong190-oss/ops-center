@@ -421,11 +421,6 @@ function UnitConverterTool() {
   );
 }
 
-const confirmDeleteWarning = (name, typeLabel) =>
-  window.confirm(
-    `⚠️ 警告\n\n确定删除${typeLabel}「${name}」吗？\n\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`
-  );
-
 const TOOL_CATALOG = [
   { id: "weight-converter", name: "单位换算", desc: "质量与长度实时换算，支持多单位切换", icon: "⚖️", category: "常用", component: UnitConverterTool },
   { id: "fba-profit", name: "FBA 利润计算器", desc: "全链路利润：体积重、尺寸分档、头程 / 佣金 / 退货", icon: "💰", category: "FBA", openUrl: "fba-profit-calculator.html" },

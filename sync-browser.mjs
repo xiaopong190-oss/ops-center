@@ -10,6 +10,7 @@ function toBrowser(src, { exportName, stripUtilsThrough = null }) {
     .replace(/^import \{[^}]+\} from "react";\r?\n/, "const { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext } = React;\n")
     .replace(/^import \{ useState, useEffect \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
     .replace(/^import \{ useState \} from "react";\r?\n/, "const { useState, useEffect, useCallback } = React;\n")
+    .replace(/import \{ confirmDeleteWarning \} from "\.\/utils\/confirmDelete\.js";\r?\n/g, "")
     .replace(/import \{[^}]+\} from "\.\/utils\/storage\.js";\r?\n/g, "")
     .replace(/import \{[^}]+\} from "\.\/GlobalCloudSync\.jsx";\r?\n/g, "")
     .replace(/import \{[^}]+\} from "\.\/context\/UserContext\.jsx";\r?\n/g, "")
@@ -113,11 +114,17 @@ function globalConfigBrowserBlock() {
   );
 }
 
+function confirmDeleteBrowserBlock() {
+  let f = fs.readFileSync(path.join(dir, "utils/confirmDelete.js"), "utf8");
+  f = f.replace(/^export function /m, "function ");
+  return "// ─── CONFIRM DELETE ─────────────────────────────────────────────\n" + f.trim() + "\n\n";
+}
+
 function injectGlobalConfig(logisticsBrowser, afterStorage = "") {
   const marker = "// ─── LOGISTICS MODULE";
   const idx = logisticsBrowser.indexOf(marker);
   if (idx < 0) return logisticsBrowser;
-  return logisticsBrowser.slice(0, idx) + globalConfigBrowserBlock() + storageBrowserBlock() + "\n" + afterStorage + logisticsBrowser.slice(idx);
+  return logisticsBrowser.slice(0, idx) + globalConfigBrowserBlock() + storageBrowserBlock() + confirmDeleteBrowserBlock() + "\n" + afterStorage + logisticsBrowser.slice(idx);
 }
 
 const logRaw = fs.readFileSync(path.join(dir, "LogisticsModule.jsx"), "utf8");

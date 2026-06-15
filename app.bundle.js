@@ -1195,6 +1195,11 @@ const UserContext = createContext(getCurrentUser());
 function useCurrentUser() {
   return useContext(UserContext);
 }
+
+// ─── CONFIRM DELETE ─────────────────────────────────────────────
+function confirmDeleteWarning(name, typeLabel) {
+  return window.confirm(`⚠️ 警告\n\n确定删除${typeLabel}「${name}」吗？\n\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`);
+}
 const STATUS = {
   pending: {
     label: "待发货",
@@ -1794,7 +1799,7 @@ function GanttTimeline({
   }, [expanded]);
   const toggleProduct = id => setExpanded(prev => ({
     ...prev,
-    [id]: prev[id] === false
+    [id]: prev[id] !== true
   }));
   const {
     min,
@@ -1883,7 +1888,7 @@ function GanttTimeline({
       textAlign: "center"
     }
   }, w.getMonth() + 1, "/", w.getDate()))), products.map(p => {
-    const isOpen = expanded[p.id] !== false;
+    const isOpen = expanded[p.id] === true;
     const batches = p.batches || [];
     const batchCount = batches.length;
     const summary = productGanttSummary(batches);
@@ -2525,6 +2530,40 @@ const readStaCsvFiles = async fileList => {
     sku: parsed.find(p => p.sku)?.sku || "",
     warnings: parsed.flatMap((p, i) => p.warnings.map(w => `${files[i].name}: ${w}`))
   };
+};
+const normalizeFbaId = id => (id || "").trim().toUpperCase();
+const collectFbaIdsFromGroups = (groups, excludeGroupId = null) => {
+  const ids = new Set();
+  for (const g of groups || []) {
+    if (excludeGroupId != null && g.id === excludeGroupId) continue;
+    for (const s of g.fbaShipments || []) {
+      const fid = normalizeFbaId(s.fbaId);
+      if (fid) ids.add(fid);
+    }
+  }
+  return ids;
+};
+const splitDuplicateFbaImports = (incoming, existingIds) => {
+  const seen = new Set(existingIds);
+  const unique = [];
+  const dupes = [];
+  for (const f of incoming) {
+    const fid = normalizeFbaId(f.fbaId);
+    if (fid && seen.has(fid)) {
+      dupes.push(fid);
+      continue;
+    }
+    if (fid) seen.add(fid);
+    unique.push(f);
+  }
+  return {
+    unique,
+    dupes
+  };
+};
+const formatDuplicateFbaMsg = (dupes, action) => {
+  const list = [...new Set(dupes)].join("、");
+  return dupes.length === 1 ? `FBA 货件编号 ${list} 已存在，${action}` : `以下 FBA 货件编号已存在，${action}：${list}`;
 };
 const INIT_LOGISTICS = [{
   id: 1,
@@ -3252,7 +3291,7 @@ function ShipmentGroupCard({
       color: "var(--text)",
       fontWeight: 700
     }
-  }, totalQty), " \u4EF6", group.blNumber ? ` · B/L ${group.blNumber}` : "")), /*#__PURE__*/React.createElement("div", {
+  }, totalQty), " \u4EF6", group.blNumber ? ` · B/L ${group.blNumber}` : "", group.updatedAt ? ` · 更新 ${formatSharedTime(group.updatedAt)}` : "")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -3518,7 +3557,8 @@ function ShipmentModal({
   item,
   onSave,
   onClose,
-  onDelete
+  onDelete,
+  getExistingFbaIds
 }) {
   const [form, setForm] = useState(item);
   const [fbas, setFbas] = useState(() => {
@@ -3599,8 +3639,22 @@ function ShipmentModal({
         sku,
         warnings
       } = await readStaCsvFiles(files);
+      const existingIds = new Set(getExistingFbaIds ? getExistingFbaIds() : []);
+      fbas.forEach(f => {
+        const fid = normalizeFbaId(f.fbaId);
+        if (fid) existingIds.add(fid);
+      });
+      const {
+        unique,
+        dupes
+      } = splitDuplicateFbaImports(fbaShipments, existingIds);
+      if (!unique.length) {
+        setImportMsg(formatDuplicateFbaMsg(dupes, "无法重复导入"));
+        e.target.value = "";
+        return;
+      }
       let nid = nextFbaId;
-      const imported = fbaShipments.map(f => ({
+      const imported = unique.map(f => ({
         ...f,
         id: nid++
       }));
@@ -3613,7 +3667,8 @@ function ShipmentModal({
         sku: f.sku || sku,
         name: f.name || (imported.length === 1 ? imported[0].name : f.name)
       }));
-      setImportMsg(warnings.length ? `已导入 ${imported.length} 个货件（${warnings.join("；")}）` : `已导入 ${imported.length} 个 STA 货件`);
+      const baseMsg = warnings.length ? `已导入 ${imported.length} 个货件（${warnings.join("；")}）` : `已导入 ${imported.length} 个 STA 货件`;
+      setImportMsg(dupes.length ? `${baseMsg}；${formatDuplicateFbaMsg(dupes, "已跳过")}` : baseMsg);
     } catch (err) {
       setImportMsg(err.message || "CSV 解析失败");
     }
@@ -3972,8 +4027,13 @@ function LogisticsPanel({
     return batchEarliestEtaDiff(a) - batchEarliestEtaDiff(b);
   });
   const save = t => {
-    if (t.id) persist(list.map(x => x.id === t.id ? t : x));else persist([...list, {
+    const now = Date.now();
+    const withTime = {
       ...t,
+      updatedAt: now
+    };
+    if (t.id) persist(list.map(x => x.id === t.id ? withTime : x));else persist([...list, {
+      ...withTime,
       id: nextId()
     }]);
     setModal(null);
@@ -3984,6 +4044,7 @@ function LogisticsPanel({
     if (modal?.id === g.id) setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
+    const now = Date.now();
     persist(list.map(g => {
       if (g.id !== gid) return g;
       const fbaShipments = (g.fbaShipments || []).map(s => s.id !== fid ? s : {
@@ -3994,7 +4055,8 @@ function LogisticsPanel({
       return {
         ...g,
         fbaShipments,
-        headStatus: deriveHeadStatus(fbaShipments)
+        headStatus: deriveHeadStatus(fbaShipments),
+        updatedAt: now
       };
     }));
   };
@@ -4035,13 +4097,24 @@ function LogisticsPanel({
         totalQty,
         sku
       } = await readStaCsvFiles(files);
-      const label = files.length === 1 ? fbaShipments[0]?.fbaId || "新批次" : `导入 ${files.length} 个货件`;
+      const existingIds = collectFbaIdsFromGroups(list);
+      const {
+        unique,
+        dupes
+      } = splitDuplicateFbaImports(fbaShipments, existingIds);
+      if (!unique.length) {
+        alert(formatDuplicateFbaMsg(dupes, "无法重复导入"));
+        e.target.value = "";
+        return;
+      }
+      if (dupes.length) alert(formatDuplicateFbaMsg(dupes, "已跳过重复项"));
+      const label = files.length === 1 ? unique[0]?.fbaId || "新批次" : `导入 ${unique.length} 个货件`;
       setModal({
         ...emptyGroup,
         name: label,
         sku,
         totalQty,
-        fbaShipments
+        fbaShipments: unique
       });
     } catch (err) {
       alert(err.message || "CSV 解析失败");
@@ -4222,6 +4295,7 @@ function LogisticsPanel({
   }, "\u6682\u65E0\u5339\u914D\u6279\u6B21")), modal && /*#__PURE__*/React.createElement(ShipmentModal, {
     item: modal,
     onSave: save,
+    getExistingFbaIds: () => collectFbaIdsFromGroups(list, modal.id),
     onClose: () => {
       if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
       setModal(null);
@@ -6664,6 +6738,16 @@ const TOOL_CATALOG = [{
   category: "运营",
   url: "https://xiaopong190-oss.github.io/ops-center/tools/amazon-tracker/"
 }, {
+  id: "amazon-top-rank",
+  name: "亚马逊 Top 榜",
+  desc: "类目 Best Seller / 排名爬取与查询（局域网爬虫服务）",
+  icon: "🏆",
+  category: "运营",
+  target: "inline",
+  intranetOnly: true,
+  configurableUrl: true,
+  defaultUrl: "http://192.168.0.42:3456/?token=X888888"
+}, {
   id: "mailwatch",
   name: "MailWatch 邮件分析",
   desc: "亚马逊邮件 AI 分析 · 解压后双击「启动 MailWatch.bat」；本机 run.bat 可一键打开",
@@ -6821,7 +6905,9 @@ function ToolCard({
     style: badge("#f3f4f6", "#666")
   }, tool.category), tool.runtime === "local" && /*#__PURE__*/React.createElement("span", {
     style: badge("#fce4ec", "#c62828")
-  }, "\u672C\u673A\u5DE5\u5177"), tool.downloadUrl && !isLocalOpsServer() && /*#__PURE__*/React.createElement("span", {
+  }, "\u672C\u673A\u5DE5\u5177"), tool.intranetOnly && /*#__PURE__*/React.createElement("span", {
+    style: badge("#fff3e0", "#e65100")
+  }, "\u4EC5\u5185\u7F51"), tool.downloadUrl && !isLocalOpsServer() && /*#__PURE__*/React.createElement("span", {
     style: badge("#e8eaf6", "#3949ab")
   }, "\u4E0B\u8F7D"), configurable && /*#__PURE__*/React.createElement("span", {
     style: badge("#fff3e0", "#e65100")
@@ -7179,7 +7265,7 @@ function ToolsPanel({
       window.alert("至少保留一个在线文档");
       return;
     }
-    if (!window.confirm(`确定删除「${tool.name}」？`)) return;
+    if (!confirmDeleteWarning(tool.name, "在线文档")) return;
     if (editingId === tool.id) cancelEdit();
     setOnlineDocs(prev => prev.filter(d => d.id !== tool.id));
   };
@@ -7237,7 +7323,16 @@ function ToolsPanel({
         fontSize: 14,
         fontWeight: 600
       }
-    }, inlineTool.icon, " ", inlineTool.name)), /*#__PURE__*/React.createElement("iframe", {
+    }, inlineTool.icon, " ", inlineTool.name), inlineTool.intranetOnly && /*#__PURE__*/React.createElement("span", {
+      style: badge("#fff3e0", "#e65100")
+    }, "\u4EC5\u5185\u7F51")), inlineTool.intranetOnly && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "#e65100",
+        marginBottom: 8,
+        flexShrink: 0
+      }
+    }, "\u6B64\u5DE5\u5177\u4EC5\u5728\u516C\u53F8\u5185\u7F51\u53EF\u7528\uFF0C\u5916\u7F51\u6216 GitHub Pages \u65E0\u6CD5\u8BBF\u95EE\u722C\u866B\u670D\u52A1\u3002"), /*#__PURE__*/React.createElement("iframe", {
       src: url,
       title: inlineTool.name,
       style: {
@@ -7804,7 +7899,7 @@ function AgentsPanel({
     setAgents(prev => [...prev, copy]);
   };
   const deleteAgent = agent => {
-    if (!window.confirm(`确定删除「${agent.name}」？`)) return;
+    if (!confirmDeleteWarning(agent.name, "智能体")) return;
     if (editingId === agent.id) cancelEdit();
     setAgents(prev => prev.filter(a => a.id !== agent.id));
   };
@@ -10412,7 +10507,30 @@ function calcDesSummary(w) {
   };
 }
 
-/** 运营周考核：下单款数 50% + 赢利 20% + 赢利且利润率≥15% 30% */
+/** 利润率得分（50 分）：≥15% 足分 · 10–15% 20 分 · 2–10% 10 分 · <2% 0 分 */
+function calcProfitMarginScore(rate) {
+  if (!Number.isFinite(rate)) return 0;
+  if (rate >= 15) return 50;
+  if (rate >= 10) return 20;
+  if (rate >= 2) return 10;
+  return 0;
+}
+function profitMarginTierLabel(rate) {
+  if (!Number.isFinite(rate)) return "未填";
+  if (rate >= 15) return "≥15% 足分";
+  if (rate >= 10) return "10–15%";
+  if (rate >= 2) return "2–10%";
+  return "<2%";
+}
+function profitRateCls(rate) {
+  if (!Number.isFinite(rate)) return "";
+  if (rate >= 15) return "g";
+  if (rate >= 10) return "a";
+  if (rate >= 2) return "a";
+  return "r";
+}
+
+/** 运营周考核：下单款数 50% + 利润率 50% */
 function calcOpsWeeklyScore(w) {
   const orderCount = num(w.lsku);
   const target = num(w.torder) || num(w.tnsku) || 1;
@@ -10420,15 +10538,14 @@ function calcOpsWeeklyScore(w) {
   const hasRate = Number.isFinite(rate);
   const orderPct = Math.min(1, orderCount / target);
   const orderScore = orderPct * 50;
-  const profitScore = hasRate && rate > 0 ? 20 : 0;
-  const profit15Score = hasRate && rate >= 15 ? 30 : 0;
-  const total = Math.round((orderScore + profitScore + profit15Score) * 10) / 10;
+  const profitMarginScore = calcProfitMarginScore(rate);
+  const total = Math.round((orderScore + profitMarginScore) * 10) / 10;
   return {
     orderCount,
     target,
     orderScore: Math.round(orderScore * 10) / 10,
-    profitScore,
-    profit15Score,
+    profitMarginScore,
+    profitMarginTier: hasRate ? profitMarginTierLabel(rate) : null,
     total,
     rate: hasRate ? rate : null
   };
@@ -10518,6 +10635,31 @@ function SummaryBar({
       marginTop: 2
     }
   }, it.label))));
+}
+function DesHeartBtn({
+  active,
+  kind,
+  onClick
+}) {
+  const isGood = kind === "good";
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClick,
+    title: isGood ? "好评" : "差评",
+    style: {
+      width: 34,
+      height: 34,
+      borderRadius: 8,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      fontSize: 18,
+      border: `1px solid ${active ? isGood ? "#fca5a5" : "var(--border)" : "var(--border)"}`,
+      background: active ? isGood ? "#fef2f2" : "var(--bg)" : "var(--card)",
+      color: isGood ? active ? "#e11d48" : "#fda4af" : active ? "#9ca3af" : "#d1d5db",
+      opacity: active ? 1 : 0.85,
+      lineHeight: 1
+    }
+  }, isGood ? "♥" : "💔");
 }
 function OpsDesReviewSection({
   data,
@@ -10622,7 +10764,7 @@ function OpsWeekForm({
     }, {
       label: "利润率",
       value: s.rate != null ? `${s.rate.toFixed(1)}%` : "—",
-      color: s.rate != null && s.rate < 15 ? "#e55" : s.rate != null ? "#2d9e52" : undefined
+      color: s.rate != null ? s.rate >= 15 ? "#2d9e52" : s.rate >= 10 ? "#e09000" : s.rate >= 2 ? "#e09000" : "#e55" : undefined
     }, {
       label: "周开款",
       value: s.wstyle || "—"
@@ -10747,13 +10889,15 @@ function OpsWeekForm({
     unit: "USD"
   })), /*#__PURE__*/React.createElement(FieldCard, {
     label: "\u5229\u6DA6 / PROFIT",
-    hint: "\u5229\u6DA6\u7387\uFF08\u8003\u6838\uFF1A\u8D62\u5229 20% + \u226515% \u53E6 30%\uFF09"
+    hint: "\u5229\u6DA6\u7387\uFF08\u8003\u6838 50 \u5206\uFF1A\u226515% \u8DB3\u5206 \xB7 10\u201315% 20 \xB7 2\u201310% 10 \xB7 <2% 0\uFF09"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: data.prate,
     onChange: v => set("prate", v),
     unit: "%",
     step: "0.1"
-  }), s.rate != null && s.rate < 15 && /*#__PURE__*/React.createElement("textarea", {
+  }), score.rate != null && /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge(score.profitMarginScore >= 50 ? "#d4f0dc" : score.profitMarginScore >= 20 ? "#fff0d4" : score.profitMarginScore > 0 ? "#fff8e6" : "#fee2e2", score.profitMarginScore >= 50 ? "#2d9e52" : score.profitMarginScore >= 20 ? "#e09000" : score.profitMarginScore > 0 ? "#e09000" : "#e55")
+  }, score.profitMarginTier, " \u2192 ", score.profitMarginScore, "\u5206"), s.rate != null && s.rate < 15 && /*#__PURE__*/React.createElement("textarea", {
     style: {
       ...kpiInp,
       marginTop: 6,
@@ -10869,31 +11013,6 @@ function OpsWeekForm({
   }), Number.isFinite(s.sdays) && s.sdays > 0 && /*#__PURE__*/React.createElement("span", {
     style: kpiBadge(s.sdays < 30 ? "#fee2e2" : s.sdays < 45 ? "#fff0d4" : "#d4f0dc", s.sdays < 30 ? "#e55" : s.sdays < 45 ? "#e09000" : "#2d9e52")
   }, s.sdays < 30 ? `⚠ 仅${s.sdays}天` : s.sdays < 45 ? `注意${s.sdays}天` : `✓ 充裕${s.sdays}天`)))));
-}
-function DesHeartBtn({
-  active,
-  kind,
-  onClick
-}) {
-  const isGood = kind === "good";
-  return /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: onClick,
-    title: isGood ? "好评" : "差评",
-    style: {
-      width: 34,
-      height: 34,
-      borderRadius: 8,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontSize: 18,
-      border: `1px solid ${active ? isGood ? "#fca5a5" : "var(--border)" : "var(--border)"}`,
-      background: active ? isGood ? "#fef2f2" : "var(--bg)" : "var(--card)",
-      color: isGood ? active ? "#e11d48" : "#fda4af" : active ? "#9ca3af" : "#d1d5db",
-      opacity: active ? 1 : 0.85,
-      lineHeight: 1
-    }
-  }, isGood ? "♥" : "💔");
 }
 function DesWeekForm({
   week,
@@ -11171,15 +11290,10 @@ function OpsScorePanel({
     value: `${score.orderScore}分`,
     sub: `${score.orderCount}/${score.target}款`
   }, {
-    label: "赢利",
-    pct: "20%",
-    value: `${score.profitScore}分`,
-    sub: score.profitScore ? "已赢利" : "未达"
-  }, {
-    label: "利润率≥15%",
-    pct: "30%",
-    value: `${score.profit15Score}分`,
-    sub: score.rate != null ? `${score.rate.toFixed(1)}%` : "—"
+    label: "利润率",
+    pct: "50%",
+    value: `${score.profitMarginScore}分`,
+    sub: score.rate != null ? `${score.rate.toFixed(1)}% · ${score.profitMarginTier}` : "未填"
   }];
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -11218,8 +11332,14 @@ function OpsScorePanel({
     }
   }, " / 100"))), /*#__PURE__*/React.createElement("div", {
     style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginBottom: 8
+    }
+  }, "\u5229\u6DA6\u7387\uFF1A\u226515% 50\u5206 \xB7 10\u201315% 20\u5206 \xB7 2\u201310% 10\u5206 \xB7 <2% 0\u5206"), /*#__PURE__*/React.createElement("div", {
+    style: {
       display: "grid",
-      gridTemplateColumns: "repeat(3,1fr)",
+      gridTemplateColumns: "repeat(2,1fr)",
       gap: 8
     }
   }, items.map(it => /*#__PURE__*/React.createElement("div", {
@@ -11276,7 +11396,7 @@ function QuotaBox({
       color: "var(--tm)",
       marginBottom: 4
     }
-  }, "\u5468\u8003\u6838\u4EA7\u51FA\uFF1A5 \u5206\uFF08\u7CBE\u54C1\xD75 + \u7CBE\u94FA\xD71 + A+\xD70.5 + \u89C6\u9891\xD72\uFF09"), /*#__PURE__*/React.createElement("div", {
+  }, "\u5468\u8003\u6838 5 \u5206\u5236 \xB7 \u6BCF\u5929\u7EA6 1 \u5206\u5408\u683C\uFF08\u7CBE\u54C1\xD75 + \u7CBE\u94FA\xD71 + A+\xD70.5 + \u89C6\u9891\xD72\uFF09"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 16,
       fontWeight: 700,
@@ -11288,7 +11408,7 @@ function QuotaBox({
       fontWeight: 400,
       color: "var(--tm)"
     }
-  }, "/ 5 \u5206")), (imgPts > 0 || aplusPts > 0 || vidPts > 0) && /*#__PURE__*/React.createElement("div", {
+  }, "/ 5")), (imgPts > 0 || aplusPts > 0 || vidPts > 0) && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: "var(--tm)",
@@ -11313,10 +11433,10 @@ function QuotaBox({
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
-      color: total >= 5 ? "#2d9e52" : total > 0 ? "#e09000" : "var(--tm)",
+      color: outputPts >= 5 ? "#2d9e52" : outputPts > 0 ? "#e09000" : "var(--tm)",
       marginTop: 4
     }
-  }, total >= 5 ? `✓ 达标（超出${(total - 5).toFixed(1)}分）` : total > 0 ? `进行中，还差${(5 - total).toFixed(1)}分` : "尚未开始"));
+  }, outputPts >= 5 ? `✓ 达标（超出${(outputPts - 5).toFixed(1)}分）` : outputPts > 0 ? `进行中，还差${(5 - outputPts).toFixed(1)}分` : "尚未开始"));
 }
 function Section({
   title,
@@ -11470,7 +11590,13 @@ function OpsMonthlySummary({
       vals: vals(w => num(w.prate)),
       type: "avg",
       fmt: n => `${n.toFixed(1)}%`,
-      cls: n => n >= 15 ? "g" : n > 0 ? "r" : ""
+      cls: n => profitRateCls(n)
+    }, {
+      label: "利润率得分",
+      vals: vals(w => calcOpsWeeklyScore(w).profitMarginScore),
+      type: "avg",
+      fmt: n => `${n.toFixed(0)}分`,
+      cls: n => n >= 50 ? "g" : n >= 20 ? "a" : n > 0 ? "a" : ""
     }, {
       label: "下单款数",
       vals: vals(w => num(w.lsku)),
@@ -11533,8 +11659,8 @@ function OpsMonthlySummary({
       label: "月均考核得分",
       value: `${avgScore.toFixed(1)}分`,
       cls: avgScore >= 80 ? "g" : avgScore >= 60 ? "a" : avgScore > 0 ? "r" : ""
-    }, ...summaries.slice(1, 9).map((r, i) => ({
-      label: ["月销售额($)", "月均利润率", "月下单合计", "月开款合计", "月上架新品合计", "A品净变化", "月均ACOS", "月广告花费($)"][i],
+    }, ...summaries.slice(1, 10).map((r, i) => ({
+      label: ["月销售额($)", "月均利润率", "月均利润率得分", "月下单合计", "月开款合计", "月上架新品合计", "A品净变化", "月均ACOS", "月广告花费($)"][i],
       value: r.fmt(r.agg),
       cls: r.cls(r.agg)
     }))],
@@ -12133,6 +12259,888 @@ function DevMonthlySummary({
     }
   }, saving ? "上传中…" : "☁️ 保存并上传月目标"))));
 }
+const STAT_COLORS = {
+  g: "#2d9e52",
+  a: "#e09000",
+  r: "#e55"
+};
+function opsScoreCls(n) {
+  if (!n) return "";
+  if (n >= 80) return "g";
+  if (n >= 60) return "a";
+  return "r";
+}
+
+/** 美工 5 分制：≥5 周达标 · ≥3 部分达标 · <3 未达标（每天约 1 分合格） */
+function desScoreCls(n) {
+  if (!n) return "";
+  if (n >= 5) return "g";
+  if (n >= 3) return "a";
+  return "r";
+}
+
+/** 美工周考核得分（5 分制，即产出分；周满分 5，每天约 1 分合格） */
+function calcDesWeeklyScore(w) {
+  return calcDesSummary(w).outputPts;
+}
+function avgFilled(vals) {
+  const filled = vals.filter(v => v > 0);
+  return filled.length ? Math.round(filled.reduce((a, b) => a + b, 0) / filled.length * 10) / 10 : 0;
+}
+function buildOpsStatsRow(items, year, month, name) {
+  const weekBreakdowns = WEEKS.map(w => {
+    const d = getWeekData(items, year, month, "ops", name, w);
+    const s = calcOpsWeeklyScore(d);
+    return {
+      week: w,
+      filled: weekHasOpsData(d),
+      ...s
+    };
+  });
+  const weekScores = weekBreakdowns.map(s => s.total);
+  const weekFilled = weekBreakdowns.map(s => s.filled);
+  const filled = weekScores.filter(s => s > 0);
+  const avg = filled.length ? Math.round(filled.reduce((a, b) => a + b, 0) / filled.length * 10) / 10 : 0;
+  const avgOrder = avgFilled(weekBreakdowns.map(s => s.orderScore));
+  const avgProfitMargin = avgFilled(weekBreakdowns.map(s => s.profitMarginScore));
+  let totalSales = 0,
+    totalNsku = 0,
+    totalLsku = 0;
+  WEEKS.forEach(w => {
+    const d = getWeekData(items, year, month, "ops", name, w);
+    totalSales += num(d.sales);
+    totalNsku += num(d.nsku);
+    totalLsku += num(d.lsku);
+  });
+  return {
+    name,
+    weekScores,
+    weekBreakdowns,
+    weekFilled,
+    avg,
+    avgOrder,
+    avgProfitMargin,
+    totalSales,
+    totalNsku,
+    totalLsku,
+    filledWeeks: weekFilled.filter(Boolean).length
+  };
+}
+function buildDesStatsRow(items, year, month, name) {
+  const weeks = WEEKS.map(w => getWeekData(items, year, month, "des", name, w));
+  const weekBreakdowns = weeks.map((d, i) => {
+    const s = calcDesSummary(d);
+    return {
+      week: WEEKS[i],
+      filled: weekHasDesData(d),
+      prem: num(d.prem),
+      std: num(d.std),
+      vid: num(d.vid),
+      aplus: num(d.aplus),
+      ...s
+    };
+  });
+  const weekScores = weekBreakdowns.map(s => s.outputPts);
+  const weekFilled = weekBreakdowns.map(s => s.filled);
+  const filled = weekScores.filter(v => v > 0);
+  const avg = filled.length ? Math.round(filled.reduce((a, b) => a + b, 0) / filled.length * 10) / 10 : 0;
+  const avgImg = avgFilled(weekBreakdowns.map(s => s.imgPts));
+  const avgVid = avgFilled(weekBreakdowns.map(s => s.vidPts));
+  const avgAplus = avgFilled(weekBreakdowns.map(s => s.aplusPts));
+  const quotaDone = weekBreakdowns.filter(s => s.quotaOk).length;
+  const reviewNet = weekBreakdowns.reduce((a, s) => a + s.desReviewPts, 0);
+  const rework = weeks.reduce((a, d) => a + num(d.rework), 0);
+  return {
+    name,
+    weekScores,
+    weekBreakdowns,
+    weekFilled,
+    avg,
+    avgImg,
+    avgVid,
+    avgAplus,
+    quotaDone,
+    reviewNet,
+    rework,
+    filledWeeks: weekFilled.filter(Boolean).length
+  };
+}
+function opsWeekDetail(s) {
+  if (!s.total) return "";
+  const parts = [s.orderScore ? `下单${s.orderScore}` : null, s.rate != null ? `利润${s.profitMarginScore}` : null].filter(Boolean);
+  return parts.join("+");
+}
+function desWeekDetail(s) {
+  if (!s.outputPts) return "";
+  const parts = [];
+  if (s.imgPts) parts.push(`图${s.imgPts}`);
+  if (s.aplusPts) parts.push(`A+${s.aplusPts.toFixed(1)}`);
+  if (s.vidPts) parts.push(`视${s.vidPts}`);
+  return parts.join("+") || "";
+}
+function StatWeekCell({
+  value,
+  cls,
+  fmt = v => String(v),
+  scale,
+  detail
+}) {
+  const has = value > 0;
+  const display = has ? fmt(value) : "—";
+  const bg = cls === "g" ? "#eafaf1" : cls === "a" ? "#fff8e6" : cls === "r" ? "#fef2f2" : "transparent";
+  return /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "7px 4px",
+      textAlign: "center",
+      fontSize: 12,
+      borderBottom: "1px solid var(--border)",
+      background: bg,
+      color: has ? STAT_COLORS[cls] || "var(--text)" : "var(--tm)",
+      fontWeight: has ? 600 : 400,
+      minWidth: scale === 100 ? 52 : 48
+    }
+  }, /*#__PURE__*/React.createElement("div", null, display), scale && has && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: "var(--tm)",
+      marginTop: 1,
+      fontWeight: 400
+    }
+  }, "/", scale), detail && has && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 8,
+      color: "var(--tm)",
+      marginTop: 2,
+      fontWeight: 400,
+      lineHeight: 1.2
+    }
+  }, detail));
+}
+function KpiStatsFormulaCards() {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#eef6ff",
+      border: "1px solid #b8d4f0",
+      borderRadius: 8,
+      padding: "10px 12px",
+      fontSize: 11,
+      lineHeight: 1.65
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      color: "#2d7dd2",
+      marginBottom: 6
+    }
+  }, "\u8FD0\u8425 100 \u5206\u5236 \xB7 \u600E\u4E48\u7B97"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "\u2460 \u4E0B\u5355\u6B3E\u6570 50 \u5206"), " = min(\u672C\u5468\u4E0B\u5355\u6B3E \xF7 \u5468\u76EE\u6807, 1) \xD7 50"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "var(--tm)"
+    }
+  }, "\u5468\u76EE\u6807\u53D6\u81EA\u300C\u5468\u76EE\u6807\u4E0B\u5355\u6B3E\u300D\u6216\u300C\u6708\u76EE\u6807\u5F00\u6B3E\u300D"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "\u2461 \u5229\u6DA6\u7387 50 \u5206"), "\uFF08\u6309\u672C\u5468\u5229\u6DA6\u7387\u6863\u4F4D\uFF09"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingLeft: 8,
+      color: "var(--tm)"
+    }
+  }, "\u226515% \u2192 50 \u5206\uFF08\u8DB3\u5206\uFF09\xB7 10\u201315% \u2192 20 \u5206 \xB7 2\u201310% \u2192 10 \u5206 \xB7 <2% \u2192 0 \u5206"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 6,
+      fontWeight: 600,
+      color: "#2d7dd2"
+    }
+  }, "\u5468\u5F97\u5206 = \u2460 + \u2461\uFF08\u6EE1\u5206 100\uFF09")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#faf5ff",
+      border: "1px solid #e9d5ff",
+      borderRadius: 8,
+      padding: "10px 12px",
+      fontSize: 11,
+      lineHeight: 1.65
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      color: "#6b21a8",
+      marginBottom: 6
+    }
+  }, "\u7F8E\u5DE5 5 \u5206\u5236 \xB7 \u600E\u4E48\u7B97"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "\u7CBE\u94FA\u56FE"), " 1 \u5F20 = 1 \u5206\uFF08\u2248 \u6BCF\u5929 1 \u5F20\u5373\u5408\u683C\uFF09"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "\u7CBE\u54C1\u56FE"), " 1 \u5F20 = 5 \u5206\uFF08\u2248 \u4E00\u5468\u5408\u683C\u91CF\uFF09"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "A+"), " 1 \u5957 = 0.5 \u5206 \xB7 ", /*#__PURE__*/React.createElement("strong", null, "\u89C6\u9891"), " 1 \u6761 = 2 \u5206"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 6,
+      fontWeight: 600,
+      color: "#6b21a8"
+    }
+  }, "\u5468\u5F97\u5206 = \u56FE\u7247 + A+ + \u89C6\u9891\uFF08\u6EE1\u5206 5\uFF0C\u6BCF\u5929\u7EA6 1 \u5206\u5408\u683C\uFF09"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 4,
+      color: "var(--tm)"
+    }
+  }, "\u8FD0\u8425\u8BC4\u4EF7\uFF08\u2665+1 / \uD83D\uDC94\u22121\uFF09\u5355\u72EC\u7EDF\u8BA1\uFF0C\u4E0D\u8BA1\u5165\u5468\u5F97\u5206")));
+}
+function OpsStatsExpandRow({
+  row,
+  colSpan,
+  expanded
+}) {
+  if (!expanded) return null;
+  return /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: colSpan,
+    style: {
+      padding: "0 8px 10px",
+      borderBottom: "1px solid var(--border)",
+      background: "#f8fbff"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#2d7dd2",
+      fontWeight: 600,
+      marginBottom: 6
+    }
+  }, row.name, " \xB7 \u5404\u5468\u5F97\u5206\u660E\u7EC6"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: 11
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      color: "var(--tm)"
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      textAlign: "left",
+      padding: "4px 6px"
+    }
+  }, "\u5468"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "\u4E0B\u5355(50%)"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "\u5229\u6DA6\u7387(50%)"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "\u5408\u8BA1"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      textAlign: "left",
+      padding: "4px 6px"
+    }
+  }, "\u8BA1\u7B97\u4F9D\u636E"))), /*#__PURE__*/React.createElement("tbody", null, row.weekBreakdowns.map(s => /*#__PURE__*/React.createElement("tr", {
+    key: s.week
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      fontWeight: 600
+    }
+  }, "\u7B2C", s.week, "\u5468"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, s.orderScore || "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, s.rate != null ? s.profitMarginScore : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center",
+      fontWeight: 700,
+      color: opsScoreCls(s.total) ? STAT_COLORS[opsScoreCls(s.total)] : "var(--text)"
+    }
+  }, s.total ? `${s.total}/100` : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      color: "var(--tm)",
+      fontSize: 10
+    }
+  }, !s.total ? "未填写" : /*#__PURE__*/React.createElement(React.Fragment, null, "\u4E0B\u5355 ", s.orderCount, "/", s.target, "\u6B3E \u2192 ", s.orderScore, "\u5206", s.rate != null ? ` · 利润率 ${s.rate.toFixed(1)}%（${s.profitMarginTier}）→ ${s.profitMarginScore}分` : " · 利润率未填")))), /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: "#eef6ff"
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      fontWeight: 600
+    }
+  }, "\u6708\u5747"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, row.avgOrder ? row.avgOrder.toFixed(1) : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, row.avgProfitMargin ? row.avgProfitMargin.toFixed(1) : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center",
+      fontWeight: 700
+    }
+  }, row.avg ? `${row.avg.toFixed(1)}/100` : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      fontSize: 10,
+      color: "var(--tm)"
+    }
+  }, row.avg ? `${row.avgOrder.toFixed(1)}+${row.avgProfitMargin.toFixed(1)}` : "—")))))));
+}
+function DesStatsExpandRow({
+  row,
+  colSpan,
+  expanded
+}) {
+  if (!expanded) return null;
+  return /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: colSpan,
+    style: {
+      padding: "0 8px 10px",
+      borderBottom: "1px solid var(--border)",
+      background: "#faf5ff"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#6b21a8",
+      fontWeight: 600,
+      marginBottom: 6
+    }
+  }, row.name, " \xB7 \u5404\u5468\u4EA7\u51FA\u660E\u7EC6"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: 11
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      color: "var(--tm)"
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      textAlign: "left",
+      padding: "4px 6px"
+    }
+  }, "\u5468"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "\u7CBE\u54C1\u56FE"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "\u7CBE\u94FA\u56FE"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "A+"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "\u89C6\u9891"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "\u56FE\u7247\u5206"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "A+\u5206"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "\u89C6\u9891\u5206"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: "4px 6px"
+    }
+  }, "\u5468\u5F97\u5206"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      textAlign: "left",
+      padding: "4px 6px"
+    }
+  }, "\u8BC4\u4EF7/\u8FD4\u5DE5"))), /*#__PURE__*/React.createElement("tbody", null, row.weekBreakdowns.map(s => /*#__PURE__*/React.createElement("tr", {
+    key: s.week
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      fontWeight: 600
+    }
+  }, "\u7B2C", s.week, "\u5468"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, s.prem || "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, s.std || "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, s.aplus || "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, s.vid || "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, s.imgPts || "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, s.aplusPts ? s.aplusPts.toFixed(1) : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, s.vidPts || "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center",
+      fontWeight: 700,
+      color: desScoreCls(s.outputPts) ? STAT_COLORS[desScoreCls(s.outputPts)] : "var(--text)"
+    }
+  }, s.outputPts ? `${s.outputPts.toFixed(1)}/5` : "—", s.quotaOk && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: "#2d9e52",
+      marginLeft: 2
+    }
+  }, "\u2713")), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      fontSize: 10,
+      color: "var(--tm)"
+    }
+  }, !s.outputPts && !s.goodReviews && !s.badReviews ? "未填写" : /*#__PURE__*/React.createElement(React.Fragment, null, s.prem ? `精品${s.prem}×5` : "", s.std ? `${s.prem ? "+" : ""}精铺${s.std}×1` : "", s.aplus ? ` + A+${s.aplus}×0.5` : "", s.vid ? ` + 视频${s.vid}×2` : "", s.goodReviews || s.badReviews ? ` · ♥${s.goodReviews} 💔${s.badReviews}` : "")))), /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: "#f3e8ff"
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      fontWeight: 600
+    }
+  }, "\u6708\u5747"), /*#__PURE__*/React.createElement("td", {
+    colSpan: 4,
+    style: {
+      padding: "5px 6px",
+      textAlign: "center",
+      color: "var(--tm)",
+      fontSize: 10
+    }
+  }, "\u2014"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, row.avgImg ? row.avgImg.toFixed(1) : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, row.avgAplus ? row.avgAplus.toFixed(1) : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center"
+    }
+  }, row.avgVid ? row.avgVid.toFixed(1) : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      textAlign: "center",
+      fontWeight: 700
+    }
+  }, row.avg ? `${row.avg.toFixed(1)}/5` : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "5px 6px",
+      fontSize: 10,
+      color: "var(--tm)"
+    }
+  }, row.avg ? `图${row.avgImg.toFixed(1)}+A+${row.avgAplus.toFixed(1)}+视${row.avgVid.toFixed(1)}` : "—", row.reviewNet !== 0 ? ` · 月评${row.reviewNet > 0 ? "+" : ""}${row.reviewNet}` : "")))))));
+}
+function KpiStatsSummaryChips({
+  chips,
+  color
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      marginBottom: 12
+    }
+  }, chips.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.label,
+    style: {
+      background: "var(--bg)",
+      borderRadius: 8,
+      padding: "8px 14px",
+      minWidth: 88,
+      textAlign: "center",
+      border: `1px solid ${color}22`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 700,
+      color: c.cls ? STAT_COLORS[c.cls] : color
+    }
+  }, c.value), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "var(--tm)",
+      marginTop: 2
+    }
+  }, c.label))));
+}
+function KpiStatsTable({
+  title,
+  subtitle,
+  color,
+  headers,
+  rows,
+  emptyHint
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--card)",
+      border: `1px solid ${color}33`,
+      borderRadius: 10,
+      padding: "14px 16px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color
+    }
+  }, title), subtitle && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginTop: 2
+    }
+  }, subtitle)), rows.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "var(--tm)",
+      padding: "1.5rem 0",
+      textAlign: "center"
+    }
+  }, emptyHint) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, headers.map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: "6px 8px",
+      color: "var(--tm)",
+      borderBottom: `2px solid ${color}44`,
+      textAlign: h === "姓名" ? "left" : "center",
+      fontWeight: 600,
+      whiteSpace: "nowrap"
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows))));
+}
+function KpiStatsPage({
+  items,
+  year,
+  month,
+  staffTick = 0
+}) {
+  const [expandedOps, setExpandedOps] = useState({});
+  const [expandedDes, setExpandedDes] = useState({});
+  const toggleOps = name => setExpandedOps(p => ({
+    ...p,
+    [name]: !p[name]
+  }));
+  const toggleDes = name => setExpandedDes(p => ({
+    ...p,
+    [name]: !p[name]
+  }));
+  const opsStaff = useMemo(() => getEmployees().filter(e => e.role === "运营" && e.name), [year, month, staffTick]);
+  const desStaff = useMemo(() => getEmployees().filter(e => e.role === "美工" && e.name), [year, month, staffTick]);
+  const opsRows = useMemo(() => opsStaff.map(s => buildOpsStatsRow(items, year, month, s.name)), [items, year, month, opsStaff]);
+  const desRows = useMemo(() => desStaff.map(s => buildDesStatsRow(items, year, month, s.name)), [items, year, month, desStaff]);
+  const opsAvg = opsRows.filter(r => r.avg > 0);
+  const teamOpsAvg = opsAvg.length ? Math.round(opsAvg.reduce((a, r) => a + r.avg, 0) / opsAvg.length * 10) / 10 : 0;
+  const desAvg = desRows.filter(r => r.avg > 0);
+  const teamDesAvg = desAvg.length ? Math.round(desAvg.reduce((a, r) => a + r.avg, 0) / desAvg.length * 10) / 10 : 0;
+  const OPS_COLS = 10;
+  const DES_COLS = 11;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "var(--tm)",
+      padding: "10px 12px",
+      background: "var(--bg)",
+      borderRadius: 8,
+      border: "1px solid var(--border)",
+      lineHeight: 1.6
+    }
+  }, /*#__PURE__*/React.createElement("div", null, year, "\u5E74", month, "\u6708 \xB7 \u8FD0\u8425\u4E0E\u7F8E\u5DE5\u56E2\u961F\u4E00\u89C8\uFF08\u4E24\u5957\u5206\u5236\uFF0C\u8BF7\u52FF\u6DF7\u6BD4\uFF09"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#2d7dd2",
+      fontWeight: 600
+    }
+  }, "\u8FD0\u8425 100 \u5206\u5236"), "\uFF1A\u226580 \u4F18 \xB7 \u226560 \u826F \xA0|\xA0", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#6b21a8",
+      fontWeight: 600
+    }
+  }, "\u7F8E\u5DE5 5 \u5206\u5236"), "\uFF1A\u6EE1\u5206 5 \xB7 \u6BCF\u5929\u7EA6 1 \u5206\u5408\u683C \xB7 \u5468\u22655 \u8FBE\u6807"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 4,
+      fontSize: 11
+    }
+  }, "\u70B9\u51FB\u59D3\u540D\u5C55\u5F00\u5404\u5468\u5F97\u5206\u660E\u7EC6 \xB7 \u5355\u5143\u683C\u4E0B\u65B9\u4E3A\u5206\u9879\u6784\u6210")), /*#__PURE__*/React.createElement(KpiStatsFormulaCards, null), /*#__PURE__*/React.createElement(KpiStatsTable, {
+    title: "\u8FD0\u8425 \xB7 \u7CBE\u94FA\u8003\u6838",
+    subtitle: "100 \u5206\u5236 \xB7 \u4E0B\u535550% + \u5229\u6DA6\u738750%\uFF08\u226515%\u8DB3\u5206/10\u201315%\u5F9720/2\u201310%\u5F9710/<2%\u5F970\uFF09",
+    color: "#2d7dd2",
+    headers: ["姓名", "W1", "W2", "W3", "W4", "月均", "月均构成", "月销售额", "月上新", "填写"],
+    emptyHint: "\u6682\u65E0\u8FD0\u8425\u4EBA\u5458 \xB7 \u8BF7\u5728\u8BBE\u7F6E\u4E2D\u6DFB\u52A0",
+    rows: opsRows.flatMap(r => [/*#__PURE__*/React.createElement("tr", {
+      key: r.name,
+      style: {
+        cursor: "pointer"
+      },
+      onClick: () => toggleOps(r.name)
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 8px",
+        fontWeight: 600,
+        borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)",
+        whiteSpace: "nowrap",
+        color: "#2d7dd2"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        marginRight: 4
+      }
+    }, expandedOps[r.name] ? "▼" : "▶"), r.name), r.weekBreakdowns.map((s, i) => /*#__PURE__*/React.createElement(StatWeekCell, {
+      key: i,
+      value: s.total,
+      cls: opsScoreCls(s.total),
+      fmt: v => v.toFixed(0),
+      scale: 100,
+      detail: opsWeekDetail(s)
+    })), /*#__PURE__*/React.createElement(StatWeekCell, {
+      value: r.avg,
+      cls: opsScoreCls(r.avg),
+      fmt: v => v.toFixed(1),
+      scale: 100,
+      detail: r.avg ? `${r.avgOrder.toFixed(0)}+${r.avgProfitMargin.toFixed(0)}` : ""
+    }), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 6px",
+        textAlign: "center",
+        borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)",
+        fontSize: 10,
+        color: "var(--tm)",
+        lineHeight: 1.3
+      }
+    }, r.avg ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", null, "\u4E0B\u5355", r.avgOrder.toFixed(0)), /*#__PURE__*/React.createElement("div", null, "\u5229\u6DA6\u7387", r.avgProfitMargin.toFixed(0))) : "—"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 8px",
+        textAlign: "center",
+        borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)",
+        fontSize: 12
+      }
+    }, r.totalSales > 0 ? `$${Math.round(r.totalSales).toLocaleString()}` : "—"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 8px",
+        textAlign: "center",
+        borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)",
+        fontSize: 12
+      }
+    }, r.totalNsku > 0 ? r.totalNsku : "—"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 8px",
+        textAlign: "center",
+        borderBottom: expandedOps[r.name] ? "none" : "1px solid var(--border)",
+        fontSize: 11,
+        color: r.filledWeeks === 4 ? "#2d9e52" : "var(--tm)"
+      }
+    }, r.filledWeeks, "/4")), /*#__PURE__*/React.createElement(OpsStatsExpandRow, {
+      key: `${r.name}-detail`,
+      row: r,
+      colSpan: OPS_COLS,
+      expanded: expandedOps[r.name]
+    })])
+  }), opsRows.length > 0 && /*#__PURE__*/React.createElement(KpiStatsSummaryChips, {
+    color: "#2d7dd2",
+    chips: [{
+      label: "运营人数",
+      value: String(opsRows.length)
+    }, {
+      label: "团队月均得分",
+      value: teamOpsAvg > 0 ? `${teamOpsAvg.toFixed(1)}/100` : "—",
+      cls: opsScoreCls(teamOpsAvg)
+    }, {
+      label: "月销合计",
+      value: opsRows.some(r => r.totalSales > 0) ? `$${Math.round(opsRows.reduce((a, r) => a + r.totalSales, 0)).toLocaleString()}` : "—"
+    }, {
+      label: "月上新合计",
+      value: String(opsRows.reduce((a, r) => a + r.totalNsku, 0)) || "—"
+    }]
+  }), /*#__PURE__*/React.createElement(KpiStatsTable, {
+    title: "\u7F8E\u5DE5 \xB7 \u5468\u8003\u6838",
+    subtitle: "5 \u5206\u5236 \xB7 \u6BCF\u5929\u7EA6 1 \u5206\u5408\u683C \xB7 \u7CBE\u94FA1\u5206/\u7CBE\u54C15\u5206/A+0.5/\u89C6\u98912 \xB7 \u8FD0\u8425\u8BC4\u4EF7\u53E6\u8BA1",
+    color: "#6b21a8",
+    headers: ["姓名", "W1", "W2", "W3", "W4", "月均", "月均构成", "达标周", "月评价", "返工", "填写"],
+    emptyHint: "\u6682\u65E0\u7F8E\u5DE5\u4EBA\u5458 \xB7 \u8BF7\u5728\u8BBE\u7F6E\u4E2D\u6DFB\u52A0",
+    rows: desRows.flatMap(r => [/*#__PURE__*/React.createElement("tr", {
+      key: r.name,
+      style: {
+        cursor: "pointer"
+      },
+      onClick: () => toggleDes(r.name)
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 8px",
+        fontWeight: 600,
+        borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)",
+        whiteSpace: "nowrap",
+        color: "#6b21a8"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        marginRight: 4
+      }
+    }, expandedDes[r.name] ? "▼" : "▶"), r.name), r.weekBreakdowns.map((s, i) => /*#__PURE__*/React.createElement(StatWeekCell, {
+      key: i,
+      value: s.outputPts,
+      cls: desScoreCls(s.outputPts),
+      fmt: v => v.toFixed(1),
+      scale: 5,
+      detail: desWeekDetail(s)
+    })), /*#__PURE__*/React.createElement(StatWeekCell, {
+      value: r.avg,
+      cls: desScoreCls(r.avg),
+      fmt: v => v.toFixed(1),
+      scale: 5,
+      detail: r.avg ? `图${r.avgImg.toFixed(0)}+视${r.avgVid.toFixed(0)}` : ""
+    }), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 6px",
+        textAlign: "center",
+        borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)",
+        fontSize: 10,
+        color: "var(--tm)",
+        lineHeight: 1.3
+      }
+    }, r.avg ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", null, "\u56FE", r.avgImg.toFixed(1)), /*#__PURE__*/React.createElement("div", null, "A+", r.avgAplus.toFixed(1), "+\u89C6", r.avgVid.toFixed(1))) : "—"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 8px",
+        textAlign: "center",
+        borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)",
+        fontSize: 12,
+        fontWeight: 600,
+        color: r.quotaDone === 4 ? "#2d9e52" : r.quotaDone >= 2 ? "#e09000" : r.quotaDone > 0 ? "#e55" : "var(--tm)"
+      }
+    }, r.quotaDone, "/4"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 8px",
+        textAlign: "center",
+        borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)",
+        fontSize: 12,
+        color: r.reviewNet > 0 ? "#6b21a8" : r.reviewNet < 0 ? "#9ca3af" : "var(--tm)"
+      }
+    }, r.reviewNet !== 0 ? r.reviewNet > 0 ? `+${r.reviewNet}` : String(r.reviewNet) : "—"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 8px",
+        textAlign: "center",
+        borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)",
+        fontSize: 12,
+        color: r.rework > 0 ? "#e55" : "var(--tm)"
+      }
+    }, r.rework > 0 ? r.rework : "—"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 8px",
+        textAlign: "center",
+        borderBottom: expandedDes[r.name] ? "none" : "1px solid var(--border)",
+        fontSize: 11,
+        color: r.filledWeeks === 4 ? "#2d9e52" : "var(--tm)"
+      }
+    }, r.filledWeeks, "/4")), /*#__PURE__*/React.createElement(DesStatsExpandRow, {
+      key: `${r.name}-detail`,
+      row: r,
+      colSpan: DES_COLS,
+      expanded: expandedDes[r.name]
+    })])
+  }), desRows.length > 0 && /*#__PURE__*/React.createElement(KpiStatsSummaryChips, {
+    color: "#6b21a8",
+    chips: [{
+      label: "美工人数",
+      value: String(desRows.length)
+    }, {
+      label: "团队月均得分",
+      value: teamDesAvg > 0 ? `${teamDesAvg.toFixed(1)}/5` : "—",
+      cls: desScoreCls(teamDesAvg)
+    }, {
+      label: "全员达标周",
+      value: `${desRows.reduce((a, r) => a + r.quotaDone, 0)}次`
+    }, {
+      label: "月评价净分",
+      value: (() => {
+        const t = desRows.reduce((a, r) => a + r.reviewNet, 0);
+        return t !== 0 ? t > 0 ? `+${t}` : String(t) : "—";
+      })()
+    }]
+  }));
+}
 function MonthlyBlock({
   title,
   color,
@@ -12269,9 +13277,10 @@ function KpiPanel({
   } = useSharedList(KPI_STORAGE_KEY, [], {
     active
   });
-  const effectiveRole = opsEffectiveRole(curRole, curOpsSub);
+  const isStatsView = curRole === "stats";
+  const effectiveRole = isStatsView ? "ops" : opsEffectiveRole(curRole, curOpsSub);
   const roleMeta = KPI_ROLE_META[curRole] || KPI_ROLE_META.ops;
-  const roleLabel = roleMeta.label;
+  const roleLabel = isStatsView ? "统计" : roleMeta.label;
   const staffList = useMemo(() => {
     const list = getEmployees().filter(e => e.role === roleLabel && e.name);
     return list.length ? list : [];
@@ -12529,6 +13538,10 @@ function KpiPanel({
     }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
+    style: tabStyle(isStatsView, "#5c6bc0"),
+    onClick: () => setCurRole("stats")
+  }, "\u7EDF\u8BA1"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
     style: tabStyle(curRole === "ops", "#2d7dd2"),
     onClick: () => {
       setCurRole("ops");
@@ -12575,7 +13588,12 @@ function KpiPanel({
       setCurWeek(1);
       setCurPremiumPage("score");
     }
-  }, "\u7CBE\u54C1"))), /*#__PURE__*/React.createElement("div", {
+  }, "\u7CBE\u54C1"))), isStatsView ? /*#__PURE__*/React.createElement(KpiStatsPage, {
+    items: items,
+    year: year,
+    month: month,
+    staffTick: staffTick
+  }) : /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -12621,7 +13639,7 @@ function KpiPanel({
     style: {
       color: "var(--text)"
     }
-  }, person), " \u7684 ", year, "\u5E74", month, "\u6708 KPI")), !person ? null : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, person), " \u7684 ", year, "\u5E74", month, "\u6708 KPI")), !isStatsView && !person ? null : !isStatsView ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -12724,7 +13742,7 @@ function KpiPanel({
       fontWeight: 600,
       opacity: saving ? 0.85 : 1
     }
-  }, saving ? "上传中…" : `☁️ 保存并上传第${curWeek}周`)))), toast && /*#__PURE__*/React.createElement("div", {
+  }, saving ? "上传中…" : `☁️ 保存并上传第${curWeek}周`)))) : null, toast && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       bottom: 20,

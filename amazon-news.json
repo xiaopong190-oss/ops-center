@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-06-15T04:10:01.237Z",
+  "updatedAt": "2026-06-16T03:59:31.318Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "A first look at ‘The Love Hypothesis,’ a new rom-com coming to Prime Video September 23",
-      "link": "https://www.aboutamazon.com/news/entertainment/love-hypothesis-prime-video?utm_source=rss",
-      "pubDate": "Thu, 11 Jun 2026 15:30:27 GMT",
-      "date": "6/11",
-      "summary": "The adaptation of Ali Hazelwood's bestselling novel stars Lili Reinhart and Tom Bateman.",
-      "category": "Entertainment"
+      "title": "Amazon strengthens its investment in Missouri to bring new community programs, new jobs, and hundreds of millions in tax revenue",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-data-center-missouri-new-jobs?utm_source=rss",
+      "pubDate": "Mon, 15 Jun 2026 16:35:08 GMT",
+      "date": "6/15",
+      "summary": "New commitments include funding for emergency services, a water stewardship project, and a new community gathering space enabled by data cen",
+      "category": "Company news"
     },
     {
-      "title": "Amazon's data centers are 7x more water-efficient than the industry average. Here’s how we do it.",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-data-center-water-usage?utm_source=rss",
-      "pubDate": "Thu, 11 Jun 2026 13:00:18 GMT",
-      "date": "6/11",
-      "summary": "Amazon is constantly innovating to reduce the amount of water we use in our data centers, resulting in a 52% improvement in water efficiency",
+      "title": "Amazon's water conservation and replenishment efforts around the world",
+      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
+      "pubDate": "Mon, 15 Jun 2026 13:00:00 GMT",
+      "date": "6/15",
+      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
       "category": "Sustainability"
     },
     {
-      "title": "The best books of 2026 so far, according to the Amazon Editors",
-      "link": "https://www.aboutamazon.com/news/books-and-authors/best-books-2026?utm_source=rss",
-      "pubDate": "Wed, 10 Jun 2026 13:00:10 GMT",
-      "date": "6/10",
-      "summary": "Tayari Jones’s ‘Kin’—a nuanced portrait of family, friendship, and race—comes in at No. 1 from Amazon’s wide selection of books released so ",
-      "category": "Books and authors"
+      "title": "'All or Nothing: Manchester United' documentary coming to Prime Video in 2027",
+      "link": "https://www.aboutamazon.com/news/entertainment/all-or-nothing-manchester-united-prime-video-documentary?utm_source=rss",
+      "pubDate": "Mon, 15 Jun 2026 11:51:36 GMT",
+      "date": "6/15",
+      "summary": "Prime Video's access-all-areas docuseries will follow the Premier League's most successful club through a transformative 2026/27 season.",
+      "category": "Entertainment"
     }
   ]
 }

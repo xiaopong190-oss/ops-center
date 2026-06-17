@@ -1,6 +1,3 @@
-/**
- * 预编译 browser 模式 bundle，供 GitHub Pages 直接加载（无需运行时 Babel）
- */
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -20,14 +17,7 @@ const files = [
   "App.browser.jsx",
 ];
 
-const confirmDeleteHelper =
-  "function confirmDeleteWarning(name, typeLabel) {\n" +
-  "  return window.confirm(\n" +
-  "    `⚠️ 警告\\n\\n确定删除${typeLabel}「${name}」吗？\\n\\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`\n" +
-  "  );\n" +
-  "}\n\n";
-
-function stripForBundle(code, index) {
+function stripModuleSyntax(code, index) {
   if (index > 0) code = code.replace(/^const \{ useState[^}]+\} = React;\s*\r?\n/m, "");
   code = code.replace(/import\s+(?:type\s+)?(?:\{[\s\S]*?\}|\*\s+as\s+\w+|\w+)\s+from\s+["'][^"']+["']\s*;?/g, "");
   code = code.replace(/import\s+["'][^"']+["']\s*;?/g, "");
@@ -41,29 +31,33 @@ function stripForBundle(code, index) {
   return code;
 }
 
-const chunks = files.map((file, i) => {
-  const code = fs.readFileSync(path.join(src, file), "utf8");
-  return stripForBundle(code, i);
-});
+const confirmDeleteHelper =
+  "function confirmDeleteWarning(name, typeLabel) {\n" +
+  "  return window.confirm(\n" +
+  "    `⚠️ 警告\\n\\n确定删除${typeLabel}「${name}」吗？\\n\\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`\n" +
+  "  );\n" +
+  "}\n\n";
 
-const bundled = confirmDeleteHelper + chunks.join("\n\n");
-let compiled;
-try {
-  compiled = babel.transform(bundled, {
-    presets: ["react"],
-    filename: "ops-center.bundle.jsx",
-  }).code;
-} catch (e) {
-  console.error("build-browser-bundle FAILED:", e.message);
-  if (e.loc) console.error(`  at line ${e.loc.line}, column ${e.loc.column}`);
-  process.exit(1);
+let failed = false;
+for (const file of files) {
+  const raw = fs.readFileSync(path.join(src, file), "utf8");
+  const bad = raw.match(/^\s*import\s+/gm) || raw.match(/import\s+\{[\s\S]*?\}\s*from\s+/g);
+  if (bad?.length) {
+    console.error("FAIL source import in", file, bad.slice(0, 3));
+    failed = true;
+  }
 }
 
-const outPath = path.join(root, "app.bundle.js");
-fs.writeFileSync(
-  outPath,
-  `/* ops-center prebuilt bundle */\n${compiled}\n`,
-  "utf8"
-);
+const chunks = files.map((file, i) => stripModuleSyntax(fs.readFileSync(path.join(src, file), "utf8"), i));
+const bundled = confirmDeleteHelper + chunks.join("\n\n");
+const compiled = babel.transform(bundled, { presets: ["react"], filename: "ops-center.bundle.jsx" }).code;
+const outImports = compiled.match(/\bimport\s+[\{\*]/g);
+if (outImports?.length) {
+  console.error("FAIL compiled still has import:", outImports.length);
+  failed = true;
+} else {
+  console.log("OK compiled bundle has no import statements");
+}
 
-console.log("build-browser-bundle ok:", outPath, `(${fs.statSync(outPath).size} bytes)`);
+if (failed) process.exit(1);
+console.log("verify-browser-boot ok");

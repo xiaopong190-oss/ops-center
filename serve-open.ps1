@@ -453,6 +453,16 @@ function Get-MimeType {
   }
 }
 
+function Set-NoCacheHeaders {
+  param($Response, [string]$FilePath)
+  $ext = [IO.Path]::GetExtension($FilePath).ToLowerInvariant()
+  if ($ext -in @(".html", ".htm", ".jsx", ".js")) {
+    $Response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate")
+    $Response.Headers.Add("Pragma", "no-cache")
+    $Response.Headers.Add("Expires", "0")
+  }
+}
+
 try {
   Sync-AmazonNewsIfNeeded
   $listener = New-Object System.Net.HttpListener
@@ -500,6 +510,7 @@ while ($listener.IsListening) {
   if (Test-Path $file -PathType Leaf) {
     $bytes = [IO.File]::ReadAllBytes($file)
     $response.ContentType = Get-MimeType $file
+    Set-NoCacheHeaders $response $file
     $response.ContentLength64 = $bytes.Length
     $response.OutputStream.Write($bytes, 0, $bytes.Length)
   } else {

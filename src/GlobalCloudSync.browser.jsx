@@ -1,5 +1,4 @@
 const { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext } = React;
-import { fetchGlobalConfigFromCloud } from "./GlobalConfig.jsx";
 
 const ALL_CLOUD_KEYS = ["logistics", "tasks", "production", "tools-links", "agents", "kpi-monthly", "global-config"];
 
@@ -136,7 +135,7 @@ function useCloudSyncPage(active, handlers) {
   }, [active, ctx, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty]);
 }
 
-export function useConfirmLeave() {
+function useConfirmLeave() {
   const ctx = useContext(CloudSyncContext);
   return ctx?.confirmLeaveIfDirty || (() => true);
 }

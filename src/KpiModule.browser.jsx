@@ -488,8 +488,6 @@ function OpsPremiumPanel({ page, week, data, skuList, onChange, onSkuListChange,
 }
 
 
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { getEmployees, RoleBadge } from "./GlobalConfig.jsx";
 
 const WEEKS = [1, 2, 3, 4];
 const KPI_STORAGE_KEY = "kpi-monthly";

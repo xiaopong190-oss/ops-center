@@ -17,7 +17,10 @@ function toBrowser(src, { exportName, stripUtilsThrough = null }) {
     .replace(/import \{ OwnerField, ownerFilterOptions \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
     .replace(/import \{ OwnerField, ownerFilterEntries, RoleBadge, getStaffRole \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
     .replace(/import \{ GlobalSettingsModal, OwnerField, useGlobalConfig, getStaffRole, RoleBadge, getStaffNames \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
-    .replace(/import \{ GlobalSettingsModal, OwnerField, useGlobalConfig, getStaffRole, RoleBadge \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "");
+    .replace(/import \{ GlobalSettingsModal, OwnerField, useGlobalConfig, getStaffRole, RoleBadge \} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
+    .replace(/import \{[^}]+\} from "\.\/GlobalConfig\.jsx";\r?\n/g, "")
+    .replace(/import \{[^}]+\} from "\.\/OpsPremiumKpi\.jsx";\r?\n/g, "")
+    .replace(/^import .+;\r?\n/gm, "");
   if (stripUtilsThrough) {
     const idx = out.indexOf(stripUtilsThrough);
     if (idx >= 0) {
@@ -183,6 +186,7 @@ fs.writeFileSync(
 const cloudSyncRaw = fs.readFileSync(path.join(dir, "GlobalCloudSync.jsx"), "utf8");
 let cloudSyncBrowser = toBrowser(cloudSyncRaw, { exportName: null })
   .replace(/^export const ALL_CLOUD_KEYS/m, "const ALL_CLOUD_KEYS")
+  .replace(/^export function useConfirmLeave/m, "function useConfirmLeave")
   .replace(/^export function CloudSyncProvider/m, "function CloudSyncProvider")
   .replace(/^export function useCloudSyncPage/m, "function useCloudSyncPage")
   .replace(/^export function GlobalCloudBar/m, "function GlobalCloudBar");

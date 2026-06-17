@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-06-16T03:59:31.318Z",
+  "updatedAt": "2026-06-17T04:00:37.582Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Watch the trailer for ‘Ghost in the Shell,’ the new anime adaptation coming to Prime Video July 7",
+      "link": "https://www.aboutamazon.com/news/entertainment/ghost-in-the-shell-anime-prime-video?utm_source=rss",
+      "pubDate": "Tue, 16 Jun 2026 09:32:10 GMT",
+      "date": "6/16",
+      "summary": "Releasing globally on Prime Video, the new TV series is produced by the award-winning studio Science SARU.",
+      "category": "Entertainment"
+    },
     {
       "title": "Amazon strengthens its investment in Missouri to bring new community programs, new jobs, and hundreds of millions in tax revenue",
       "link": "https://www.aboutamazon.com/news/company-news/amazon-data-center-missouri-new-jobs?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "6/15",
       "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
       "category": "Sustainability"
-    },
-    {
-      "title": "'All or Nothing: Manchester United' documentary coming to Prime Video in 2027",
-      "link": "https://www.aboutamazon.com/news/entertainment/all-or-nothing-manchester-united-prime-video-documentary?utm_source=rss",
-      "pubDate": "Mon, 15 Jun 2026 11:51:36 GMT",
-      "date": "6/15",
-      "summary": "Prime Video's access-all-areas docuseries will follow the Premier League's most successful club through a transformative 2026/27 season.",
-      "category": "Entertainment"
     }
   ]
 }

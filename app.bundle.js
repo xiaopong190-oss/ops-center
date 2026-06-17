@@ -1,4 +1,7 @@
 /* ops-center prebuilt bundle */
+function confirmDeleteWarning(name, typeLabel) {
+  return window.confirm(`⚠️ 警告\n\n确定删除${typeLabel}「${name}」吗？\n\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`);
+}
 const {
   useState,
   useRef,
@@ -1194,11 +1197,6 @@ function SharedMetaLine({
 const UserContext = createContext(getCurrentUser());
 function useCurrentUser() {
   return useContext(UserContext);
-}
-
-// ─── CONFIRM DELETE ─────────────────────────────────────────────
-function confirmDeleteWarning(name, typeLabel) {
-  return window.confirm(`⚠️ 警告\n\n确定删除${typeLabel}「${name}」吗？\n\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`);
 }
 const STATUS = {
   pending: {
@@ -8009,6 +8007,74 @@ function AgentsPanel({
     }
   }, "\u7C98\u8D34 ChatGPT GPTs \u6216 Google Gems \u5206\u4EAB\u94FE\u63A5\uFF0C\u70B9\u51FB\u5361\u7247\u5373\u53EF\u5728\u65B0\u7A97\u53E3\u6253\u5F00\uFF1B\u6DFB\u52A0\u540E\u5168\u516C\u53F8\u7535\u8111\u81EA\u52A8\u540C\u6B65\u3002", /*#__PURE__*/React.createElement("br", null), "\u94FE\u63A5\u4F1A\u81EA\u52A8\u8BC6\u522B\u7C7B\u578B\uFF08GPTs / Gems\uFF09\uFF1B\u270E \u7F16\u8F91\u540D\u79F0\u4E0E\u94FE\u63A5\uFF0C\u29C9 \u590D\u5236\uFF0C\xD7 \u5220\u9664\u3002"));
 }
+
+// Shared helpers (TODAY, fmtD, Avatar, …) come from LogisticsModule.browser.jsx loaded first.
+
+// ─── KNOWLEDGE BASE MODULE ─────────────────────────────────────────────
+// 内嵌亚马逊卖家知识库（GitHub Pages）
+
+const KNOWLEDGE_BASE_URL = "https://xiaopong190-oss.github.io/knowledge/";
+function KnowledgePanel({
+  active = true
+}) {
+  const openExternal = () => {
+    window.open(KNOWLEDGE_BASE_URL, "_blank", "noopener,noreferrer");
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      height: "calc(100vh - 120px)",
+      display: "flex",
+      flexDirection: "column"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 10,
+      flexShrink: 0,
+      flexWrap: "wrap",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15,
+      fontWeight: 600
+    }
+  }, "\uD83D\uDCDA \u4E9A\u9A6C\u900A\u5356\u5BB6\u77E5\u8BC6\u5E93"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginTop: 2
+    }
+  }, "Amazon Seller OS \xB7 \u8FD0\u8425\u65B9\u6CD5\u8BBA\u4E0E\u5DE5\u5177\u5408\u96C6\uFF0C\u6301\u7EED\u66F4\u65B0")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: openExternal,
+    style: {
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: 8,
+      padding: "6px 12px",
+      fontSize: 12,
+      cursor: "pointer",
+      color: "#2d7dd2",
+      fontFamily: "inherit",
+      fontWeight: 500
+    }
+  }, "\u2197 \u65B0\u7A97\u53E3\u6253\u5F00")), /*#__PURE__*/React.createElement("iframe", {
+    src: KNOWLEDGE_BASE_URL,
+    title: "\u4E9A\u9A6C\u900A\u5356\u5BB6\u77E5\u8BC6\u5E93",
+    style: {
+      flex: 1,
+      width: "100%",
+      minHeight: 0,
+      border: "1px solid var(--border)",
+      borderRadius: 10,
+      background: "#fff"
+    }
+  }));
+}
 const FX_CACHE_KEY = "ops-center-fx-rates";
 const NEWS_CACHE_KEY = "ops-center-amazon-news";
 const FX_TARGETS = [{
@@ -10199,6 +10265,7 @@ const emptyOpsWeek = () => ({
   wstyle: "",
   nsku: "",
   lsku: "",
+  selfsku: "",
   aadd: "",
   aout: "",
   atot: "",
@@ -10218,6 +10285,7 @@ const emptyOpsWeek = () => ({
   taco: "",
   tadsp: "",
   torder: "",
+  tselfsku: "",
   desReview: {
     person: "",
     rating: ""
@@ -10232,9 +10300,17 @@ const emptyDesWeek = () => ({
   ontime: "",
   demand: "",
   rework: "",
+  manualScore: "",
+  packagingScore: "",
   incompleteReason: "",
   opsReviews: {}
 });
+
+/** 美工自选项：说明书 / 包材设计，每项 1–2 分 */
+function desSelfScore(v) {
+  const n = parseInt(v, 10);
+  return n === 1 || n === 2 ? n : 0;
+}
 const DES_INCOMPLETE_HINTS = ["单品多变体", "产品复杂", "素材需求变更", "等待运营确认", "拍摄/打样延误"];
 function tallyOpsReviews(reviews) {
   const r = reviews || {};
@@ -10482,7 +10558,10 @@ function calcDesSummary(w) {
   const imgTotal = imgPts + aplus * 0.5;
   const vid = num(w.vid);
   const vidPts = vid * 2;
-  const outputPts = Math.round((imgTotal + vidPts) * 10) / 10;
+  const manualPts = desSelfScore(w.manualScore);
+  const packagingPts = desSelfScore(w.packagingScore);
+  const extraPts = manualPts + packagingPts;
+  const outputPts = Math.round((imgTotal + vidPts + extraPts) * 10) / 10;
   const ot = num(w.ontime),
     dm = num(w.demand);
   const {
@@ -10496,6 +10575,9 @@ function calcDesSummary(w) {
     total: imgTotal,
     vid,
     vidPts,
+    manualPts,
+    packagingPts,
+    extraPts,
     outputPts,
     goodReviews,
     badReviews,
@@ -10551,12 +10633,12 @@ function calcOpsWeeklyScore(w) {
   };
 }
 function weekHasOpsData(w) {
-  if (["wstyle", "nsku", "lsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null)) return true;
+  if (["wstyle", "nsku", "lsku", "selfsku", "sales", "prate", "acos", "adsp", "sout"].some(k => w[k] !== "" && w[k] != null)) return true;
   if (w.desReview?.person && w.desReview?.rating) return true;
   return false;
 }
 function weekHasDesData(w) {
-  if (["prem", "std", "vid", "aplus", "incompleteReason"].some(k => w[k] !== "" && w[k] != null)) return true;
+  if (["prem", "std", "vid", "aplus", "incompleteReason", "manualScore", "packagingScore"].some(k => w[k] !== "" && w[k] != null)) return true;
   return Object.keys(w.opsReviews || {}).length > 0;
 }
 function weekHasDevData(w) {
@@ -10664,8 +10746,12 @@ function DesHeartBtn({
 function OpsDesReviewSection({
   data,
   onChange,
-  desStaff = []
+  desStaff = [],
+  opsPerson = "",
+  viewerName = ""
 }) {
+  const isSelf = Boolean(viewerName && opsPerson && viewerName === opsPerson);
+  if (!isSelf) return null;
   const review = data.desReview || {
     person: "",
     rating: ""
@@ -10745,7 +10831,9 @@ function OpsWeekForm({
   week,
   data,
   onChange,
-  desStaff = []
+  desStaff = [],
+  opsPerson = "",
+  viewerName = ""
 }) {
   const set = (k, v) => onChange({
     ...data,
@@ -10824,7 +10912,19 @@ function OpsWeekForm({
     unit: "\u6B3E"
   }), /*#__PURE__*/React.createElement("span", {
     style: kpiBadge("#eef6ff", "#2d7dd2")
-  }, "\u8003\u6838\u6743\u91CD 50%")))), /*#__PURE__*/React.createElement(Section, {
+  }, "\u8003\u6838\u6743\u91CD 50%")), /*#__PURE__*/React.createElement(FieldCard, {
+    label: "\u81EA\u5F00 / SELF OPEN",
+    hint: "\u672C\u5468\u4E0B\u5355\u6B3E\u6570\uFF08\u8FD0\u8425\u81EA\u5F00\uFF09"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: data.selfsku,
+    onChange: v => set("selfsku", v),
+    unit: "\u6B3E"
+  }), /*#__PURE__*/React.createElement(TargetRow, {
+    label: "\u81EA\u5F00\u76EE\u6807",
+    value: data.tselfsku,
+    onChange: v => set("tselfsku", v),
+    unit: "\u6B3E"
+  })))), /*#__PURE__*/React.createElement(Section, {
     title: "A \u54C1\u7BA1\u7406"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -10958,7 +11058,9 @@ function OpsWeekForm({
   })))), /*#__PURE__*/React.createElement(OpsDesReviewSection, {
     data: data,
     onChange: onChange,
-    desStaff: desStaff
+    desStaff: desStaff,
+    opsPerson: opsPerson,
+    viewerName: viewerName
   }), /*#__PURE__*/React.createElement(Section, {
     title: "\u8D26\u53F7\u5065\u5EB7\uFF08FBA\uFF09"
   }, /*#__PURE__*/React.createElement("div", {
@@ -11014,6 +11116,52 @@ function OpsWeekForm({
     style: kpiBadge(s.sdays < 30 ? "#fee2e2" : s.sdays < 45 ? "#fff0d4" : "#d4f0dc", s.sdays < 30 ? "#e55" : s.sdays < 45 ? "#e09000" : "#2d9e52")
   }, s.sdays < 30 ? `⚠ 仅${s.sdays}天` : s.sdays < 45 ? `注意${s.sdays}天` : `✓ 充裕${s.sdays}天`)))));
 }
+function DesSelfScorePicker({
+  label,
+  hint,
+  value,
+  onChange
+}) {
+  const opts = [{
+    v: "",
+    label: "未做"
+  }, {
+    v: "1",
+    label: "1 分"
+  }, {
+    v: "2",
+    label: "2 分"
+  }];
+  return /*#__PURE__*/React.createElement(FieldCard, {
+    label: label,
+    hint: hint,
+    accent: "#6b21a8"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginTop: 4,
+      flexWrap: "wrap"
+    }
+  }, opts.map(o => /*#__PURE__*/React.createElement("button", {
+    key: o.v || "none",
+    type: "button",
+    onClick: () => onChange(o.v),
+    style: {
+      padding: "5px 12px",
+      borderRadius: 7,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      fontSize: 12,
+      border: `1px solid ${value === o.v ? "#6b21a8" : "var(--border)"}`,
+      background: value === o.v ? "#f3e8ff" : "var(--card)",
+      color: value === o.v ? "#6b21a8" : "var(--tm)",
+      fontWeight: value === o.v ? 600 : 400
+    }
+  }, o.label))), /*#__PURE__*/React.createElement("span", {
+    style: kpiBadge("#f3e8ff", "#6b21a8")
+  }, "\u81EA\u9009 1\u20132 \u5206 \xB7 \u8BA1\u5165\u5468\u4EA7\u51FA"));
+}
 function DesWeekForm({
   week,
   data,
@@ -11057,6 +11205,14 @@ function DesWeekForm({
       label: "视频(条)",
       value: s.vid || "—"
     }, {
+      label: "说明书",
+      value: s.manualPts ? `${s.manualPts}分` : "—",
+      color: s.manualPts ? "#6b21a8" : undefined
+    }, {
+      label: "包材设计",
+      value: s.packagingPts ? `${s.packagingPts}分` : "—",
+      color: s.packagingPts ? "#6b21a8" : undefined
+    }, {
       label: "A+完成数",
       value: s.aplus || "—"
     }, {
@@ -11067,14 +11223,6 @@ function DesWeekForm({
       label: "返工次数",
       value: String(s.rework),
       color: s.rework > 0 ? "#e55" : undefined
-    }, {
-      label: "好评♥",
-      value: s.goodReviews || "—",
-      color: s.goodReviews > 0 ? "#e11d48" : undefined
-    }, {
-      label: "差评💔",
-      value: s.badReviews || "—",
-      color: s.badReviews > 0 ? "#9ca3af" : undefined
     }]
   }), /*#__PURE__*/React.createElement(Section, {
     title: "\u56FE\u7247\u4EA7\u51FA\uFF08\u7CBE\u54C1 1\u5F20 = \u7CBE\u94FA 5\u5F20\uFF09"
@@ -11097,6 +11245,8 @@ function DesWeekForm({
     imgPts: s.imgPts,
     aplusPts: s.aplusPts,
     vidPts: s.vidPts,
+    manualPts: s.manualPts,
+    packagingPts: s.packagingPts,
     prem: num(data.prem) * 5,
     std: num(data.std)
   })), /*#__PURE__*/React.createElement(FieldCard, {
@@ -11124,6 +11274,24 @@ function DesWeekForm({
   }), /*#__PURE__*/React.createElement("span", {
     style: kpiBadge("#f3e8ff", "#6b21a8")
   }, "1 \u6761 = 2 \u5206")))), /*#__PURE__*/React.createElement(Section, {
+    title: "\u8BF4\u660E\u4E66\u4E0E\u5305\u6750\uFF08\u81EA\u9009\u8BA1\u5206\uFF09"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement(DesSelfScorePicker, {
+    label: "\u8BF4\u660E\u4E66 / MANUAL",
+    hint: "\u672C\u5468\u8BF4\u660E\u4E66\u8BBE\u8BA1\u5DE5\u4F5C\u91CF\uFF0C\u81EA\u9009 1\u20132 \u5206",
+    value: data.manualScore || "",
+    onChange: v => set("manualScore", v)
+  }), /*#__PURE__*/React.createElement(DesSelfScorePicker, {
+    label: "\u5305\u6750\u8BBE\u8BA1 / PACKAGING",
+    hint: "\u672C\u5468\u5305\u6750\u8BBE\u8BA1\u5DE5\u4F5C\u91CF\uFF0C\u81EA\u9009 1\u20132 \u5206",
+    value: data.packagingScore || "",
+    onChange: v => set("packagingScore", v)
+  }))), /*#__PURE__*/React.createElement(Section, {
     title: "\u5176\u4ED6\u4EA4\u4ED8"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -11206,7 +11374,7 @@ function DesWeekForm({
       marginBottom: 8,
       fontWeight: needsReason ? 600 : 400
     }
-  }, needsReason ? "本周考核产出未达 5 分（图片当量 + 视频分），请说明原因" : "如本周未达标，请在此说明原因（如单品多变体、产品复杂等）"), /*#__PURE__*/React.createElement("div", {
+  }, needsReason ? "本周考核产出未达 5 分（图片 + 视频 + 说明书/包材自选），请说明原因" : "如本周未达标，请在此说明原因（如单品多变体、产品复杂等）"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -11266,19 +11434,13 @@ function DesWeekForm({
       color: "var(--tm)",
       marginLeft: 6
     }
-  }, "\u5206\uFF08\u8FD0\u8425\u8BC4\xB7\u8BA1\u5165\u7F8E\u5DE5\uFF09")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "var(--tm)",
-      marginTop: 4
-    }
-  }, "\u5DF2\u6536\u5230 ", /*#__PURE__*/React.createElement("strong", null, s.goodReviews + s.badReviews), " \u6761\u8FD0\u8425\u8BC4\u4EF7\uFF08\u533F\u540D\uFF09\xB7 \u2665 ", s.goodReviews, " \xB7 \uD83D\uDC94 ", s.badReviews)), /*#__PURE__*/React.createElement("div", {
+  }, "\u5206\uFF08\u8FD0\u8425\u8BC4\xB7\u8BA1\u5165\u7F8E\u5DE5\uFF09"))), /*#__PURE__*/React.createElement("div", {
     style: {
       ...kpiCard,
       fontSize: 11,
       color: "var(--tm)"
     }
-  }, "\u8BC4\u4EF7\u7531\u5404\u4F4D\u8FD0\u8425\u5728 ", /*#__PURE__*/React.createElement("strong", null, "\u8FD0\u8425 \u2192 \u7CBE\u94FA"), " \u8003\u6838\u9875\u63D0\u4EA4\uFF0C\u6B64\u5904\u4E0D\u663E\u793A\u8BC4\u4EF7\u4EBA\u59D3\u540D\u3002")));
+  }, "\u8BC4\u4EF7\u7531\u8FD0\u8425\u5728 ", /*#__PURE__*/React.createElement("strong", null, "\u8FD0\u8425 \u2192 \u7CBE\u94FA"), " \u8003\u6838\u9875\u533F\u540D\u63D0\u4EA4\uFF1B\u6B64\u5904\u4EC5\u663E\u793A\u52A0\u51CF\u5206\u5408\u8BA1\uFF0C\u4E0D\u663E\u793A\u8BC4\u4EF7\u4EBA\u53CA\u597D\u8BC4/\u5DEE\u8BC4\u6761\u6570\u3002")));
 }
 function OpsScorePanel({
   score
@@ -11378,6 +11540,8 @@ function QuotaBox({
   imgPts,
   aplusPts,
   vidPts,
+  manualPts = 0,
+  packagingPts = 0,
   prem,
   std
 }) {
@@ -11396,7 +11560,7 @@ function QuotaBox({
       color: "var(--tm)",
       marginBottom: 4
     }
-  }, "\u5468\u8003\u6838 5 \u5206\u5236 \xB7 \u6BCF\u5929\u7EA6 1 \u5206\u5408\u683C\uFF08\u7CBE\u54C1\xD75 + \u7CBE\u94FA\xD71 + A+\xD70.5 + \u89C6\u9891\xD72\uFF09"), /*#__PURE__*/React.createElement("div", {
+  }, "\u5468\u8003\u6838 5 \u5206\u5236 \xB7 \u7CBE\u54C1\xD75 + \u7CBE\u94FA\xD71 + A+\xD70.5 + \u89C6\u9891\xD72 + \u8BF4\u660E\u4E66/\u5305\u6750\u81EA\u9009(\u54041\u20132)"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 16,
       fontWeight: 700,
@@ -11408,13 +11572,13 @@ function QuotaBox({
       fontWeight: 400,
       color: "var(--tm)"
     }
-  }, "/ 5")), (imgPts > 0 || aplusPts > 0 || vidPts > 0) && /*#__PURE__*/React.createElement("div", {
+  }, "/ 5")), (imgPts > 0 || aplusPts > 0 || vidPts > 0 || manualPts > 0 || packagingPts > 0) && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: "var(--tm)",
       marginTop: 4
     }
-  }, "\u56FE\u7247 ", imgPts, " \u5206", aplusPts > 0 ? ` + A+ ${aplusPts.toFixed(1)} 分` : "", vidPts > 0 ? ` + 视频 ${vidPts} 分` : ""), /*#__PURE__*/React.createElement("div", {
+  }, "\u56FE\u7247 ", imgPts, " \u5206", aplusPts > 0 ? ` + A+ ${aplusPts.toFixed(1)} 分` : "", vidPts > 0 ? ` + 视频 ${vidPts} 分` : "", manualPts > 0 ? ` + 说明书 ${manualPts} 分` : "", packagingPts > 0 ? ` + 包材 ${packagingPts} 分` : ""), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--border)",
       borderRadius: 99,
@@ -11598,8 +11762,14 @@ function OpsMonthlySummary({
       fmt: n => `${n.toFixed(0)}分`,
       cls: n => n >= 50 ? "g" : n >= 20 ? "a" : n > 0 ? "a" : ""
     }, {
-      label: "下单款数",
+      label: "下单款数(大货)",
       vals: vals(w => num(w.lsku)),
+      type: "sum",
+      fmt: n => String(n),
+      cls: () => ""
+    }, {
+      label: "下单款数(运营自开)",
+      vals: vals(w => num(w.selfsku)),
       type: "sum",
       fmt: n => String(n),
       cls: () => ""
@@ -11690,13 +11860,8 @@ function DesMonthlySummary({
       return dm > 0 ? Math.round(ot / dm * 100) : null;
     }).filter(r => r != null);
     const avgRate = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : 0;
-    let totalGood = 0,
-      totalBad = 0,
-      reasonWeeks = 0;
+    let reasonWeeks = 0;
     weeks.forEach(d => {
-      const t = tallyOpsReviews(d.opsReviews);
-      totalGood += t.good;
-      totalBad += t.bad;
       if (d.incompleteReason) reasonWeeks++;
     });
     return {
@@ -11709,8 +11874,6 @@ function DesMonthlySummary({
       ap,
       rw,
       avgRate,
-      totalGood,
-      totalBad,
       reasonWeeks,
       weeks
     };
@@ -11730,6 +11893,18 @@ function DesMonthlySummary({
   }, {
     label: "视频分(×2)",
     vals: data.vidPts,
+    type: "sum",
+    fmt: n => String(n),
+    cls: n => n > 0 ? "g" : ""
+  }, {
+    label: "说明书(自选)",
+    vals: data.weeks.map(d => desSelfScore(d.manualScore)),
+    type: "sum",
+    fmt: n => String(n),
+    cls: n => n > 0 ? "g" : ""
+  }, {
+    label: "包材设计(自选)",
+    vals: data.weeks.map(d => desSelfScore(d.packagingScore)),
     type: "sum",
     fmt: n => String(n),
     cls: n => n > 0 ? "g" : ""
@@ -11765,18 +11940,6 @@ function DesMonthlySummary({
   }, {
     label: "返工次数",
     vals: data.rw,
-    type: "sum",
-    fmt: n => String(n),
-    cls: n => n > 0 ? "r" : ""
-  }, {
-    label: "运营好评(♥)",
-    vals: data.weeks.map(d => tallyOpsReviews(d.opsReviews).good),
-    type: "sum",
-    fmt: n => String(n),
-    cls: n => n > 0 ? "g" : ""
-  }, {
-    label: "运营差评(💔)",
-    vals: data.weeks.map(d => tallyOpsReviews(d.opsReviews).bad),
     type: "sum",
     fmt: n => String(n),
     cls: n => n > 0 ? "r" : ""
@@ -11821,14 +11984,6 @@ function DesMonthlySummary({
       label: "月返工合计",
       value: String(data.rw.reduce((a, b) => a + b, 0)),
       cls: data.rw.reduce((a, b) => a + b, 0) > 0 ? "r" : ""
-    }, {
-      label: "月运营好评",
-      value: String(data.totalGood),
-      cls: data.totalGood > 0 ? "g" : ""
-    }, {
-      label: "月运营差评",
-      value: String(data.totalBad),
-      cls: data.totalBad > 0 ? "r" : ""
     }, {
       label: "未完成说明",
       value: data.reasonWeeks > 0 ? `${data.reasonWeeks}周` : "—",
@@ -12102,9 +12257,7 @@ function DevMonthlySummary({
   month,
   person,
   monthTargets,
-  onMonthTargetsChange,
-  onSaveMonthTargets,
-  saving
+  onMonthTargetsChange
 }) {
   const totals = useMemo(() => {
     const orderArr = WEEKS.map(w => num(getWeekData(items, year, month, "dev", person, w).order));
@@ -12235,29 +12388,7 @@ function DevMonthlySummary({
       ...monthTargets,
       tOrder: v
     })
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "flex-end",
-      marginTop: 12
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: onSaveMonthTargets,
-    disabled: saving,
-    style: {
-      background: "#00695c",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      padding: "8px 18px",
-      fontSize: 12,
-      cursor: saving ? "wait" : "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600,
-      opacity: saving ? 0.8 : 1
-    }
-  }, saving ? "上传中…" : "☁️ 保存并上传月目标"))));
+  }))));
 }
 const STAT_COLORS = {
   g: "#2d9e52",
@@ -12376,6 +12507,8 @@ function desWeekDetail(s) {
   if (s.imgPts) parts.push(`图${s.imgPts}`);
   if (s.aplusPts) parts.push(`A+${s.aplusPts.toFixed(1)}`);
   if (s.vidPts) parts.push(`视${s.vidPts}`);
+  if (s.manualPts) parts.push(`说${s.manualPts}`);
+  if (s.packagingPts) parts.push(`包${s.packagingPts}`);
   return parts.join("+") || "";
 }
 function StatWeekCell({
@@ -12472,13 +12605,13 @@ function KpiStatsFormulaCards() {
       color: "#6b21a8",
       marginBottom: 6
     }
-  }, "\u7F8E\u5DE5 5 \u5206\u5236 \xB7 \u600E\u4E48\u7B97"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "\u7CBE\u94FA\u56FE"), " 1 \u5F20 = 1 \u5206\uFF08\u2248 \u6BCF\u5929 1 \u5F20\u5373\u5408\u683C\uFF09"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "\u7CBE\u54C1\u56FE"), " 1 \u5F20 = 5 \u5206\uFF08\u2248 \u4E00\u5468\u5408\u683C\u91CF\uFF09"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "A+"), " 1 \u5957 = 0.5 \u5206 \xB7 ", /*#__PURE__*/React.createElement("strong", null, "\u89C6\u9891"), " 1 \u6761 = 2 \u5206"), /*#__PURE__*/React.createElement("div", {
+  }, "\u7F8E\u5DE5 5 \u5206\u5236 \xB7 \u600E\u4E48\u7B97"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "\u7CBE\u94FA\u56FE"), " 1 \u5F20 = 1 \u5206\uFF08\u2248 \u6BCF\u5929 1 \u5F20\u5373\u5408\u683C\uFF09"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "\u7CBE\u54C1\u56FE"), " 1 \u5F20 = 5 \u5206\uFF08\u2248 \u4E00\u5468\u5408\u683C\u91CF\uFF09"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "A+"), " 1 \u5957 = 0.5 \u5206 \xB7 ", /*#__PURE__*/React.createElement("strong", null, "\u89C6\u9891"), " 1 \u6761 = 2 \u5206"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "\u8BF4\u660E\u4E66 / \u5305\u6750\u8BBE\u8BA1"), " \u5404\u81EA\u9009 1\u20132 \u5206\uFF08\u8BA1\u5165\u5468\u4EA7\u51FA\uFF09"), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 6,
       fontWeight: 600,
       color: "#6b21a8"
     }
-  }, "\u5468\u5F97\u5206 = \u56FE\u7247 + A+ + \u89C6\u9891\uFF08\u6EE1\u5206 5\uFF0C\u6BCF\u5929\u7EA6 1 \u5206\u5408\u683C\uFF09"), /*#__PURE__*/React.createElement("div", {
+  }, "\u5468\u5F97\u5206 = \u56FE\u7247 + A+ + \u89C6\u9891 + \u8BF4\u660E\u4E66 + \u5305\u6750\uFF08\u6EE1\u5206 5\uFF0C\u6BCF\u5929\u7EA6 1 \u5206\u5408\u683C\uFF09"), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 4,
       color: "var(--tm)"
@@ -12741,7 +12874,7 @@ function DesStatsExpandRow({
       fontSize: 10,
       color: "var(--tm)"
     }
-  }, !s.outputPts && !s.goodReviews && !s.badReviews ? "未填写" : /*#__PURE__*/React.createElement(React.Fragment, null, s.prem ? `精品${s.prem}×5` : "", s.std ? `${s.prem ? "+" : ""}精铺${s.std}×1` : "", s.aplus ? ` + A+${s.aplus}×0.5` : "", s.vid ? ` + 视频${s.vid}×2` : "", s.goodReviews || s.badReviews ? ` · ♥${s.goodReviews} 💔${s.badReviews}` : "")))), /*#__PURE__*/React.createElement("tr", {
+  }, !s.outputPts && !s.desReviewPts ? "未填写" : /*#__PURE__*/React.createElement(React.Fragment, null, s.prem ? `精品${s.prem}×5` : "", s.std ? `${s.prem ? "+" : ""}精铺${s.std}×1` : "", s.aplus ? ` + A+${s.aplus}×0.5` : "", s.vid ? ` + 视频${s.vid}×2` : "", s.manualPts ? ` + 说明书${s.manualPts}分` : "", s.packagingPts ? ` + 包材${s.packagingPts}分` : "", s.desReviewPts ? ` · 运营评${s.desReviewPts > 0 ? "+" : ""}${s.desReviewPts}` : "")))), /*#__PURE__*/React.createElement("tr", {
     style: {
       background: "#f3e8ff"
     }
@@ -13253,6 +13386,7 @@ function MonthlyBlock({
 function KpiPanel({
   active = true
 }) {
+  const currentUser = useCurrentUser();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -13353,10 +13487,20 @@ function KpiPanel({
       });
       idx = next.length - 1;
     }
+    let weekPayload = weekData;
+    let desReviewPatch = null;
+    if (effectiveRole === "ops") {
+      const {
+        desReview,
+        ...rest
+      } = weekData;
+      weekPayload = rest;
+      desReviewPatch = desReview || {};
+    }
     const patch = {
       weeks: {
         ...next[idx].weeks,
-        [curWeek]: weekData
+        [curWeek]: weekPayload
       }
     };
     if (effectiveRole === "ops_jp" && skuList) patch.skuList = skuList;
@@ -13366,7 +13510,7 @@ function KpiPanel({
     };
     if (effectiveRole === "ops") {
       const prev = getWeekData(items, year, month, "ops", person, curWeek);
-      next = applyOpsDesReviewToItems(next, year, month, person, curWeek, weekData.desReview || {}, prev.desReview);
+      next = applyOpsDesReviewToItems(next, year, month, person, curWeek, desReviewPatch, prev.desReview);
     }
     const ok = await persist(next);
     if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
@@ -13677,9 +13821,7 @@ function KpiPanel({
     month: month,
     person: person,
     monthTargets: monthTargetsDraft,
-    onMonthTargetsChange: setMonthTargetsDraft,
-    onSaveMonthTargets: () => upsertMonthTargets(monthTargetsDraft),
-    saving: saving
+    onMonthTargetsChange: setMonthTargetsDraft
   }) : /*#__PURE__*/React.createElement(DesMonthlySummary, {
     items: items,
     year: year,
@@ -13697,7 +13839,9 @@ function KpiPanel({
     week: curWeek,
     data: draft,
     onChange: setDraft,
-    desStaff: desStaffList
+    desStaff: desStaffList,
+    opsPerson: person,
+    viewerName: currentUser?.name || ""
   }) : curRole === "dev" ? /*#__PURE__*/React.createElement(DevWeekForm, {
     data: draft,
     onChange: setDraft
@@ -13726,23 +13870,7 @@ function KpiPanel({
       color: "var(--tm)",
       fontFamily: "inherit"
     }
-  }, "\u6E05\u7A7A\u672C\u5468"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: () => effectiveRole === "ops_jp" ? upsertWeek(draft, skuListDraft) : upsertWeek(draft),
-    disabled: saving,
-    style: {
-      background: curRole === "dev" ? "#00695c" : curOpsSub === "premium" ? "#0C447C" : "#2d7dd2",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      padding: "8px 18px",
-      fontSize: 12,
-      cursor: saving ? "wait" : "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600,
-      opacity: saving ? 0.85 : 1
-    }
-  }, saving ? "上传中…" : `☁️ 保存并上传第${curWeek}周`)))) : null, toast && /*#__PURE__*/React.createElement("div", {
+  }, "\u6E05\u7A7A\u672C\u5468")))) : null, toast && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       bottom: 20,
@@ -13757,6 +13885,265 @@ function KpiPanel({
     }
   }, toast));
 }
+const ALL_CLOUD_KEYS = ["logistics", "tasks", "production", "tools-links", "agents", "kpi-monthly", "global-config"];
+const LEAVE_MSG = "当前页有未上传的修改，确定离开吗？";
+const CloudSyncContext = createContext(null);
+function CloudSyncProvider({
+  children
+}) {
+  const handlerRef = useRef(null);
+  const [tick, setTick] = useState(0);
+  const [toast, setToast] = useState("");
+  const [busy, setBusy] = useState(false);
+  const bump = useCallback(() => setTick(t => t + 1), []);
+  const register = useCallback(handler => {
+    handlerRef.current = handler;
+    setTick(t => t + 1);
+  }, []);
+  const unregister = useCallback(() => {
+    handlerRef.current = null;
+    setTick(t => t + 1);
+  }, []);
+  const getHandler = useCallback(() => handlerRef.current, []);
+  const showToast = useCallback((msg, ms = 2200) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), ms);
+  }, []);
+  const confirmLeaveIfDirty = useCallback(() => {
+    const h = handlerRef.current;
+    if (!h?.isDirty) return true;
+    const hint = h.dirtyHint || LEAVE_MSG;
+    return window.confirm(hint.endsWith("？") ? hint : `${hint}，确定离开吗？`);
+  }, []);
+  useEffect(() => {
+    const onBeforeUnload = e => {
+      const h = handlerRef.current;
+      if (!h?.isDirty) return;
+      e.preventDefault();
+      e.returnValue = h.dirtyHint || LEAVE_MSG;
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+  const reloadAllCloud = useCallback(async () => {
+    setBusy(true);
+    try {
+      await handlerRef.current?.reload?.();
+      await fetchGlobalConfigFromCloud();
+      ALL_CLOUD_KEYS.forEach(key => {
+        window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
+      });
+      showToast("已从云端更新 ✓");
+    } catch {
+      showToast("云端更新失败，请重试", 3000);
+    } finally {
+      setBusy(false);
+    }
+  }, [showToast]);
+  useEffect(() => {
+    fetchGlobalConfigFromCloud().catch(() => {});
+    if (CLOUD_POLL_MS <= 0) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") fetchGlobalConfigFromCloud().catch(() => {});
+    }, CLOUD_POLL_MS);
+    return () => clearInterval(timer);
+  }, []);
+  const saveToCloud = useCallback(async () => {
+    const h = handlerRef.current;
+    if (!h?.save) {
+      showToast("当前页无待保存草稿；弹窗内点「保存」会自动上传", 2800);
+      return;
+    }
+    setBusy(true);
+    try {
+      const ok = await h.save();
+      if (ok === false) showToast("上传失败，请检查网络或 Gist 配置", 3200);else if (typeof ok === "string") showToast(ok);else showToast("已保存并上传云端 ✓");
+    } catch (e) {
+      showToast(e?.message || "上传失败", 3200);
+    } finally {
+      setBusy(false);
+    }
+  }, [showToast]);
+  return /*#__PURE__*/React.createElement(CloudSyncContext.Provider, {
+    value: {
+      register,
+      unregister,
+      bump,
+      tick,
+      getHandler,
+      confirmLeaveIfDirty,
+      saveToCloud,
+      reloadAllCloud,
+      busy
+    }
+  }, children, toast && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      bottom: 20,
+      right: 20,
+      zIndex: 200,
+      background: toast.includes("失败") ? "#fee2e2" : "#d4f0dc",
+      border: `1px solid ${toast.includes("失败") ? "#fecaca" : "#86efac"}`,
+      color: toast.includes("失败") ? "#e55" : "#2d9e52",
+      padding: "9px 16px",
+      borderRadius: 8,
+      fontSize: 12
+    }
+  }, toast));
+}
+function useCloudSyncPage(active, handlers) {
+  const ctx = useContext(CloudSyncContext);
+  const ref = useRef(handlers);
+  ref.current = handlers;
+  useEffect(() => {
+    if (!active || !ctx) return;
+    ctx.register({
+      get label() {
+        return ref.current.label;
+      },
+      get save() {
+        return ref.current.save;
+      },
+      get reload() {
+        return ref.current.reload;
+      },
+      get meta() {
+        return ref.current.meta;
+      },
+      get loading() {
+        return ref.current.loading;
+      },
+      get saving() {
+        return ref.current.saving;
+      },
+      get error() {
+        return ref.current.error;
+      },
+      get isDirty() {
+        return !!ref.current.isDirty;
+      },
+      get dirtyHint() {
+        return ref.current.dirtyHint;
+      }
+    });
+    return () => ctx.unregister();
+  }, [active, ctx]);
+  useEffect(() => {
+    if (active && ctx) ctx.bump();
+  }, [active, ctx, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty]);
+}
+function useConfirmLeave() {
+  const ctx = useContext(CloudSyncContext);
+  return ctx?.confirmLeaveIfDirty || (() => true);
+}
+function GlobalCloudBar() {
+  const ctx = useContext(CloudSyncContext);
+  const _tick = ctx?.tick;
+  const handler = ctx?.getHandler?.();
+  const busy = ctx?.busy;
+  const onSave = ctx?.saveToCloud;
+  const onReload = ctx?.reloadAllCloud;
+  if (!ctx) return null;
+  const loading = busy || handler?.loading;
+  const saving = busy || handler?.saving;
+  const error = handler?.error;
+  const pollMin = CLOUD_POLL_MS > 0 ? Math.round(CLOUD_POLL_MS / 60000) : 0;
+  let bg = "#ecfdf5",
+    border = "#6ee7b7",
+    color = "#065f46";
+  let text = pollMin > 0 ? `☁️ 全站云端同步 · 请点「从云端更新」手动拉取；页面可见时每 ${pollMin} 分钟自动拉一次` : "☁️ 全站云端同步 · 请点「从云端更新」手动拉取；填写后点「保存并上传」";
+  if (handler?.isDirty) {
+    bg = "#fffbeb";
+    border = "#fcd34d";
+    color = "#92400e";
+    text = `⚠️ ${handler.dirtyHint || "有未上传的修改"} · 离开前请先「保存并上传」`;
+  } else if (loading && !saving) {
+    bg = "#f3f4f6";
+    border = "#d1d5db";
+    color = "#4b5563";
+    text = "⏳ 正在从云端加载…";
+  } else if (saving) {
+    bg = "#eef6ff";
+    border = "#b8d4f0";
+    color = "#1a4e8a";
+    text = "⏳ 正在保存并上传到云端…";
+  } else if (error) {
+    bg = "#fee2e2";
+    border = "#fca5a5";
+    color = "#991b1b";
+    text = `❌ ${error} · 已暂存本机，请重试上传`;
+  } else if (handler?.meta?.updatedBy) {
+    const who = handler.meta.updatedBy;
+    const when = formatSharedTime(handler.meta.updatedAt);
+    const page = handler.label ? `（${handler.label}）` : "";
+    text = pollMin > 0 ? `☁️ 最后由 ${who} 更新于 ${when}${page} · 手动更新；可见时每 ${pollMin} 分钟自动拉取` : `☁️ 最后由 ${who} 更新于 ${when}${page} · 请手动点「从云端更新」`;
+  }
+  const btn = {
+    borderRadius: 6,
+    padding: "6px 12px",
+    fontSize: 11,
+    fontFamily: "inherit",
+    fontWeight: 600,
+    flexShrink: 0,
+    cursor: "pointer"
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color,
+      background: bg,
+      border: `1px solid ${border}`,
+      borderRadius: 8,
+      padding: "8px 12px",
+      marginBottom: "1rem",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, text), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    disabled: loading || saving,
+    onClick: onSave,
+    style: {
+      ...btn,
+      background: saving ? "#eef6ff" : "#2d7dd2",
+      border: saving ? "1px solid #b8d4f0" : "none",
+      color: saving ? "#1a4e8a" : "#fff",
+      opacity: loading || saving ? 0.85 : 1,
+      cursor: loading || saving ? "wait" : "pointer",
+      minWidth: 108
+    }
+  }, saving ? "上传中…" : "☁️ 保存并上传"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    disabled: loading || saving,
+    onClick: onReload,
+    style: {
+      ...btn,
+      background: "#fff",
+      border: `1px solid ${border}`,
+      color,
+      opacity: loading || saving ? 0.75 : 1,
+      cursor: loading || saving ? "wait" : "pointer",
+      minWidth: 88
+    }
+  }, loading ? "更新中…" : "↻ 从云端更新")));
+}
+window.CloudSyncProvider = CloudSyncProvider;
+window.useCloudSyncPage = useCloudSyncPage;
+window.GlobalCloudBar = GlobalCloudBar;
 
 // LogisticsModule.browser.jsx loads storage + GlobalConfig first.
 
@@ -14547,6 +14934,9 @@ const TABS = [{
 }, {
   key: "agents",
   label: "AI 智能体"
+}, {
+  key: "knowledge",
+  label: "知识库"
 }];
 function BrandLogo({
   size = 28
@@ -14814,7 +15204,7 @@ function AppShell({
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      maxWidth: tab === "kpi" ? 1100 : 820,
+      maxWidth: tab === "kpi" || tab === "knowledge" ? 1100 : 820,
       margin: "0 auto",
       padding: "1.5rem 1rem",
       transition: "max-width 0.2s"
@@ -14873,7 +15263,8 @@ function AppShell({
       gap: 4,
       marginBottom: "1.5rem",
       borderBottom: "1px solid var(--border)",
-      paddingBottom: 0
+      paddingBottom: 0,
+      flexWrap: "wrap"
     }
   }, TABS.map(t => /*#__PURE__*/React.createElement("button", {
     key: t.key,
@@ -14918,6 +15309,12 @@ function AppShell({
     }
   }, /*#__PURE__*/React.createElement(KpiPanel, {
     active: tab === "kpi"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: tab === "knowledge" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(KnowledgePanel, {
+    active: tab === "knowledge"
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "tools" ? "block" : "none"

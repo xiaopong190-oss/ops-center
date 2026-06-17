@@ -59,7 +59,7 @@
         }
 
         try {
-          var SYNC_VER = "20260617";
+          var SYNC_VER = "20260617knowledge";
           await loadGistConfig();
           var bundleRes = await fetch("app.bundle.js?v=" + SYNC_VER);
           if (bundleRes.ok) {
@@ -76,6 +76,7 @@
             "src/ProductionModule.browser.jsx",
             "src/ToolsModule.browser.jsx",
             "src/AgentsModule.browser.jsx",
+            "src/KnowledgeModule.browser.jsx",
             "src/HomeModule.browser.jsx",
             "src/KpiModule.browser.jsx",
             "src/GlobalCloudSync.browser.jsx",

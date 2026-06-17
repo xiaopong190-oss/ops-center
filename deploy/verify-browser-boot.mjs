@@ -11,6 +11,7 @@ const files = [
   "ProductionModule.browser.jsx",
   "ToolsModule.browser.jsx",
   "AgentsModule.browser.jsx",
+  "KnowledgeModule.browser.jsx",
   "HomeModule.browser.jsx",
   "KpiModule.browser.jsx",
   "GlobalCloudSync.browser.jsx",

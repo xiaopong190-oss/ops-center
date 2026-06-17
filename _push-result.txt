@@ -1,24 +1,46 @@
-﻿[17:24:41] remote is 1 commit(s) ahead; rebasing local changes...
-[17:24:41] git pull --rebase origin main
-From https://github.com/xiaopong190-oss/ops-center
- * branch            main       -> FETCH_HEAD
-Rebasing (1/6)
-Rebasing (2/6)
-Rebasing (3/6)
-Rebasing (4/6)
-Rebasing (5/6)
-Auto-merging amazon-news.json
-CONFLICT (content): Merge conflict in amazon-news.json
-Rebasing (6/6)
-error: could not apply 3b9c384... fix: JSONBin cloud sync and visible sync bar (cloud-8)
-hint: Resolve all conflicts manually, mark them as resolved with
-hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-hint: You can instead skip this commit: run "git rebase --skip".
-hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
-hint: Disable this message with "git config set advice.mergeConflict false"
-Could not apply 3b9c384... # fix: JSONBin cloud sync and visible sync bar (cloud-8)
-[17:24:45] git stash pop
-error: could not write index
-amazon-news.json: needs merge
-The stash entry is kept in case you need it again.
-[17:24:45] FAILED: git pull --rebase origin main failed (exit 1): Rebasing (6/6) | error: could not apply 3b9c384... fix: JSONBin cloud sync and visible sync bar (cloud-8) | hint: Resolve all conflicts manually, mark them as resolved with | hint: "git add/rm <conflicted_files>", then run "git rebase --continue". | hint: You can instead skip this commit: run "git rebase --skip". | hint: To abort and get back to the state before "git rebase", run "git rebase --abort". | hint: Disable this message with "git config set advice.mergeConflict false" | Could not apply 3b9c384... # fix: JSONBin cloud sync and visible sync bar (cloud-8)
+﻿
+[12:32:56] commit-and-push start
+[12:32:57] ## main...origin/main
+ M .gitignore
+ M _push-result.txt
+ M amazon-news.json
+ M app.bundle.js
+ M app.html
+ M deploy/build-browser-bundle.mjs
+ M packages/disk-cleaner-win.zip
+ M push_result.txt
+ M push_to_github.ps1
+ M serve-open.ps1
+ M src/GlobalCloudSync.browser.jsx
+ M src/KpiModule.browser.jsx
+ M sync-browser.mjs
+ M "\346\211\223\345\274\200\347\225\214\351\235\242.html"
+?? _do-git-push.ps1
+?? deploy/commit-and-push.ps1
+?? deploy/verify-browser-boot.mjs
+?? "\344\277\256\345\244\215\344\270\273\347\225\214\351\235\242.bat"
+?? "\346\217\220\344\272\244\345\271\266\346\216\250\351\200\201GitHub.bat"
+[12:32:58] staged:
+[12:32:58]  app.html                                           | 27 +++++---
+[12:32:58]  deploy/build-browser-bundle.mjs                    | 24 +++++--
+[12:32:58]  deploy/commit-and-push.ps1                         | 74 ++++++++++++++++++++++
+[12:32:58]  deploy/verify-browser-boot.mjs                     | 63 ++++++++++++++++++
+[12:32:58]  serve-open.ps1                                     | 11 ++++
+[12:32:58]  src/GlobalCloudSync.browser.jsx                    |  3 +-
+[12:32:58]  src/KpiModule.browser.jsx                          |  2 -
+[12:32:58]  sync-browser.mjs                                   |  6 +-
+[12:32:58]  ...44\215\344\270\273\347\225\214\351\235\242.bat" | 21 ++++++
+[12:32:59]  ...1\223\345\274\200\347\225\214\351\235\242.html" | 19 +-----
+[12:32:59]  10 files changed, 215 insertions(+), 35 deletions(-)
+[12:32:59] [main 7fdfb2d] Fix browser boot import error and improve app loading
+[12:32:59]  10 files changed, 215 insertions(+), 35 deletions(-)
+[12:32:59]  create mode 100644 deploy/commit-and-push.ps1
+[12:32:59]  create mode 100644 deploy/verify-browser-boot.mjs
+[12:32:59]  create mode 100644 "\344\277\256\345\244\215\344\270\273\347\225\214\351\235\242.bat"
+[12:32:59] git fetch origin
+[12:33:01] From https://github.com/xiaopong190-oss/ops-center
+[12:33:01]    546f596..bbf56b0  main       -> origin/main
+[12:33:02] remote ahead by 2; git pull --rebase origin main
+[12:33:02] error: cannot pull with rebase: You have unstaged changes.
+[12:33:02] error: Please commit or stash them.
+[12:33:02] rebase failed — resolve conflicts then: git rebase --continue && git push origin main

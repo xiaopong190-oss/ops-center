@@ -23,6 +23,25 @@ src/cloud-sync-config.secret.js
 .idea
 .vscode
 
+# Agent / 本地 push 临时文件（勿提交）
+push_result.txt
+_push-*.txt
+_push-*.ps1
+_push-*.cmd
+_git-*.ps1
+_git-*.cmd
+*_git_status.cmd
+FIX-AND-PUSH.*
+PUSH-NOW.*
+REBASE-AND-PUSH.*
+RETRY-PUSH.*
+TEST-NETWORK-PUSH.*
+_run-push.cmd
+_do-push.cmd
+_agent-status.cmd
+push_to_github.ps1
+sync-browser (1).mjs
+
 # 可选：FBA 大文件若未复制到仓库，取消下行注释
 # fba-profit-calculator.html
 # fba-warehouse-tool.html

@@ -180,7 +180,7 @@ function TasksPanel({ active = true }) {
   );
 }
 
-const TABS = [{ key: "home", label: "首页" }, { key: "tasks", label: "任务跟进" }, { key: "logistics", label: "物流头程" }, { key: "production", label: "精品生产" }, { key: "kpi", label: "考核" }, { key: "tools", label: "工具" }, { key: "agents", label: "AI 智能体" }];
+const TABS = [{ key: "home", label: "首页" }, { key: "tasks", label: "任务跟进" }, { key: "logistics", label: "物流头程" }, { key: "production", label: "精品生产" }, { key: "kpi", label: "考核" }, { key: "tools", label: "工具" }, { key: "agents", label: "AI 智能体" }, { key: "knowledge", label: "知识库" }];
 
 function BrandLogo({ size = 28 }) {
   return (
@@ -282,7 +282,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel 
   const css = { "--bg": dark ? "#111" : "#f8f8f6", "--card": dark ? "#1c1c1c" : "#fff", "--border": dark ? "#2a2a2a" : "#e5e5e5", "--text": dark ? "#eee" : "#111", "--tm": dark ? "#777" : "#888" };
   return (
     <div style={{ ...css, minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif" }}>
-      <div style={{ maxWidth: tab === "kpi" ? 1100 : 820, margin: "0 auto", padding: "1.5rem 1rem", transition: "max-width 0.2s" }}>
+      <div style={{ maxWidth: tab === "kpi" || tab === "knowledge" ? 1100 : 820, margin: "0 auto", padding: "1.5rem 1rem", transition: "max-width 0.2s" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>
             <BrandLogo />
@@ -294,7 +294,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel 
             <button onClick={() => setDark(!dark)} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: "var(--tm)", fontFamily: "inherit" }}>{dark ? "☀ 日间" : "☾ 夜间"}</button>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 4, marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: 0, flexWrap: "wrap" }}>
           {TABS.map(t => (<button key={t.key} onClick={() => trySetTab(t.key)} style={{ background: "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent", padding: "8px 18px", fontSize: 13, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? "#2d7dd2" : "var(--tm)", cursor: "pointer", fontFamily: "inherit", marginBottom: -1 }}>{t.label}</button>))}
         </div>
         <GlobalCloudBar />
@@ -303,6 +303,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel 
         <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
         <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
         <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
+        <div style={{ display: tab === "knowledge" ? "block" : "none" }}><KnowledgePanel active={tab === "knowledge"} /></div>
         <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel active={tab === "tools"} /></div>
         <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel active={tab === "agents"} /></div>
       </div>

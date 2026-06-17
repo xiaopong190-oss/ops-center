@@ -167,6 +167,12 @@ fs.writeFileSync(
   toBrowser(agents, { exportName: "AgentsPanel", stripUtilsThrough: "// ─── AI AGENTS MODULE" })
 );
 
+const knowledge = fs.readFileSync(path.join(dir, "KnowledgeModule.jsx"), "utf8");
+fs.writeFileSync(
+  path.join(dir, "KnowledgeModule.browser.jsx"),
+  toBrowser(knowledge, { exportName: "KnowledgePanel", stripUtilsThrough: "// ─── KNOWLEDGE BASE MODULE" })
+);
+
 const home = fs.readFileSync(path.join(dir, "HomeModule.jsx"), "utf8");
 fs.writeFileSync(
   path.join(dir, "HomeModule.browser.jsx"),

@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-06-17T04:00:37.582Z",
+  "updatedAt": "2026-06-18T03:51:23.479Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Watch the trailer for ‘Ghost in the Shell,’ the new anime adaptation coming to Prime Video July 7",
-      "link": "https://www.aboutamazon.com/news/entertainment/ghost-in-the-shell-anime-prime-video?utm_source=rss",
-      "pubDate": "Tue, 16 Jun 2026 09:32:10 GMT",
-      "date": "6/16",
-      "summary": "Releasing globally on Prime Video, the new TV series is produced by the award-winning studio Science SARU.",
-      "category": "Entertainment"
+      "title": "Amazon's AI SVP on why AI's biggest breakthroughs haven't happened yet",
+      "link": "https://www.aboutamazon.com/news/innovation-at-amazon/peter-desantis-amazon-ai-vivatech?utm_source=rss",
+      "pubDate": "Wed, 17 Jun 2026 16:08:09 GMT",
+      "date": "6/17",
+      "summary": "At VivaTech 2026 in Paris, Peter DeSantis argued we're at the starting line of AI development with the most important breakthroughs still ah",
+      "category": "Innovation at Amazon"
     },
     {
-      "title": "Amazon strengthens its investment in Missouri to bring new community programs, new jobs, and hundreds of millions in tax revenue",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-data-center-missouri-new-jobs?utm_source=rss",
-      "pubDate": "Mon, 15 Jun 2026 16:35:08 GMT",
-      "date": "6/15",
-      "summary": "New commitments include funding for emergency services, a water stewardship project, and a new community gathering space enabled by data cen",
-      "category": "Company news"
+      "title": "AWS Summit New York 2026: New ways to make AI agents more effective at work",
+      "link": "https://www.aboutamazon.com/news/aws/aws-summit-nyc-2026-ai-agents?utm_source=rss",
+      "pubDate": "Wed, 17 Jun 2026 14:56:30 GMT",
+      "date": "6/17",
+      "summary": "AWS Continuum and AWS Context lead a wave of announcements designed to help customers create momentum with agents applied across their organ",
+      "category": "AWS"
     },
     {
-      "title": "Amazon's water conservation and replenishment efforts around the world",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
-      "pubDate": "Mon, 15 Jun 2026 13:00:00 GMT",
-      "date": "6/15",
-      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
-      "category": "Sustainability"
+      "title": "The AI startups building beyond chatbots are choosing Amazon’s custom chips. Here's why.",
+      "link": "https://www.aboutamazon.com/news/aws/why-ai-startups-choose-amazon-trainium-chips?utm_source=rss",
+      "pubDate": "Wed, 17 Jun 2026 12:05:11 GMT",
+      "date": "6/17",
+      "summary": "Beyond Anthropic and OpenAI, a new wave of AI startups is choosing Trainium to train models that simulate the physical world.",
+      "category": "AWS"
     }
   ]
 }

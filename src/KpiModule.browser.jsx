@@ -618,6 +618,34 @@ function findRecord(items, year, month, role, person) {
   );
 }
 
+function kpiRecordKey(r) {
+  return `${r.year}|${r.month}|${r.role}|${r.person}`;
+}
+
+/** 合并考核记录：按人按周合并，避免 A/B 保存互相覆盖 */
+function mergeKpiRecords(cloud, patch) {
+  const merged = {
+    ...cloud,
+    ...patch,
+    weeks: { ...(cloud?.weeks || {}), ...(patch?.weeks || {}) },
+  };
+  if (patch?.monthTargets !== undefined) merged.monthTargets = patch.monthTargets;
+  if (patch?.skuList !== undefined) merged.skuList = patch.skuList;
+  return merged;
+}
+
+function upsertKpiRecord(items, patch) {
+  const key = kpiRecordKey(patch);
+  const next = [...items];
+  const idx = next.findIndex(r => kpiRecordKey(r) === key);
+  if (idx < 0) {
+    next.push({ ...patch, weeks: patch.weeks || {} });
+  } else {
+    next[idx] = mergeKpiRecords(next[idx], patch);
+  }
+  return next;
+}
+
 function getWeekData(items, year, month, role, person, week) {
   const rec = findRecord(items, year, month, role, person);
   const w = rec?.weeks?.[week];
@@ -2004,7 +2032,7 @@ function KpiPanel({ active = true }) {
   const [toast, setToast] = useState("");
   const [staffTick, setStaffTick] = useState(0);
 
-  const { items, persist, meta, loading, saving, error, reload } = useSharedList(KPI_STORAGE_KEY, [], { active });
+  const { items, persistMerge, meta, loading, saving, error, reload } = useSharedList(KPI_STORAGE_KEY, [], { active });
 
   const isStatsView = curRole === "stats";
   const effectiveRole = isStatsView ? "ops" : opsEffectiveRole(curRole, curOpsSub);
@@ -2031,7 +2059,35 @@ function KpiPanel({ active = true }) {
     if (!staffList.some(s => s.name === person)) setPerson(staffList[0].name);
   }, [staffList, person]);
 
+  const draftLoadKeyRef = useRef("");
+  const draftRef = useRef(draft);
+  const skuListDraftRef = useRef(skuListDraft);
+  const monthTargetsDraftRef = useRef(monthTargetsDraft);
+  useEffect(() => { draftRef.current = draft; }, [draft]);
+  useEffect(() => { skuListDraftRef.current = skuListDraft; }, [skuListDraft]);
+  useEffect(() => { monthTargetsDraftRef.current = monthTargetsDraft; }, [monthTargetsDraft]);
+
+  const isDraftDirtyFor = useCallback((sourceItems) => {
+    if (!person) return false;
+    if (curRole === "dev" && curWeek === 0) {
+      const saved = getDevMonthTargets(sourceItems, year, month, person);
+      return JSON.stringify(monthTargetsDraftRef.current) !== JSON.stringify(saved);
+    }
+    if (curWeek === 0) return false;
+    const saved = getWeekData(sourceItems, year, month, effectiveRole, person, curWeek);
+    const weekDirty = JSON.stringify(draftRef.current) !== JSON.stringify(saved);
+    if (effectiveRole === "ops_jp") {
+      const savedSku = getPremiumSkuList(sourceItems, year, month, person);
+      return weekDirty || JSON.stringify(skuListDraftRef.current) !== JSON.stringify(savedSku);
+    }
+    return weekDirty;
+  }, [person, curRole, curWeek, year, month, effectiveRole]);
+
   useEffect(() => {
+    const loadKey = `${year}|${month}|${curRole}|${curOpsSub}|${person}|${curWeek}`;
+    const contextChanged = draftLoadKeyRef.current !== loadKey;
+    draftLoadKeyRef.current = loadKey;
+
     if (!person) {
       setDraft(emptyWeekForRole(effectiveRole));
       setSkuListDraft([]);
@@ -2039,10 +2095,14 @@ function KpiPanel({ active = true }) {
       return;
     }
     if (curRole === "dev" && curWeek === 0) {
-      setMonthTargetsDraft(getDevMonthTargets(items, year, month, person));
+      if (contextChanged || !isDraftDirtyFor(items)) {
+        setMonthTargetsDraft(getDevMonthTargets(items, year, month, person));
+      }
       return;
     }
     if (curWeek === 0) return;
+    if (!contextChanged && isDraftDirtyFor(items)) return;
+
     const wk = getWeekData(items, year, month, effectiveRole, person, curWeek);
     if (effectiveRole === "ops") {
       setDraft({ ...wk, desReview: hydrateOpsDesReview(items, year, month, person, curWeek, wk.desReview) });
@@ -2052,7 +2112,7 @@ function KpiPanel({ active = true }) {
     if (effectiveRole === "ops_jp") {
       setSkuListDraft(getPremiumSkuList(items, year, month, person));
     }
-  }, [items, year, month, curRole, curOpsSub, effectiveRole, person, curWeek]);
+  }, [items, year, month, curRole, curOpsSub, effectiveRole, person, curWeek, isDraftDirtyFor]);
 
   const weekDone = useMemo(() => {
     if (!person) return {};
@@ -2074,12 +2134,6 @@ function KpiPanel({ active = true }) {
 
   const upsertWeek = useCallback(async (weekData, skuList) => {
     if (!person) return false;
-    let next = [...items];
-    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === effectiveRole && r.person === person);
-    if (idx < 0) {
-      next.push({ year, month, role: effectiveRole, person, weeks: {} });
-      idx = next.length - 1;
-    }
     let weekPayload = weekData;
     let desReviewPatch = null;
     if (effectiveRole === "ops") {
@@ -2087,33 +2141,33 @@ function KpiPanel({ active = true }) {
       weekPayload = rest;
       desReviewPatch = desReview || {};
     }
-    const patch = { weeks: { ...next[idx].weeks, [curWeek]: weekPayload } };
+    const patch = {
+      year, month, role: effectiveRole, person,
+      weeks: { [curWeek]: weekPayload },
+    };
     if (effectiveRole === "ops_jp" && skuList) patch.skuList = skuList;
-    next[idx] = { ...next[idx], ...patch };
-    if (effectiveRole === "ops") {
-      const prev = getWeekData(items, year, month, "ops", person, curWeek);
-      next = applyOpsDesReviewToItems(next, year, month, person, curWeek, desReviewPatch, prev.desReview);
-    }
-    const ok = await persist(next);
+
+    const ok = await persistMerge((latest) => {
+      let next = upsertKpiRecord(latest, patch);
+      if (effectiveRole === "ops") {
+        const prev = getWeekData(latest, year, month, "ops", person, curWeek);
+        next = applyOpsDesReviewToItems(next, year, month, person, curWeek, desReviewPatch, prev.desReview);
+      }
+      return next;
+    });
     if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);
     else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
     return ok;
-  }, [items, year, month, effectiveRole, person, curWeek, persist]);
+  }, [person, year, month, effectiveRole, curWeek, persistMerge]);
 
   const upsertMonthTargets = useCallback(async (targets) => {
     if (!person || curRole !== "dev") return false;
-    const next = [...items];
-    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === "dev" && r.person === person);
-    if (idx < 0) {
-      next.push({ year, month, role: "dev", person, weeks: {}, monthTargets: targets });
-    } else {
-      next[idx] = { ...next[idx], monthTargets: targets };
-    }
-    const ok = await persist(next);
+    const patch = { year, month, role: "dev", person, monthTargets: targets };
+    const ok = await persistMerge((latest) => upsertKpiRecord(latest, patch));
     if (ok) showToast("月目标已保存并上传云端 ✓");
     else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
     return ok;
-  }, [items, year, month, person, curRole, persist]);
+  }, [person, year, month, curRole, persistMerge]);
 
   const saveCurrentToCloud = useCallback(async () => {
     if (!person) return "请先选择人员";

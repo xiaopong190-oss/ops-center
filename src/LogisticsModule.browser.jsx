@@ -721,6 +721,38 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
     }
   }, [storageKey]);
 
+  const persistMerge = useCallback(async (mergeFn) => {
+    setSaving(true);
+    setState(prev => ({ ...prev, error: "" }));
+    try {
+      let merged;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const raw = await sharedStorage.get(storageKey);
+        const latest = Array.isArray(raw?.data) ? raw.data : defaultRef.current;
+        merged = mergeFn(latest);
+        try {
+          const payload = await sharedStorage.set(storageKey, merged, getCurrentUser().name);
+          setState(prev => ({
+            ...prev,
+            data: merged,
+            meta: payload || { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
+            error: "",
+          }));
+          return true;
+        } catch (saveErr) {
+          if (attempt === 2) throw saveErr;
+          await new Promise(r => setTimeout(r, 350 * (attempt + 1)));
+        }
+      }
+      return false;
+    } catch (e) {
+      setState(prev => ({ ...prev, error: e?.message || "保存失败" }));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [storageKey]);
+
   const reload = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: "" }));
     await fetchFromCloud(true);
@@ -733,6 +765,7 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
     saving,
     error: state.error,
     persist,
+    persistMerge,
     reload,
   };
 }

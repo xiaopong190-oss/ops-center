@@ -101,6 +101,27 @@ export function saveTodayPriority(clientId, date, text) {
   return entry;
 }
 
+/** 按 id 合并：保留云端其他人新增的记录，本机改动覆盖同 id */
+export function mergeIdLists(latest, incoming) {
+  const base = Array.isArray(latest) ? latest : [];
+  const patch = Array.isArray(incoming) ? incoming : [];
+  const byId = new Map();
+  for (const item of base) {
+    if (item?.id != null) byId.set(item.id, item);
+  }
+  for (const item of patch) {
+    if (item?.id != null) byId.set(item.id, item);
+  }
+  const noId = patch.filter(item => item?.id == null);
+  return [...byId.values(), ...noId];
+}
+
+async function fetchLatestSharedArray(storageKey, fallback) {
+  const raw = await sharedStorage.get(storageKey);
+  if (Array.isArray(raw?.data)) return raw.data;
+  return Array.isArray(fallback) ? fallback : [];
+}
+
 export function useSharedList(storageKey, defaultData, { active = true } = {}) {
   const defaultRef = useRef(defaultData);
   defaultRef.current = defaultData;
@@ -182,6 +203,39 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
     }
   }, [storageKey]);
 
+  /** 保存前先拉云端最新数据，再 mergeFn 合并后上传，避免 A/B 互相覆盖 */
+  const persistMerge = useCallback(async (mergeFn) => {
+    setSaving(true);
+    setState(prev => ({ ...prev, error: "" }));
+    try {
+      let merged;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const raw = await sharedStorage.get(storageKey);
+        const latest = Array.isArray(raw?.data) ? raw.data : defaultRef.current;
+        merged = mergeFn(latest);
+        try {
+          const payload = await sharedStorage.set(storageKey, merged, getCurrentUser().name);
+          setState(prev => ({
+            ...prev,
+            data: merged,
+            meta: payload || { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
+            error: "",
+          }));
+          return true;
+        } catch (saveErr) {
+          if (attempt === 2) throw saveErr;
+          await new Promise(r => setTimeout(r, 350 * (attempt + 1)));
+        }
+      }
+      return false;
+    } catch (e) {
+      setState(prev => ({ ...prev, error: e?.message || "保存失败" }));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [storageKey]);
+
   const reload = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: "" }));
     await fetchFromCloud(true);
@@ -194,6 +248,7 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
     saving,
     error: state.error,
     persist,
+    persistMerge,
     reload,
   };
 }

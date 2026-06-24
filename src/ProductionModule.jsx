@@ -394,7 +394,7 @@ export function ProductionPanel({ active = true }) {
       {modal && <ProdModal item={modal} onSave={save} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
         setModal(null);
-      }} onDelete={() => { persist(items.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      }} onDelete={() => { persist(items.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>
   );
 }

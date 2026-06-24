@@ -183,31 +183,21 @@ export function GlobalCloudBar() {
       : `☁️ 最后由 ${who} 更新于 ${when}${page} · 请手动点「从云端更新」`;
   }
 
-  const btn = {
-    borderRadius: 6, padding: "6px 12px", fontSize: 11, fontFamily: "inherit",
-    fontWeight: 600, flexShrink: 0, cursor: "pointer",
-  };
-
   return (
-    <div style={{
-      fontSize: 12, color, background: bg, border: `1px solid ${border}`,
-      borderRadius: 8, padding: "8px 12px", marginBottom: "1rem",
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      gap: 10, flexWrap: "wrap",
-    }}>
+    <div className="ops-cloud-bar" style={{ color, background: bg, border: `1px solid ${border}` }}>
       <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button type="button" disabled={loading || saving} onClick={onSave}
+          className="ops-btn ops-btn-primary"
           style={{
-            ...btn, background: saving ? "#eef6ff" : "#2d7dd2", border: saving ? "1px solid #b8d4f0" : "none",
-            color: saving ? "#1a4e8a" : "#fff", opacity: loading || saving ? 0.85 : 1,
+            opacity: loading || saving ? 0.85 : 1,
             cursor: loading || saving ? "wait" : "pointer", minWidth: 108,
           }}>
           {saving ? "上传中…" : "☁️ 保存并上传"}
         </button>
         <button type="button" disabled={loading || saving} onClick={onReload}
+          className="ops-btn"
           style={{
-            ...btn, background: "#fff", border: `1px solid ${border}`, color,
             opacity: loading || saving ? 0.75 : 1,
             cursor: loading || saving ? "wait" : "pointer", minWidth: 88,
           }}>

@@ -640,6 +640,27 @@ function saveTodayPriority(clientId, date, text) {
   return entry;
 }
 
+/** 按 id 合并：保留云端其他人新增的记录，本机改动覆盖同 id */
+function mergeIdLists(latest, incoming) {
+  const base = Array.isArray(latest) ? latest : [];
+  const patch = Array.isArray(incoming) ? incoming : [];
+  const byId = new Map();
+  for (const item of base) {
+    if (item?.id != null) byId.set(item.id, item);
+  }
+  for (const item of patch) {
+    if (item?.id != null) byId.set(item.id, item);
+  }
+  const noId = patch.filter(item => item?.id == null);
+  return [...byId.values(), ...noId];
+}
+
+async function fetchLatestSharedArray(storageKey, fallback) {
+  const raw = await sharedStorage.get(storageKey);
+  if (Array.isArray(raw?.data)) return raw.data;
+  return Array.isArray(fallback) ? fallback : [];
+}
+
 function useSharedList(storageKey, defaultData, { active = true } = {}) {
   const defaultRef = useRef(defaultData);
   defaultRef.current = defaultData;
@@ -721,6 +742,7 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
     }
   }, [storageKey]);
 
+  /** 保存前先拉云端最新数据，再 mergeFn 合并后上传，避免 A/B 互相覆盖 */
   const persistMerge = useCallback(async (mergeFn) => {
     setSaving(true);
     setState(prev => ({ ...prev, error: "" }));
@@ -2190,7 +2212,7 @@ function LogisticsPanel({ active = true }) {
   };
   const deleteGroup = (g) => {
     if (!window.confirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`)) return;
-    persist(list.filter(x => x.id !== g.id));
+    persist(list.filter(x => x.id !== g.id), { replace: true });
     if (modal?.id === g.id) setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
@@ -2293,7 +2315,7 @@ function LogisticsPanel({ active = true }) {
       {modal && <ShipmentModal item={modal} onSave={save} getExistingFbaIds={() => collectFbaIdsFromGroups(list, modal.id)} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
         setModal(null);
-      }} onDelete={() => { persist(list.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      }} onDelete={() => { persist(list.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>
   );
 }

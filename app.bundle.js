@@ -972,6 +972,26 @@ function saveTodayPriority(clientId, date, text) {
   } catch {/* ignore */}
   return entry;
 }
+
+/** 按 id 合并：保留云端其他人新增的记录，本机改动覆盖同 id */
+function mergeIdLists(latest, incoming) {
+  const base = Array.isArray(latest) ? latest : [];
+  const patch = Array.isArray(incoming) ? incoming : [];
+  const byId = new Map();
+  for (const item of base) {
+    if (item?.id != null) byId.set(item.id, item);
+  }
+  for (const item of patch) {
+    if (item?.id != null) byId.set(item.id, item);
+  }
+  const noId = patch.filter(item => item?.id == null);
+  return [...byId.values(), ...noId];
+}
+async function fetchLatestSharedArray(storageKey, fallback) {
+  const raw = await sharedStorage.get(storageKey);
+  if (Array.isArray(raw?.data)) return raw.data;
+  return Array.isArray(fallback) ? fallback : [];
+}
 function useSharedList(storageKey, defaultData, {
   active = true
 } = {}) {
@@ -1071,6 +1091,49 @@ function useSharedList(storageKey, defaultData, {
       setSaving(false);
     }
   }, [storageKey]);
+
+  /** 保存前先拉云端最新数据，再 mergeFn 合并后上传，避免 A/B 互相覆盖 */
+  const persistMerge = useCallback(async mergeFn => {
+    setSaving(true);
+    setState(prev => ({
+      ...prev,
+      error: ""
+    }));
+    try {
+      let merged;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const raw = await sharedStorage.get(storageKey);
+        const latest = Array.isArray(raw?.data) ? raw.data : defaultRef.current;
+        merged = mergeFn(latest);
+        try {
+          const payload = await sharedStorage.set(storageKey, merged, getCurrentUser().name);
+          setState(prev => ({
+            ...prev,
+            data: merged,
+            meta: payload || {
+              ...prev.meta,
+              updatedBy: getCurrentUser().name,
+              updatedAt: Date.now()
+            },
+            error: ""
+          }));
+          return true;
+        } catch (saveErr) {
+          if (attempt === 2) throw saveErr;
+          await new Promise(r => setTimeout(r, 350 * (attempt + 1)));
+        }
+      }
+      return false;
+    } catch (e) {
+      setState(prev => ({
+        ...prev,
+        error: e?.message || "保存失败"
+      }));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [storageKey]);
   const reload = useCallback(async () => {
     setState(prev => ({
       ...prev,
@@ -1086,6 +1149,7 @@ function useSharedList(storageKey, defaultData, {
     saving,
     error: state.error,
     persist,
+    persistMerge,
     reload
   };
 }
@@ -4038,7 +4102,9 @@ function LogisticsPanel({
   };
   const deleteGroup = g => {
     if (!window.confirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`)) return;
-    persist(list.filter(x => x.id !== g.id));
+    persist(list.filter(x => x.id !== g.id), {
+      replace: true
+    });
     if (modal?.id === g.id) setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
@@ -4299,7 +4365,9 @@ function LogisticsPanel({
       setModal(null);
     },
     onDelete: () => {
-      persist(list.filter(x => x.id !== modal.id));
+      persist(list.filter(x => x.id !== modal.id), {
+        replace: true
+      });
       setModal(null);
     }
   }));
@@ -6220,7 +6288,9 @@ function ProductionPanel({
       setModal(null);
     },
     onDelete: () => {
-      persist(items.filter(x => x.id !== modal.id));
+      persist(items.filter(x => x.id !== modal.id), {
+        replace: true
+      });
       setModal(null);
     }
   }));
@@ -8582,11 +8652,8 @@ function ExchangeRatesCard({
   fx
 }) {
   return /*#__PURE__*/React.createElement("div", {
+    className: "ops-card ops-card-padded",
     style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 14,
-      padding: "14px 16px",
       marginBottom: "1.25rem"
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -8928,38 +8995,27 @@ function HomePanel() {
   };
   const beijingDate = formatClockDate(now, "Asia/Shanghai");
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "ops-page-header",
     style: {
       marginBottom: "1.25rem"
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "var(--tm)",
-      marginBottom: 4
-    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "ops-page-subtitle"
   }, "\u6B22\u8FCE\u56DE\u6765"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-page-title",
     style: {
-      fontSize: 20,
-      fontWeight: 700,
-      letterSpacing: "-0.02em"
+      fontSize: 20
     }
-  }, beijingDate)), /*#__PURE__*/React.createElement(AmazonNewsCard, {
+  }, beijingDate))), /*#__PURE__*/React.createElement(AmazonNewsCard, {
     news: news
   }), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-grid",
     style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-      gap: 10,
       marginBottom: "1.25rem"
     }
   }, WORLD_CLOCKS.map(c => /*#__PURE__*/React.createElement("div", {
     key: c.id,
-    style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 12,
-      padding: "12px 14px"
-    }
+    className: "ops-metric-card"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -8978,32 +9034,25 @@ function HomePanel() {
       fontWeight: 600
     }
   }, c.label), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label",
     style: {
-      fontSize: 10,
-      color: "var(--tm)"
+      marginBottom: 0
     }
   }, c.sub))), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-value",
     style: {
       fontSize: 22,
-      fontWeight: 700,
       fontVariantNumeric: "tabular-nums",
-      letterSpacing: "0.02em",
-      color: c.id === "cn" ? "#2d7dd2" : "var(--text)"
+      color: c.id === "cn" ? "#4080FF" : "var(--text)"
     }
   }, formatClockTime(now, c.tz)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "var(--tm)",
-      marginTop: 4
-    }
+    className: "ops-metric-sub"
   }, formatClockDate(now, c.tz))))), /*#__PURE__*/React.createElement(ExchangeRatesCard, {
     fx: fx
   }), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card ops-metric-card-hero",
     style: {
-      background: "linear-gradient(135deg, rgba(45,125,210,0.08), rgba(45,125,210,0.02))",
-      border: "1px solid rgba(45,125,210,0.25)",
-      borderRadius: 14,
-      padding: "16px 18px"
+      marginBottom: 0
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9016,35 +9065,25 @@ function HomePanel() {
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
-      fontWeight: 600,
-      color: "#1a4e8a"
+      fontWeight: 600
     }
   }, "\uD83C\uDFAF \u4ECA\u65E5\u6700\u4F18\u5148"), /*#__PURE__*/React.createElement("button", {
     type: "button",
+    className: "ops-btn",
     onClick: () => setShowModal(true),
     style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "4px 10px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#2d7dd2"
+      background: "rgba(255,255,255,0.2)",
+      borderColor: "rgba(255,255,255,0.3)",
+      color: "#fff"
     }
   }, todayPriority ? "修改" : "填写")), todayPriority ? /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 14,
       lineHeight: 1.6,
-      color: "var(--text)",
       whiteSpace: "pre-wrap"
     }
   }, todayPriority) : /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--tm)",
-      lineHeight: 1.55
-    }
+    className: "ops-metric-sub"
   }, "\u5C1A\u672A\u8BBE\u5B9A\u4ECA\u65E5\u4F18\u5148\u4E8B\u9879\uFF0C\u70B9\u51FB\u300C\u586B\u5199\u300D\u5F00\u59CB\u3002")), priorityReady && showModal && /*#__PURE__*/React.createElement(PriorityModal, {
     initialText: todayPriority,
     required: !todayPriority,
@@ -10464,8 +10503,9 @@ const kpiLbl = {
 const kpiCard = {
   background: "var(--card)",
   border: "1px solid var(--border)",
-  borderRadius: 9,
-  padding: 12
+  borderRadius: 12,
+  padding: "16px 18px",
+  boxShadow: "var(--shadow-sm)"
 };
 const kpiModTitle = {
   fontSize: 10,
@@ -10490,6 +10530,38 @@ const kpiBadge = (bg, color) => ({
 });
 function findRecord(items, year, month, role, person) {
   return items.find(r => r.year === year && r.month === month && r.role === role && r.person === person);
+}
+function kpiRecordKey(r) {
+  return `${r.year}|${r.month}|${r.role}|${r.person}`;
+}
+
+/** 合并考核记录：按周合并，避免 A/B 保存互相覆盖 */
+function mergeKpiRecords(cloud, patch) {
+  const merged = {
+    ...cloud,
+    ...patch,
+    weeks: {
+      ...(cloud?.weeks || {}),
+      ...(patch?.weeks || {})
+    }
+  };
+  if (patch?.monthTargets !== undefined) merged.monthTargets = patch.monthTargets;
+  if (patch?.skuList !== undefined) merged.skuList = patch.skuList;
+  return merged;
+}
+function upsertKpiRecord(items, patch) {
+  const key = kpiRecordKey(patch);
+  const next = [...items];
+  const idx = next.findIndex(r => kpiRecordKey(r) === key);
+  if (idx < 0) {
+    next.push({
+      ...patch,
+      weeks: patch.weeks || {}
+    });
+  } else {
+    next[idx] = mergeKpiRecords(next[idx], patch);
+  }
+  return next;
 }
 function getWeekData(items, year, month, role, person, week) {
   const rec = findRecord(items, year, month, role, person);
@@ -12920,40 +12992,47 @@ function DesStatsExpandRow({
     }
   }, row.avg ? `图${row.avgImg.toFixed(1)}+A+${row.avgAplus.toFixed(1)}+视${row.avgVid.toFixed(1)}` : "—", row.reviewNet !== 0 ? ` · 月评${row.reviewNet > 0 ? "+" : ""}${row.reviewNet}` : "")))))));
 }
+function KpiSparkline({
+  color = "#4080FF",
+  light = false
+}) {
+  const stroke = light ? "rgba(255,255,255,0.6)" : color;
+  return /*#__PURE__*/React.createElement("svg", {
+    className: "ops-sparkline",
+    viewBox: "0 0 80 28",
+    preserveAspectRatio: "none"
+  }, /*#__PURE__*/React.createElement("polyline", {
+    points: "0,22 12,18 24,20 36,12 48,14 60,8 72,10 80,4",
+    fill: "none",
+    stroke: stroke,
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }));
+}
 function KpiStatsSummaryChips({
   chips,
   color
 }) {
   return /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-grid",
     style: {
-      display: "flex",
-      gap: 8,
-      flexWrap: "wrap",
-      marginBottom: 12
+      marginBottom: 14
     }
   }, chips.map(c => /*#__PURE__*/React.createElement("div", {
     key: c.label,
-    style: {
-      background: "var(--bg)",
-      borderRadius: 8,
-      padding: "8px 14px",
-      minWidth: 88,
-      textAlign: "center",
-      border: `1px solid ${color}22`
-    }
+    className: "ops-metric-card"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label"
+  }, c.label), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-value",
     style: {
-      fontSize: 16,
-      fontWeight: 700,
+      fontSize: 22,
       color: c.cls ? STAT_COLORS[c.cls] : color
     }
-  }, c.value), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "var(--tm)",
-      marginTop: 2
-    }
-  }, c.label))));
+  }, c.value), /*#__PURE__*/React.createElement(KpiSparkline, {
+    color: color
+  }))));
 }
 function KpiStatsTable({
   title,
@@ -12964,11 +13043,9 @@ function KpiStatsTable({
   emptyHint
 }) {
   return /*#__PURE__*/React.createElement("div", {
+    className: "ops-card ops-card-padded",
     style: {
-      background: "var(--card)",
-      border: `1px solid ${color}33`,
-      borderRadius: 10,
-      padding: "14px 16px"
+      borderColor: `${color}33`
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -13041,20 +13118,82 @@ function KpiStatsPage({
   const teamDesAvg = desAvg.length ? Math.round(desAvg.reduce((a, r) => a + r.avg, 0) / desAvg.length * 10) / 10 : 0;
   const OPS_COLS = 10;
   const DES_COLS = 11;
+  const totalSales = opsRows.reduce((a, r) => a + r.totalSales, 0);
+  const totalNsku = opsRows.reduce((a, r) => a + r.totalNsku, 0);
+  const fillRate = opsRows.length ? Math.round(opsRows.reduce((a, r) => a + r.filledWeeks, 0) / (opsRows.length * 4) * 100) : 0;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
-      gap: 16
+      gap: 18
     }
   }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-grid"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card ops-metric-card-hero"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label"
+  }, "\u56E2\u961F\u8FD0\u8425\u6708\u5747\u5F97\u5206"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-value"
+  }, teamOpsAvg > 0 ? teamOpsAvg.toFixed(1) : "—"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-sub"
+  }, teamOpsAvg > 0 ? "满分 100 · 精铺考核" : "暂无数据"), /*#__PURE__*/React.createElement(KpiSparkline, {
+    light: true
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label"
+  }, "\u8FD0\u8425\u4EBA\u6570"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-value",
+    style: {
+      fontSize: 24,
+      color: "#4080FF"
+    }
+  }, opsRows.length || "—"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-sub"
+  }, "\u7CBE\u94FA\u8003\u6838\u6210\u5458"), /*#__PURE__*/React.createElement(KpiSparkline, null)), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label"
+  }, "\u6708\u9500\u5408\u8BA1"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-value",
+    style: {
+      fontSize: 22
+    }
+  }, totalSales > 0 ? `$${Math.round(totalSales).toLocaleString()}` : "—"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-sub"
+  }, year, "\u5E74", month, "\u6708"), /*#__PURE__*/React.createElement(KpiSparkline, {
+    color: "#00B42A"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label"
+  }, "\u586B\u5199\u5B8C\u6210\u7387"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-value",
+    style: {
+      fontSize: 24
+    }
+  }, opsRows.length ? `${fillRate}%` : "—"), /*#__PURE__*/React.createElement("span", {
+    className: `ops-metric-trend ${fillRate >= 75 ? "ops-trend-up" : "ops-trend-down"}`
+  }, fillRate >= 75 ? "↑ 良好" : fillRate > 0 ? "↓ 待完善" : "—")), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label"
+  }, "\u7F8E\u5DE5\u56E2\u961F\u6708\u5747"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-value",
+    style: {
+      fontSize: 24,
+      color: "#722ED1"
+    }
+  }, teamDesAvg > 0 ? teamDesAvg.toFixed(1) : "—"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-sub"
+  }, "\u6EE1\u5206 5 \u5206\u5236"), /*#__PURE__*/React.createElement(KpiSparkline, {
+    color: "#722ED1"
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "ops-card ops-card-padded",
     style: {
       fontSize: 12,
       color: "var(--tm)",
-      padding: "10px 12px",
-      background: "var(--bg)",
-      borderRadius: 8,
-      border: "1px solid var(--border)",
       lineHeight: 1.6
     }
   }, /*#__PURE__*/React.createElement("div", null, year, "\u5E74", month, "\u6708 \xB7 \u8FD0\u8425\u4E0E\u7F8E\u5DE5\u56E2\u961F\u4E00\u89C8\uFF08\u4E24\u5957\u5206\u5236\uFF0C\u8BF7\u52FF\u6DF7\u6BD4\uFF09"), /*#__PURE__*/React.createElement("div", {
@@ -13402,7 +13541,7 @@ function KpiPanel({
   const [staffTick, setStaffTick] = useState(0);
   const {
     items,
-    persist,
+    persistMerge,
     meta,
     loading,
     saving,
@@ -13435,7 +13574,38 @@ function KpiPanel({
     }
     if (!staffList.some(s => s.name === person)) setPerson(staffList[0].name);
   }, [staffList, person]);
+  const draftLoadKeyRef = useRef("");
+  const draftRef = useRef(draft);
+  const skuListDraftRef = useRef(skuListDraft);
+  const monthTargetsDraftRef = useRef(monthTargetsDraft);
   useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+  useEffect(() => {
+    skuListDraftRef.current = skuListDraft;
+  }, [skuListDraft]);
+  useEffect(() => {
+    monthTargetsDraftRef.current = monthTargetsDraft;
+  }, [monthTargetsDraft]);
+  const isDraftDirtyFor = useCallback(sourceItems => {
+    if (!person) return false;
+    if (curRole === "dev" && curWeek === 0) {
+      const saved = getDevMonthTargets(sourceItems, year, month, person);
+      return JSON.stringify(monthTargetsDraftRef.current) !== JSON.stringify(saved);
+    }
+    if (curWeek === 0) return false;
+    const saved = getWeekData(sourceItems, year, month, effectiveRole, person, curWeek);
+    const weekDirty = JSON.stringify(draftRef.current) !== JSON.stringify(saved);
+    if (effectiveRole === "ops_jp") {
+      const savedSku = getPremiumSkuList(sourceItems, year, month, person);
+      return weekDirty || JSON.stringify(skuListDraftRef.current) !== JSON.stringify(savedSku);
+    }
+    return weekDirty;
+  }, [person, curRole, curWeek, year, month, effectiveRole]);
+  useEffect(() => {
+    const loadKey = `${year}|${month}|${curRole}|${curOpsSub}|${person}|${curWeek}`;
+    const contextChanged = draftLoadKeyRef.current !== loadKey;
+    draftLoadKeyRef.current = loadKey;
     if (!person) {
       setDraft(emptyWeekForRole(effectiveRole));
       setSkuListDraft([]);
@@ -13443,10 +13613,13 @@ function KpiPanel({
       return;
     }
     if (curRole === "dev" && curWeek === 0) {
-      setMonthTargetsDraft(getDevMonthTargets(items, year, month, person));
+      if (contextChanged || !isDraftDirtyFor(items)) {
+        setMonthTargetsDraft(getDevMonthTargets(items, year, month, person));
+      }
       return;
     }
     if (curWeek === 0) return;
+    if (!contextChanged && isDraftDirtyFor(items)) return;
     const wk = getWeekData(items, year, month, effectiveRole, person, curWeek);
     if (effectiveRole === "ops") {
       setDraft({
@@ -13459,7 +13632,7 @@ function KpiPanel({
     if (effectiveRole === "ops_jp") {
       setSkuListDraft(getPremiumSkuList(items, year, month, person));
     }
-  }, [items, year, month, curRole, curOpsSub, effectiveRole, person, curWeek]);
+  }, [items, year, month, curRole, curOpsSub, effectiveRole, person, curWeek, isDraftDirtyFor]);
   const weekDone = useMemo(() => {
     if (!person) return {};
     const out = {};
@@ -13475,18 +13648,6 @@ function KpiPanel({
   };
   const upsertWeek = useCallback(async (weekData, skuList) => {
     if (!person) return false;
-    let next = [...items];
-    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === effectiveRole && r.person === person);
-    if (idx < 0) {
-      next.push({
-        year,
-        month,
-        role: effectiveRole,
-        person,
-        weeks: {}
-      });
-      idx = next.length - 1;
-    }
     let weekPayload = weekData;
     let desReviewPatch = null;
     if (effectiveRole === "ops") {
@@ -13498,47 +13659,39 @@ function KpiPanel({
       desReviewPatch = desReview || {};
     }
     const patch = {
+      year,
+      month,
+      role: effectiveRole,
+      person,
       weeks: {
-        ...next[idx].weeks,
         [curWeek]: weekPayload
       }
     };
     if (effectiveRole === "ops_jp" && skuList) patch.skuList = skuList;
-    next[idx] = {
-      ...next[idx],
-      ...patch
-    };
-    if (effectiveRole === "ops") {
-      const prev = getWeekData(items, year, month, "ops", person, curWeek);
-      next = applyOpsDesReviewToItems(next, year, month, person, curWeek, desReviewPatch, prev.desReview);
-    }
-    const ok = await persist(next);
+    const ok = await persistMerge(latest => {
+      let next = upsertKpiRecord(latest, patch);
+      if (effectiveRole === "ops") {
+        const prev = getWeekData(latest, year, month, "ops", person, curWeek);
+        next = applyOpsDesReviewToItems(next, year, month, person, curWeek, desReviewPatch, prev.desReview);
+      }
+      return next;
+    });
     if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
     return ok;
-  }, [items, year, month, effectiveRole, person, curWeek, persist]);
+  }, [person, year, month, effectiveRole, curWeek, persistMerge]);
   const upsertMonthTargets = useCallback(async targets => {
     if (!person || curRole !== "dev") return false;
-    const next = [...items];
-    let idx = next.findIndex(r => r.year === year && r.month === month && r.role === "dev" && r.person === person);
-    if (idx < 0) {
-      next.push({
-        year,
-        month,
-        role: "dev",
-        person,
-        weeks: {},
-        monthTargets: targets
-      });
-    } else {
-      next[idx] = {
-        ...next[idx],
-        monthTargets: targets
-      };
-    }
-    const ok = await persist(next);
+    const patch = {
+      year,
+      month,
+      role: "dev",
+      person,
+      monthTargets: targets
+    };
+    const ok = await persistMerge(latest => upsertKpiRecord(latest, patch));
     if (ok) showToast("月目标已保存并上传云端 ✓");else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
     return ok;
-  }, [items, year, month, person, curRole, persist]);
+  }, [person, year, month, curRole, persistMerge]);
   const saveCurrentToCloud = useCallback(async () => {
     if (!person) return "请先选择人员";
     if (curWeek === 0) {
@@ -13576,59 +13729,20 @@ function KpiPanel({
   const clearWeek = () => {
     setDraft(emptyWeekForRole(effectiveRole));
   };
-  const tabStyle = (activeTab, color) => ({
-    padding: "6px 16px",
-    borderRadius: 7,
-    cursor: "pointer",
-    fontFamily: "inherit",
-    fontSize: 13,
-    border: `1px solid ${activeTab ? color : "var(--border)"}`,
-    background: activeTab ? `${color}18` : "transparent",
-    color: activeTab ? color : "var(--tm)",
-    fontWeight: activeTab ? 600 : 400
-  });
+  const tabStyle = activeTab => `ops-segment-btn${activeTab ? " active" : ""}`;
   const wtabStyle = (w, isMonthly) => {
-    const done = !isMonthly && weekDone[w];
     const isActive = isMonthly ? curWeek === 0 : curWeek === w;
-    const activeColor = roleMeta.color;
-    return {
-      padding: "5px 14px",
-      borderRadius: 6,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontSize: 12,
-      border: `1px solid ${isActive ? activeColor : done ? "#86efac" : "var(--border)"}`,
-      background: isActive ? "var(--bg)" : "transparent",
-      color: isActive ? "var(--text)" : done ? "#2d9e52" : "var(--tm)"
-    };
+    return `ops-segment-btn${isActive ? " active" : ""}`;
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-end",
-      marginBottom: 16,
-      flexWrap: "wrap",
-      gap: 12,
-      borderBottom: "1px solid var(--border)",
-      paddingBottom: 14
-    }
+    className: "ops-page-header"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 18,
-      fontWeight: 700
-    }
+    className: "ops-page-title"
   }, "\u6708\u5EA6 KPI ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: "#2d7dd2"
-    }
+    className: "ops-page-title-accent"
   }, "\u8DDF\u8E2A\u8868")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "var(--tm)",
-      marginTop: 4
-    }
-  }, "\u6309\u4EBA\u5458\u5206\u522B\u8BB0\u5F55 \xB7 \u4E91\u7AEF\u5171\u4EAB")), /*#__PURE__*/React.createElement("div", {
+    className: "ops-page-subtitle"
+  }, "\u6309\u4EBA\u5458\u5206\u522B\u8BB0\u5F55 \xB7 \u4E91\u7AEF\u5171\u4EAB \xB7 ", year, "\u5E74", month, "\u6708")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -13642,9 +13756,11 @@ function KpiPanel({
     }
   }, "\u5E74\u4EFD"), /*#__PURE__*/React.createElement("input", {
     type: "number",
+    className: "ops-card",
     style: {
       ...kpiInpSm,
-      width: 72
+      width: 72,
+      boxShadow: "none"
     },
     value: year,
     min: 2020,
@@ -13656,9 +13772,11 @@ function KpiPanel({
       color: "var(--tm)"
     }
   }, "\u6708\u4EFD"), /*#__PURE__*/React.createElement("select", {
+    className: "ops-card",
     style: {
       ...kpiInpSm,
-      background: "var(--card)"
+      background: "var(--card)",
+      boxShadow: "none"
     },
     value: month,
     onChange: e => setMonth(+e.target.value)
@@ -13667,66 +13785,53 @@ function KpiPanel({
   }, (_, i) => i + 1).map(m => /*#__PURE__*/React.createElement("option", {
     key: m,
     value: m
-  }, m, "\u6708"))), /*#__PURE__*/React.createElement("span", {
+  }, m, "\u6708"))))), /*#__PURE__*/React.createElement("div", {
+    className: "ops-segment",
     style: {
-      fontSize: 12,
-      color: "var(--tm)"
-    }
-  }, year, "\u5E74", month, "\u6708"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8,
-      marginBottom: 14,
-      flexWrap: "wrap",
-      alignItems: "center"
+      marginBottom: 16,
+      flexWrap: "wrap"
     }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
-    style: tabStyle(isStatsView, "#5c6bc0"),
+    className: tabStyle(isStatsView),
     onClick: () => setCurRole("stats")
   }, "\u7EDF\u8BA1"), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    style: tabStyle(curRole === "ops", "#2d7dd2"),
+    className: tabStyle(curRole === "ops"),
     onClick: () => {
       setCurRole("ops");
       setCurWeek(1);
     }
   }, "\u8FD0\u8425"), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    style: tabStyle(curRole === "des", "#6b21a8"),
+    className: tabStyle(curRole === "des"),
     onClick: () => {
       setCurRole("des");
       setCurWeek(1);
     }
   }, "\u7F8E\u5DE5"), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    style: tabStyle(curRole === "dev", "#00695c"),
+    className: tabStyle(curRole === "dev"),
     onClick: () => {
       setCurRole("dev");
       setCurWeek(1);
     }
-  }, "\u5F00\u53D1"), curRole === "ops" && /*#__PURE__*/React.createElement("div", {
+  }, "\u5F00\u53D1"), curRole === "ops" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     style: {
-      display: "flex",
-      gap: 4,
-      marginLeft: 8,
-      paddingLeft: 8,
-      borderLeft: "1px solid var(--border)"
+      width: 1,
+      background: "var(--border)",
+      margin: "4px 4px"
     }
-  }, /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    style: tabStyle(curOpsSub === "bulk", "#2d7dd2"),
+    className: tabStyle(curOpsSub === "bulk"),
     onClick: () => {
       setCurOpsSub("bulk");
       setCurWeek(1);
     }
   }, "\u7CBE\u94FA"), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    style: {
-      ...tabStyle(curOpsSub === "premium", "#0C447C"),
-      borderColor: curOpsSub === "premium" ? "#85B7EB" : "var(--border)",
-      background: curOpsSub === "premium" ? "#E6F1FB" : "transparent"
-    },
+    className: tabStyle(curOpsSub === "premium"),
     onClick: () => {
       setCurOpsSub("premium");
       setCurWeek(1);
@@ -13738,16 +13843,13 @@ function KpiPanel({
     month: month,
     staffTick: staffTick
   }) : /*#__PURE__*/React.createElement("div", {
+    className: "ops-card ops-card-padded",
     style: {
       display: "flex",
       alignItems: "center",
       gap: 10,
       marginBottom: 16,
-      flexWrap: "wrap",
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 10,
-      padding: "10px 14px"
+      flexWrap: "wrap"
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -13784,25 +13886,19 @@ function KpiPanel({
       color: "var(--text)"
     }
   }, person), " \u7684 ", year, "\u5E74", month, "\u6708 KPI")), !isStatsView && !person ? null : !isStatsView ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "ops-segment",
     style: {
-      display: "flex",
-      gap: 6,
       marginBottom: 16,
       flexWrap: "wrap"
     }
   }, WEEKS.map(w => /*#__PURE__*/React.createElement("button", {
     key: w,
     type: "button",
-    style: wtabStyle(w, false),
+    className: wtabStyle(w, false),
     onClick: () => setCurWeek(w)
-  }, "\u7B2C", w, "\u5468")), /*#__PURE__*/React.createElement("button", {
+  }, "\u7B2C", w, "\u5468", weekDone[w] ? " ✓" : "")), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    style: {
-      ...wtabStyle(0, true),
-      marginLeft: 4,
-      borderColor: roleMeta.sumBorder,
-      color: roleMeta.color
-    },
+    className: wtabStyle(0, true),
     onClick: () => setCurWeek(0)
   }, "\u6708\u5EA6\u6C47\u603B")), curWeek === 0 ? curRole === "ops" && curOpsSub === "premium" ? /*#__PURE__*/React.createElement(OpsPremiumMonthSummary, {
     items: items,
@@ -14078,29 +14174,12 @@ function GlobalCloudBar() {
     const page = handler.label ? `（${handler.label}）` : "";
     text = pollMin > 0 ? `☁️ 最后由 ${who} 更新于 ${when}${page} · 手动更新；可见时每 ${pollMin} 分钟自动拉取` : `☁️ 最后由 ${who} 更新于 ${when}${page} · 请手动点「从云端更新」`;
   }
-  const btn = {
-    borderRadius: 6,
-    padding: "6px 12px",
-    fontSize: 11,
-    fontFamily: "inherit",
-    fontWeight: 600,
-    flexShrink: 0,
-    cursor: "pointer"
-  };
   return /*#__PURE__*/React.createElement("div", {
+    className: "ops-cloud-bar",
     style: {
-      fontSize: 12,
       color,
       background: bg,
-      border: `1px solid ${border}`,
-      borderRadius: 8,
-      padding: "8px 12px",
-      marginBottom: "1rem",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-      flexWrap: "wrap"
+      border: `1px solid ${border}`
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -14117,11 +14196,8 @@ function GlobalCloudBar() {
     type: "button",
     disabled: loading || saving,
     onClick: onSave,
+    className: "ops-btn ops-btn-primary",
     style: {
-      ...btn,
-      background: saving ? "#eef6ff" : "#2d7dd2",
-      border: saving ? "1px solid #b8d4f0" : "none",
-      color: saving ? "#1a4e8a" : "#fff",
       opacity: loading || saving ? 0.85 : 1,
       cursor: loading || saving ? "wait" : "pointer",
       minWidth: 108
@@ -14130,11 +14206,8 @@ function GlobalCloudBar() {
     type: "button",
     disabled: loading || saving,
     onClick: onReload,
+    className: "ops-btn",
     style: {
-      ...btn,
-      background: "#fff",
-      border: `1px solid ${border}`,
-      color,
       opacity: loading || saving ? 0.75 : 1,
       cursor: loading || saving ? "wait" : "pointer",
       minWidth: 88
@@ -14620,16 +14693,11 @@ function TaskCard({
   const role = getStaffRole(task.owner);
   return /*#__PURE__*/React.createElement("div", {
     onClick: onClick,
+    className: "ops-card ops-card-hover ops-card-padded",
     style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
       borderLeft: `3px solid ${bc}`,
-      borderRadius: 10,
-      padding: "12px 14px",
-      cursor: "pointer"
-    },
-    onMouseEnter: e => e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.07)",
-    onMouseLeave: e => e.currentTarget.style.boxShadow = "none"
+      borderRadius: 10
+    }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -14829,31 +14897,29 @@ function TasksPanel({
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(5, 1fr)",
-      gap: 7,
+      gap: 10,
       flex: 1,
       marginRight: 12
     }
   }, tabs.map(f => /*#__PURE__*/React.createElement("div", {
     key: f.key,
     onClick: () => setFilter(f.key),
+    className: `ops-metric-card ops-card-hover${filter === f.key ? "" : ""}`,
     style: {
-      background: "var(--card)",
-      border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`,
-      borderRadius: 10,
-      padding: "9px 10px",
-      cursor: "pointer"
+      borderColor: filter === f.key ? "#4080FF" : "var(--border)",
+      boxShadow: filter === f.key ? "0 0 0 1px #4080FF" : undefined
     }
   }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-value",
     style: {
-      fontSize: 18,
-      fontWeight: 700,
+      fontSize: 20,
       color: f.nc
     }
   }, counts[f.key]), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label",
     style: {
-      fontSize: 10,
-      color: "var(--tm)",
-      marginTop: 1
+      marginTop: 2,
+      marginBottom: 0
     }
   }, f.label)))), /*#__PURE__*/React.createElement("button", {
     onClick: () => setModal({
@@ -14865,16 +14931,8 @@ function TasksPanel({
       nodes: [],
       block: ""
     }),
+    className: "ops-btn ops-btn-primary",
     style: {
-      background: "#2d7dd2",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      padding: "8px 16px",
-      fontSize: 13,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600,
       flexShrink: 0
     }
   }, "+ \u65B0\u5EFA")), /*#__PURE__*/React.createElement("div", {
@@ -14908,36 +14966,139 @@ function TasksPanel({
       setModal(null);
     },
     onDelete: () => {
-      persist(tasks.filter(x => x.id !== modal.id));
+      persist(tasks.filter(x => x.id !== modal.id), {
+        replace: true
+      });
       setModal(null);
     }
   }));
 }
 const TABS = [{
   key: "home",
-  label: "首页"
+  label: "首页",
+  icon: "home"
 }, {
   key: "tasks",
-  label: "任务跟进"
+  label: "任务跟进",
+  icon: "tasks"
 }, {
   key: "logistics",
-  label: "物流头程"
+  label: "物流头程",
+  icon: "logistics"
 }, {
   key: "production",
-  label: "精品生产"
+  label: "精品生产",
+  icon: "production"
 }, {
   key: "kpi",
-  label: "考核"
+  label: "考核",
+  icon: "kpi"
 }, {
   key: "tools",
-  label: "工具"
+  label: "工具",
+  icon: "tools"
 }, {
   key: "agents",
-  label: "AI 智能体"
+  label: "AI 智能体",
+  icon: "agents"
 }, {
   key: "knowledge",
-  label: "知识库"
+  label: "知识库",
+  icon: "knowledge"
 }];
+const TAB_TITLES = Object.fromEntries(TABS.map(t => [t.key, t.label]));
+function NavIcon({
+  name
+}) {
+  const s = {
+    width: 18,
+    height: 18,
+    stroke: "currentColor",
+    fill: "none",
+    strokeWidth: 1.8,
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  };
+  if (name === "home") return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    style: s
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1v-9.5z"
+  }));
+  if (name === "tasks") return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    style: s
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "3",
+    y: "4",
+    width: "18",
+    height: "18",
+    rx: "2"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M8 10h8M8 14h5"
+  }));
+  if (name === "logistics") return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    style: s
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "1",
+    y: "6",
+    width: "15",
+    height: "10",
+    rx: "1"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M16 9h4l3 4v3h-7V9z"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "6",
+    cy: "18",
+    r: "2"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "18",
+    cy: "18",
+    r: "2"
+  }));
+  if (name === "production") return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    style: s
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M2 20h20M5 20V10l7-6 7 6v10"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M9 20v-5h6v5"
+  }));
+  if (name === "kpi") return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    style: s
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M4 19V5M4 19h16"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M8 15l3-4 3 2 5-7"
+  }));
+  if (name === "tools") return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    style: s
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M14.7 6.3a4 4 0 105.4 5.4L12 20l-3-3 7.7-10.7z"
+  }));
+  if (name === "agents") return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    style: s
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "12",
+    cy: "8",
+    r: "4"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M4 20c0-4 3.6-7 8-7s8 3 8 7"
+  }));
+  if (name === "knowledge") return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    style: s
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M4 19.5A2.5 2.5 0 016.5 17H20"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"
+  }));
+  return null;
+}
 function BrandLogo({
   size = 28
 }) {
@@ -14955,10 +15116,8 @@ function BrandLogo({
     y: "1",
     width: "30",
     height: "30",
-    rx: "7",
-    fill: "#1a1d24",
-    stroke: "rgba(255,255,255,0.14)",
-    strokeWidth: "1"
+    rx: "8",
+    fill: "#4080FF"
   }), /*#__PURE__*/React.createElement("text", {
     x: "16",
     y: "22",
@@ -15004,22 +15163,10 @@ function SettingsMenu({
     }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
+    className: "ops-btn",
     onClick: () => setOpen(o => !o),
     "aria-expanded": open,
-    title: "\u8BBE\u7F6E",
-    style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "6px 12px",
-      fontSize: 12,
-      cursor: "pointer",
-      color: "var(--tm)",
-      fontFamily: "inherit",
-      display: "flex",
-      alignItems: "center",
-      gap: 4
-    }
+    title: "\u8BBE\u7F6E"
   }, "\u2699 \u8BBE\u7F6E ", /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 9,
@@ -15061,7 +15208,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-35";
+const APP_BUILD = "cloud-36-saas";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {
@@ -15091,45 +15238,42 @@ function LoginScreen({
     setError("密码错误，请重试");
   };
   return /*#__PURE__*/React.createElement("div", {
-    style: {
-      minHeight: "100vh",
-      background: "#f8f8f6",
-      color: "#111",
-      fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "1.5rem"
-    }
+    className: "ops-login-wrap"
   }, /*#__PURE__*/React.createElement("form", {
     onSubmit: submit,
-    style: {
-      width: "100%",
-      maxWidth: 360,
-      background: "#fff",
-      border: "1px solid #e5e5e5",
-      borderRadius: 16,
-      padding: "1.75rem 1.5rem",
-      boxShadow: "0 12px 40px rgba(0,0,0,0.06)"
-    }
+    className: "ops-login-card"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement(BrandLogo, {
+    size: 36
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
       fontSize: 18,
-      fontWeight: 700,
-      marginBottom: 6
+      fontWeight: 700
     }
   }, APP_ORG_NAME), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
-      color: "#888",
+      color: "var(--tm)",
+      marginTop: 2
+    }
+  }, "\u8FD0\u8425\u4E2D\u5FC3"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "var(--tm)",
       marginBottom: 18,
       lineHeight: 1.55
     }
-  }, "\u8BF7\u8F93\u5165\u56E2\u961F\u8BBF\u95EE\u5BC6\u7801\u540E\u8FDB\u5165\u8FD0\u8425\u4E2D\u5FC3"), /*#__PURE__*/React.createElement("label", {
+  }, "\u8BF7\u8F93\u5165\u56E2\u961F\u8BBF\u95EE\u5BC6\u7801\u540E\u8FDB\u5165"), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "block",
       fontSize: 11,
-      color: "#888",
+      color: "var(--tm)",
       marginBottom: 6,
       fontWeight: 500
     }
@@ -15146,32 +15290,28 @@ function LoginScreen({
       width: "100%",
       fontSize: 14,
       padding: "10px 12px",
-      border: `1px solid ${error ? "#e57373" : "#e5e5e5"}`,
+      border: `1px solid ${error ? "#F53F3F" : "var(--border)"}`,
       borderRadius: 10,
       fontFamily: "inherit",
-      marginBottom: error ? 8 : 16
+      marginBottom: error ? 8 : 16,
+      background: "var(--bg)"
     }
   }), error && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
-      color: "#c62828",
+      color: "#F53F3F",
       marginBottom: 12
     }
   }, error), /*#__PURE__*/React.createElement("button", {
     type: "submit",
+    className: "ops-btn ops-btn-primary",
     style: {
       width: "100%",
-      background: "#2d7dd2",
-      border: "none",
-      borderRadius: 10,
       padding: "10px 14px",
       fontSize: 14,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#fff",
-      fontWeight: 600
+      justifyContent: "center"
     }
-  }, "\u8FDB\u5165")));
+  }, "\u8FDB\u5165\u8FD0\u8425\u4E2D\u5FC3")));
 }
 function AppShell({
   tab,
@@ -15188,100 +15328,70 @@ function AppShell({
     setTab(key);
   };
   const css = {
-    "--bg": dark ? "#111" : "#f8f8f6",
-    "--card": dark ? "#1c1c1c" : "#fff",
-    "--border": dark ? "#2a2a2a" : "#e5e5e5",
-    "--text": dark ? "#eee" : "#111",
-    "--tm": dark ? "#777" : "#888"
+    "--bg": dark ? "#0d0d0d" : "#F5F7FA",
+    "--card": dark ? "#1a1a1a" : "#FFFFFF",
+    "--border": dark ? "#2e2e2e" : "#E5E8EF",
+    "--border-light": dark ? "#252525" : "#F2F3F5",
+    "--text": dark ? "#e8e8e8" : "#1D2129",
+    "--tm": dark ? "#888" : "#86909C",
+    "--primary": "#4080FF",
+    "--primary-light": dark ? "#1a2a4a" : "#E8F1FF",
+    "--shadow-sm": dark ? "0 1px 2px rgba(0,0,0,0.3)" : "0 1px 2px rgba(29,33,41,0.04)",
+    "--shadow-md": dark ? "0 4px 16px rgba(0,0,0,0.4)" : "0 4px 16px rgba(29,33,41,0.06)"
   };
   return /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...css,
-      minHeight: "100vh",
-      background: "var(--bg)",
-      color: "var(--text)",
-      fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif"
-    }
+    className: "ops-app",
+    style: css
+  }, /*#__PURE__*/React.createElement("aside", {
+    className: "ops-sidebar"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-sidebar-brand"
+  }, /*#__PURE__*/React.createElement(BrandLogo, {
+    size: 32
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "ops-sidebar-brand-text"
+  }, "\u6CD3\u68EE\u62D3\u521B\u79D1\u6280"), /*#__PURE__*/React.createElement("span", {
+    className: "ops-badge ops-badge-info",
     style: {
-      maxWidth: tab === "kpi" || tab === "knowledge" ? 1100 : 820,
-      margin: "0 auto",
-      padding: "1.5rem 1rem",
-      transition: "max-width 0.2s"
+      marginTop: 4
     }
+  }, APP_BUILD))), /*#__PURE__*/React.createElement("nav", {
+    className: "ops-sidebar-nav"
+  }, TABS.map(t => /*#__PURE__*/React.createElement("div", {
+    key: t.key,
+    className: "ops-nav-item-wrap"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: `ops-nav-item${tab === t.key ? " active" : ""}`,
+    onClick: () => trySetTab(t.key)
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ops-nav-icon"
+  }, /*#__PURE__*/React.createElement(NavIcon, {
+    name: t.icon
+  })), t.label)))), /*#__PURE__*/React.createElement("div", {
+    className: "ops-sidebar-footer"
+  }, "\u8FD0\u8425\u4E2D\u5FC3 \xB7 \u4E91\u7AEF\u540C\u6B65")), /*#__PURE__*/React.createElement("div", {
+    className: "ops-main"
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "ops-topbar"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: "1.5rem"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      fontSize: 18,
-      fontWeight: 700,
-      letterSpacing: "-0.02em"
-    }
-  }, /*#__PURE__*/React.createElement(BrandLogo, null), "\u6CD3\u68EE\u62D3\u521B\u79D1\u6280", /*#__PURE__*/React.createElement("span", {
-    title: "version",
-    style: {
-      fontSize: 10,
-      fontWeight: 600,
-      color: "#2d7dd2",
-      background: "#eef6ff",
-      border: "1px solid #b8d4f0",
-      padding: "2px 7px",
-      borderRadius: 5
-    }
-  }, APP_BUILD)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8
-    }
+    className: "ops-topbar-title"
+  }, TAB_TITLES[tab] || "运营中心"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-topbar-actions"
   }, /*#__PURE__*/React.createElement(SettingsMenu, {
     onSelect: key => {
       if (key === "staff") setSettingsPanel("staff");
     }
   }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setDark(!dark),
+    type: "button",
+    className: "ops-btn",
+    onClick: () => setDark(!dark)
+  }, dark ? "☀ 日间" : "☾ 夜间"))), /*#__PURE__*/React.createElement("main", {
+    className: "ops-content",
     style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "6px 12px",
-      fontSize: 12,
-      cursor: "pointer",
-      color: "var(--tm)",
-      fontFamily: "inherit"
+      maxWidth: tab === "kpi" || tab === "knowledge" ? 1280 : 960
     }
-  }, dark ? "☀ 日间" : "☾ 夜间"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 4,
-      marginBottom: "1.5rem",
-      borderBottom: "1px solid var(--border)",
-      paddingBottom: 0,
-      flexWrap: "wrap"
-    }
-  }, TABS.map(t => /*#__PURE__*/React.createElement("button", {
-    key: t.key,
-    onClick: () => trySetTab(t.key),
-    style: {
-      background: "transparent",
-      border: "none",
-      borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent",
-      padding: "8px 18px",
-      fontSize: 13,
-      fontWeight: tab === t.key ? 600 : 400,
-      color: tab === t.key ? "#2d7dd2" : "var(--tm)",
-      cursor: "pointer",
-      fontFamily: "inherit",
-      marginBottom: -1
-    }
-  }, t.label))), /*#__PURE__*/React.createElement(GlobalCloudBar, null), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(GlobalCloudBar, null), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "home" ? "block" : "none"
     }
@@ -15327,7 +15437,7 @@ function AppShell({
     }
   }, /*#__PURE__*/React.createElement(AgentsPanel, {
     active: tab === "agents"
-  }))), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
+  })))), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
     onClose: () => setSettingsPanel(null),
     onSaved: () => setSettingsPanel(null)
   }));

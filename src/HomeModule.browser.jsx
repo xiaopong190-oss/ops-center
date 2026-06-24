@@ -356,7 +356,7 @@ function AmazonNewsCard({ news }) {
 
 function ExchangeRatesCard({ fx }) {
   return (
-    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "14px 16px", marginBottom: "1.25rem" }}>
+    <div className="ops-card ops-card-padded" style={{ marginBottom: "1.25rem" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 600 }}>💱 今日汇率（人民币）</div>
         <div style={{ fontSize: 10, color: "var(--tm)" }}>
@@ -576,44 +576,46 @@ function HomePanel() {
 
   return (
     <div>
-      <div style={{ marginBottom: "1.25rem" }}>
-        <div style={{ fontSize: 13, color: "var(--tm)", marginBottom: 4 }}>欢迎回来</div>
-        <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}>{beijingDate}</div>
+      <div className="ops-page-header" style={{ marginBottom: "1.25rem" }}>
+        <div>
+          <div className="ops-page-subtitle">欢迎回来</div>
+          <div className="ops-page-title" style={{ fontSize: 20 }}>{beijingDate}</div>
+        </div>
       </div>
 
       <AmazonNewsCard news={news} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10, marginBottom: "1.25rem" }}>
+      <div className="ops-metric-grid" style={{ marginBottom: "1.25rem" }}>
         {WORLD_CLOCKS.map(c => (
-          <div key={c.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px" }}>
+          <div key={c.id} className="ops-metric-card">
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
               <span style={{ fontSize: 18, lineHeight: 1 }}>{c.flag}</span>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</div>
-                <div style={{ fontSize: 10, color: "var(--tm)" }}>{c.sub}</div>
+                <div className="ops-metric-label" style={{ marginBottom: 0 }}>{c.sub}</div>
               </div>
             </div>
-            <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: "0.02em", color: c.id === "cn" ? "#2d7dd2" : "var(--text)" }}>
+            <div className="ops-metric-value" style={{ fontSize: 22, fontVariantNumeric: "tabular-nums", color: c.id === "cn" ? "#4080FF" : "var(--text)" }}>
               {formatClockTime(now, c.tz)}
             </div>
-            <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 4 }}>{formatClockDate(now, c.tz)}</div>
+            <div className="ops-metric-sub">{formatClockDate(now, c.tz)}</div>
           </div>
         ))}
       </div>
 
       <ExchangeRatesCard fx={fx} />
 
-      <div style={{ background: "linear-gradient(135deg, rgba(45,125,210,0.08), rgba(45,125,210,0.02))", border: "1px solid rgba(45,125,210,0.25)", borderRadius: 14, padding: "16px 18px" }}>
+      <div className="ops-metric-card ops-metric-card-hero" style={{ marginBottom: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: todayPriority ? 10 : 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#1a4e8a" }}>🎯 今日最优先</div>
-          <button type="button" onClick={() => setShowModal(true)} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>🎯 今日最优先</div>
+          <button type="button" className="ops-btn" onClick={() => setShowModal(true)} style={{ background: "rgba(255,255,255,0.2)", borderColor: "rgba(255,255,255,0.3)", color: "#fff" }}>
             {todayPriority ? "修改" : "填写"}
           </button>
         </div>
         {todayPriority ? (
-          <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap" }}>{todayPriority}</div>
+          <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{todayPriority}</div>
         ) : (
-          <div style={{ fontSize: 12, color: "var(--tm)", lineHeight: 1.55 }}>尚未设定今日优先事项，点击「填写」开始。</div>
+          <div className="ops-metric-sub">尚未设定今日优先事项，点击「填写」开始。</div>
         )}
       </div>
 

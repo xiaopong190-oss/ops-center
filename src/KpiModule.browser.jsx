@@ -601,7 +601,8 @@ const kpiInp = {
 const kpiInpSm = { ...kpiInp, fontSize: 12, padding: "4px 8px" };
 const kpiLbl = { fontSize: 10, color: "var(--tm)", marginBottom: 4, display: "block" };
 const kpiCard = {
-  background: "var(--card)", border: "1px solid var(--border)", borderRadius: 9, padding: 12,
+  background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px",
+  boxShadow: "var(--shadow-sm)",
 };
 const kpiModTitle = {
   fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
@@ -622,7 +623,7 @@ function kpiRecordKey(r) {
   return `${r.year}|${r.month}|${r.role}|${r.person}`;
 }
 
-/** 合并考核记录：按人按周合并，避免 A/B 保存互相覆盖 */
+/** 合并考核记录：按周合并，避免 A/B 保存互相覆盖 */
 function mergeKpiRecords(cloud, patch) {
   const merged = {
     ...cloud,
@@ -1799,13 +1800,23 @@ function DesStatsExpandRow({ row, colSpan, expanded }) {
   );
 }
 
+function KpiSparkline({ color = "#4080FF", light = false }) {
+  const stroke = light ? "rgba(255,255,255,0.6)" : color;
+  return (
+    <svg className="ops-sparkline" viewBox="0 0 80 28" preserveAspectRatio="none">
+      <polyline points="0,22 12,18 24,20 36,12 48,14 60,8 72,10 80,4" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function KpiStatsSummaryChips({ chips, color }) {
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+    <div className="ops-metric-grid" style={{ marginBottom: 14 }}>
       {chips.map(c => (
-        <div key={c.label} style={{ background: "var(--bg)", borderRadius: 8, padding: "8px 14px", minWidth: 88, textAlign: "center", border: `1px solid ${color}22` }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: c.cls ? STAT_COLORS[c.cls] : color }}>{c.value}</div>
-          <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 2 }}>{c.label}</div>
+        <div key={c.label} className="ops-metric-card">
+          <div className="ops-metric-label">{c.label}</div>
+          <div className="ops-metric-value" style={{ fontSize: 22, color: c.cls ? STAT_COLORS[c.cls] : color }}>{c.value}</div>
+          <KpiSparkline color={color} />
         </div>
       ))}
     </div>
@@ -1814,7 +1825,7 @@ function KpiStatsSummaryChips({ chips, color }) {
 
 function KpiStatsTable({ title, subtitle, color, headers, rows, emptyHint }) {
   return (
-    <div style={{ background: "var(--card)", border: `1px solid ${color}33`, borderRadius: 10, padding: "14px 16px" }}>
+    <div className="ops-card ops-card-padded" style={{ borderColor: `${color}33` }}>
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color }}>{title}</div>
         {subtitle && <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 2 }}>{subtitle}</div>}
@@ -1863,10 +1874,47 @@ function KpiStatsPage({ items, year, month, staffTick = 0 }) {
 
   const OPS_COLS = 10;
   const DES_COLS = 11;
+  const totalSales = opsRows.reduce((a, r) => a + r.totalSales, 0);
+  const totalNsku = opsRows.reduce((a, r) => a + r.totalNsku, 0);
+  const fillRate = opsRows.length ? Math.round(opsRows.reduce((a, r) => a + r.filledWeeks, 0) / (opsRows.length * 4) * 100) : 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ fontSize: 12, color: "var(--tm)", padding: "10px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", lineHeight: 1.6 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div className="ops-metric-grid">
+        <div className="ops-metric-card ops-metric-card-hero">
+          <div className="ops-metric-label">团队运营月均得分</div>
+          <div className="ops-metric-value">{teamOpsAvg > 0 ? teamOpsAvg.toFixed(1) : "—"}</div>
+          <div className="ops-metric-sub">{teamOpsAvg > 0 ? "满分 100 · 精铺考核" : "暂无数据"}</div>
+          <KpiSparkline light />
+        </div>
+        <div className="ops-metric-card">
+          <div className="ops-metric-label">运营人数</div>
+          <div className="ops-metric-value" style={{ fontSize: 24, color: "#4080FF" }}>{opsRows.length || "—"}</div>
+          <div className="ops-metric-sub">精铺考核成员</div>
+          <KpiSparkline />
+        </div>
+        <div className="ops-metric-card">
+          <div className="ops-metric-label">月销合计</div>
+          <div className="ops-metric-value" style={{ fontSize: 22 }}>{totalSales > 0 ? `$${Math.round(totalSales).toLocaleString()}` : "—"}</div>
+          <div className="ops-metric-sub">{year}年{month}月</div>
+          <KpiSparkline color="#00B42A" />
+        </div>
+        <div className="ops-metric-card">
+          <div className="ops-metric-label">填写完成率</div>
+          <div className="ops-metric-value" style={{ fontSize: 24 }}>{opsRows.length ? `${fillRate}%` : "—"}</div>
+          <span className={`ops-metric-trend ${fillRate >= 75 ? "ops-trend-up" : "ops-trend-down"}`}>
+            {fillRate >= 75 ? "↑ 良好" : fillRate > 0 ? "↓ 待完善" : "—"}
+          </span>
+        </div>
+        <div className="ops-metric-card">
+          <div className="ops-metric-label">美工团队月均</div>
+          <div className="ops-metric-value" style={{ fontSize: 24, color: "#722ED1" }}>{teamDesAvg > 0 ? teamDesAvg.toFixed(1) : "—"}</div>
+          <div className="ops-metric-sub">满分 5 分制</div>
+          <KpiSparkline color="#722ED1" />
+        </div>
+      </div>
+
+      <div className="ops-card ops-card-padded" style={{ fontSize: 12, color: "var(--tm)", lineHeight: 1.6 }}>
         <div>{year}年{month}月 · 运营与美工团队一览（两套分制，请勿混比）</div>
         <div style={{ marginTop: 4 }}>
           <span style={{ color: "#2d7dd2", fontWeight: 600 }}>运营 100 分制</span>：≥80 优 · ≥60 良 &nbsp;|&nbsp;
@@ -2212,64 +2260,49 @@ function KpiPanel({ active = true }) {
     setDraft(emptyWeekForRole(effectiveRole));
   };
 
-  const tabStyle = (activeTab, color) => ({
-    padding: "6px 16px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-    border: `1px solid ${activeTab ? color : "var(--border)"}`,
-    background: activeTab ? `${color}18` : "transparent",
-    color: activeTab ? color : "var(--tm)",
-    fontWeight: activeTab ? 600 : 400,
-  });
+  const tabStyle = (activeTab) => `ops-segment-btn${activeTab ? " active" : ""}`;
 
   const wtabStyle = (w, isMonthly) => {
-    const done = !isMonthly && weekDone[w];
     const isActive = isMonthly ? curWeek === 0 : curWeek === w;
-    const activeColor = roleMeta.color;
-    return {
-      padding: "5px 14px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
-      border: `1px solid ${isActive ? activeColor : done ? "#86efac" : "var(--border)"}`,
-      background: isActive ? "var(--bg)" : "transparent",
-      color: isActive ? "var(--text)" : done ? "#2d9e52" : "var(--tm)",
-    };
+    return `ops-segment-btn${isActive ? " active" : ""}`;
   };
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16, flexWrap: "wrap", gap: 12, borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
+      <div className="ops-page-header">
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>月度 KPI <span style={{ color: "#2d7dd2" }}>跟踪表</span></div>
-          <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 4 }}>按人员分别记录 · 云端共享</div>
+          <div className="ops-page-title">月度 KPI <span className="ops-page-title-accent">跟踪表</span></div>
+          <div className="ops-page-subtitle">按人员分别记录 · 云端共享 · {year}年{month}月</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <label style={{ fontSize: 11, color: "var(--tm)" }}>年份</label>
-          <input type="number" style={{ ...kpiInpSm, width: 72 }} value={year} min={2020} max={2099} onChange={e => setYear(+e.target.value || now.getFullYear())} />
+          <input type="number" className="ops-card" style={{ ...kpiInpSm, width: 72, boxShadow: "none" }} value={year} min={2020} max={2099} onChange={e => setYear(+e.target.value || now.getFullYear())} />
           <label style={{ fontSize: 11, color: "var(--tm)" }}>月份</label>
-          <select style={{ ...kpiInpSm, background: "var(--card)" }} value={month} onChange={e => setMonth(+e.target.value)}>
+          <select className="ops-card" style={{ ...kpiInpSm, background: "var(--card)", boxShadow: "none" }} value={month} onChange={e => setMonth(+e.target.value)}>
             {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}月</option>)}
           </select>
-          <span style={{ fontSize: 12, color: "var(--tm)" }}>{year}年{month}月</span>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" style={tabStyle(isStatsView, "#5c6bc0")} onClick={() => setCurRole("stats")}>统计</button>
-        <button type="button" style={tabStyle(curRole === "ops", "#2d7dd2")} onClick={() => { setCurRole("ops"); setCurWeek(1); }}>运营</button>
-        <button type="button" style={tabStyle(curRole === "des", "#6b21a8")} onClick={() => { setCurRole("des"); setCurWeek(1); }}>美工</button>
-        <button type="button" style={tabStyle(curRole === "dev", "#00695c")} onClick={() => { setCurRole("dev"); setCurWeek(1); }}>开发</button>
+      <div className="ops-segment" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+        <button type="button" className={tabStyle(isStatsView)} onClick={() => setCurRole("stats")}>统计</button>
+        <button type="button" className={tabStyle(curRole === "ops")} onClick={() => { setCurRole("ops"); setCurWeek(1); }}>运营</button>
+        <button type="button" className={tabStyle(curRole === "des")} onClick={() => { setCurRole("des"); setCurWeek(1); }}>美工</button>
+        <button type="button" className={tabStyle(curRole === "dev")} onClick={() => { setCurRole("dev"); setCurWeek(1); }}>开发</button>
         {curRole === "ops" && (
-          <div style={{ display: "flex", gap: 4, marginLeft: 8, paddingLeft: 8, borderLeft: "1px solid var(--border)" }}>
-            <button type="button" style={tabStyle(curOpsSub === "bulk", "#2d7dd2")} onClick={() => { setCurOpsSub("bulk"); setCurWeek(1); }}>精铺</button>
-            <button type="button" style={{ ...tabStyle(curOpsSub === "premium", "#0C447C"), borderColor: curOpsSub === "premium" ? "#85B7EB" : "var(--border)", background: curOpsSub === "premium" ? "#E6F1FB" : "transparent" }}
-              onClick={() => { setCurOpsSub("premium"); setCurWeek(1); setCurPremiumPage("score"); }}>精品</button>
-          </div>
+          <>
+            <span style={{ width: 1, background: "var(--border)", margin: "4px 4px" }} />
+            <button type="button" className={tabStyle(curOpsSub === "bulk")} onClick={() => { setCurOpsSub("bulk"); setCurWeek(1); }}>精铺</button>
+            <button type="button" className={tabStyle(curOpsSub === "premium")} onClick={() => { setCurOpsSub("premium"); setCurWeek(1); setCurPremiumPage("score"); }}>精品</button>
+          </>
         )}
       </div>
 
       {isStatsView ? (
         <KpiStatsPage items={items} year={year} month={month} staffTick={staffTick} />
       ) : (
-      <div style={{
+      <div className="ops-card ops-card-padded" style={{
         display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap",
-        background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px",
       }}>
         <span style={{ fontSize: 12, color: "var(--tm)", fontWeight: 500 }}>当前{roleLabel}</span>
         {staffList.length ? (
@@ -2290,12 +2323,13 @@ function KpiPanel({ active = true }) {
 
       {!isStatsView && !person ? null : !isStatsView ? (
         <>
-          <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+          <div className="ops-segment" style={{ marginBottom: 16, flexWrap: "wrap" }}>
             {WEEKS.map(w => (
-              <button key={w} type="button" style={wtabStyle(w, false)} onClick={() => setCurWeek(w)}>第{w}周</button>
+              <button key={w} type="button" className={wtabStyle(w, false)} onClick={() => setCurWeek(w)}>
+                第{w}周{weekDone[w] ? " ✓" : ""}
+              </button>
             ))}
-            <button type="button" style={{ ...wtabStyle(0, true), marginLeft: 4, borderColor: roleMeta.sumBorder, color: roleMeta.color }}
-              onClick={() => setCurWeek(0)}>月度汇总</button>
+            <button type="button" className={wtabStyle(0, true)} onClick={() => setCurWeek(0)}>月度汇总</button>
           </div>
 
           {curWeek === 0 ? (

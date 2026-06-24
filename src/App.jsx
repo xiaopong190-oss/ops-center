@@ -134,7 +134,7 @@ function TaskCard({ task, onClick }) {
   else if (task.due) { if (taskIsOverdue(task)) due = <span style={badge("#fee2e2", "#b91c1c")}>逾期{Math.abs(d)}天</span>; else due = <span style={badge("#f3f4f6", "#666")}>📅{fmtD(task.due)}</span>; }
   const role = getStaffRole(task.owner);
   return (
-    <div onClick={onClick} style={{ background: "var(--card)", border: "1px solid var(--border)", borderLeft: `3px solid ${bc}`, borderRadius: 10, padding: "12px 14px", cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.07)"} onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
+    <div onClick={onClick} className="ops-card ops-card-hover ops-card-padded" style={{ borderLeft: `3px solid ${bc}`, borderRadius: 10 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
         <div style={{ flex: 1, fontSize: 13, fontWeight: 600, lineHeight: 1.4, color: st === "done" ? "var(--tm)" : "var(--text)", textDecoration: st === "done" ? "line-through" : "none" }}>{task.task}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
@@ -189,13 +189,13 @@ function TasksPanel({ active = true }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, marginRight: 12 }}>
-          {tabs.map(f => <div key={f.key} onClick={() => setFilter(f.key)} style={{ background: "var(--card)", border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer" }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: f.nc }}>{counts[f.key]}</div>
-            <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 1 }}>{f.label}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, flex: 1, marginRight: 12 }}>
+          {tabs.map(f => <div key={f.key} onClick={() => setFilter(f.key)} className={`ops-metric-card ops-card-hover${filter === f.key ? "" : ""}`} style={{ borderColor: filter === f.key ? "#4080FF" : "var(--border)", boxShadow: filter === f.key ? "0 0 0 1px #4080FF" : undefined }}>
+            <div className="ops-metric-value" style={{ fontSize: 20, color: f.nc }}>{counts[f.key]}</div>
+            <div className="ops-metric-label" style={{ marginTop: 2, marginBottom: 0 }}>{f.label}</div>
           </div>)}
         </div>
-        <button onClick={() => setModal({ task: "", owner: "", cat: DEFAULT_TASK_CAT, due: "", actual: "", nodes: [], block: "" })} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, flexShrink: 0 }}>+ 新建</button>
+        <button onClick={() => setModal({ task: "", owner: "", cat: DEFAULT_TASK_CAT, due: "", actual: "", nodes: [], block: "" })} className="ops-btn ops-btn-primary" style={{ flexShrink: 0 }}>+ 新建</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {vis.length ? vis.map(t => <TaskCard key={t.id} task={t} onClick={() => setModal({ ...t, nodes: t.nodes ? t.nodes.map(n => ({ ...n })) : [] })} />) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无任务</div>}
@@ -203,17 +203,41 @@ function TasksPanel({ active = true }) {
       {modal && <TaskModal task={modal} tasks={tasks} onSave={save} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
         setModal(null);
-      }} onDelete={() => { persist(tasks.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      }} onDelete={() => { persist(tasks.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>
   );
 }
 
-const TABS = [{ key: "home", label: "首页" }, { key: "tasks", label: "任务跟进" }, { key: "logistics", label: "物流头程" }, { key: "production", label: "精品生产" }, { key: "kpi", label: "考核" }, { key: "tools", label: "工具" }, { key: "agents", label: "AI 智能体" }, { key: "knowledge", label: "知识库" }];
+const TABS = [
+  { key: "home", label: "首页", icon: "home" },
+  { key: "tasks", label: "任务跟进", icon: "tasks" },
+  { key: "logistics", label: "物流头程", icon: "logistics" },
+  { key: "production", label: "精品生产", icon: "production" },
+  { key: "kpi", label: "考核", icon: "kpi" },
+  { key: "tools", label: "工具", icon: "tools" },
+  { key: "agents", label: "AI 智能体", icon: "agents" },
+  { key: "knowledge", label: "知识库", icon: "knowledge" },
+];
+
+const TAB_TITLES = Object.fromEntries(TABS.map(t => [t.key, t.label]));
+
+function NavIcon({ name }) {
+  const s = { width: 18, height: 18, stroke: "currentColor", fill: "none", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
+  if (name === "home") return <svg viewBox="0 0 24 24" style={s}><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1v-9.5z" /></svg>;
+  if (name === "tasks") return <svg viewBox="0 0 24 24" style={s}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 10h8M8 14h5" /></svg>;
+  if (name === "logistics") return <svg viewBox="0 0 24 24" style={s}><rect x="1" y="6" width="15" height="10" rx="1" /><path d="M16 9h4l3 4v3h-7V9z" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /></svg>;
+  if (name === "production") return <svg viewBox="0 0 24 24" style={s}><path d="M2 20h20M5 20V10l7-6 7 6v10" /><path d="M9 20v-5h6v5" /></svg>;
+  if (name === "kpi") return <svg viewBox="0 0 24 24" style={s}><path d="M4 19V5M4 19h16" /><path d="M8 15l3-4 3 2 5-7" /></svg>;
+  if (name === "tools") return <svg viewBox="0 0 24 24" style={s}><path d="M14.7 6.3a4 4 0 105.4 5.4L12 20l-3-3 7.7-10.7z" /></svg>;
+  if (name === "agents") return <svg viewBox="0 0 24 24" style={s}><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>;
+  if (name === "knowledge") return <svg viewBox="0 0 24 24" style={s}><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>;
+  return null;
+}
 
 function BrandLogo({ size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden style={{ flexShrink: 0, display: "block" }}>
-      <rect x="1" y="1" width="30" height="30" rx="7" fill="#1a1d24" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
+      <rect x="1" y="1" width="30" height="30" rx="8" fill="#4080FF" />
       <text x="16" y="22" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="700" fontFamily="'PingFang SC','Microsoft YaHei',system-ui,sans-serif">H</text>
     </svg>
   );
@@ -235,7 +259,7 @@ function SettingsMenu({ onSelect }) {
   const pick = (key) => { setOpen(false); onSelect(key); };
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} title="设置" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: "var(--tm)", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+      <button type="button" className="ops-btn" onClick={() => setOpen(o => !o)} aria-expanded={open} title="设置">
         ⚙ 设置 <span style={{ fontSize: 9, opacity: 0.7 }}>▾</span>
       </button>
       {open && (
@@ -253,7 +277,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-35";
+const APP_BUILD = "cloud-36-saas";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -280,21 +304,27 @@ function LoginScreen({ onSuccess }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f8f8f6", color: "#111", fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
-      <form onSubmit={submit} style={{ width: "100%", maxWidth: 360, background: "#fff", border: "1px solid #e5e5e5", borderRadius: 16, padding: "1.75rem 1.5rem", boxShadow: "0 12px 40px rgba(0,0,0,0.06)" }}>
-        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{APP_ORG_NAME}</div>
-        <div style={{ fontSize: 12, color: "#888", marginBottom: 18, lineHeight: 1.55 }}>请输入团队访问密码后进入运营中心</div>
-        <label style={{ display: "block", fontSize: 11, color: "#888", marginBottom: 6, fontWeight: 500 }}>访问密码</label>
+    <div className="ops-login-wrap">
+      <form onSubmit={submit} className="ops-login-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+          <BrandLogo size={36} />
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{APP_ORG_NAME}</div>
+            <div style={{ fontSize: 12, color: "var(--tm)", marginTop: 2 }}>运营中心</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 18, lineHeight: 1.55 }}>请输入团队访问密码后进入</div>
+        <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>访问密码</label>
         <input
           type="password"
           value={password}
           onChange={e => { setPassword(e.target.value); if (error) setError(""); }}
           placeholder="请输入密码"
           autoFocus
-          style={{ width: "100%", fontSize: 14, padding: "10px 12px", border: `1px solid ${error ? "#e57373" : "#e5e5e5"}`, borderRadius: 10, fontFamily: "inherit", marginBottom: error ? 8 : 16 }}
+          style={{ width: "100%", fontSize: 14, padding: "10px 12px", border: `1px solid ${error ? "#F53F3F" : "var(--border)"}`, borderRadius: 10, fontFamily: "inherit", marginBottom: error ? 8 : 16, background: "var(--bg)" }}
         />
-        {error && <div style={{ fontSize: 12, color: "#c62828", marginBottom: 12 }}>{error}</div>}
-        <button type="submit" style={{ width: "100%", background: "#2d7dd2", border: "none", borderRadius: 10, padding: "10px 14px", fontSize: 14, cursor: "pointer", fontFamily: "inherit", color: "#fff", fontWeight: 600 }}>进入</button>
+        {error && <div style={{ fontSize: 12, color: "#F53F3F", marginBottom: 12 }}>{error}</div>}
+        <button type="submit" className="ops-btn ops-btn-primary" style={{ width: "100%", padding: "10px 14px", fontSize: 14, justifyContent: "center" }}>进入运营中心</button>
       </form>
     </div>
   );
@@ -307,34 +337,63 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel 
     if (!confirmLeave()) return;
     setTab(key);
   };
-  const css = { "--bg": dark ? "#111" : "#f8f8f6", "--card": dark ? "#1c1c1c" : "#fff", "--border": dark ? "#2a2a2a" : "#e5e5e5", "--text": dark ? "#eee" : "#111", "--tm": dark ? "#777" : "#888" };
+  const css = {
+    "--bg": dark ? "#0d0d0d" : "#F5F7FA",
+    "--card": dark ? "#1a1a1a" : "#FFFFFF",
+    "--border": dark ? "#2e2e2e" : "#E5E8EF",
+    "--border-light": dark ? "#252525" : "#F2F3F5",
+    "--text": dark ? "#e8e8e8" : "#1D2129",
+    "--tm": dark ? "#888" : "#86909C",
+    "--primary": "#4080FF",
+    "--primary-light": dark ? "#1a2a4a" : "#E8F1FF",
+    "--shadow-sm": dark ? "0 1px 2px rgba(0,0,0,0.3)" : "0 1px 2px rgba(29,33,41,0.04)",
+    "--shadow-md": dark ? "0 4px 16px rgba(0,0,0,0.4)" : "0 4px 16px rgba(29,33,41,0.06)",
+  };
   return (
-    <div style={{ ...css, minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'PingFang SC','Microsoft YaHei',sans-serif" }}>
-      <div style={{ maxWidth: tab === "kpi" || tab === "knowledge" ? 1100 : 820, margin: "0 auto", padding: "1.5rem 1rem", transition: "max-width 0.2s" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>
-            <BrandLogo />
-            泓森拓创科技
-            <span title="version" style={{ fontSize: 10, fontWeight: 600, color: "#2d7dd2", background: "#eef6ff", border: "1px solid #b8d4f0", padding: "2px 7px", borderRadius: 5 }}>{APP_BUILD}</span>
+    <div className="ops-app" style={css}>
+      <aside className="ops-sidebar">
+        <div className="ops-sidebar-brand">
+          <BrandLogo size={32} />
+          <div>
+            <div className="ops-sidebar-brand-text">泓森拓创科技</div>
+            <span className="ops-badge ops-badge-info" style={{ marginTop: 4 }}>{APP_BUILD}</span>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+        </div>
+        <nav className="ops-sidebar-nav">
+          {TABS.map(t => (
+            <div key={t.key} className="ops-nav-item-wrap">
+              <button type="button" className={`ops-nav-item${tab === t.key ? " active" : ""}`} onClick={() => trySetTab(t.key)}>
+                <span className="ops-nav-icon"><NavIcon name={t.icon} /></span>
+                {t.label}
+              </button>
+            </div>
+          ))}
+        </nav>
+        <div className="ops-sidebar-footer">运营中心 · 云端同步</div>
+      </aside>
+
+      <div className="ops-main">
+        <header className="ops-topbar">
+          <div className="ops-topbar-title">{TAB_TITLES[tab] || "运营中心"}</div>
+          <div className="ops-topbar-actions">
             <SettingsMenu onSelect={key => { if (key === "staff") setSettingsPanel("staff"); }} />
-            <button onClick={() => setDark(!dark)} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: "var(--tm)", fontFamily: "inherit" }}>{dark ? "☀ 日间" : "☾ 夜间"}</button>
+            <button type="button" className="ops-btn" onClick={() => setDark(!dark)}>{dark ? "☀ 日间" : "☾ 夜间"}</button>
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 4, marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: 0, flexWrap: "wrap" }}>
-          {TABS.map(t => (<button key={t.key} onClick={() => trySetTab(t.key)} style={{ background: "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2d7dd2" : "2px solid transparent", padding: "8px 18px", fontSize: 13, fontWeight: tab === t.key ? 600 : 400, color: tab === t.key ? "#2d7dd2" : "var(--tm)", cursor: "pointer", fontFamily: "inherit", marginBottom: -1 }}>{t.label}</button>))}
-        </div>
-        <GlobalCloudBar />
-        <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
-        <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
-        <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
-        <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
-        <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
-        <div style={{ display: tab === "knowledge" ? "block" : "none" }}><KnowledgePanel active={tab === "knowledge"} /></div>
-        <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel active={tab === "tools"} /></div>
-        <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel active={tab === "agents"} /></div>
+        </header>
+
+        <main className="ops-content" style={{ maxWidth: tab === "kpi" || tab === "knowledge" ? 1280 : 960 }}>
+          <GlobalCloudBar />
+          <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
+          <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
+          <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
+          <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
+          <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
+          <div style={{ display: tab === "knowledge" ? "block" : "none" }}><KnowledgePanel active={tab === "knowledge"} /></div>
+          <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel active={tab === "tools"} /></div>
+          <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel active={tab === "agents"} /></div>
+        </main>
       </div>
+
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
     </div>
   );

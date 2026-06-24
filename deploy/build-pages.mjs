@@ -146,6 +146,8 @@ if (fs.existsSync(bundlePath)) {
 
 copyFile(path.join(root, "app.html"), path.join(out, "index.html"));
 
+copyFile(path.join(root, "src", "index.css"), path.join(out, "src", "index.css"));
+
 for (const f of fs.readdirSync(path.join(root, "src")).filter(n => n.endsWith(".browser.jsx"))) {
   copyFile(path.join(root, "src", f), path.join(out, "src", f));
 }

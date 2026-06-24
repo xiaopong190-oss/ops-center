@@ -727,7 +727,7 @@ export function LogisticsPanel({ active = true }) {
   };
   const deleteGroup = (g) => {
     if (!window.confirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`)) return;
-    persist(list.filter(x => x.id !== g.id));
+    persist(list.filter(x => x.id !== g.id), { replace: true });
     if (modal?.id === g.id) setModal(null);
   };
   const editTracking = (gid, fid, tracking) => {
@@ -830,7 +830,7 @@ export function LogisticsPanel({ active = true }) {
       {modal && <ShipmentModal item={modal} onSave={save} getExistingFbaIds={() => collectFbaIdsFromGroups(list, modal.id)} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
         setModal(null);
-      }} onDelete={() => { persist(list.filter(x => x.id !== modal.id)); setModal(null); }} />}
+      }} onDelete={() => { persist(list.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>
   );
 }

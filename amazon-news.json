@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-06-23T03:27:47.629Z",
+  "updatedAt": "2026-06-24T03:29:25.824Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
-      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
-      "pubDate": "Fri, 19 Jun 2026 23:14:00 GMT",
-      "date": "6/19",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
-      "category": "Community"
+      "title": "AWS CEO Matt Garman on why enterprise AI is finally delivering real returns",
+      "link": "https://www.aboutamazon.com/news/aws/aws/aws-matt-garman-enterprise-ai-roi-interview-2026?utm_source=rss",
+      "pubDate": "Wed, 24 Jun 2026 00:42:33 GMT",
+      "date": "6/24",
+      "summary": "In a new interview, Garman explains why enterprises are moving past AI experimentation—and what's driving real business value.",
+      "category": "AWS"
     },
     {
-      "title": "5 ways Amazon is investing in Kentucky",
-      "link": "https://www.aboutamazon.com/news/community/amazon-investment-kentucky-jobs-small-business?utm_source=rss",
-      "pubDate": "Fri, 19 Jun 2026 19:00:31 GMT",
-      "date": "6/19",
-      "summary": "Amazon's investments are boosting the Bluegrass State's economy while creating opportunities for those who call Kentucky home.",
-      "category": "Community"
+      "title": "Get a behind-the-scenes look at Amazon's innovations with the 'Learn and Be Curious' podcast",
+      "link": "https://www.aboutamazon.com/news/company-news/learn-be-curious-podcast-amazon-stores-ceo?utm_source=rss",
+      "pubDate": "Tue, 23 Jun 2026 15:28:00 GMT",
+      "date": "6/23",
+      "summary": "Amazon's CEO of Worldwide Stores Doug Herrington explores how the company innovates, tests ideas, and scales products in this podcast series",
+      "category": "Company news"
     },
     {
-      "title": "7 ways Amazon is investing in North Carolina",
-      "link": "https://www.aboutamazon.com/news/community/amazon-investment-north-carolina-jobs-infrastructure-small-business?utm_source=rss",
-      "pubDate": "Fri, 19 Jun 2026 17:15:41 GMT",
-      "date": "6/19",
-      "summary": "Amazon's investments are boosting the Tar Heel State's economy while creating opportunities for North Carolinians.",
-      "category": "Community"
+      "title": "How Amazon's pricing team works to deliver low prices every day",
+      "link": "https://www.aboutamazon.com/news/retail/how-amazon-keeps-prices-low-learn-and-be-curious-podcast?utm_source=rss",
+      "pubDate": "Tue, 23 Jun 2026 15:05:01 GMT",
+      "date": "6/23",
+      "summary": "The company's approach to pricing isn't about maximizing profit—it's about making sure customers always get the best deal.",
+      "category": "Retail"
     }
   ]
 }

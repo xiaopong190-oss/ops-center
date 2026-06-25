@@ -463,7 +463,37 @@ function Set-NoCacheHeaders {
   }
 }
 
+function Sync-BrowserBundleIfStale {
+  $node = Get-Command node -ErrorAction SilentlyContinue
+  if (-not $node) { return }
+  $bundle = Join-Path $root "app.bundle.js"
+  $sources = @(
+    (Join-Path $root "src\LogisticsModule.jsx"),
+    (Join-Path $root "src\FBAGanttCard.jsx"),
+    (Join-Path $root "src\LogisticsModule.browser.jsx"),
+    (Join-Path $root "sync-browser.mjs"),
+    (Join-Path $root "deploy\build-browser-bundle.mjs")
+  )
+  $needs = -not (Test-Path -LiteralPath $bundle)
+  if (-not $needs) {
+    $bundleTime = (Get-Item -LiteralPath $bundle).LastWriteTimeUtc
+    foreach ($src in $sources) {
+      if ((Test-Path -LiteralPath $src) -and (Get-Item -LiteralPath $src).LastWriteTimeUtc -gt $bundleTime) {
+        $needs = $true
+        break
+      }
+    }
+  }
+  if (-not $needs) { return }
+  Write-Host "Rebuilding app.bundle.js (sources changed)..."
+  & $node.Source (Join-Path $root "sync-browser.mjs")
+  if ($LASTEXITCODE -ne 0) { throw "sync-browser failed" }
+  & $node.Source (Join-Path $root "deploy\build-browser-bundle.mjs")
+  if ($LASTEXITCODE -ne 0) { throw "build-browser-bundle failed" }
+}
+
 try {
+  Sync-BrowserBundleIfStale
   Sync-AmazonNewsIfNeeded
   $listener = New-Object System.Net.HttpListener
   $listener.Prefixes.Add("http://127.0.0.1:$port/")

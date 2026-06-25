@@ -66,5 +66,6 @@ fs.writeFileSync(
   `/* ops-center prebuilt bundle */\n${compiled}\n`,
   "utf8"
 );
+fs.writeFileSync(path.join(root, "app.version.txt"), String(Date.now()), "utf8");
 
 console.log("build-browser-bundle ok:", outPath, `(${fs.statSync(outPath).size} bytes)`);

@@ -52,8 +52,19 @@
           return code;
         }
 
+        async function loadSyncVer() {
+          try {
+            var r = await fetch("app.version.txt?_=" + Date.now());
+            if (r.ok) {
+              var t = (await r.text()).trim();
+              if (t) return t;
+            }
+          } catch (e) { /* optional */ }
+          return String(Date.now());
+        }
+
         try {
-          var SYNC_VER = "20260609prod";
+          var SYNC_VER = await loadSyncVer();
           await loadGistConfig();
           var bundleRes = await fetch("app.bundle.js?v=" + SYNC_VER);
           if (bundleRes.ok) {

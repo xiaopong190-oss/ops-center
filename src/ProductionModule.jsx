@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { OwnerField, ownerFilterEntries, RoleBadge, getStaffRole } from "./GlobalConfig.jsx";
 import { useSharedList, formatSharedTime } from "./utils/storage.js";
 import { useCloudSyncPage } from "./GlobalCloudSync.jsx";
-import ProdGanttCard from "./ProdGanttCard.jsx";
+import ProdGanttCard, { productionItemsToGanttProducts, prodGroupKey, prodMatchesProduct } from "./ProdGanttCard.jsx";
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
@@ -55,6 +55,45 @@ const prodBatchStatus = (b) => {
 const isProducing = (b) => b.stage === "生产中";
 const isQcStage = (b) => b.stage === "QC验货";
 const normalizeStage = (s) => (s === "生产" ? "生产中" : s);
+
+const PROD_FILTER_KEY = "ops-prod-filters";
+
+function loadProdFilters() {
+  try {
+    const raw = sessionStorage.getItem(PROD_FILTER_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === "object") {
+        return {
+          tabFilter: typeof p.tabFilter === "string" ? p.tabFilter : "all",
+          stageFilter: typeof p.stageFilter === "string" ? p.stageFilter : "all",
+          ownerFilter: typeof p.ownerFilter === "string" ? p.ownerFilter : "all",
+          supplierFilter: typeof p.supplierFilter === "string" ? p.supplierFilter : "all",
+          productFilter: typeof p.productFilter === "string" ? p.productFilter : "all",
+          excOnly: !!p.excOnly,
+        };
+      }
+    }
+  } catch { /* ignore */ }
+  return { tabFilter: "all", stageFilter: "all", ownerFilter: "all", supplierFilter: "all", productFilter: "all", excOnly: false };
+}
+
+function saveProdFilters(filters) {
+  try { sessionStorage.setItem(PROD_FILTER_KEY, JSON.stringify(filters)); } catch { /* ignore */ }
+}
+
+const prodProductTabChip = (active) => ({
+  background: active ? "#2d7dd2" : "var(--card)",
+  color: active ? "#fff" : "var(--text)",
+  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
+  borderRadius: 10,
+  padding: "8px 14px",
+  fontSize: 13,
+  fontWeight: active ? 600 : 500,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap",
+});
 
 const INIT_PROD = [
   {
@@ -274,25 +313,42 @@ function ProductGroup({ product, name, batches, onEdit }) {
 
 export function ProductionPanel({ active = true }) {
   const { items, meta, loading, saving, error, persist, reload } = useSharedList("production", INIT_PROD_DEFAULT, { active });
+  const list = Array.isArray(items) ? items : [];
+  const savedFilters = loadProdFilters();
   const [modal, setModal] = useState(null);
-  const [tabFilter, setTabFilter] = useState("all");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [ownerFilter, setOwnerFilter] = useState("all");
-  const [supplierFilter, setSupplierFilter] = useState("all");
-  const [excOnly, setExcOnly] = useState(false);
+  const [tabFilter, setTabFilter] = useState(savedFilters.tabFilter || "all");
+  const [stageFilter, setStageFilter] = useState(savedFilters.stageFilter || "all");
+  const [ownerFilter, setOwnerFilter] = useState(savedFilters.ownerFilter || "all");
+  const [supplierFilter, setSupplierFilter] = useState(savedFilters.supplierFilter || "all");
+  const [productFilter, setProductFilter] = useState(savedFilters.productFilter || "all");
+  const [excOnly, setExcOnly] = useState(!!savedFilters.excOnly);
+
+  const products = useMemo(() => productionItemsToGanttProducts(list), [list]);
+  const currentProduct = productFilter === "all" ? null : products.find(p => p.id === productFilter) || null;
+
+  useEffect(() => {
+    if (productFilter === "all" || products.some(p => p.id === productFilter)) return;
+    setProductFilter("all");
+  }, [products, productFilter]);
+
+  useEffect(() => {
+    saveProdFilters({ tabFilter, stageFilter, ownerFilter, supplierFilter, productFilter, excOnly });
+  }, [tabFilter, stageFilter, ownerFilter, supplierFilter, productFilter, excOnly]);
+
+  const scopedList = productFilter === "all" ? list : list.filter(b => prodMatchesProduct(b, productFilter));
 
   const counts = {
-    all: items.length,
-    blocked: items.filter(i => prodBatchStatus(i) === "blocked").length,
-    overdue: items.filter(i => prodBatchStatus(i) === "overdue").length,
-    producing: items.filter(isProducing).length,
-    qc: items.filter(isQcStage).length,
-    done: items.filter(i => i.stage === "已完成").length,
+    all: scopedList.length,
+    blocked: scopedList.filter(i => prodBatchStatus(i) === "blocked").length,
+    overdue: scopedList.filter(i => prodBatchStatus(i) === "overdue").length,
+    producing: scopedList.filter(isProducing).length,
+    qc: scopedList.filter(isQcStage).length,
+    done: scopedList.filter(i => i.stage === "已完成").length,
   };
   const owners = ownerFilterEntries();
-  const suppliers = ["all", ...new Set(items.map(i => i.supplier).filter(Boolean))];
+  const suppliers = ["all", ...new Set(scopedList.map(i => i.supplier).filter(Boolean))];
 
-  let vis = items.slice();
+  let vis = scopedList.slice();
   if (tabFilter === "blocked") vis = vis.filter(i => prodBatchStatus(i) === "blocked");
   else if (tabFilter === "overdue") vis = vis.filter(i => prodBatchStatus(i) === "overdue");
   else if (tabFilter === "producing") vis = vis.filter(isProducing);
@@ -305,7 +361,7 @@ export function ProductionPanel({ active = true }) {
 
   const groups = {};
   vis.forEach(b => {
-    const key = `${b.product}::${b.name}`;
+    const key = prodGroupKey(b);
     if (!groups[key]) groups[key] = { product: b.product, name: b.name, batches: [] };
     groups[key].batches.push(b);
   });
@@ -324,10 +380,14 @@ export function ProductionPanel({ active = true }) {
     qcMethod: "自检", qcCompany: "", qcDate: "", qcResult: "", qcReportNo: "", qcNote: "",
     stage: "立项", note: "", exceptions: [],
   };
+  const emptyBatchForProduct = () => {
+    if (!currentProduct) return { ...emptyBatch };
+    return { ...emptyBatch, product: currentProduct.product || currentProduct.sku || "", name: currentProduct.styleName || "" };
+  };
   const save = (t) => {
     const now = Date.now();
-    if (t.id) persist(items.map(x => x.id === t.id ? { ...t, updatedAt: now } : x));
-    else persist([...items, { ...t, id: Math.max(0, ...items.map(x => x.id || 0)) + 1, updatedAt: now }]);
+    if (t.id) persist(list.map(x => x.id === t.id ? { ...t, updatedAt: now } : x));
+    else persist([...list, { ...t, id: Math.max(0, ...list.map(x => x.id || 0)) + 1, updatedAt: now }]);
     setModal(null);
   };
   const clone = (b) => ({ ...b, exceptions: (b.exceptions || []).map(e => ({ ...e })) });
@@ -343,7 +403,7 @@ export function ProductionPanel({ active = true }) {
 
   useCloudSyncPage(active, {
     label: "生产",
-    save: async () => persist(items),
+    save: async () => persist(list),
     reload,
     meta,
     loading,
@@ -355,7 +415,31 @@ export function ProductionPanel({ active = true }) {
 
   return (
     <div>
-      <ProdGanttCard items={items} />
+      {products.length > 0 && (
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8 }}>产品分页 · 切换查看各产品生产进度</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => setProductFilter("all")} style={prodProductTabChip(productFilter === "all")}>
+              全部产品<span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({list.length})</span>
+            </button>
+            {products.map(p => (
+              <button key={p.id} type="button" onClick={() => setProductFilter(p.id)} style={prodProductTabChip(productFilter === p.id)} title={p.name}>
+                {p.sku || p.name}
+                <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({p.batches.length})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {currentProduct && (
+        <div style={{ background: "var(--card)", border: "1px solid #2d7dd2", borderRadius: 12, padding: "12px 16px", marginBottom: "1rem" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{currentProduct.name}</div>
+          <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 4 }}>
+            {currentProduct.batches.length} 个生产批次 · 仅显示本产品相关订单
+          </div>
+        </div>
+      )}
+      <ProdGanttCard items={list} productFilter={productFilter} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 7, flex: 1, minWidth: 320 }}>
           {tabs.map(f => (
@@ -365,7 +449,7 @@ export function ProductionPanel({ active = true }) {
             </div>
           ))}
         </div>
-        <button onClick={() => setModal(emptyBatch)} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, flexShrink: 0 }}>+ 新建批次</button>
+        <button onClick={() => setModal(emptyBatchForProduct())} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, flexShrink: 0 }}>+ 新建批次</button>
       </div>
       <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ ...inpSm, background: "var(--card)", width: "auto" }}>
@@ -389,12 +473,12 @@ export function ProductionPanel({ active = true }) {
       <div>
         {groupList.length ? groupList.map(g => (
           <ProductGroup key={`${g.product}-${g.name}`} product={g.product} name={g.name} batches={g.batches} onEdit={b => setModal(clone(b))} />
-        )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
+        )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>{currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次"}</div>}
       </div>
       {modal && <ProdModal item={modal} onSave={save} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
         setModal(null);
-      }} onDelete={() => { persist(items.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
+      }} onDelete={() => { persist(list.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>
   );
 }

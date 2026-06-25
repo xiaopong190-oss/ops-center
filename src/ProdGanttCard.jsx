@@ -18,6 +18,7 @@ const PROD_GANTT_SORT_OPTIONS = [
 ];
 
 const PROD_GANTT_FILTER_KEY = "ops-prod-gantt-filters";
+const PROD_GANTT_EXPAND_KEY = "ops-prod-gantt-expanded";
 
 const PROD_GANTT_BTN_PRIMARY = {
   background: "#2d7dd2",
@@ -65,6 +66,21 @@ function saveProdGanttFilters(filters) {
   try { sessionStorage.setItem(PROD_GANTT_FILTER_KEY, JSON.stringify(filters)); } catch { /* ignore */ }
 }
 
+function loadProdGanttExpanded() {
+  try {
+    const raw = sessionStorage.getItem(PROD_GANTT_EXPAND_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === "object") return p;
+    }
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveProdGanttExpanded(state) {
+  try { sessionStorage.setItem(PROD_GANTT_EXPAND_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+}
+
 function prodGanttNormalizeStage(s) {
   return s === "生产" ? "生产中" : (s || "立项");
 }
@@ -99,26 +115,76 @@ function batchToGanttStatus(b) {
   return "setup";
 }
 
-/** 将下方生产批次转为甘特产品行（按产品编号 + 款式聚合） */
+/** 产品分组键（产品编号 + 款式，与下方列表分组一致） */
+export function prodGroupKey(b) {
+  return `${(b.product || "未命名").trim()}::${(b.name || "").trim()}`;
+}
+
+export function prodMatchesProduct(b, productFilter) {
+  return productFilter === "all" || prodGroupKey(b) === productFilter;
+}
+
+function prodBatchGanttMeta(b, today) {
+  const excCount = prodGanttOpenExcs(b).length;
+  let overdue = prodGanttBatchStatus(b) === "overdue";
+  if (!overdue && b.etaDelivery) {
+    const eta = prodGanttParseD(b.etaDelivery);
+    const stage = prodGanttNormalizeStage(b.stage);
+    if (eta && eta < today && !["出货", "已完成"].includes(stage) && !b.actualDelivery) overdue = true;
+  }
+  return { excCount, overdue };
+}
+
+function prodDominantStatus(statuses) {
+  const order = ["blocked", "overdue", "producing", "qc", "shipping", "setup", "done"];
+  if (!statuses.length) return "setup";
+  if (statuses.every(s => s === "done")) return "done";
+  for (const key of order) {
+    if (statuses.some(s => s === key)) return key;
+  }
+  return "setup";
+}
+
+function prodDisplayName(product, name) {
+  const parts = [product, name].filter(Boolean);
+  return parts.join(" ") || "未命名";
+}
+
+/** 按产品编号 + 款式聚合，每个生产批次在甘特图中独立一行 */
 export function productionItemsToGanttProducts(items) {
   if (!Array.isArray(items) || !items.length) return [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const byKey = new Map();
   for (const b of items) {
-    const key = `${b.product || "未命名"}::${b.name || ""}`.trim();
+    const key = prodGroupKey(b);
     if (!byKey.has(key)) {
       byKey.set(key, {
         id: key,
-        name: [b.product, b.name].filter(Boolean).join(" ") || "未命名",
+        product: b.product || "",
+        styleName: b.name || "",
+        name: prodDisplayName(b.product, b.name),
         sku: b.product || "",
         batches: [],
       });
     }
+    const meta = prodBatchGanttMeta(b, today);
     byKey.get(key).batches.push({
       id: b.id,
       label: b.batch || "批次",
+      sub: b.supplier || "",
       status: batchToGanttStatus(b),
       shipDate: b.orderDate || "",
       etaArrival: b.actualDelivery || b.etaDelivery || b.etaShip || "",
+      excCount: meta.excCount,
+      overdue: meta.overdue,
+    });
+  }
+  for (const p of byKey.values()) {
+    p.batches.sort((a, b) => {
+      const ta = prodGanttParseD(a.shipDate)?.getTime() || 0;
+      const tb = prodGanttParseD(b.shipDate)?.getTime() || 0;
+      return tb - ta;
     });
   }
   return Array.from(byKey.values());
@@ -134,8 +200,144 @@ const prodGanttParseD = (s) => {
 
 const prodGanttFmtShort = (d) => {
   if (!d) return "—";
+  if (typeof d === "string") {
+    const p = prodGanttParseD(d);
+    if (!p) return "—";
+    return `${p.getMonth() + 1}/${p.getDate()}`;
+  }
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
+
+function prodGanttProductSummary(batches) {
+  const ships = batches.map(b => prodGanttParseD(b.shipDate)).filter(Boolean);
+  const etas = batches.map(b => prodGanttParseD(b.etaArrival)).filter(Boolean);
+  return {
+    shipDate: ships.length ? new Date(Math.min(...ships.map(d => d.getTime()))).toISOString().slice(0, 10) : "",
+    etaArrival: etas.length ? new Date(Math.max(...etas.map(d => d.getTime()))).toISOString().slice(0, 10) : "",
+    status: prodDominantStatus(batches.map(b => b.status)),
+    excCount: batches.reduce((s, b) => s + (b.excCount || 0), 0),
+    overdue: batches.some(b => b.overdue),
+    batchCount: batches.length,
+  };
+}
+
+function prodGanttCalcBarPos(shipDate, etaArrival, min, totalDays) {
+  const start = prodGanttParseD(shipDate) || prodGanttParseD(etaArrival);
+  const end = prodGanttParseD(etaArrival) || prodGanttParseD(shipDate);
+  if (!start || !end) return null;
+  const s = start < end ? start : end;
+  const e = start < end ? end : start;
+  return {
+    left: ((s - min) / 86400000 / totalDays) * 100,
+    width: Math.max(8, ((e - s) / 86400000 / totalDays) * 100),
+    start: s,
+    end: e,
+  };
+}
+
+function ProdGanttAlerts({ excCount, overdue, compact }) {
+  const items = [];
+  if (overdue) items.push({ t: "逾期", c: "#E24B4A", bg: "#fee2e2" });
+  if (excCount > 0) items.push({ t: `⚠${excCount}`, c: "#b45309", bg: "#fff0d4" });
+  if (!items.length) return null;
+  return (
+    <span style={{ display: "inline-flex", gap: compact ? 3 : 4, flexShrink: 0 }}>
+      {items.map(it => (
+        <span key={it.t} style={{ fontSize: compact ? 9 : 10, fontWeight: 700, padding: compact ? "1px 5px" : "2px 6px", borderRadius: 10, background: it.bg, color: it.c, whiteSpace: "nowrap" }}>{it.t}</span>
+      ))}
+    </span>
+  );
+}
+
+function ProdGanttTrack({ shipDate, etaArrival, status, label, sub, excCount, overdue, min, totalDays, today, height = 40, compact = false, segments, segmentsOnly = false }) {
+  const pos = prodGanttCalcBarPos(shipDate, etaArrival, min, totalDays);
+  const st = PROD_GANTT_STATUS[status] || PROD_GANTT_STATUS.setup;
+  const trackH = height;
+
+  if (segmentsOnly && segments?.length) {
+    return (
+      <div style={{ flex: 1, position: "relative", height: trackH, background: "#f3f4f6", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+        {segments.map(seg => {
+          const sp = prodGanttCalcBarPos(seg.shipDate, seg.etaArrival, min, totalDays);
+          if (!sp) return null;
+          const ss = PROD_GANTT_STATUS[seg.status] || PROD_GANTT_STATUS.setup;
+          return (
+            <div
+              key={seg.id}
+              title={`${seg.label} · ${ss.label} · ${prodGanttFmtShort(seg.shipDate)}→${prodGanttFmtShort(seg.etaArrival)}`}
+              style={{
+                position: "absolute",
+                left: `${sp.left}%`,
+                width: `${sp.width}%`,
+                top: 3,
+                bottom: 3,
+                background: `linear-gradient(180deg, ${ss.bg}, ${ss.border}88)`,
+                border: `1.5px solid ${seg.overdue ? "#E24B4A" : ss.border}`,
+                borderRadius: 4,
+                minWidth: 4,
+              }}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (!pos) {
+    return (
+      <div style={{ flex: 1, height: trackH, background: "#f9fafb", borderRadius: 8, border: "2px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#9ca3af" }}>
+        暂无日期区间
+      </div>
+    );
+  }
+
+  const todayInBar = today >= pos.start && today <= pos.end;
+  const todayPctInBar = todayInBar ? ((today - pos.start) / (pos.end - pos.start)) * 100 : null;
+
+  return (
+    <div style={{ flex: 1, position: "relative", height: trackH, background: "#f3f4f6", borderRadius: 8, border: "1px solid #e5e7eb", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)" }}>
+      <div
+        title={`${label || ""} ${prodGanttFmtShort(pos.start)} → ${prodGanttFmtShort(pos.end)} · ${st.label}`}
+        style={{
+          position: "absolute",
+          left: `${pos.left}%`,
+          width: `${pos.width}%`,
+          top: 5,
+          bottom: 5,
+          background: `linear-gradient(180deg, ${st.bg} 0%, ${st.border}33 100%)`,
+          border: `2px solid ${overdue ? "#E24B4A" : st.border}`,
+          borderRadius: 6,
+          boxShadow: overdue ? "0 0 0 1px #fecaca" : "0 1px 3px rgba(0,0,0,0.08)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 8px",
+          gap: 6,
+          overflow: "hidden",
+          minWidth: 48,
+        }}
+      >
+        <span style={{ fontSize: compact ? 9 : 10, fontWeight: 700, color: st.color, flexShrink: 0, background: "rgba(255,255,255,0.7)", padding: "1px 4px", borderRadius: 4 }}>
+          {prodGanttFmtShort(pos.start)}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: 1, justifyContent: "center" }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: st.dot, flexShrink: 0, boxShadow: `0 0 0 2px ${st.bg}` }} />
+          {label && <span style={{ fontSize: compact ? 10 : 11, fontWeight: 700, color: st.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>}
+          {sub && !compact && <span style={{ fontSize: 9, color: st.color, opacity: 0.8, flexShrink: 0 }}>{sub}</span>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <ProdGanttAlerts excCount={excCount} overdue={overdue} compact={compact} />
+          <span style={{ fontSize: compact ? 9 : 10, fontWeight: 700, color: st.color, background: "rgba(255,255,255,0.7)", padding: "1px 4px", borderRadius: 4 }}>
+            {prodGanttFmtShort(pos.end)}
+          </span>
+        </div>
+        {todayPctInBar != null && (
+          <div style={{ position: "absolute", left: `${todayPctInBar}%`, top: -3, bottom: -3, width: 3, background: "#E24B4A", borderRadius: 2, zIndex: 2, pointerEvents: "none" }} title="今天" />
+        )}
+      </div>
+    </div>
+  );
+}
 
 function prodApplyGanttView(products, { productFilter, statusFilter, sortBy }) {
   let list = products.map(p => ({
@@ -205,8 +407,16 @@ ${html}
   });
 }
 
-function ProdGanttTimeline({ products, today, statusMap }) {
-  const { min, totalDays, weeks } = useMemo(() => {
+function ProdGanttTimeline({ products, today }) {
+  const [expanded, setExpanded] = useState(loadProdGanttExpanded);
+
+  useEffect(() => {
+    saveProdGanttExpanded(expanded);
+  }, [expanded]);
+
+  const toggleProduct = (id) => setExpanded(prev => ({ ...prev, [id]: prev[id] !== true }));
+
+  const { min, totalDays, weeks, todayPct } = useMemo(() => {
     let minD = new Date(today);
     let maxD = new Date(today);
     products.forEach(p => {
@@ -229,86 +439,124 @@ function ProdGanttTimeline({ products, today, statusMap }) {
       weeks.push(new Date(cur));
       cur.setDate(cur.getDate() + 7);
     }
-    return { min: minD, max: maxD, totalDays, weeks };
+    const todayPct = ((today - minD) / 86400000 / totalDays) * 100;
+    return { min: minD, max: maxD, totalDays, weeks, todayPct };
   }, [products, today]);
 
-  const todayPct = ((today - min) / 86400000 / totalDays) * 100;
+  const LABEL_W = 180;
+  const TodayLine = () => todayPct >= 0 && todayPct <= 100 ? (
+    <div style={{ position: "absolute", left: `${todayPct}%`, top: 0, bottom: 0, width: 2, background: "#E24B4A", zIndex: 3, pointerEvents: "none" }}>
+      <div style={{ position: "absolute", top: -14, left: -10, fontSize: 9, color: "#E24B4A", fontWeight: 700, whiteSpace: "nowrap" }}>今天</div>
+    </div>
+  ) : null;
 
   return (
     <div style={{ overflowX: "auto" }}>
-      <div style={{ minWidth: 640 }}>
-        <div style={{ display: "flex", marginLeft: 140, borderBottom: "1px solid var(--border)", paddingBottom: 6, marginBottom: 8 }}>
+      <div style={{ minWidth: 720 }}>
+        <div style={{ display: "flex", marginLeft: LABEL_W, borderBottom: "2px solid var(--border)", paddingBottom: 6, marginBottom: 10 }}>
           {weeks.map((w, i) => (
-            <div key={i} style={{ flex: 1, minWidth: 56, fontSize: 10, color: "var(--tm)", textAlign: "center" }}>
+            <div key={i} style={{ flex: 1, minWidth: 56, fontSize: 10, fontWeight: 600, color: "var(--tm)", textAlign: "center" }}>
               {w.getMonth() + 1}/{w.getDate()}
             </div>
           ))}
         </div>
-        {products.map(p => (
-          <div key={p.id} style={{ display: "flex", alignItems: "center", marginBottom: 10, minHeight: 36 }}>
-            <div style={{ width: 132, flexShrink: 0, paddingRight: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-              {p.sku && <div style={{ fontSize: 10, color: "var(--tm)" }}>{p.sku}</div>}
-            </div>
-            <div style={{ flex: 1, position: "relative", height: 28, background: "var(--bg)", borderRadius: 6, border: "1px solid var(--border)" }}>
-              {todayPct >= 0 && todayPct <= 100 && (
-                <div style={{ position: "absolute", left: `${todayPct}%`, top: 0, bottom: 0, width: 2, background: "#E24B4A", opacity: 0.7, zIndex: 2 }} title="今天" />
-              )}
-              {(p.batches || []).map(b => {
-                const start = prodGanttParseD(b.shipDate) || prodGanttParseD(b.etaArrival);
-                const end = prodGanttParseD(b.etaArrival) || prodGanttParseD(b.shipDate);
-                if (!start || !end) return null;
-                const s = start < end ? start : end;
-                const e = start < end ? end : start;
-                const left = ((s - min) / 86400000 / totalDays) * 100;
-                const width = Math.max(2, ((e - s) / 86400000 / totalDays) * 100);
-                const st = statusMap[b.status] || statusMap.setup;
-                return (
-                  <div
-                    key={b.id}
-                    title={`${b.label} · ${st.label} · ${prodGanttFmtShort(s)}–${prodGanttFmtShort(e)}`}
-                    style={{
-                      position: "absolute",
-                      left: `${left}%`,
-                      width: `${width}%`,
-                      top: 4,
-                      bottom: 4,
-                      background: st.bg,
-                      border: `1px solid ${st.border}`,
-                      borderRadius: 4,
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "0 6px",
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: st.color,
-                      overflow: "hidden",
-                      whiteSpace: "nowrap",
-                      zIndex: 1,
-                    }}
-                  >
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot, marginRight: 4, flexShrink: 0 }} />
-                    {b.label}
+        {products.map(p => {
+          const isOpen = expanded[p.id] === true;
+          const batches = p.batches || [];
+          const batchCount = batches.length;
+          const summary = prodGanttProductSummary(batches);
+          return (
+            <div key={p.id} style={{ marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minHeight: 44 }}>
+                <button
+                  type="button"
+                  onClick={() => toggleProduct(p.id)}
+                  title={isOpen ? "收起产品" : "展开各批次"}
+                  style={{ width: 26, height: 26, flexShrink: 0, background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  {isOpen ? "▼" : "▶"}
+                </button>
+                <div style={{ width: LABEL_W - 32, flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: "var(--tm)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span>{p.sku || "—"} · {batchCount} 批</span>
+                    {summary.shipDate && summary.etaArrival && (
+                      <span style={{ fontWeight: 600, color: "var(--text)" }}>{prodGanttFmtShort(summary.shipDate)} → {prodGanttFmtShort(summary.etaArrival)}</span>
+                    )}
+                    <ProdGanttAlerts excCount={summary.excCount} overdue={summary.overdue} compact />
                   </div>
-                );
-              })}
+                </div>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <TodayLine />
+                  <ProdGanttTrack
+                    shipDate={summary.shipDate}
+                    etaArrival={summary.etaArrival}
+                    status={summary.status}
+                    label={isOpen ? null : `${batchCount} 批汇总`}
+                    excCount={isOpen ? 0 : summary.excCount}
+                    overdue={summary.overdue}
+                    min={min}
+                    totalDays={totalDays}
+                    today={today}
+                    height={isOpen ? 18 : 44}
+                    compact={!isOpen}
+                    segments={isOpen ? batches : null}
+                    segmentsOnly={isOpen}
+                  />
+                </div>
+              </div>
+              {isOpen && batches.map(b => (
+                <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, marginLeft: 32 }}>
+                  <div style={{ width: LABEL_W - 32, flexShrink: 0, paddingLeft: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={b.label}>{b.label}</div>
+                    <div style={{ fontSize: 9, color: "var(--tm)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: 600, color: PROD_GANTT_STATUS[b.status]?.color }}>{PROD_GANTT_STATUS[b.status]?.label}</span>
+                      {b.sub && <span>· {b.sub}</span>}
+                      <ProdGanttAlerts excCount={b.excCount} overdue={b.overdue} compact />
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, position: "relative" }}>
+                    <TodayLine />
+                    <ProdGanttTrack
+                      shipDate={b.shipDate}
+                      etaArrival={b.etaArrival}
+                      status={b.status}
+                      label={b.label}
+                      sub={b.sub}
+                      excCount={b.excCount}
+                      overdue={b.overdue}
+                      min={min}
+                      totalDays={totalDays}
+                      today={today}
+                      height={36}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
 
-export default function ProdGanttCard({ items = [], today: todayProp }) {
+export default function ProdGanttCard({ items = [], today: todayProp, productFilter: controlledProductFilter }) {
   const saved = loadProdGanttFilters();
-  const [productFilter, setProductFilter] = useState(saved.productFilter);
+  const isProductControlled = controlledProductFilter !== undefined;
+  const [internalProductFilter, setInternalProductFilter] = useState(saved.productFilter);
+  const productFilter = isProductControlled ? controlledProductFilter : internalProductFilter;
   const [statusFilter, setStatusFilter] = useState(saved.statusFilter);
   const [sortBy, setSortBy] = useState(saved.sortBy);
 
   useEffect(() => {
-    saveProdGanttFilters({ productFilter, statusFilter, sortBy });
-  }, [productFilter, statusFilter, sortBy]);
+    if (isProductControlled) {
+      const prev = loadProdGanttFilters();
+      saveProdGanttFilters({ ...prev, statusFilter, sortBy });
+    } else {
+      saveProdGanttFilters({ productFilter, statusFilter, sortBy });
+    }
+  }, [productFilter, statusFilter, sortBy, isProductControlled]);
 
   const today = useMemo(() => {
     const d = todayProp ? new Date(todayProp) : new Date();
@@ -323,21 +571,23 @@ export default function ProdGanttCard({ items = [], today: todayProp }) {
   );
 
   useEffect(() => {
-    if (productFilter !== "all" && !allProducts.some(p => p.id === productFilter)) {
-      setProductFilter("all");
-    }
-  }, [allProducts, productFilter]);
+    if (isProductControlled || productFilter === "all" || allProducts.some(p => p.id === productFilter)) return;
+    setInternalProductFilter("all");
+  }, [allProducts, productFilter, isProductControlled]);
 
   const chartRef = useRef(null);
   const datedBatchCount = viewProducts.reduce(
     (n, p) => n + (p.batches || []).filter(b => b.shipDate || b.etaArrival).length,
     0
   );
-  const hasFilters = productFilter !== "all" || statusFilter !== "all";
+  const hasFilters = (!isProductControlled && productFilter !== "all") || statusFilter !== "all";
 
-  const setProduct = (id) => setProductFilter(id);
+  const setProduct = (id) => { if (!isProductControlled) setInternalProductFilter(id); };
   const setStatus = (key) => setStatusFilter(key);
-  const resetFilters = () => { setProductFilter("all"); setStatusFilter("all"); };
+  const resetFilters = () => {
+    if (!isProductControlled) setInternalProductFilter("all");
+    setStatusFilter("all");
+  };
 
   return (
     <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1rem 1.25rem", marginBottom: "1rem" }}>
@@ -347,7 +597,7 @@ export default function ProdGanttCard({ items = [], today: todayProp }) {
           <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 2 }}>
             甘特时间轴 · 自动同步下方生产批次
             {allProducts.length > 0 && (
-              <span> · 显示 {viewProducts.length}/{allProducts.length} 个产品</span>
+              <span> · {viewProducts.length}/{allProducts.length} 个产品 · 每批次独立一行</span>
             )}
           </div>
         </div>
@@ -356,15 +606,17 @@ export default function ProdGanttCard({ items = [], today: todayProp }) {
 
       {allProducts.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>产品</span>
-            <button type="button" onClick={() => setProduct("all")} style={prodGanttFilterChip(productFilter === "all")}>全部</button>
-            {allProducts.map(p => (
-              <button key={p.id} type="button" onClick={() => setProduct(p.id)} style={prodGanttFilterChip(productFilter === p.id)} title={p.name}>
-                {p.sku || p.name}{p.batches?.length > 1 ? ` (${p.batches.length})` : ""}
-              </button>
-            ))}
-          </div>
+          {!isProductControlled && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>产品</span>
+              <button type="button" onClick={() => setProduct("all")} style={prodGanttFilterChip(productFilter === "all")}>全部</button>
+              {allProducts.map(p => (
+                <button key={p.id} type="button" onClick={() => setProduct(p.id)} style={prodGanttFilterChip(productFilter === p.id)} title={p.name}>
+                  {p.sku || p.name}{p.batches?.length > 1 ? ` (${p.batches.length})` : ""}
+                </button>
+              ))}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>状态</span>
             <button type="button" onClick={() => setStatus("all")} style={prodGanttFilterChip(statusFilter === "all")}>全部</button>
@@ -384,13 +636,15 @@ export default function ProdGanttCard({ items = [], today: todayProp }) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
         {Object.entries(PROD_GANTT_STATUS).map(([k, v]) => (
-          <div key={k} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: v.color }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: v.dot }} />
+          <div key={k} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: v.color, fontWeight: 600 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: v.bg, border: `2px solid ${v.border}` }} />
             {v.label}
           </div>
         ))}
+        <span style={{ fontSize: 10, color: "#E24B4A", fontWeight: 600 }}>| 逾期红框</span>
+        <span style={{ fontSize: 10, color: "#b45309", fontWeight: 600 }}>⚠ 异常</span>
       </div>
       <div ref={chartRef}>
         {!allProducts.length ? (
@@ -403,7 +657,7 @@ export default function ProdGanttCard({ items = [], today: todayProp }) {
         ) : datedBatchCount === 0 ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>当前产品暂无日期数据，请在下方的批次中填写下单日期或预计交期</div>
         ) : (
-          <ProdGanttTimeline products={viewProducts} today={today} statusMap={PROD_GANTT_STATUS} />
+          <ProdGanttTimeline products={viewProducts} today={today} />
         )}
       </div>
     </div>

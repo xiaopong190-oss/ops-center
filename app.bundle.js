@@ -4557,6 +4557,7 @@ const PROD_GANTT_SORT_OPTIONS = [{
   label: "批次数"
 }];
 const PROD_GANTT_FILTER_KEY = "ops-prod-gantt-filters";
+const PROD_GANTT_EXPAND_KEY = "ops-prod-gantt-expanded";
 const PROD_GANTT_BTN_PRIMARY = {
   background: "#2d7dd2",
   color: "#fff",
@@ -4605,6 +4606,21 @@ function saveProdGanttFilters(filters) {
     sessionStorage.setItem(PROD_GANTT_FILTER_KEY, JSON.stringify(filters));
   } catch {/* ignore */}
 }
+function loadProdGanttExpanded() {
+  try {
+    const raw = sessionStorage.getItem(PROD_GANTT_EXPAND_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === "object") return p;
+    }
+  } catch {/* ignore */}
+  return {};
+}
+function saveProdGanttExpanded(state) {
+  try {
+    sessionStorage.setItem(PROD_GANTT_EXPAND_KEY, JSON.stringify(state));
+  } catch {/* ignore */}
+}
 function prodGanttNormalizeStage(s) {
   return s === "生产" ? "生产中" : s || "立项";
 }
@@ -4636,26 +4652,75 @@ function batchToGanttStatus(b) {
   return "setup";
 }
 
-/** 将下方生产批次转为甘特产品行（按产品编号 + 款式聚合） */
+/** 产品分组键（产品编号 + 款式，与下方列表分组一致） */
+function prodGroupKey(b) {
+  return `${(b.product || "未命名").trim()}::${(b.name || "").trim()}`;
+}
+function prodMatchesProduct(b, productFilter) {
+  return productFilter === "all" || prodGroupKey(b) === productFilter;
+}
+function prodBatchGanttMeta(b, today) {
+  const excCount = prodGanttOpenExcs(b).length;
+  let overdue = prodGanttBatchStatus(b) === "overdue";
+  if (!overdue && b.etaDelivery) {
+    const eta = prodGanttParseD(b.etaDelivery);
+    const stage = prodGanttNormalizeStage(b.stage);
+    if (eta && eta < today && !["出货", "已完成"].includes(stage) && !b.actualDelivery) overdue = true;
+  }
+  return {
+    excCount,
+    overdue
+  };
+}
+function prodDominantStatus(statuses) {
+  const order = ["blocked", "overdue", "producing", "qc", "shipping", "setup", "done"];
+  if (!statuses.length) return "setup";
+  if (statuses.every(s => s === "done")) return "done";
+  for (const key of order) {
+    if (statuses.some(s => s === key)) return key;
+  }
+  return "setup";
+}
+function prodDisplayName(product, name) {
+  const parts = [product, name].filter(Boolean);
+  return parts.join(" ") || "未命名";
+}
+
+/** 按产品编号 + 款式聚合，每个生产批次在甘特图中独立一行 */
 function productionItemsToGanttProducts(items) {
   if (!Array.isArray(items) || !items.length) return [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const byKey = new Map();
   for (const b of items) {
-    const key = `${b.product || "未命名"}::${b.name || ""}`.trim();
+    const key = prodGroupKey(b);
     if (!byKey.has(key)) {
       byKey.set(key, {
         id: key,
-        name: [b.product, b.name].filter(Boolean).join(" ") || "未命名",
+        product: b.product || "",
+        styleName: b.name || "",
+        name: prodDisplayName(b.product, b.name),
         sku: b.product || "",
         batches: []
       });
     }
+    const meta = prodBatchGanttMeta(b, today);
     byKey.get(key).batches.push({
       id: b.id,
       label: b.batch || "批次",
+      sub: b.supplier || "",
       status: batchToGanttStatus(b),
       shipDate: b.orderDate || "",
-      etaArrival: b.actualDelivery || b.etaDelivery || b.etaShip || ""
+      etaArrival: b.actualDelivery || b.etaDelivery || b.etaShip || "",
+      excCount: meta.excCount,
+      overdue: meta.overdue
+    });
+  }
+  for (const p of byKey.values()) {
+    p.batches.sort((a, b) => {
+      const ta = prodGanttParseD(a.shipDate)?.getTime() || 0;
+      const tb = prodGanttParseD(b.shipDate)?.getTime() || 0;
+      return tb - ta;
     });
   }
   return Array.from(byKey.values());
@@ -4669,8 +4734,251 @@ const prodGanttParseD = s => {
 };
 const prodGanttFmtShort = d => {
   if (!d) return "—";
+  if (typeof d === "string") {
+    const p = prodGanttParseD(d);
+    if (!p) return "—";
+    return `${p.getMonth() + 1}/${p.getDate()}`;
+  }
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
+function prodGanttProductSummary(batches) {
+  const ships = batches.map(b => prodGanttParseD(b.shipDate)).filter(Boolean);
+  const etas = batches.map(b => prodGanttParseD(b.etaArrival)).filter(Boolean);
+  return {
+    shipDate: ships.length ? new Date(Math.min(...ships.map(d => d.getTime()))).toISOString().slice(0, 10) : "",
+    etaArrival: etas.length ? new Date(Math.max(...etas.map(d => d.getTime()))).toISOString().slice(0, 10) : "",
+    status: prodDominantStatus(batches.map(b => b.status)),
+    excCount: batches.reduce((s, b) => s + (b.excCount || 0), 0),
+    overdue: batches.some(b => b.overdue),
+    batchCount: batches.length
+  };
+}
+function prodGanttCalcBarPos(shipDate, etaArrival, min, totalDays) {
+  const start = prodGanttParseD(shipDate) || prodGanttParseD(etaArrival);
+  const end = prodGanttParseD(etaArrival) || prodGanttParseD(shipDate);
+  if (!start || !end) return null;
+  const s = start < end ? start : end;
+  const e = start < end ? end : start;
+  return {
+    left: (s - min) / 86400000 / totalDays * 100,
+    width: Math.max(8, (e - s) / 86400000 / totalDays * 100),
+    start: s,
+    end: e
+  };
+}
+function ProdGanttAlerts({
+  excCount,
+  overdue,
+  compact
+}) {
+  const items = [];
+  if (overdue) items.push({
+    t: "逾期",
+    c: "#E24B4A",
+    bg: "#fee2e2"
+  });
+  if (excCount > 0) items.push({
+    t: `⚠${excCount}`,
+    c: "#b45309",
+    bg: "#fff0d4"
+  });
+  if (!items.length) return null;
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      gap: compact ? 3 : 4,
+      flexShrink: 0
+    }
+  }, items.map(it => /*#__PURE__*/React.createElement("span", {
+    key: it.t,
+    style: {
+      fontSize: compact ? 9 : 10,
+      fontWeight: 700,
+      padding: compact ? "1px 5px" : "2px 6px",
+      borderRadius: 10,
+      background: it.bg,
+      color: it.c,
+      whiteSpace: "nowrap"
+    }
+  }, it.t)));
+}
+function ProdGanttTrack({
+  shipDate,
+  etaArrival,
+  status,
+  label,
+  sub,
+  excCount,
+  overdue,
+  min,
+  totalDays,
+  today,
+  height = 40,
+  compact = false,
+  segments,
+  segmentsOnly = false
+}) {
+  const pos = prodGanttCalcBarPos(shipDate, etaArrival, min, totalDays);
+  const st = PROD_GANTT_STATUS[status] || PROD_GANTT_STATUS.setup;
+  const trackH = height;
+  if (segmentsOnly && segments?.length) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        position: "relative",
+        height: trackH,
+        background: "#f3f4f6",
+        borderRadius: 8,
+        border: "1px solid #e5e7eb"
+      }
+    }, segments.map(seg => {
+      const sp = prodGanttCalcBarPos(seg.shipDate, seg.etaArrival, min, totalDays);
+      if (!sp) return null;
+      const ss = PROD_GANTT_STATUS[seg.status] || PROD_GANTT_STATUS.setup;
+      return /*#__PURE__*/React.createElement("div", {
+        key: seg.id,
+        title: `${seg.label} · ${ss.label} · ${prodGanttFmtShort(seg.shipDate)}→${prodGanttFmtShort(seg.etaArrival)}`,
+        style: {
+          position: "absolute",
+          left: `${sp.left}%`,
+          width: `${sp.width}%`,
+          top: 3,
+          bottom: 3,
+          background: `linear-gradient(180deg, ${ss.bg}, ${ss.border}88)`,
+          border: `1.5px solid ${seg.overdue ? "#E24B4A" : ss.border}`,
+          borderRadius: 4,
+          minWidth: 4
+        }
+      });
+    }));
+  }
+  if (!pos) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        height: trackH,
+        background: "#f9fafb",
+        borderRadius: 8,
+        border: "2px dashed #d1d5db",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 11,
+        color: "#9ca3af"
+      }
+    }, "\u6682\u65E0\u65E5\u671F\u533A\u95F4");
+  }
+  const todayInBar = today >= pos.start && today <= pos.end;
+  const todayPctInBar = todayInBar ? (today - pos.start) / (pos.end - pos.start) * 100 : null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      position: "relative",
+      height: trackH,
+      background: "#f3f4f6",
+      borderRadius: 8,
+      border: "1px solid #e5e7eb",
+      boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    title: `${label || ""} ${prodGanttFmtShort(pos.start)} → ${prodGanttFmtShort(pos.end)} · ${st.label}`,
+    style: {
+      position: "absolute",
+      left: `${pos.left}%`,
+      width: `${pos.width}%`,
+      top: 5,
+      bottom: 5,
+      background: `linear-gradient(180deg, ${st.bg} 0%, ${st.border}33 100%)`,
+      border: `2px solid ${overdue ? "#E24B4A" : st.border}`,
+      borderRadius: 6,
+      boxShadow: overdue ? "0 0 0 1px #fecaca" : "0 1px 3px rgba(0,0,0,0.08)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "0 8px",
+      gap: 6,
+      overflow: "hidden",
+      minWidth: 48
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: compact ? 9 : 10,
+      fontWeight: 700,
+      color: st.color,
+      flexShrink: 0,
+      background: "rgba(255,255,255,0.7)",
+      padding: "1px 4px",
+      borderRadius: 4
+    }
+  }, prodGanttFmtShort(pos.start)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 5,
+      minWidth: 0,
+      flex: 1,
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 8,
+      height: 8,
+      borderRadius: "50%",
+      background: st.dot,
+      flexShrink: 0,
+      boxShadow: `0 0 0 2px ${st.bg}`
+    }
+  }), label && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: compact ? 10 : 11,
+      fontWeight: 700,
+      color: st.color,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, label), sub && !compact && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: st.color,
+      opacity: 0.8,
+      flexShrink: 0
+    }
+  }, sub)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement(ProdGanttAlerts, {
+    excCount: excCount,
+    overdue: overdue,
+    compact: compact
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: compact ? 9 : 10,
+      fontWeight: 700,
+      color: st.color,
+      background: "rgba(255,255,255,0.7)",
+      padding: "1px 4px",
+      borderRadius: 4
+    }
+  }, prodGanttFmtShort(pos.end))), todayPctInBar != null && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      left: `${todayPctInBar}%`,
+      top: -3,
+      bottom: -3,
+      width: 3,
+      background: "#E24B4A",
+      borderRadius: 2,
+      zIndex: 2,
+      pointerEvents: "none"
+    },
+    title: "\u4ECA\u5929"
+  })));
+}
 function prodApplyGanttView(products, {
   productFilter,
   statusFilter,
@@ -4737,13 +5045,21 @@ ${html}
 }
 function ProdGanttTimeline({
   products,
-  today,
-  statusMap
+  today
 }) {
+  const [expanded, setExpanded] = useState(loadProdGanttExpanded);
+  useEffect(() => {
+    saveProdGanttExpanded(expanded);
+  }, [expanded]);
+  const toggleProduct = id => setExpanded(prev => ({
+    ...prev,
+    [id]: prev[id] !== true
+  }));
   const {
     min,
     totalDays,
-    weeks
+    weeks,
+    todayPct
   } = useMemo(() => {
     let minD = new Date(today);
     let maxD = new Date(today);
@@ -4767,77 +5083,17 @@ function ProdGanttTimeline({
       weeks.push(new Date(cur));
       cur.setDate(cur.getDate() + 7);
     }
+    const todayPct = (today - minD) / 86400000 / totalDays * 100;
     return {
       min: minD,
       max: maxD,
       totalDays,
-      weeks
+      weeks,
+      todayPct
     };
   }, [products, today]);
-  const todayPct = (today - min) / 86400000 / totalDays * 100;
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      overflowX: "auto"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      minWidth: 640
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      marginLeft: 140,
-      borderBottom: "1px solid var(--border)",
-      paddingBottom: 6,
-      marginBottom: 8
-    }
-  }, weeks.map((w, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    style: {
-      flex: 1,
-      minWidth: 56,
-      fontSize: 10,
-      color: "var(--tm)",
-      textAlign: "center"
-    }
-  }, w.getMonth() + 1, "/", w.getDate()))), products.map(p => /*#__PURE__*/React.createElement("div", {
-    key: p.id,
-    style: {
-      display: "flex",
-      alignItems: "center",
-      marginBottom: 10,
-      minHeight: 36
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 132,
-      flexShrink: 0,
-      paddingRight: 8
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      fontWeight: 600,
-      color: "var(--text)",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap"
-    }
-  }, p.name), p.sku && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "var(--tm)"
-    }
-  }, p.sku)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      position: "relative",
-      height: 28,
-      background: "var(--bg)",
-      borderRadius: 6,
-      border: "1px solid var(--border)"
-    }
-  }, todayPct >= 0 && todayPct <= 100 && /*#__PURE__*/React.createElement("div", {
+  const LABEL_W = 180;
+  const TodayLine = () => todayPct >= 0 && todayPct <= 100 ? /*#__PURE__*/React.createElement("div", {
     style: {
       position: "absolute",
       left: `${todayPct}%`,
@@ -4845,68 +5101,226 @@ function ProdGanttTimeline({
       bottom: 0,
       width: 2,
       background: "#E24B4A",
-      opacity: 0.7,
-      zIndex: 2
-    },
-    title: "\u4ECA\u5929"
-  }), (p.batches || []).map(b => {
-    const start = prodGanttParseD(b.shipDate) || prodGanttParseD(b.etaArrival);
-    const end = prodGanttParseD(b.etaArrival) || prodGanttParseD(b.shipDate);
-    if (!start || !end) return null;
-    const s = start < end ? start : end;
-    const e = start < end ? end : start;
-    const left = (s - min) / 86400000 / totalDays * 100;
-    const width = Math.max(2, (e - s) / 86400000 / totalDays * 100);
-    const st = statusMap[b.status] || statusMap.setup;
+      zIndex: 3,
+      pointerEvents: "none"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: -14,
+      left: -10,
+      fontSize: 9,
+      color: "#E24B4A",
+      fontWeight: 700,
+      whiteSpace: "nowrap"
+    }
+  }, "\u4ECA\u5929")) : null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      minWidth: 720
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      marginLeft: LABEL_W,
+      borderBottom: "2px solid var(--border)",
+      paddingBottom: 6,
+      marginBottom: 10
+    }
+  }, weeks.map((w, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      flex: 1,
+      minWidth: 56,
+      fontSize: 10,
+      fontWeight: 600,
+      color: "var(--tm)",
+      textAlign: "center"
+    }
+  }, w.getMonth() + 1, "/", w.getDate()))), products.map(p => {
+    const isOpen = expanded[p.id] === true;
+    const batches = p.batches || [];
+    const batchCount = batches.length;
+    const summary = prodGanttProductSummary(batches);
     return /*#__PURE__*/React.createElement("div", {
-      key: b.id,
-      title: `${b.label} · ${st.label} · ${prodGanttFmtShort(s)}–${prodGanttFmtShort(e)}`,
+      key: p.id,
       style: {
-        position: "absolute",
-        left: `${left}%`,
-        width: `${width}%`,
-        top: 4,
-        bottom: 4,
-        background: st.bg,
-        border: `1px solid ${st.border}`,
-        borderRadius: 4,
+        marginBottom: 10,
+        paddingBottom: 8,
+        borderBottom: "1px solid var(--border)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
         display: "flex",
         alignItems: "center",
-        padding: "0 6px",
-        fontSize: 10,
-        fontWeight: 600,
-        color: st.color,
+        gap: 6,
+        marginBottom: 6,
+        minHeight: 44
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: () => toggleProduct(p.id),
+      title: isOpen ? "收起产品" : "展开各批次",
+      style: {
+        width: 26,
+        height: 26,
+        flexShrink: 0,
+        background: "#eff6ff",
+        border: "1px solid #93c5fd",
+        borderRadius: 6,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: 11,
+        color: "#2563eb",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }
+    }, isOpen ? "▼" : "▶"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: LABEL_W - 32,
+        flexShrink: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--text)",
         overflow: "hidden",
-        whiteSpace: "nowrap",
-        zIndex: 1
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      }
+    }, p.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "var(--tm)",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("span", null, p.sku || "—", " \xB7 ", batchCount, " \u6279"), summary.shipDate && summary.etaArrival && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 600,
+        color: "var(--text)"
+      }
+    }, prodGanttFmtShort(summary.shipDate), " \u2192 ", prodGanttFmtShort(summary.etaArrival)), /*#__PURE__*/React.createElement(ProdGanttAlerts, {
+      excCount: summary.excCount,
+      overdue: summary.overdue,
+      compact: true
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        position: "relative"
+      }
+    }, /*#__PURE__*/React.createElement(TodayLine, null), /*#__PURE__*/React.createElement(ProdGanttTrack, {
+      shipDate: summary.shipDate,
+      etaArrival: summary.etaArrival,
+      status: summary.status,
+      label: isOpen ? null : `${batchCount} 批汇总`,
+      excCount: isOpen ? 0 : summary.excCount,
+      overdue: summary.overdue,
+      min: min,
+      totalDays: totalDays,
+      today: today,
+      height: isOpen ? 18 : 44,
+      compact: !isOpen,
+      segments: isOpen ? batches : null,
+      segmentsOnly: isOpen
+    }))), isOpen && batches.map(b => /*#__PURE__*/React.createElement("div", {
+      key: b.id,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        marginBottom: 8,
+        marginLeft: 32
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: LABEL_W - 32,
+        flexShrink: 0,
+        paddingLeft: 4
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        fontWeight: 600,
+        color: "var(--text)",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      },
+      title: b.label
+    }, b.label), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 9,
+        color: "var(--tm)",
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        flexWrap: "wrap"
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        width: 6,
-        height: 6,
-        borderRadius: "50%",
-        background: st.dot,
-        marginRight: 4,
-        flexShrink: 0
+        fontWeight: 600,
+        color: PROD_GANTT_STATUS[b.status]?.color
       }
-    }), b.label);
-  }))))));
+    }, PROD_GANTT_STATUS[b.status]?.label), b.sub && /*#__PURE__*/React.createElement("span", null, "\xB7 ", b.sub), /*#__PURE__*/React.createElement(ProdGanttAlerts, {
+      excCount: b.excCount,
+      overdue: b.overdue,
+      compact: true
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        position: "relative"
+      }
+    }, /*#__PURE__*/React.createElement(TodayLine, null), /*#__PURE__*/React.createElement(ProdGanttTrack, {
+      shipDate: b.shipDate,
+      etaArrival: b.etaArrival,
+      status: b.status,
+      label: b.label,
+      sub: b.sub,
+      excCount: b.excCount,
+      overdue: b.overdue,
+      min: min,
+      totalDays: totalDays,
+      today: today,
+      height: 36
+    })))));
+  })));
 }
 function ProdGanttCard({
   items = [],
-  today: todayProp
+  today: todayProp,
+  productFilter: controlledProductFilter
 }) {
   const saved = loadProdGanttFilters();
-  const [productFilter, setProductFilter] = useState(saved.productFilter);
+  const isProductControlled = controlledProductFilter !== undefined;
+  const [internalProductFilter, setInternalProductFilter] = useState(saved.productFilter);
+  const productFilter = isProductControlled ? controlledProductFilter : internalProductFilter;
   const [statusFilter, setStatusFilter] = useState(saved.statusFilter);
   const [sortBy, setSortBy] = useState(saved.sortBy);
   useEffect(() => {
-    saveProdGanttFilters({
-      productFilter,
-      statusFilter,
-      sortBy
-    });
-  }, [productFilter, statusFilter, sortBy]);
+    if (isProductControlled) {
+      const prev = loadProdGanttFilters();
+      saveProdGanttFilters({
+        ...prev,
+        statusFilter,
+        sortBy
+      });
+    } else {
+      saveProdGanttFilters({
+        productFilter,
+        statusFilter,
+        sortBy
+      });
+    }
+  }, [productFilter, statusFilter, sortBy, isProductControlled]);
   const today = useMemo(() => {
     const d = todayProp ? new Date(todayProp) : new Date();
     d.setHours(0, 0, 0, 0);
@@ -4919,17 +5333,18 @@ function ProdGanttCard({
     sortBy
   }), [allProducts, productFilter, statusFilter, sortBy]);
   useEffect(() => {
-    if (productFilter !== "all" && !allProducts.some(p => p.id === productFilter)) {
-      setProductFilter("all");
-    }
-  }, [allProducts, productFilter]);
+    if (isProductControlled || productFilter === "all" || allProducts.some(p => p.id === productFilter)) return;
+    setInternalProductFilter("all");
+  }, [allProducts, productFilter, isProductControlled]);
   const chartRef = useRef(null);
   const datedBatchCount = viewProducts.reduce((n, p) => n + (p.batches || []).filter(b => b.shipDate || b.etaArrival).length, 0);
-  const hasFilters = productFilter !== "all" || statusFilter !== "all";
-  const setProduct = id => setProductFilter(id);
+  const hasFilters = !isProductControlled && productFilter !== "all" || statusFilter !== "all";
+  const setProduct = id => {
+    if (!isProductControlled) setInternalProductFilter(id);
+  };
   const setStatus = key => setStatusFilter(key);
   const resetFilters = () => {
-    setProductFilter("all");
+    if (!isProductControlled) setInternalProductFilter("all");
     setStatusFilter("all");
   };
   return /*#__PURE__*/React.createElement("div", {
@@ -4961,7 +5376,7 @@ function ProdGanttCard({
       color: "var(--tm)",
       marginTop: 2
     }
-  }, "\u7518\u7279\u65F6\u95F4\u8F74 \xB7 \u81EA\u52A8\u540C\u6B65\u4E0B\u65B9\u751F\u4EA7\u6279\u6B21", allProducts.length > 0 && /*#__PURE__*/React.createElement("span", null, " \xB7 \u663E\u793A ", viewProducts.length, "/", allProducts.length, " \u4E2A\u4EA7\u54C1"))), /*#__PURE__*/React.createElement("button", {
+  }, "\u7518\u7279\u65F6\u95F4\u8F74 \xB7 \u81EA\u52A8\u540C\u6B65\u4E0B\u65B9\u751F\u4EA7\u6279\u6B21", allProducts.length > 0 && /*#__PURE__*/React.createElement("span", null, " \xB7 ", viewProducts.length, "/", allProducts.length, " \u4E2A\u4EA7\u54C1 \xB7 \u6BCF\u6279\u6B21\u72EC\u7ACB\u4E00\u884C"))), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => prodGanttCaptureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试")),
     style: PROD_GANTT_BTN_PRIMARY
@@ -4972,7 +5387,7 @@ function ProdGanttCard({
       gap: 8,
       marginBottom: 12
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, !isProductControlled && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -5049,7 +5464,8 @@ function ProdGanttCard({
       display: "flex",
       gap: 12,
       marginBottom: 12,
-      flexWrap: "wrap"
+      flexWrap: "wrap",
+      alignItems: "center"
     }
   }, Object.entries(PROD_GANTT_STATUS).map(([k, v]) => /*#__PURE__*/React.createElement("div", {
     key: k,
@@ -5058,16 +5474,30 @@ function ProdGanttCard({
       alignItems: "center",
       gap: 4,
       fontSize: 10,
-      color: v.color
+      color: v.color,
+      fontWeight: 600
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      width: 8,
-      height: 8,
-      borderRadius: "50%",
-      background: v.dot
+      width: 10,
+      height: 10,
+      borderRadius: 3,
+      background: v.bg,
+      border: `2px solid ${v.border}`
     }
-  }), v.label))), /*#__PURE__*/React.createElement("div", {
+  }), v.label)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "#E24B4A",
+      fontWeight: 600
+    }
+  }, "| \u903E\u671F\u7EA2\u6846"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "#b45309",
+      fontWeight: 600
+    }
+  }, "\u26A0 \u5F02\u5E38")), /*#__PURE__*/React.createElement("div", {
     ref: chartRef
   }, !allProducts.length ? /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5105,8 +5535,7 @@ function ProdGanttCard({
     }
   }, "\u5F53\u524D\u4EA7\u54C1\u6682\u65E0\u65E5\u671F\u6570\u636E\uFF0C\u8BF7\u5728\u4E0B\u65B9\u7684\u6279\u6B21\u4E2D\u586B\u5199\u4E0B\u5355\u65E5\u671F\u6216\u9884\u8BA1\u4EA4\u671F") : /*#__PURE__*/React.createElement(ProdGanttTimeline, {
     products: viewProducts,
-    today: today,
-    statusMap: PROD_GANTT_STATUS
+    today: today
   })));
 }
 
@@ -5178,6 +5607,50 @@ const prodBatchStatus = b => {
 const isProducing = b => b.stage === "生产中";
 const isQcStage = b => b.stage === "QC验货";
 const normalizeStage = s => s === "生产" ? "生产中" : s;
+const PROD_FILTER_KEY = "ops-prod-filters";
+function loadProdFilters() {
+  try {
+    const raw = sessionStorage.getItem(PROD_FILTER_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === "object") {
+        return {
+          tabFilter: typeof p.tabFilter === "string" ? p.tabFilter : "all",
+          stageFilter: typeof p.stageFilter === "string" ? p.stageFilter : "all",
+          ownerFilter: typeof p.ownerFilter === "string" ? p.ownerFilter : "all",
+          supplierFilter: typeof p.supplierFilter === "string" ? p.supplierFilter : "all",
+          productFilter: typeof p.productFilter === "string" ? p.productFilter : "all",
+          excOnly: !!p.excOnly
+        };
+      }
+    }
+  } catch {/* ignore */}
+  return {
+    tabFilter: "all",
+    stageFilter: "all",
+    ownerFilter: "all",
+    supplierFilter: "all",
+    productFilter: "all",
+    excOnly: false
+  };
+}
+function saveProdFilters(filters) {
+  try {
+    sessionStorage.setItem(PROD_FILTER_KEY, JSON.stringify(filters));
+  } catch {/* ignore */}
+}
+const prodProductTabChip = active => ({
+  background: active ? "#2d7dd2" : "var(--card)",
+  color: active ? "#fff" : "var(--text)",
+  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
+  borderRadius: 10,
+  padding: "8px 14px",
+  fontSize: 13,
+  fontWeight: active ? 600 : 500,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap"
+});
 const INIT_PROD = [{
   id: 1,
   product: "FB102",
@@ -6129,23 +6602,43 @@ function ProductionPanel({
   } = useSharedList("production", INIT_PROD_DEFAULT, {
     active
   });
+  const list = Array.isArray(items) ? items : [];
+  const savedFilters = loadProdFilters();
   const [modal, setModal] = useState(null);
-  const [tabFilter, setTabFilter] = useState("all");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [ownerFilter, setOwnerFilter] = useState("all");
-  const [supplierFilter, setSupplierFilter] = useState("all");
-  const [excOnly, setExcOnly] = useState(false);
+  const [tabFilter, setTabFilter] = useState(savedFilters.tabFilter || "all");
+  const [stageFilter, setStageFilter] = useState(savedFilters.stageFilter || "all");
+  const [ownerFilter, setOwnerFilter] = useState(savedFilters.ownerFilter || "all");
+  const [supplierFilter, setSupplierFilter] = useState(savedFilters.supplierFilter || "all");
+  const [productFilter, setProductFilter] = useState(savedFilters.productFilter || "all");
+  const [excOnly, setExcOnly] = useState(!!savedFilters.excOnly);
+  const products = useMemo(() => productionItemsToGanttProducts(list), [list]);
+  const currentProduct = productFilter === "all" ? null : products.find(p => p.id === productFilter) || null;
+  useEffect(() => {
+    if (productFilter === "all" || products.some(p => p.id === productFilter)) return;
+    setProductFilter("all");
+  }, [products, productFilter]);
+  useEffect(() => {
+    saveProdFilters({
+      tabFilter,
+      stageFilter,
+      ownerFilter,
+      supplierFilter,
+      productFilter,
+      excOnly
+    });
+  }, [tabFilter, stageFilter, ownerFilter, supplierFilter, productFilter, excOnly]);
+  const scopedList = productFilter === "all" ? list : list.filter(b => prodMatchesProduct(b, productFilter));
   const counts = {
-    all: items.length,
-    blocked: items.filter(i => prodBatchStatus(i) === "blocked").length,
-    overdue: items.filter(i => prodBatchStatus(i) === "overdue").length,
-    producing: items.filter(isProducing).length,
-    qc: items.filter(isQcStage).length,
-    done: items.filter(i => i.stage === "已完成").length
+    all: scopedList.length,
+    blocked: scopedList.filter(i => prodBatchStatus(i) === "blocked").length,
+    overdue: scopedList.filter(i => prodBatchStatus(i) === "overdue").length,
+    producing: scopedList.filter(isProducing).length,
+    qc: scopedList.filter(isQcStage).length,
+    done: scopedList.filter(i => i.stage === "已完成").length
   };
   const owners = ownerFilterEntries();
-  const suppliers = ["all", ...new Set(items.map(i => i.supplier).filter(Boolean))];
-  let vis = items.slice();
+  const suppliers = ["all", ...new Set(scopedList.map(i => i.supplier).filter(Boolean))];
+  let vis = scopedList.slice();
   if (tabFilter === "blocked") vis = vis.filter(i => prodBatchStatus(i) === "blocked");else if (tabFilter === "overdue") vis = vis.filter(i => prodBatchStatus(i) === "overdue");else if (tabFilter === "producing") vis = vis.filter(isProducing);else if (tabFilter === "qc") vis = vis.filter(isQcStage);else if (tabFilter === "done") vis = vis.filter(i => i.stage === "已完成");
   if (stageFilter !== "all") vis = vis.filter(i => normalizeStage(i.stage) === stageFilter);
   if (ownerFilter !== "all") vis = vis.filter(i => i.owner === ownerFilter);
@@ -6153,7 +6646,7 @@ function ProductionPanel({
   if (excOnly) vis = vis.filter(i => openProdExcs(i).length > 0);
   const groups = {};
   vis.forEach(b => {
-    const key = `${b.product}::${b.name}`;
+    const key = prodGroupKey(b);
     if (!groups[key]) groups[key] = {
       product: b.product,
       name: b.name,
@@ -6192,14 +6685,24 @@ function ProductionPanel({
     note: "",
     exceptions: []
   };
+  const emptyBatchForProduct = () => {
+    if (!currentProduct) return {
+      ...emptyBatch
+    };
+    return {
+      ...emptyBatch,
+      product: currentProduct.product || currentProduct.sku || "",
+      name: currentProduct.styleName || ""
+    };
+  };
   const save = t => {
     const now = Date.now();
-    if (t.id) persist(items.map(x => x.id === t.id ? {
+    if (t.id) persist(list.map(x => x.id === t.id ? {
       ...t,
       updatedAt: now
-    } : x));else persist([...items, {
+    } : x));else persist([...list, {
       ...t,
-      id: Math.max(0, ...items.map(x => x.id || 0)) + 1,
+      id: Math.max(0, ...list.map(x => x.id || 0)) + 1,
       updatedAt: now
     }]);
     setModal(null);
@@ -6237,7 +6740,7 @@ function ProductionPanel({
   }];
   useCloudSyncPage(active, {
     label: "生产",
-    save: async () => persist(items),
+    save: async () => persist(list),
     reload,
     meta,
     loading,
@@ -6246,8 +6749,67 @@ function ProductionPanel({
     isDirty: !!modal,
     dirtyHint: "生产批次编辑弹窗未保存"
   });
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(ProdGanttCard, {
-    items: items
+  return /*#__PURE__*/React.createElement("div", null, products.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: "1rem"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 8
+    }
+  }, "\u4EA7\u54C1\u5206\u9875 \xB7 \u5207\u6362\u67E5\u770B\u5404\u4EA7\u54C1\u751F\u4EA7\u8FDB\u5EA6"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setProductFilter("all"),
+    style: prodProductTabChip(productFilter === "all")
+  }, "\u5168\u90E8\u4EA7\u54C1", /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 6,
+      fontSize: 11,
+      opacity: 0.85
+    }
+  }, "(", list.length, ")")), products.map(p => /*#__PURE__*/React.createElement("button", {
+    key: p.id,
+    type: "button",
+    onClick: () => setProductFilter(p.id),
+    style: prodProductTabChip(productFilter === p.id),
+    title: p.name
+  }, p.sku || p.name, /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 6,
+      fontSize: 11,
+      opacity: 0.85
+    }
+  }, "(", p.batches.length, ")"))))), currentProduct && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--card)",
+      border: "1px solid #2d7dd2",
+      borderRadius: 12,
+      padding: "12px 16px",
+      marginBottom: "1rem"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 700,
+      color: "var(--text)"
+    }
+  }, currentProduct.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginTop: 4
+    }
+  }, currentProduct.batches.length, " \u4E2A\u751F\u4EA7\u6279\u6B21 \xB7 \u4EC5\u663E\u793A\u672C\u4EA7\u54C1\u76F8\u5173\u8BA2\u5355")), /*#__PURE__*/React.createElement(ProdGanttCard, {
+    items: list,
+    productFilter: productFilter
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -6288,7 +6850,7 @@ function ProductionPanel({
       marginTop: 1
     }
   }, f.label)))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setModal(emptyBatch),
+    onClick: () => setModal(emptyBatchForProduct()),
     style: {
       background: "#2d7dd2",
       color: "#fff",
@@ -6397,7 +6959,7 @@ function ProductionPanel({
       color: "var(--tm)",
       fontSize: 13
     }
-  }, "\u6682\u65E0\u5339\u914D\u6279\u6B21")), modal && /*#__PURE__*/React.createElement(ProdModal, {
+  }, currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次")), modal && /*#__PURE__*/React.createElement(ProdModal, {
     item: modal,
     onSave: save,
     onClose: () => {
@@ -6405,7 +6967,7 @@ function ProductionPanel({
       setModal(null);
     },
     onDelete: () => {
-      persist(items.filter(x => x.id !== modal.id), {
+      persist(list.filter(x => x.id !== modal.id), {
         replace: true
       });
       setModal(null);

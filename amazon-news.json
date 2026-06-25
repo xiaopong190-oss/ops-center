@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-06-24T03:29:25.824Z",
+  "updatedAt": "2026-06-25T03:27:05.106Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Best Amazon Haul deals for Prime Day 2026: top picks for $3, under $5, and under $10",
+      "link": "https://www.aboutamazon.com/news/retail/amazon-haul-prime-day-deals-2026?utm_source=rss",
+      "pubDate": "Wed, 24 Jun 2026 13:43:50 GMT",
+      "date": "6/24",
+      "summary": "Score hundreds of deals across fashion, home, beauty, and electronics—most under $10, with extra savings when you spend more.",
+      "category": "Retail"
+    },
+    {
+      "title": "160+ of the Best Prime Day 2026 deals in tech, home, beauty, Amazon devices, and more",
+      "link": "https://www.aboutamazon.com/news/retail/best-prime-day-deals-2026?utm_source=rss",
+      "pubDate": "Wed, 24 Jun 2026 12:30:00 GMT",
+      "date": "6/24",
+      "summary": "We’ve hand-picked some of the best day 2 Prime Day deals from Dyson, LEGO, Beats, Le Creuset, Samsung, and more—exclusively for Prime member",
+      "category": "Retail"
+    },
     {
       "title": "AWS CEO Matt Garman on why enterprise AI is finally delivering real returns",
       "link": "https://www.aboutamazon.com/news/aws/aws/aws-matt-garman-enterprise-ai-roi-interview-2026?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "6/24",
       "summary": "In a new interview, Garman explains why enterprises are moving past AI experimentation—and what's driving real business value.",
       "category": "AWS"
-    },
-    {
-      "title": "Get a behind-the-scenes look at Amazon's innovations with the 'Learn and Be Curious' podcast",
-      "link": "https://www.aboutamazon.com/news/company-news/learn-be-curious-podcast-amazon-stores-ceo?utm_source=rss",
-      "pubDate": "Tue, 23 Jun 2026 15:28:00 GMT",
-      "date": "6/23",
-      "summary": "Amazon's CEO of Worldwide Stores Doug Herrington explores how the company innovates, tests ideas, and scales products in this podcast series",
-      "category": "Company news"
-    },
-    {
-      "title": "How Amazon's pricing team works to deliver low prices every day",
-      "link": "https://www.aboutamazon.com/news/retail/how-amazon-keeps-prices-low-learn-and-be-curious-podcast?utm_source=rss",
-      "pubDate": "Tue, 23 Jun 2026 15:05:01 GMT",
-      "date": "6/23",
-      "summary": "The company's approach to pricing isn't about maximizing profit—it's about making sure customers always get the best deal.",
-      "category": "Retail"
     }
   ]
 }

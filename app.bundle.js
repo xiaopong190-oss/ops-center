@@ -135,14 +135,16 @@ function loadLogisticsFilters() {
       if (isPlainObj(parsed)) {
         return {
           filter: typeof parsed.filter === "string" ? parsed.filter : "all",
-          ownerFilter: typeof parsed.ownerFilter === "string" ? parsed.ownerFilter : "all"
+          ownerFilter: typeof parsed.ownerFilter === "string" ? parsed.ownerFilter : "all",
+          productFilter: typeof parsed.productFilter === "string" ? parsed.productFilter : "all"
         };
       }
     }
   } catch {/* ignore */}
   return {
     filter: "all",
-    ownerFilter: "all"
+    ownerFilter: "all",
+    productFilter: "all"
   };
 }
 function saveLogisticsFilters(filters) {
@@ -2108,19 +2110,31 @@ function GanttTimeline({
 }
 function FBAGanttCard({
   groups = [],
-  today: todayProp
+  today: todayProp,
+  productFilter: controlledProductFilter
 }) {
   const saved = loadGanttFilters();
-  const [productFilter, setProductFilter] = useState(saved.productFilter);
+  const isProductControlled = controlledProductFilter !== undefined;
+  const [internalProductFilter, setInternalProductFilter] = useState(saved.productFilter);
+  const productFilter = isProductControlled ? controlledProductFilter : internalProductFilter;
   const [statusFilter, setStatusFilter] = useState(saved.statusFilter);
   const [sortBy, setSortBy] = useState(saved.sortBy);
   useEffect(() => {
-    saveGanttFilters({
-      productFilter,
-      statusFilter,
-      sortBy
-    });
-  }, [productFilter, statusFilter, sortBy]);
+    if (isProductControlled) {
+      const prev = loadGanttFilters();
+      saveGanttFilters({
+        ...prev,
+        statusFilter,
+        sortBy
+      });
+    } else {
+      saveGanttFilters({
+        productFilter,
+        statusFilter,
+        sortBy
+      });
+    }
+  }, [productFilter, statusFilter, sortBy, isProductControlled]);
   const today = useMemo(() => {
     const d = todayProp ? new Date(todayProp) : new Date();
     d.setHours(0, 0, 0, 0);
@@ -2133,17 +2147,18 @@ function FBAGanttCard({
     sortBy
   }), [allProducts, productFilter, statusFilter, sortBy]);
   useEffect(() => {
-    if (productFilter !== "all" && !allProducts.some(p => p.id === productFilter)) {
-      setProductFilter("all");
-    }
-  }, [allProducts, productFilter]);
+    if (isProductControlled || productFilter === "all" || allProducts.some(p => p.id === productFilter)) return;
+    setInternalProductFilter("all");
+  }, [allProducts, productFilter, isProductControlled]);
   const chartRef = useRef(null);
   const datedBatchCount = viewProducts.reduce((n, p) => n + (p.batches || []).filter(b => b.shipDate || b.etaArrival).length, 0);
-  const hasFilters = productFilter !== "all" || statusFilter !== "all";
-  const setProduct = id => setProductFilter(id);
+  const hasFilters = !isProductControlled && productFilter !== "all" || statusFilter !== "all";
+  const setProduct = id => {
+    if (!isProductControlled) setInternalProductFilter(id);
+  };
   const setStatus = key => setStatusFilter(key);
   const resetFilters = () => {
-    setProductFilter("all");
+    if (!isProductControlled) setInternalProductFilter("all");
     setStatusFilter("all");
   };
   return /*#__PURE__*/React.createElement("div", {
@@ -2186,7 +2201,7 @@ function FBAGanttCard({
       gap: 8,
       marginBottom: 12
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, !isProductControlled && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -2627,6 +2642,20 @@ const formatDuplicateFbaMsg = (dupes, action) => {
   const list = [...new Set(dupes)].join("、");
   return dupes.length === 1 ? `FBA 货件编号 ${list} 已存在，${action}` : `以下 FBA 货件编号已存在，${action}：${list}`;
 };
+const groupProductKey = g => (g.sku || g.name || `id-${g.id}`).trim();
+const groupMatchesProduct = (g, productFilter) => productFilter === "all" || groupProductKey(g) === productFilter;
+const productTabChip = active => ({
+  background: active ? "#2d7dd2" : "var(--card)",
+  color: active ? "#fff" : "var(--text)",
+  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
+  borderRadius: 10,
+  padding: "8px 14px",
+  fontSize: 13,
+  fontWeight: active ? 600 : 500,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap"
+});
 const INIT_LOGISTICS = [{
   id: 1,
   name: "FB100绿色第三批",
@@ -4039,26 +4068,44 @@ function LogisticsPanel({
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState(savedFilters.filter || "all");
   const [ownerFilter, setOwnerFilter] = useState(savedFilters.ownerFilter || "all");
+  const [productFilter, setProductFilter] = useState(savedFilters.productFilter || "all");
   const [expanded, setExpanded] = useState(loadExpandedState);
   const panelCsvRef = useRef(null);
+  const products = useMemo(() => logisticsGroupsToGanttProducts(list), [list]);
+  const currentProduct = productFilter === "all" ? null : products.find(p => p.id === productFilter) || null;
+  useEffect(() => {
+    if (productFilter === "all" || products.some(p => p.id === productFilter)) return;
+    setProductFilter("all");
+  }, [products, productFilter]);
   useEffect(() => {
     saveLogisticsFilters({
       filter,
-      ownerFilter
+      ownerFilter,
+      productFilter
     });
-  }, [filter, ownerFilter]);
+  }, [filter, ownerFilter, productFilter]);
   const setFilterPersist = key => {
     setFilter(key);
     saveLogisticsFilters({
       filter: key,
-      ownerFilter
+      ownerFilter,
+      productFilter
     });
   };
   const setOwnerFilterPersist = name => {
     setOwnerFilter(name);
     saveLogisticsFilters({
       filter,
-      ownerFilter: name
+      ownerFilter: name,
+      productFilter
+    });
+  };
+  const setProductFilterPersist = key => {
+    setProductFilter(key);
+    saveLogisticsFilters({
+      filter,
+      ownerFilter,
+      productFilter: key
     });
   };
   const toggleExpanded = id => setExpanded(prev => {
@@ -4071,15 +4118,16 @@ function LogisticsPanel({
     return next;
   });
   const nextId = () => Math.max(0, ...list.map(i => i.id || 0)) + 1;
+  const scopedList = productFilter === "all" ? list : list.filter(g => groupMatchesProduct(g, productFilter));
   const counts = {
-    all: list.length,
-    transit: list.filter(batchHeadTransit).length,
-    missing_track: list.filter(batchMissingTrack).length,
-    receiving: list.filter(batchReceiving).length,
-    done: list.filter(batchAllDone).length
+    all: scopedList.length,
+    transit: scopedList.filter(batchHeadTransit).length,
+    missing_track: scopedList.filter(batchMissingTrack).length,
+    receiving: scopedList.filter(batchReceiving).length,
+    done: scopedList.filter(batchAllDone).length
   };
   const owners = ownerFilterEntries();
-  let vis = list.slice();
+  let vis = scopedList.slice();
   if (ownerFilter !== "all") vis = vis.filter(i => i.owner === ownerFilter);
   if (filter === "transit") vis = vis.filter(batchHeadTransit);else if (filter === "missing_track") vis = vis.filter(batchMissingTrack);else if (filter === "receiving") vis = vis.filter(batchReceiving);else if (filter === "done") vis = vis.filter(batchAllDone);
   vis.sort((a, b) => {
@@ -4152,6 +4200,15 @@ function LogisticsPanel({
     exceptions: [],
     fbaShipments: []
   };
+  const emptyGroupForProduct = () => {
+    if (!currentProduct) return {
+      ...emptyGroup
+    };
+    return {
+      ...emptyGroup,
+      sku: currentProduct.sku || currentProduct.id
+    };
+  };
   const onPanelCsvImport = async e => {
     const files = e.target.files;
     if (!files?.length) return;
@@ -4173,10 +4230,11 @@ function LogisticsPanel({
       }
       if (dupes.length) alert(formatDuplicateFbaMsg(dupes, "已跳过重复项"));
       const label = files.length === 1 ? unique[0]?.fbaId || "新批次" : `导入 ${unique.length} 个货件`;
+      const base = emptyGroupForProduct();
       setModal({
-        ...emptyGroup,
+        ...base,
         name: label,
-        sku,
+        sku: base.sku || sku,
         totalQty,
         fbaShipments: unique
       });
@@ -4217,8 +4275,67 @@ function LogisticsPanel({
     isDirty: !!modal,
     dirtyHint: "物流批次编辑弹窗未保存"
   });
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FBAGanttCard, {
-    groups: list
+  return /*#__PURE__*/React.createElement("div", null, products.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: "1rem"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 8
+    }
+  }, "\u4EA7\u54C1\u5206\u9875 \xB7 \u5207\u6362\u67E5\u770B\u5404\u4EA7\u54C1\u5934\u7A0B"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setProductFilterPersist("all"),
+    style: productTabChip(productFilter === "all")
+  }, "\u5168\u90E8\u4EA7\u54C1", /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 6,
+      fontSize: 11,
+      opacity: 0.85
+    }
+  }, "(", list.length, ")")), products.map(p => /*#__PURE__*/React.createElement("button", {
+    key: p.id,
+    type: "button",
+    onClick: () => setProductFilterPersist(p.id),
+    style: productTabChip(productFilter === p.id),
+    title: p.name
+  }, p.sku || p.name, /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 6,
+      fontSize: 11,
+      opacity: 0.85
+    }
+  }, "(", p.batches.length, ")"))))), currentProduct && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--card)",
+      border: "1px solid #2d7dd2",
+      borderRadius: 12,
+      padding: "12px 16px",
+      marginBottom: "1rem"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 700,
+      color: "var(--text)"
+    }
+  }, currentProduct.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginTop: 4
+    }
+  }, currentProduct.batches.length, " \u4E2A\u53D1\u8D27\u6279\u6B21 \xB7 \u4EC5\u663E\u793A\u672C\u4EA7\u54C1\u76F8\u5173\u5934\u7A0B")), /*#__PURE__*/React.createElement(FBAGanttCard, {
+    groups: list,
+    productFilter: productFilter
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -4288,7 +4405,7 @@ function LogisticsPanel({
       fontWeight: 600
     }
   }, "\uD83D\uDCE5 \u5BFC\u5165 CSV"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setModal(emptyGroup),
+    onClick: () => setModal(emptyGroupForProduct()),
     style: {
       background: "#2d7dd2",
       color: "#fff",
@@ -4356,7 +4473,7 @@ function LogisticsPanel({
       color: "var(--tm)",
       fontSize: 13
     }
-  }, "\u6682\u65E0\u5339\u914D\u6279\u6B21")), modal && /*#__PURE__*/React.createElement(ShipmentModal, {
+  }, currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次")), modal && /*#__PURE__*/React.createElement(ShipmentModal, {
     item: modal,
     onSave: save,
     getExistingFbaIds: () => collectFbaIdsFromGroups(list, modal.id),

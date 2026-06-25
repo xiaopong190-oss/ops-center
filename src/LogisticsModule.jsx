@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { OwnerField, ownerFilterEntries, RoleBadge, getStaffRole } from "./GlobalConfig.jsx";
 import { useSharedList, formatSharedTime } from "./utils/storage.js";
 import { useCloudSyncPage } from "./GlobalCloudSync.jsx";
-import FBAGanttCard from "./FBAGanttCard.jsx";
+import FBAGanttCard, { logisticsGroupsToGanttProducts } from "./FBAGanttCard.jsx";
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
@@ -61,11 +61,12 @@ function loadLogisticsFilters() {
         return {
           filter: typeof parsed.filter === "string" ? parsed.filter : "all",
           ownerFilter: typeof parsed.ownerFilter === "string" ? parsed.ownerFilter : "all",
+          productFilter: typeof parsed.productFilter === "string" ? parsed.productFilter : "all",
         };
       }
     }
   } catch { /* ignore */ }
-  return { filter: "all", ownerFilter: "all" };
+  return { filter: "all", ownerFilter: "all", productFilter: "all" };
 }
 
 function saveLogisticsFilters(filters) {
@@ -275,6 +276,20 @@ const formatDuplicateFbaMsg = (dupes, action) => {
     ? `FBA 货件编号 ${list} 已存在，${action}`
     : `以下 FBA 货件编号已存在，${action}：${list}`;
 };
+const groupProductKey = (g) => (g.sku || g.name || `id-${g.id}`).trim();
+const groupMatchesProduct = (g, productFilter) => productFilter === "all" || groupProductKey(g) === productFilter;
+const productTabChip = (active) => ({
+  background: active ? "#2d7dd2" : "var(--card)",
+  color: active ? "#fff" : "var(--text)",
+  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
+  borderRadius: 10,
+  padding: "8px 14px",
+  fontSize: 13,
+  fontWeight: active ? 600 : 500,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap",
+});
 
 const INIT_LOGISTICS = [
   {
@@ -675,20 +690,33 @@ export function LogisticsPanel({ active = true }) {
   const [modal, setModal] = useState(null);
   const [filter, setFilter] = useState(savedFilters.filter || "all");
   const [ownerFilter, setOwnerFilter] = useState(savedFilters.ownerFilter || "all");
+  const [productFilter, setProductFilter] = useState(savedFilters.productFilter || "all");
   const [expanded, setExpanded] = useState(loadExpandedState);
   const panelCsvRef = useRef(null);
 
+  const products = useMemo(() => logisticsGroupsToGanttProducts(list), [list]);
+  const currentProduct = productFilter === "all" ? null : products.find(p => p.id === productFilter) || null;
+
   useEffect(() => {
-    saveLogisticsFilters({ filter, ownerFilter });
-  }, [filter, ownerFilter]);
+    if (productFilter === "all" || products.some(p => p.id === productFilter)) return;
+    setProductFilter("all");
+  }, [products, productFilter]);
+
+  useEffect(() => {
+    saveLogisticsFilters({ filter, ownerFilter, productFilter });
+  }, [filter, ownerFilter, productFilter]);
 
   const setFilterPersist = (key) => {
     setFilter(key);
-    saveLogisticsFilters({ filter: key, ownerFilter });
+    saveLogisticsFilters({ filter: key, ownerFilter, productFilter });
   };
   const setOwnerFilterPersist = (name) => {
     setOwnerFilter(name);
-    saveLogisticsFilters({ filter, ownerFilter: name });
+    saveLogisticsFilters({ filter, ownerFilter: name, productFilter });
+  };
+  const setProductFilterPersist = (key) => {
+    setProductFilter(key);
+    saveLogisticsFilters({ filter, ownerFilter, productFilter: key });
   };
 
   const toggleExpanded = (id) => setExpanded(prev => {
@@ -698,15 +726,16 @@ export function LogisticsPanel({ active = true }) {
     return next;
   });
   const nextId = () => Math.max(0, ...list.map(i => i.id || 0)) + 1;
+  const scopedList = productFilter === "all" ? list : list.filter(g => groupMatchesProduct(g, productFilter));
   const counts = {
-    all: list.length,
-    transit: list.filter(batchHeadTransit).length,
-    missing_track: list.filter(batchMissingTrack).length,
-    receiving: list.filter(batchReceiving).length,
-    done: list.filter(batchAllDone).length,
+    all: scopedList.length,
+    transit: scopedList.filter(batchHeadTransit).length,
+    missing_track: scopedList.filter(batchMissingTrack).length,
+    receiving: scopedList.filter(batchReceiving).length,
+    done: scopedList.filter(batchAllDone).length,
   };
   const owners = ownerFilterEntries();
-  let vis = list.slice();
+  let vis = scopedList.slice();
   if (ownerFilter !== "all") vis = vis.filter(i => i.owner === ownerFilter);
   if (filter === "transit") vis = vis.filter(batchHeadTransit);
   else if (filter === "missing_track") vis = vis.filter(batchMissingTrack);
@@ -750,6 +779,10 @@ export function LogisticsPanel({ active = true }) {
     })),
   });
   const emptyGroup = { name: "", sku: "", totalQty: 0, owner: "", shipDate: "", transport: "海运", forwarder: "", blNumber: "", etaDeparture: "", etaArrival: "", headStatus: DEFAULT_SHIPMENT_STAGE, note: "", exceptions: [], fbaShipments: [] };
+  const emptyGroupForProduct = () => {
+    if (!currentProduct) return { ...emptyGroup };
+    return { ...emptyGroup, sku: currentProduct.sku || currentProduct.id };
+  };
   const onPanelCsvImport = async (e) => {
     const files = e.target.files;
     if (!files?.length) return;
@@ -764,7 +797,8 @@ export function LogisticsPanel({ active = true }) {
       }
       if (dupes.length) alert(formatDuplicateFbaMsg(dupes, "已跳过重复项"));
       const label = files.length === 1 ? unique[0]?.fbaId || "新批次" : `导入 ${unique.length} 个货件`;
-      setModal({ ...emptyGroup, name: label, sku, totalQty, fbaShipments: unique });
+      const base = emptyGroupForProduct();
+      setModal({ ...base, name: label, sku: base.sku || sku, totalQty, fbaShipments: unique });
     } catch (err) {
       alert(err.message || "CSV 解析失败");
     }
@@ -790,7 +824,31 @@ export function LogisticsPanel({ active = true }) {
   });
   return (
     <div>
-      <FBAGanttCard groups={list} />
+      {products.length > 0 && (
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8 }}>产品分页 · 切换查看各产品头程</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => setProductFilterPersist("all")} style={productTabChip(productFilter === "all")}>
+              全部产品<span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({list.length})</span>
+            </button>
+            {products.map(p => (
+              <button key={p.id} type="button" onClick={() => setProductFilterPersist(p.id)} style={productTabChip(productFilter === p.id)} title={p.name}>
+                {p.sku || p.name}
+                <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({p.batches.length})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {currentProduct && (
+        <div style={{ background: "var(--card)", border: "1px solid #2d7dd2", borderRadius: 12, padding: "12px 16px", marginBottom: "1rem" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{currentProduct.name}</div>
+          <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 4 }}>
+            {currentProduct.batches.length} 个发货批次 · 仅显示本产品相关头程
+          </div>
+        </div>
+      )}
+      <FBAGanttCard groups={list} productFilter={productFilter} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>
           {tabs.map(f => (
@@ -803,7 +861,7 @@ export function LogisticsPanel({ active = true }) {
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
         <input ref={panelCsvRef} type="file" accept=".csv" multiple style={{ display: "none" }} onChange={onPanelCsvImport} />
         <button type="button" onClick={() => panelCsvRef.current?.click()} style={{ background: "var(--card)", color: "#2d7dd2", border: "1px solid #2d7dd2", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>📥 导入 CSV</button>
-        <button onClick={() => setModal(emptyGroup)} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>+ 新建批次</button>
+        <button onClick={() => setModal(emptyGroupForProduct())} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>+ 新建批次</button>
         </div>
       </div>
       <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
@@ -825,7 +883,7 @@ export function LogisticsPanel({ active = true }) {
             onEditTracking={editTracking}
             onDelete={() => deleteGroup(g)}
           />
-        )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无匹配批次</div>}
+        )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>{currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次"}</div>}
       </div>
       {modal && <ShipmentModal item={modal} onSave={save} getExistingFbaIds={() => collectFbaIdsFromGroups(list, modal.id)} onClose={() => {
         if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;

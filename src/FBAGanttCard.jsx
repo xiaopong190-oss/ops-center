@@ -580,15 +580,22 @@ function GanttTimeline({ products, today }) {
   );
 }
 
-export default function FBAGanttCard({ groups = [], today: todayProp }) {
+export default function FBAGanttCard({ groups = [], today: todayProp, productFilter: controlledProductFilter }) {
   const saved = loadGanttFilters();
-  const [productFilter, setProductFilter] = useState(saved.productFilter);
+  const isProductControlled = controlledProductFilter !== undefined;
+  const [internalProductFilter, setInternalProductFilter] = useState(saved.productFilter);
+  const productFilter = isProductControlled ? controlledProductFilter : internalProductFilter;
   const [statusFilter, setStatusFilter] = useState(saved.statusFilter);
   const [sortBy, setSortBy] = useState(saved.sortBy);
 
   useEffect(() => {
-    saveGanttFilters({ productFilter, statusFilter, sortBy });
-  }, [productFilter, statusFilter, sortBy]);
+    if (isProductControlled) {
+      const prev = loadGanttFilters();
+      saveGanttFilters({ ...prev, statusFilter, sortBy });
+    } else {
+      saveGanttFilters({ productFilter, statusFilter, sortBy });
+    }
+  }, [productFilter, statusFilter, sortBy, isProductControlled]);
 
   const today = useMemo(() => {
     const d = todayProp ? new Date(todayProp) : new Date();
@@ -603,21 +610,23 @@ export default function FBAGanttCard({ groups = [], today: todayProp }) {
   );
 
   useEffect(() => {
-    if (productFilter !== "all" && !allProducts.some(p => p.id === productFilter)) {
-      setProductFilter("all");
-    }
-  }, [allProducts, productFilter]);
+    if (isProductControlled || productFilter === "all" || allProducts.some(p => p.id === productFilter)) return;
+    setInternalProductFilter("all");
+  }, [allProducts, productFilter, isProductControlled]);
 
   const chartRef = useRef(null);
   const datedBatchCount = viewProducts.reduce(
     (n, p) => n + (p.batches || []).filter(b => b.shipDate || b.etaArrival).length,
     0
   );
-  const hasFilters = productFilter !== "all" || statusFilter !== "all";
+  const hasFilters = (!isProductControlled && productFilter !== "all") || statusFilter !== "all";
 
-  const setProduct = (id) => setProductFilter(id);
+  const setProduct = (id) => { if (!isProductControlled) setInternalProductFilter(id); };
   const setStatus = (key) => setStatusFilter(key);
-  const resetFilters = () => { setProductFilter("all"); setStatusFilter("all"); };
+  const resetFilters = () => {
+    if (!isProductControlled) setInternalProductFilter("all");
+    setStatusFilter("all");
+  };
 
   return (
     <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1rem 1.25rem", marginBottom: "1rem" }}>
@@ -636,15 +645,17 @@ export default function FBAGanttCard({ groups = [], today: todayProp }) {
 
       {allProducts.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>产品</span>
-            <button type="button" onClick={() => setProduct("all")} style={filterChip(productFilter === "all")}>全部</button>
-            {allProducts.map(p => (
-              <button key={p.id} type="button" onClick={() => setProduct(p.id)} style={filterChip(productFilter === p.id)} title={p.name}>
-                {p.sku || p.name}{p.batches?.length > 1 ? ` (${p.batches.length})` : ""}
-              </button>
-            ))}
-          </div>
+          {!isProductControlled && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>产品</span>
+              <button type="button" onClick={() => setProduct("all")} style={filterChip(productFilter === "all")}>全部</button>
+              {allProducts.map(p => (
+                <button key={p.id} type="button" onClick={() => setProduct(p.id)} style={filterChip(productFilter === p.id)} title={p.name}>
+                  {p.sku || p.name}{p.batches?.length > 1 ? ` (${p.batches.length})` : ""}
+                </button>
+              ))}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>状态</span>
             <button type="button" onClick={() => setStatus("all")} style={filterChip(statusFilter === "all")}>全部</button>

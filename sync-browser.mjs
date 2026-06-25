@@ -131,10 +131,13 @@ function injectGlobalConfig(logisticsBrowser, afterStorage = "") {
 const logRaw = fs.readFileSync(path.join(dir, "LogisticsModule.jsx"), "utf8");
 const fbaGantt = fs.readFileSync(path.join(dir, "FBAGanttCard.jsx"), "utf8");
 const logMerged = logRaw
+  .replace(/^import FBAGanttCard, \{ logisticsGroupsToGanttProducts \} from "\.\/FBAGanttCard\.jsx";\r?\n/m, "")
+  .replace(/^import FBAGanttCard, \{ logisticsGroupsToGanttProducts \} from '\.\/FBAGanttCard\.jsx';\r?\n/m, "")
   .replace(/^import FBAGanttCard from "\.\/FBAGanttCard\.jsx";\r?\n/m, "")
   .replace(/^import FBAGanttCard from '\.\/FBAGanttCard\.jsx';\r?\n/m, "");
 const fbaGanttBrowser = toBrowser(fbaGantt, { exportName: null })
   .replace(/^export default function FBAGanttCard/m, "function FBAGanttCard")
+  .replace(/^export function logisticsGroupsToGanttProducts/m, "function logisticsGroupsToGanttProducts")
   .replace(/^const \{[^}]+\} = React;\r?\n+/, "");
 const logBrowser = toBrowser(logMerged, { exportName: "LogisticsPanel" });
 fs.writeFileSync(

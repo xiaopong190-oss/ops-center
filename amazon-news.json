@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-06-25T03:27:05.106Z",
+  "updatedAt": "2026-06-26T03:34:52.886Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Best Amazon Haul deals for Prime Day 2026: top picks for $3, under $5, and under $10",
-      "link": "https://www.aboutamazon.com/news/retail/amazon-haul-prime-day-deals-2026?utm_source=rss",
-      "pubDate": "Wed, 24 Jun 2026 13:43:50 GMT",
-      "date": "6/24",
-      "summary": "Score hundreds of deals across fashion, home, beauty, and electronics—most under $10, with extra savings when you spend more.",
-      "category": "Retail"
-    },
-    {
-      "title": "160+ of the Best Prime Day 2026 deals in tech, home, beauty, Amazon devices, and more",
+      "title": "185+ of the Best Prime Day 2026 Deals to Shop on Day 3",
       "link": "https://www.aboutamazon.com/news/retail/best-prime-day-deals-2026?utm_source=rss",
-      "pubDate": "Wed, 24 Jun 2026 12:30:00 GMT",
-      "date": "6/24",
-      "summary": "We’ve hand-picked some of the best day 2 Prime Day deals from Dyson, LEGO, Beats, Le Creuset, Samsung, and more—exclusively for Prime member",
+      "pubDate": "Thu, 25 Jun 2026 14:03:00 GMT",
+      "date": "6/25",
+      "summary": "We’ve hand-picked some of the best day 3 Prime Day deals from Dyson, LEGO, Beats, Le Creuset, Samsung, and more—exclusively for Prime member",
       "category": "Retail"
     },
     {
-      "title": "AWS CEO Matt Garman on why enterprise AI is finally delivering real returns",
-      "link": "https://www.aboutamazon.com/news/aws/aws/aws-matt-garman-enterprise-ai-roi-interview-2026?utm_source=rss",
-      "pubDate": "Wed, 24 Jun 2026 00:42:33 GMT",
-      "date": "6/24",
-      "summary": "In a new interview, Garman explains why enterprises are moving past AI experimentation—and what's driving real business value.",
-      "category": "AWS"
+      "title": "Amazon announces partnership with a new coalition to develop the workforce for the AI era",
+      "link": "https://www.aboutamazon.com/news/policy-new-views/amazon-joins-raise-us-ai-workforce?utm_source=rss",
+      "pubDate": "Thu, 25 Jun 2026 09:18:52 GMT",
+      "date": "6/25",
+      "summary": "Amazon is joining RAISE US as a founding member to help workers prepare for the jobs of tomorrow.",
+      "category": "Policy news &amp; views"
+    },
+    {
+      "title": "Amazon announces it will invest $48 billion in India by 2030",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-india-investment?utm_source=rss",
+      "pubDate": "Thu, 25 Jun 2026 08:03:12 GMT",
+      "date": "6/25",
+      "summary": "Since launching in India, Amazon has digitized 12 million small businesses and supported 2.8 million jobs.",
+      "category": "Company news"
     }
   ]
 }

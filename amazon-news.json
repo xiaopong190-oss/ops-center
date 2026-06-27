@@ -1,14 +1,22 @@
 {
-  "updatedAt": "2026-06-26T03:34:52.886Z",
+  "updatedAt": "2026-06-27T02:57:27.403Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "185+ of the Best Prime Day 2026 Deals to Shop on Day 3",
+      "title": "How Amazon is helping after back-to-back earthquakes in Venezuela",
+      "link": "https://www.aboutamazon.com/news/community/amazon-response-venezuela-earthquakes-2026?utm_source=rss",
+      "pubDate": "Sat, 27 Jun 2026 00:28:16 GMT",
+      "date": "6/27",
+      "summary": "Amazon is supporting nonprofits on the ground after devastating quakes hit northern Venezuela.",
+      "category": "Community"
+    },
+    {
+      "title": "Shop 200+ of the best Prime Day 2026 deals still available before the sale ends tonight",
       "link": "https://www.aboutamazon.com/news/retail/best-prime-day-deals-2026?utm_source=rss",
-      "pubDate": "Thu, 25 Jun 2026 14:03:00 GMT",
-      "date": "6/25",
-      "summary": "We’ve hand-picked some of the best day 3 Prime Day deals from Dyson, LEGO, Beats, Le Creuset, Samsung, and more—exclusively for Prime member",
+      "pubDate": "Fri, 26 Jun 2026 13:40:00 GMT",
+      "date": "6/26",
+      "summary": "It’s the last day of Prime Day, but there’s still time to get hand-picked deals on brands like Apple, Bose, Le Creuset, Samsung, and more—ex",
       "category": "Retail"
     },
     {
@@ -18,14 +26,6 @@
       "date": "6/25",
       "summary": "Amazon is joining RAISE US as a founding member to help workers prepare for the jobs of tomorrow.",
       "category": "Policy news &amp; views"
-    },
-    {
-      "title": "Amazon announces it will invest $48 billion in India by 2030",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-india-investment?utm_source=rss",
-      "pubDate": "Thu, 25 Jun 2026 08:03:12 GMT",
-      "date": "6/25",
-      "summary": "Since launching in India, Amazon has digitized 12 million small businesses and supported 2.8 million jobs.",
-      "category": "Company news"
     }
   ]
 }

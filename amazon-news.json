@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-06-29T03:46:16.840Z",
+  "updatedAt": "2026-06-30T03:32:58.638Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How Amazon’s $100 million Right Now Climate Fund is protecting and restoring nature around the world",
+      "link": "https://www.aboutamazon.com/news/sustainability/right-now-climate-fund?utm_source=rss",
+      "pubDate": "Mon, 29 Jun 2026 16:07:00 GMT",
+      "date": "6/29",
+      "summary": "Get the latest on how the fund is investing in nature-based climate projects across more than 15 countries.",
+      "category": "Sustainability"
+    },
     {
       "title": "How Amazon is helping after back-to-back earthquakes in Venezuela",
       "link": "https://www.aboutamazon.com/news/community/amazon-response-venezuela-earthquakes-2026?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "6/26",
       "summary": "It’s the last day of Prime Day, but there’s still time to get hand-picked deals on brands like Apple, Bose, Le Creuset, Samsung, and more—ex",
       "category": "Retail"
-    },
-    {
-      "title": "Amazon announces partnership with a new coalition to develop the workforce for the AI era",
-      "link": "https://www.aboutamazon.com/news/policy-new-views/amazon-joins-raise-us-ai-workforce?utm_source=rss",
-      "pubDate": "Thu, 25 Jun 2026 09:18:52 GMT",
-      "date": "6/25",
-      "summary": "Amazon is joining RAISE US as a founding member to help workers prepare for the jobs of tomorrow.",
-      "category": "Policy news &amp; views"
     }
   ]
 }

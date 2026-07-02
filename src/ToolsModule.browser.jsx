@@ -427,30 +427,6 @@ const TOOL_CATALOG = [
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },
   { id: "fba-hanhai", name: "FBA → 瀚海万博转换", desc: "批量上传 FBA 原厂包装 CSV，转换为瀚海万博 B2B 单票导入模版 (.xls) 并打包下载", icon: "🚢", category: "物流", target: "inline", openUrl: "tools/fba-hanhai-converter/index.html" },
   { id: "amazon-tracker", name: "亚马逊推广追踪", desc: "精铺/精品 · 月度规划 · 投入产出分析", icon: "📦", category: "运营", url: "https://xiaopong190-oss.github.io/ops-center/tools/amazon-tracker/" },
-  {
-    id: "amazon-top-rank",
-    name: "亚马逊 Top 榜",
-    desc: "类目 Best Seller / 排名爬取与查询（局域网爬虫服务）",
-    icon: "🏆",
-    category: "运营",
-    target: "inline",
-    intranetOnly: true,
-    configurableUrl: true,
-    defaultUrl: "http://192.168.0.42:3456/?token=X888888",
-  },
-  {
-    id: "mailwatch",
-    name: "MailWatch 邮件分析",
-    desc: "亚马逊邮件 AI 分析 · 解压后双击「启动 MailWatch.bat」；本机 run.bat 可一键打开",
-    icon: "📧",
-    category: "运营",
-    runtime: "local",
-    autoLaunch: true,
-    defaultUrl: "http://127.0.0.1:8000",
-    downloadUrl: "packages/mailwatch-win.zip",
-    downloadName: "mailwatch-win.zip",
-  },
-  { id: "disk-cleaner", name: "C 盘垃圾清理", desc: "扫描并清理 2345 / 360 / 鲁大师等残留；保护 QQ、微信、百度网盘、WPS", icon: "🧹", category: "系统", runtime: "local", target: "inline", openUrl: "tools/disk-cleaner/index.html", downloadUrl: "packages/disk-cleaner-win.zip" },
 ];
 
 const loadCustomUrls = () => {
@@ -480,35 +456,6 @@ const loadCustomNames = () => {
 const TOOL_CATEGORIES = ["全部", ...new Set(TOOL_CATALOG.map(t => t.category))];
 
 const lblSm = { display: "block", fontSize: 10, color: "var(--tm)", marginBottom: 3 };
-
-const toolDelay = (ms) => new Promise(r => setTimeout(r, ms));
-
-async function openMailWatch(tool) {
-  const appUrl = tool.defaultUrl || "http://127.0.0.1:8000";
-  const tab = window.open("about:blank", "_blank", "noopener,noreferrer");
-  let target = appUrl;
-  try {
-    const statusRes = await fetch("/api/mailwatch/status");
-    if (statusRes.ok) {
-      const status = await statusRes.json();
-      if (status.appUrl) target = status.appUrl;
-      if (!status.running) {
-        await fetch("/api/mailwatch/launch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start" }),
-        });
-        for (let i = 0; i < 20; i++) {
-          await toolDelay(1500);
-          const next = await fetch("/api/mailwatch/status").then(r => r.json()).catch(() => null);
-          if (next?.running) break;
-        }
-      }
-    }
-  } catch { /* ignore */ }
-  if (tab) tab.location.href = target;
-  else openToolUrl(target);
-}
 
 function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl, onOpen, onStartEdit, onEditNameChange, onEditUrlChange, onEditSave, onEditSaveAndOpen, onEditCancel, onDuplicate, onDelete }) {
   const href = resolvedUrl ?? toolUrl(tool);
@@ -772,10 +719,6 @@ function ToolsPanel({ active: tabActive = true }) {
 
   const handleToolClick = (t) => {
     if (editingId) return;
-    if (t.autoLaunch && isLocalOpsServer()) {
-      openMailWatch(t);
-      return;
-    }
     if (t.downloadUrl && !isLocalOpsServer()) {
       downloadToolPackage(t);
       return;
@@ -924,9 +867,7 @@ function ToolsPanel({ active: tabActive = true }) {
         <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--tm)", fontSize: 13 }}>没有匹配的工具</div>
       )}
       <div style={{ marginTop: "1.5rem", padding: "10px 14px", borderRadius: 10, background: "var(--bg)", border: "1px dashed var(--border)", fontSize: 11, color: "var(--tm)", lineHeight: 1.6 }}>
-        「在线文档」可添加多个：点「+ 添加在线文档」或右侧 ⧉ 复制；✎ 改名称/链接，× 删除。<br />
-        「MailWatch 邮件分析」在云端点击即下载安装包；本机 run.bat 下一键打开。<br />
-        「C 盘垃圾清理」云端可下载 zip，解压后在 Windows 本机运行。<br />
+        「在线文档」可添加多个：点「+ 添加在线文档」或右侧 ⧉ 复制；✎ 改名称/链接，× 删除。
       </div>
     </div>
   );

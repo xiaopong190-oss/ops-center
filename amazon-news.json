@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-07-01T03:41:58.064Z",
+  "updatedAt": "2026-07-03T02:50:38.245Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
-      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
-      "pubDate": "Tue, 30 Jun 2026 22:15:00 GMT",
-      "date": "6/30",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
+      "title": "6 Ways Amazon is investing in Louisiana",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-louisiana-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Thu, 02 Jul 2026 17:27:14 GMT",
+      "date": "7/2",
+      "summary": "Amazon's investments are boosting the Pelican State's economy while creating opportunities for those who call Louisiana home.",
       "category": "Community"
     },
     {
-      "title": "See the first look for 'Neagley,' from the world of 'Reacher,' which premieres on September 16",
-      "link": "https://www.aboutamazon.com/news/entertainment/watch-neagley-reacher-prime-video?utm_source=rss",
-      "pubDate": "Tue, 30 Jun 2026 21:26:21 GMT",
-      "date": "6/30",
-      "summary": "Maria Sten stars as a private investigator Frances Neagley in a gripping new action series set in the world of Lee Child's best-selling nove",
-      "category": "Entertainment"
+      "title": "5 ways Amazon is investing in Florida",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-florida-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Thu, 02 Jul 2026 16:01:59 GMT",
+      "date": "7/2",
+      "summary": "Amazon's investments are boosting the Sunshine State's economy while creating opportunities for Floridians.",
+      "category": "Community"
     },
     {
-      "title": "AWS is investing billions to put AI into production for the public sector",
-      "link": "https://www.aboutamazon.com/news/aws/aws-summit-dc-2026-ai-cloud-public-sector?utm_source=rss",
-      "pubDate": "Tue, 30 Jun 2026 14:59:40 GMT",
-      "date": "6/30",
-      "summary": "CIA Director Ratcliffe, Energy Secretary Wright, and UK CTO Patel joined the AWS Summit D.C. keynote for major classified cloud and AI annou",
-      "category": "AWS"
+      "title": "How Amazon is helping after back-to-back earthquakes in Venezuela",
+      "link": "https://www.aboutamazon.com/news/community/amazon-response-venezuela-earthquakes-2026?utm_source=rss",
+      "pubDate": "Thu, 02 Jul 2026 00:55:00 GMT",
+      "date": "7/2",
+      "summary": "Amazon is supporting nonprofits on the ground after devastating quakes hit northern Venezuela.",
+      "category": "Community"
     }
   ]
 }

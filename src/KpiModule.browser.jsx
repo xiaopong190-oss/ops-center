@@ -601,8 +601,8 @@ const kpiInp = {
 const kpiInpSm = { ...kpiInp, fontSize: 12, padding: "4px 8px" };
 const kpiLbl = { fontSize: 10, color: "var(--tm)", marginBottom: 4, display: "block" };
 const kpiCard = {
-  background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px",
-  boxShadow: "var(--shadow-sm)",
+  background: "var(--card)", border: "1px solid var(--border-light)", borderRadius: 16, padding: "18px 20px",
+  boxShadow: "var(--shadow-card)",
 };
 const kpiModTitle = {
   fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
@@ -1887,30 +1887,39 @@ function KpiStatsPage({ items, year, month, staffTick = 0 }) {
           <div className="ops-metric-sub">{teamOpsAvg > 0 ? "满分 100 · 精铺考核" : "暂无数据"}</div>
           <KpiSparkline light />
         </div>
-        <div className="ops-metric-card">
-          <div className="ops-metric-label">运营人数</div>
-          <div className="ops-metric-value" style={{ fontSize: 24, color: "#4080FF" }}>{opsRows.length || "—"}</div>
+        <div className="ops-metric-card ops-metric-card-elevated">
+          <div className="ops-metric-card-head">
+            <div className="ops-metric-icon-box ops-icon-blue">👥</div>
+            <div className="ops-metric-label" style={{ marginBottom: 0 }}>运营人数</div>
+          </div>
+          <div className="ops-metric-value" style={{ fontSize: 26, color: "var(--primary)" }}>{opsRows.length || "—"}</div>
           <div className="ops-metric-sub">精铺考核成员</div>
-          <KpiSparkline />
         </div>
-        <div className="ops-metric-card">
-          <div className="ops-metric-label">月销合计</div>
+        <div className="ops-metric-card ops-metric-card-elevated">
+          <div className="ops-metric-card-head">
+            <div className="ops-metric-icon-box ops-icon-green">$</div>
+            <div className="ops-metric-label" style={{ marginBottom: 0 }}>月销合计</div>
+          </div>
           <div className="ops-metric-value" style={{ fontSize: 22 }}>{totalSales > 0 ? `$${Math.round(totalSales).toLocaleString()}` : "—"}</div>
           <div className="ops-metric-sub">{year}年{month}月</div>
-          <KpiSparkline color="#00B42A" />
         </div>
-        <div className="ops-metric-card">
-          <div className="ops-metric-label">填写完成率</div>
-          <div className="ops-metric-value" style={{ fontSize: 24 }}>{opsRows.length ? `${fillRate}%` : "—"}</div>
+        <div className="ops-metric-card ops-metric-card-elevated">
+          <div className="ops-metric-card-head">
+            <div className="ops-metric-icon-box ops-icon-amber">✓</div>
+            <div className="ops-metric-label" style={{ marginBottom: 0 }}>填写完成率</div>
+          </div>
+          <div className="ops-metric-value" style={{ fontSize: 26 }}>{opsRows.length ? `${fillRate}%` : "—"}</div>
           <span className={`ops-metric-trend ${fillRate >= 75 ? "ops-trend-up" : "ops-trend-down"}`}>
             {fillRate >= 75 ? "↑ 良好" : fillRate > 0 ? "↓ 待完善" : "—"}
           </span>
         </div>
-        <div className="ops-metric-card">
-          <div className="ops-metric-label">美工团队月均</div>
-          <div className="ops-metric-value" style={{ fontSize: 24, color: "#722ED1" }}>{teamDesAvg > 0 ? teamDesAvg.toFixed(1) : "—"}</div>
+        <div className="ops-metric-card ops-metric-card-elevated">
+          <div className="ops-metric-card-head">
+            <div className="ops-metric-icon-box ops-icon-purple">🎨</div>
+            <div className="ops-metric-label" style={{ marginBottom: 0 }}>美工团队月均</div>
+          </div>
+          <div className="ops-metric-value" style={{ fontSize: 26, color: "var(--purple)" }}>{teamDesAvg > 0 ? teamDesAvg.toFixed(1) : "—"}</div>
           <div className="ops-metric-sub">满分 5 分制</div>
-          <KpiSparkline color="#722ED1" />
         </div>
       </div>
 

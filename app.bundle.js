@@ -7484,37 +7484,6 @@ const TOOL_CATALOG = [{
   icon: "📦",
   category: "运营",
   url: "https://xiaopong190-oss.github.io/ops-center/tools/amazon-tracker/"
-}, {
-  id: "amazon-top-rank",
-  name: "亚马逊 Top 榜",
-  desc: "类目 Best Seller / 排名爬取与查询（局域网爬虫服务）",
-  icon: "🏆",
-  category: "运营",
-  target: "inline",
-  intranetOnly: true,
-  configurableUrl: true,
-  defaultUrl: "http://192.168.0.42:3456/?token=X888888"
-}, {
-  id: "mailwatch",
-  name: "MailWatch 邮件分析",
-  desc: "亚马逊邮件 AI 分析 · 解压后双击「启动 MailWatch.bat」；本机 run.bat 可一键打开",
-  icon: "📧",
-  category: "运营",
-  runtime: "local",
-  autoLaunch: true,
-  defaultUrl: "http://127.0.0.1:8000",
-  downloadUrl: "packages/mailwatch-win.zip",
-  downloadName: "mailwatch-win.zip"
-}, {
-  id: "disk-cleaner",
-  name: "C 盘垃圾清理",
-  desc: "扫描并清理 2345 / 360 / 鲁大师等残留；保护 QQ、微信、百度网盘、WPS",
-  icon: "🧹",
-  category: "系统",
-  runtime: "local",
-  target: "inline",
-  openUrl: "tools/disk-cleaner/index.html",
-  downloadUrl: "packages/disk-cleaner-win.zip"
 }];
 const loadCustomUrls = () => {
   const saved = {};
@@ -7545,36 +7514,6 @@ const lblSm = {
   color: "var(--tm)",
   marginBottom: 3
 };
-const toolDelay = ms => new Promise(r => setTimeout(r, ms));
-async function openMailWatch(tool) {
-  const appUrl = tool.defaultUrl || "http://127.0.0.1:8000";
-  const tab = window.open("about:blank", "_blank", "noopener,noreferrer");
-  let target = appUrl;
-  try {
-    const statusRes = await fetch("/api/mailwatch/status");
-    if (statusRes.ok) {
-      const status = await statusRes.json();
-      if (status.appUrl) target = status.appUrl;
-      if (!status.running) {
-        await fetch("/api/mailwatch/launch", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            action: "start"
-          })
-        });
-        for (let i = 0; i < 20; i++) {
-          await toolDelay(1500);
-          const next = await fetch("/api/mailwatch/status").then(r => r.json()).catch(() => null);
-          if (next?.running) break;
-        }
-      }
-    }
-  } catch {/* ignore */}
-  if (tab) tab.location.href = target;else openToolUrl(target);
-}
 function ToolCard({
   tool,
   displayName,
@@ -7960,10 +7899,6 @@ function ToolsPanel({
   };
   const handleToolClick = t => {
     if (editingId) return;
-    if (t.autoLaunch && isLocalOpsServer()) {
-      openMailWatch(t);
-      return;
-    }
     if (t.downloadUrl && !isLocalOpsServer()) {
       downloadToolPackage(t);
       return;
@@ -8225,7 +8160,7 @@ function ToolsPanel({
       color: "var(--tm)",
       lineHeight: 1.6
     }
-  }, "\u300C\u5728\u7EBF\u6587\u6863\u300D\u53EF\u6DFB\u52A0\u591A\u4E2A\uFF1A\u70B9\u300C+ \u6DFB\u52A0\u5728\u7EBF\u6587\u6863\u300D\u6216\u53F3\u4FA7 \u29C9 \u590D\u5236\uFF1B\u270E \u6539\u540D\u79F0/\u94FE\u63A5\uFF0C\xD7 \u5220\u9664\u3002", /*#__PURE__*/React.createElement("br", null), "\u300CMailWatch \u90AE\u4EF6\u5206\u6790\u300D\u5728\u4E91\u7AEF\u70B9\u51FB\u5373\u4E0B\u8F7D\u5B89\u88C5\u5305\uFF1B\u672C\u673A run.bat \u4E0B\u4E00\u952E\u6253\u5F00\u3002", /*#__PURE__*/React.createElement("br", null), "\u300CC \u76D8\u5783\u573E\u6E05\u7406\u300D\u4E91\u7AEF\u53EF\u4E0B\u8F7D zip\uFF0C\u89E3\u538B\u540E\u5728 Windows \u672C\u673A\u8FD0\u884C\u3002", /*#__PURE__*/React.createElement("br", null)));
+  }, "\u300C\u5728\u7EBF\u6587\u6863\u300D\u53EF\u6DFB\u52A0\u591A\u4E2A\uFF1A\u70B9\u300C+ \u6DFB\u52A0\u5728\u7EBF\u6587\u6863\u300D\u6216\u53F3\u4FA7 \u29C9 \u590D\u5236\uFF1B\u270E \u6539\u540D\u79F0/\u94FE\u63A5\uFF0C\xD7 \u5220\u9664\u3002"));
 }
 
 // Shared helpers (TODAY, fmtD, Avatar, …) come from LogisticsModule.browser.jsx loaded first.
@@ -8879,6 +8814,13 @@ const WORLD_CLOCKS = [{
   tz: "Asia/Shanghai",
   flag: "🇨🇳"
 }];
+const WORLD_CLOCK_ICON = {
+  us: "ops-icon-blue",
+  jp: "ops-icon-amber",
+  uk: "ops-icon-purple",
+  de: "ops-icon-green",
+  cn: "ops-icon-blue"
+};
 const BEIJING_TZ = "Asia/Shanghai";
 function beijingTodayKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -9202,37 +9144,22 @@ function AmazonNewsCard({
       marginBottom: "1.25rem"
     }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "baseline",
-      justifyContent: "space-between",
-      gap: 10,
-      marginBottom: 10
-    }
+    className: "ops-section-head"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 600
-    }
+    className: "ops-section-title"
   }, "\uD83D\uDCF0 \u4E9A\u9A6C\u900A\u52A8\u6001"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "var(--tm)"
-    }
+    className: "ops-section-meta"
   }, news.status === "ok" ? news.sourceLabel : news.status === "stale" ? "缓存 · " + news.sourceLabel : news.status === "loading" ? "加载中…" : "暂不可用", news.updatedAt && news.status !== "loading" && ` · ${formatUpdated(news.updatedAt)}`)), news.status === "error" && /*#__PURE__*/React.createElement("div", {
+    className: "ops-card ops-card-padded",
     style: {
       fontSize: 12,
-      color: "var(--tm)",
-      padding: "12px 14px",
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 12
+      color: "var(--tm)"
     }
   }, "\u65B0\u95FB\u83B7\u53D6\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u540E\u5237\u65B0\u3002"), news.status !== "error" && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
-      gap: 8
+      gap: 10
     }
   }, (news.status === "loading" ? [{
     title: "…"
@@ -9248,29 +9175,27 @@ function AmazonNewsCard({
     onClick: e => {
       if (!item.link) e.preventDefault();
     },
+    className: "ops-card ops-card-padded ops-card-hover",
     style: {
       display: "block",
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 12,
-      padding: "12px 14px",
       textDecoration: "none",
       color: "inherit",
       opacity: news.status === "loading" ? 0.5 : 1
-    },
-    onMouseEnter: e => {
-      if (item.link) e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.07)";
-    },
-    onMouseLeave: e => {
-      e.currentTarget.style.boxShadow = "none";
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "flex-start",
-      gap: 10
+      gap: 12
     }
   }, /*#__PURE__*/React.createElement("div", {
+    className: `ops-metric-icon-box ops-icon-amber`,
+    style: {
+      width: 36,
+      height: 36,
+      fontSize: 16
+    }
+  }, "\uD83D\uDCF0"), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       minWidth: 0
@@ -9304,55 +9229,41 @@ function AmazonNewsCard({
       marginBottom: 4
     }
   }, item.date), item.category && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 10,
-      padding: "2px 8px",
-      borderRadius: 20,
-      background: "var(--bg)",
-      color: "var(--tm)",
-      border: "1px solid var(--border)"
-    }
+    className: "ops-badge ops-badge-info"
   }, item.category), item.link && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
-      color: "#2d7dd2",
-      marginTop: 4
+      color: "var(--primary)",
+      marginTop: 4,
+      fontWeight: 600
     }
   }, "\u2197")))))), /*#__PURE__*/React.createElement("div", {
+    className: "ops-section-meta",
     style: {
-      fontSize: 10,
-      color: "var(--tm)",
-      marginTop: 8,
-      lineHeight: 1.5
+      marginTop: 10
     }
   }, "\u81EA\u52A8\u540C\u6B65 Amazon \u5B98\u65B9 RSS\uFF0C\u6BCF 4 \u5C0F\u65F6\u66F4\u65B0\uFF0C\u65E0\u9700\u4EBA\u5DE5\u7EF4\u62A4\u3002"));
 }
 function ExchangeRatesCard({
   fx
 }) {
+  const FX_ICON = {
+    USD: "ops-icon-green",
+    GBP: "ops-icon-purple",
+    EUR: "ops-icon-blue",
+    JPY: "ops-icon-amber"
+  };
   return /*#__PURE__*/React.createElement("div", {
-    className: "ops-card ops-card-padded",
+    className: "ops-card ops-card-padded ops-card-elevated",
     style: {
       marginBottom: "1.25rem"
     }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "baseline",
-      justifyContent: "space-between",
-      gap: 10,
-      marginBottom: 12
-    }
+    className: "ops-section-head"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 600
-    }
+    className: "ops-section-title"
   }, "\uD83D\uDCB1 \u4ECA\u65E5\u6C47\u7387\uFF08\u4EBA\u6C11\u5E01\uFF09"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "var(--tm)"
-    }
+    className: "ops-section-meta"
   }, fx.status === "ok" ? `参考 ${fx.asOf}` : fx.status === "stale" ? `缓存 ${fx.asOf}` : fx.status === "loading" ? "加载中…" : "暂不可用")), fx.status === "stale" && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
@@ -9366,11 +9277,7 @@ function ExchangeRatesCard({
       lineHeight: 1.55
     }
   }, "\u6C47\u7387\u83B7\u53D6\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u540E\u5237\u65B0\u9875\u9762\u3002"), fx.status !== "error" && /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-      gap: 8
-    }
+    className: "ops-rate-grid"
   }, FX_TARGETS.map(t => {
     const raw = fx.rates?.[t.code];
     const mult = t.per100 ? 100 : 1;
@@ -9379,36 +9286,39 @@ function ExchangeRatesCard({
     const suffix = t.per100 ? ` ${formatFxRate(val, t.decimals)} JPY` : ` ${t.symbol}${formatFxRate(val, t.decimals)}`;
     return /*#__PURE__*/React.createElement("div", {
       key: t.code,
-      style: {
-        background: "var(--bg)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        padding: "10px 12px"
-      }
+      className: "ops-rate-cell"
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 11,
-        color: "var(--tm)",
-        marginBottom: 4
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 8
       }
-    }, t.label, " ", t.code), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("div", {
+      className: `ops-metric-icon-box ${FX_ICON[t.code] || "ops-icon-blue"}`,
       style: {
+        width: 36,
+        height: 36,
         fontSize: 15,
-        fontWeight: 700,
-        fontVariantNumeric: "tabular-nums"
+        fontWeight: 700
+      }
+    }, t.symbol), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 600,
+        color: "var(--text)"
+      }
+    }, t.label, " ", t.code)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 16,
+        fontWeight: 800,
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.02em"
       }
     }, fx.status === "loading" ? "…" : /*#__PURE__*/React.createElement("span", null, prefix, suffix)), raw != null && fx.status === "ok" && !t.per100 && /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "var(--tm)",
-        marginTop: 4
-      }
+      className: "ops-metric-sub"
     }, "1 ", t.symbol, " \u2248 \xA5", formatFxRate(1 / raw, 2), " CNY"), raw != null && fx.status === "ok" && t.per100 && /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "var(--tm)",
-        marginTop: 4
-      }
+      className: "ops-metric-sub"
     }, "100 JPY \u2248 \xA5", formatFxRate(100 / raw, 2), " CNY"));
   })), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9694,23 +9604,16 @@ function HomePanel() {
     }
   }, WORLD_CLOCKS.map(c => /*#__PURE__*/React.createElement("div", {
     key: c.id,
-    className: "ops-metric-card"
+    className: "ops-metric-card ops-metric-card-elevated"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
-      marginBottom: 8
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 18,
-      lineHeight: 1
-    }
+    className: "ops-metric-card-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: `ops-metric-icon-box ${WORLD_CLOCK_ICON[c.id] || "ops-icon-blue"}`
   }, c.flag), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 13,
-      fontWeight: 600
+      fontSize: 14,
+      fontWeight: 700,
+      color: "var(--text)"
     }
   }, c.label), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-label",
@@ -9720,9 +9623,9 @@ function HomePanel() {
   }, c.sub))), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-value",
     style: {
-      fontSize: 22,
+      fontSize: 24,
       fontVariantNumeric: "tabular-nums",
-      color: c.id === "cn" ? "#4080FF" : "var(--text)"
+      color: c.id === "cn" ? "var(--primary)" : "var(--text)"
     }
   }, formatClockTime(now, c.tz)), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-sub"
@@ -11181,10 +11084,10 @@ const kpiLbl = {
 };
 const kpiCard = {
   background: "var(--card)",
-  border: "1px solid var(--border)",
-  borderRadius: 12,
-  padding: "16px 18px",
-  boxShadow: "var(--shadow-sm)"
+  border: "1px solid var(--border-light)",
+  borderRadius: 16,
+  padding: "18px 20px",
+  boxShadow: "var(--shadow-card)"
 };
 const kpiModTitle = {
   fontSize: 10,
@@ -13819,56 +13722,80 @@ function KpiStatsPage({
   }, teamOpsAvg > 0 ? "满分 100 · 精铺考核" : "暂无数据"), /*#__PURE__*/React.createElement(KpiSparkline, {
     light: true
   })), /*#__PURE__*/React.createElement("div", {
-    className: "ops-metric-card"
+    className: "ops-metric-card ops-metric-card-elevated"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "ops-metric-label"
-  }, "\u8FD0\u8425\u4EBA\u6570"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-icon-box ops-icon-blue"
+  }, "\uD83D\uDC65"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label",
+    style: {
+      marginBottom: 0
+    }
+  }, "\u8FD0\u8425\u4EBA\u6570")), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-value",
     style: {
-      fontSize: 24,
-      color: "#4080FF"
+      fontSize: 26,
+      color: "var(--primary)"
     }
   }, opsRows.length || "—"), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-sub"
-  }, "\u7CBE\u94FA\u8003\u6838\u6210\u5458"), /*#__PURE__*/React.createElement(KpiSparkline, null)), /*#__PURE__*/React.createElement("div", {
-    className: "ops-metric-card"
+  }, "\u7CBE\u94FA\u8003\u6838\u6210\u5458")), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card ops-metric-card-elevated"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "ops-metric-label"
-  }, "\u6708\u9500\u5408\u8BA1"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-icon-box ops-icon-green"
+  }, "$"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label",
+    style: {
+      marginBottom: 0
+    }
+  }, "\u6708\u9500\u5408\u8BA1")), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-value",
     style: {
       fontSize: 22
     }
   }, totalSales > 0 ? `$${Math.round(totalSales).toLocaleString()}` : "—"), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-sub"
-  }, year, "\u5E74", month, "\u6708"), /*#__PURE__*/React.createElement(KpiSparkline, {
-    color: "#00B42A"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "ops-metric-card"
+  }, year, "\u5E74", month, "\u6708")), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card ops-metric-card-elevated"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "ops-metric-label"
-  }, "\u586B\u5199\u5B8C\u6210\u7387"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-icon-box ops-icon-amber"
+  }, "\u2713"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label",
+    style: {
+      marginBottom: 0
+    }
+  }, "\u586B\u5199\u5B8C\u6210\u7387")), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-value",
     style: {
-      fontSize: 24
+      fontSize: 26
     }
   }, opsRows.length ? `${fillRate}%` : "—"), /*#__PURE__*/React.createElement("span", {
     className: `ops-metric-trend ${fillRate >= 75 ? "ops-trend-up" : "ops-trend-down"}`
   }, fillRate >= 75 ? "↑ 良好" : fillRate > 0 ? "↓ 待完善" : "—")), /*#__PURE__*/React.createElement("div", {
-    className: "ops-metric-card"
+    className: "ops-metric-card ops-metric-card-elevated"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "ops-metric-label"
-  }, "\u7F8E\u5DE5\u56E2\u961F\u6708\u5747"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-card-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-icon-box ops-icon-purple"
+  }, "\uD83C\uDFA8"), /*#__PURE__*/React.createElement("div", {
+    className: "ops-metric-label",
+    style: {
+      marginBottom: 0
+    }
+  }, "\u7F8E\u5DE5\u56E2\u961F\u6708\u5747")), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-value",
     style: {
-      fontSize: 24,
-      color: "#722ED1"
+      fontSize: 26,
+      color: "var(--purple)"
     }
   }, teamDesAvg > 0 ? teamDesAvg.toFixed(1) : "—"), /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-sub"
-  }, "\u6EE1\u5206 5 \u5206\u5236"), /*#__PURE__*/React.createElement(KpiSparkline, {
-    color: "#722ED1"
-  }))), /*#__PURE__*/React.createElement("div", {
+  }, "\u6EE1\u5206 5 \u5206\u5236"))), /*#__PURE__*/React.createElement("div", {
     className: "ops-card ops-card-padded",
     style: {
       fontSize: 12,
@@ -15887,7 +15814,7 @@ function SettingsMenu({
 }
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-36-saas";
+const APP_BUILD = "cloud-37-depth";
 const AUTH_SESSION_KEY = "ops-center-auth";
 function readAuthSession() {
   try {
@@ -16007,19 +15934,19 @@ function AppShell({
     setTab(key);
   };
   const css = {
-    "--bg": dark ? "#0d0d0d" : "#F5F7FA",
+    "--bg": dark ? "#0d0d0d" : "#F4F7FE",
     "--card": dark ? "#1a1a1a" : "#FFFFFF",
-    "--border": dark ? "#2e2e2e" : "#E5E8EF",
-    "--border-light": dark ? "#252525" : "#F2F3F5",
-    "--text": dark ? "#e8e8e8" : "#1D2129",
-    "--tm": dark ? "#888" : "#86909C",
-    "--primary": "#4080FF",
-    "--primary-light": dark ? "#1a2a4a" : "#E8F1FF",
-    "--shadow-sm": dark ? "0 1px 2px rgba(0,0,0,0.3)" : "0 1px 2px rgba(29,33,41,0.04)",
-    "--shadow-md": dark ? "0 4px 16px rgba(0,0,0,0.4)" : "0 4px 16px rgba(29,33,41,0.06)"
+    "--border": dark ? "rgba(255,255,255,0.08)" : "rgba(163,174,208,0.18)",
+    "--border-light": dark ? "rgba(255,255,255,0.05)" : "rgba(163,174,208,0.12)",
+    "--text": dark ? "#e8e8e8" : "#1B2559",
+    "--tm": dark ? "#888" : "#A3AED0",
+    "--primary": "#4318FF",
+    "--primary-light": dark ? "#1a2a4a" : "#E9E3FF",
+    "--shadow-card": dark ? "0 4px 18px rgba(0,0,0,0.35)" : "0 4px 18px rgba(112,144,176,0.12), 0 1px 3px rgba(112,144,176,0.06)",
+    "--shadow-md": dark ? "0 8px 24px rgba(0,0,0,0.45)" : "0 8px 24px rgba(112,144,176,0.14)"
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "ops-app",
+    className: `ops-app${dark ? " ops-theme-dark" : " ops-theme-light"}`,
     style: css
   }, /*#__PURE__*/React.createElement("aside", {
     className: "ops-sidebar"
@@ -16030,7 +15957,7 @@ function AppShell({
   }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "ops-sidebar-brand-text"
   }, "\u6CD3\u68EE\u62D3\u521B\u79D1\u6280"), /*#__PURE__*/React.createElement("span", {
-    className: "ops-badge ops-badge-info",
+    className: "ops-badge ops-badge-sidebar",
     style: {
       marginTop: 4
     }

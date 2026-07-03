@@ -249,7 +249,7 @@ function SettingsMenu({ onSelect }) {
 
 const APP_ORG_NAME = "泓森拓创科技";
 const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-36-saas";
+const APP_BUILD = "cloud-37-depth";
 const AUTH_SESSION_KEY = "ops-center-auth";
 
 function readAuthSession() {
@@ -310,25 +310,25 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel 
     setTab(key);
   };
   const css = {
-    "--bg": dark ? "#0d0d0d" : "#F5F7FA",
+    "--bg": dark ? "#0d0d0d" : "#F4F7FE",
     "--card": dark ? "#1a1a1a" : "#FFFFFF",
-    "--border": dark ? "#2e2e2e" : "#E5E8EF",
-    "--border-light": dark ? "#252525" : "#F2F3F5",
-    "--text": dark ? "#e8e8e8" : "#1D2129",
-    "--tm": dark ? "#888" : "#86909C",
-    "--primary": "#4080FF",
-    "--primary-light": dark ? "#1a2a4a" : "#E8F1FF",
-    "--shadow-sm": dark ? "0 1px 2px rgba(0,0,0,0.3)" : "0 1px 2px rgba(29,33,41,0.04)",
-    "--shadow-md": dark ? "0 4px 16px rgba(0,0,0,0.4)" : "0 4px 16px rgba(29,33,41,0.06)",
+    "--border": dark ? "rgba(255,255,255,0.08)" : "rgba(163,174,208,0.18)",
+    "--border-light": dark ? "rgba(255,255,255,0.05)" : "rgba(163,174,208,0.12)",
+    "--text": dark ? "#e8e8e8" : "#1B2559",
+    "--tm": dark ? "#888" : "#A3AED0",
+    "--primary": "#4318FF",
+    "--primary-light": dark ? "#1a2a4a" : "#E9E3FF",
+    "--shadow-card": dark ? "0 4px 18px rgba(0,0,0,0.35)" : "0 4px 18px rgba(112,144,176,0.12), 0 1px 3px rgba(112,144,176,0.06)",
+    "--shadow-md": dark ? "0 8px 24px rgba(0,0,0,0.45)" : "0 8px 24px rgba(112,144,176,0.14)",
   };
   return (
-    <div className="ops-app" style={css}>
+    <div className={`ops-app${dark ? " ops-theme-dark" : " ops-theme-light"}`} style={css}>
       <aside className="ops-sidebar">
         <div className="ops-sidebar-brand">
           <BrandLogo size={32} />
           <div>
             <div className="ops-sidebar-brand-text">泓森拓创科技</div>
-            <span className="ops-badge ops-badge-info" style={{ marginTop: 4 }}>{APP_BUILD}</span>
+            <span className="ops-badge ops-badge-sidebar" style={{ marginTop: 4 }}>{APP_BUILD}</span>
           </div>
         </div>
         <nav className="ops-sidebar-nav">

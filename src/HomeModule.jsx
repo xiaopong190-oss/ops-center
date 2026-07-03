@@ -19,6 +19,8 @@ const WORLD_CLOCKS = [
   { id: "cn", label: "北京", sub: "中国", tz: "Asia/Shanghai", flag: "🇨🇳" },
 ];
 
+const WORLD_CLOCK_ICON = { us: "ops-icon-blue", jp: "ops-icon-amber", uk: "ops-icon-purple", de: "ops-icon-green", cn: "ops-icon-blue" };
+
 const BEIJING_TZ = "Asia/Shanghai";
 
 function beijingTodayKey(date = new Date()) {
@@ -299,20 +301,20 @@ function AmazonNewsCard({ news }) {
 
   return (
     <div style={{ marginBottom: "1.25rem" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>📰 亚马逊动态</div>
-        <div style={{ fontSize: 10, color: "var(--tm)" }}>
+      <div className="ops-section-head">
+        <div className="ops-section-title">📰 亚马逊动态</div>
+        <div className="ops-section-meta">
           {news.status === "ok" ? news.sourceLabel : news.status === "stale" ? "缓存 · " + news.sourceLabel : news.status === "loading" ? "加载中…" : "暂不可用"}
           {news.updatedAt && news.status !== "loading" && ` · ${formatUpdated(news.updatedAt)}`}
         </div>
       </div>
       {news.status === "error" && (
-        <div style={{ fontSize: 12, color: "var(--tm)", padding: "12px 14px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }}>
+        <div className="ops-card ops-card-padded" style={{ fontSize: 12, color: "var(--tm)" }}>
           新闻获取失败，请检查网络后刷新。
         </div>
       )}
       {news.status !== "error" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {(news.status === "loading" ? [{ title: "…" }, { title: "…" }, { title: "…" }] : news.items.slice(0, 3)).map((item, i) => (
             <a
               key={item.link || i}
@@ -320,20 +322,11 @@ function AmazonNewsCard({ news }) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => { if (!item.link) e.preventDefault(); }}
-              style={{
-                display: "block",
-                background: "var(--card)",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
-                padding: "12px 14px",
-                textDecoration: "none",
-                color: "inherit",
-                opacity: news.status === "loading" ? 0.5 : 1,
-              }}
-              onMouseEnter={e => { if (item.link) e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.07)"; }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}
+              className="ops-card ops-card-padded ops-card-hover"
+              style={{ display: "block", textDecoration: "none", color: "inherit", opacity: news.status === "loading" ? 0.5 : 1 }}
             >
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div className={`ops-metric-icon-box ops-icon-amber`} style={{ width: 36, height: 36, fontSize: 16 }}>📰</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.45, color: "var(--text)" }}>{item.title}</div>
                   {item.summary && (
@@ -342,25 +335,26 @@ function AmazonNewsCard({ news }) {
                 </div>
                 <div style={{ flexShrink: 0, textAlign: "right" }}>
                   {item.date && <div style={{ fontSize: 10, color: "var(--tm)", marginBottom: 4 }}>{item.date}</div>}
-                  {item.category && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "var(--bg)", color: "var(--tm)", border: "1px solid var(--border)" }}>{item.category}</span>}
-                  {item.link && <div style={{ fontSize: 11, color: "#2d7dd2", marginTop: 4 }}>↗</div>}
+                  {item.category && <span className="ops-badge ops-badge-info">{item.category}</span>}
+                  {item.link && <div style={{ fontSize: 11, color: "var(--primary)", marginTop: 4, fontWeight: 600 }}>↗</div>}
                 </div>
               </div>
             </a>
           ))}
         </div>
       )}
-      <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 8, lineHeight: 1.5 }}>自动同步 Amazon 官方 RSS，每 4 小时更新，无需人工维护。</div>
+      <div className="ops-section-meta" style={{ marginTop: 10 }}>自动同步 Amazon 官方 RSS，每 4 小时更新，无需人工维护。</div>
     </div>
   );
 }
 
 function ExchangeRatesCard({ fx }) {
+  const FX_ICON = { USD: "ops-icon-green", GBP: "ops-icon-purple", EUR: "ops-icon-blue", JPY: "ops-icon-amber" };
   return (
-    <div className="ops-card ops-card-padded" style={{ marginBottom: "1.25rem" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>💱 今日汇率（人民币）</div>
-        <div style={{ fontSize: 10, color: "var(--tm)" }}>
+    <div className="ops-card ops-card-padded ops-card-elevated" style={{ marginBottom: "1.25rem" }}>
+      <div className="ops-section-head">
+        <div className="ops-section-title">💱 今日汇率（人民币）</div>
+        <div className="ops-section-meta">
           {fx.status === "ok" ? `参考 ${fx.asOf}` : fx.status === "stale" ? `缓存 ${fx.asOf}` : fx.status === "loading" ? "加载中…" : "暂不可用"}
         </div>
       </div>
@@ -371,7 +365,7 @@ function ExchangeRatesCard({ fx }) {
         <div style={{ fontSize: 12, color: "var(--tm)", lineHeight: 1.55 }}>汇率获取失败，请检查网络后刷新页面。</div>
       )}
       {fx.status !== "error" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+        <div className="ops-rate-grid">
           {FX_TARGETS.map(t => {
             const raw = fx.rates?.[t.code];
             const mult = t.per100 ? 100 : 1;
@@ -379,20 +373,23 @@ function ExchangeRatesCard({ fx }) {
             const prefix = t.per100 ? "100 CNY =" : "1 CNY =";
             const suffix = t.per100 ? ` ${formatFxRate(val, t.decimals)} JPY` : ` ${t.symbol}${formatFxRate(val, t.decimals)}`;
             return (
-              <div key={t.code} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 12px" }}>
-                <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 4 }}>{t.label} {t.code}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+              <div key={t.code} className="ops-rate-cell">
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div className={`ops-metric-icon-box ${FX_ICON[t.code] || "ops-icon-blue"}`} style={{ width: 36, height: 36, fontSize: 15, fontWeight: 700 }}>{t.symbol}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{t.label} {t.code}</div>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 800, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
                   {fx.status === "loading" ? "…" : (
                     <span>{prefix}{suffix}</span>
                   )}
                 </div>
                 {raw != null && fx.status === "ok" && !t.per100 && (
-                  <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 4 }}>
+                  <div className="ops-metric-sub">
                     1 {t.symbol} ≈ ¥{formatFxRate(1 / raw, 2)} CNY
                   </div>
                 )}
                 {raw != null && fx.status === "ok" && t.per100 && (
-                  <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 4 }}>
+                  <div className="ops-metric-sub">
                     100 JPY ≈ ¥{formatFxRate(100 / raw, 2)} CNY
                   </div>
                 )}
@@ -588,15 +585,15 @@ export function HomePanel() {
 
       <div className="ops-metric-grid" style={{ marginBottom: "1.25rem" }}>
         {WORLD_CLOCKS.map(c => (
-          <div key={c.id} className="ops-metric-card">
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-              <span style={{ fontSize: 18, lineHeight: 1 }}>{c.flag}</span>
+          <div key={c.id} className="ops-metric-card ops-metric-card-elevated">
+            <div className="ops-metric-card-head">
+              <div className={`ops-metric-icon-box ${WORLD_CLOCK_ICON[c.id] || "ops-icon-blue"}`}>{c.flag}</div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{c.label}</div>
                 <div className="ops-metric-label" style={{ marginBottom: 0 }}>{c.sub}</div>
               </div>
             </div>
-            <div className="ops-metric-value" style={{ fontSize: 22, fontVariantNumeric: "tabular-nums", color: c.id === "cn" ? "#4080FF" : "var(--text)" }}>
+            <div className="ops-metric-value" style={{ fontSize: 24, fontVariantNumeric: "tabular-nums", color: c.id === "cn" ? "var(--primary)" : "var(--text)" }}>
               {formatClockTime(now, c.tz)}
             </div>
             <div className="ops-metric-sub">{formatClockDate(now, c.tz)}</div>

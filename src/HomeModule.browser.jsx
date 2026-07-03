@@ -1,6 +1,7 @@
 const { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext } = React;
 
 const FX_CACHE_KEY = "ops-center-fx-rates";
+const FX_SWAP_KEY = "ops-center-fx-swap";
 const NEWS_CACHE_KEY = "ops-center-amazon-news";
 
 const FX_TARGETS = [
@@ -347,12 +348,59 @@ function AmazonNewsCard({ news }) {
   );
 }
 
+function fxCellLines(t, raw, foreignBase) {
+  if (raw == null) return { primary: "—", sub: null };
+  if (!foreignBase) {
+    const mult = t.per100 ? 100 : 1;
+    const val = raw * mult;
+    const primary = t.per100
+      ? `100 CNY = ${formatFxRate(val, t.decimals)} JPY`
+      : `1 CNY = ${t.symbol}${formatFxRate(val, t.decimals)}`;
+    const sub = t.per100
+      ? `100 JPY ≈ ¥${formatFxRate(100 / raw, 2)} CNY`
+      : `1 ${t.symbol} ≈ ¥${formatFxRate(1 / raw, 2)} CNY`;
+    return { primary, sub };
+  }
+  const mult = t.per100 ? 100 : 1;
+  const val = raw * mult;
+  const primary = t.per100
+    ? `100 JPY = ¥${formatFxRate(100 / raw, 2)} CNY`
+    : `1 ${t.symbol} = ¥${formatFxRate(1 / raw, 2)} CNY`;
+  const sub = t.per100
+    ? `100 CNY ≈ ${formatFxRate(val, t.decimals)} JPY`
+    : `1 CNY ≈ ${t.symbol}${formatFxRate(val, t.decimals)}`;
+  return { primary, sub };
+}
+
 function ExchangeRatesCard({ fx }) {
   const FX_ICON = { USD: "ops-icon-green", GBP: "ops-icon-purple", EUR: "ops-icon-blue", JPY: "ops-icon-amber" };
+  const [foreignBase, setForeignBase] = useState(() => {
+    try { return localStorage.getItem(FX_SWAP_KEY) === "1"; } catch { return false; }
+  });
+  const toggleSwap = () => {
+    setForeignBase(v => {
+      const next = !v;
+      try { localStorage.setItem(FX_SWAP_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
   return (
     <div className="ops-card ops-card-padded ops-card-elevated" style={{ marginBottom: "1.25rem" }}>
       <div className="ops-section-head">
-        <div className="ops-section-title">💱 今日汇率（人民币）</div>
+        <div className="ops-section-title-row">
+          <button
+            type="button"
+            className={"ops-fx-swap-btn" + (foreignBase ? " active" : "")}
+            onClick={toggleSwap}
+            title={foreignBase ? "切换为：人民币 → 外币" : "切换为：外币 → 人民币"}
+            aria-label="调换汇率方向"
+          >
+            ⇄
+          </button>
+          <div className="ops-section-title">
+            💱 今日汇率{foreignBase ? "（外币→人民币）" : "（人民币→外币）"}
+          </div>
+        </div>
         <div className="ops-section-meta">
           {fx.status === "ok" ? `参考 ${fx.asOf}` : fx.status === "stale" ? `缓存 ${fx.asOf}` : fx.status === "loading" ? "加载中…" : "暂不可用"}
         </div>
@@ -367,10 +415,7 @@ function ExchangeRatesCard({ fx }) {
         <div className="ops-rate-grid">
           {FX_TARGETS.map(t => {
             const raw = fx.rates?.[t.code];
-            const mult = t.per100 ? 100 : 1;
-            const val = raw != null ? raw * mult : null;
-            const prefix = t.per100 ? "100 CNY =" : "1 CNY =";
-            const suffix = t.per100 ? ` ${formatFxRate(val, t.decimals)} JPY` : ` ${t.symbol}${formatFxRate(val, t.decimals)}`;
+            const lines = fxCellLines(t, raw, foreignBase);
             return (
               <div key={t.code} className="ops-rate-cell">
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -378,19 +423,10 @@ function ExchangeRatesCard({ fx }) {
                   <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{t.label} {t.code}</div>
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 800, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
-                  {fx.status === "loading" ? "…" : (
-                    <span>{prefix}{suffix}</span>
-                  )}
+                  {fx.status === "loading" ? "…" : <span>{lines.primary}</span>}
                 </div>
-                {raw != null && fx.status === "ok" && !t.per100 && (
-                  <div className="ops-metric-sub">
-                    1 {t.symbol} ≈ ¥{formatFxRate(1 / raw, 2)} CNY
-                  </div>
-                )}
-                {raw != null && fx.status === "ok" && t.per100 && (
-                  <div className="ops-metric-sub">
-                    100 JPY ≈ ¥{formatFxRate(100 / raw, 2)} CNY
-                  </div>
+                {raw != null && fx.status === "ok" && lines.sub && (
+                  <div className="ops-metric-sub">{lines.sub}</div>
                 )}
               </div>
             );

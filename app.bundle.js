@@ -8760,6 +8760,7 @@ function KnowledgePanel({
   }));
 }
 const FX_CACHE_KEY = "ops-center-fx-rates";
+const FX_SWAP_KEY = "ops-center-fx-swap";
 const NEWS_CACHE_KEY = "ops-center-amazon-news";
 const FX_TARGETS = [{
   code: "USD",
@@ -9244,6 +9245,30 @@ function AmazonNewsCard({
     }
   }, "\u81EA\u52A8\u540C\u6B65 Amazon \u5B98\u65B9 RSS\uFF0C\u6BCF 4 \u5C0F\u65F6\u66F4\u65B0\uFF0C\u65E0\u9700\u4EBA\u5DE5\u7EF4\u62A4\u3002"));
 }
+function fxCellLines(t, raw, foreignBase) {
+  if (raw == null) return {
+    primary: "—",
+    sub: null
+  };
+  if (!foreignBase) {
+    const mult = t.per100 ? 100 : 1;
+    const val = raw * mult;
+    const primary = t.per100 ? `100 CNY = ${formatFxRate(val, t.decimals)} JPY` : `1 CNY = ${t.symbol}${formatFxRate(val, t.decimals)}`;
+    const sub = t.per100 ? `100 JPY ≈ ¥${formatFxRate(100 / raw, 2)} CNY` : `1 ${t.symbol} ≈ ¥${formatFxRate(1 / raw, 2)} CNY`;
+    return {
+      primary,
+      sub
+    };
+  }
+  const mult = t.per100 ? 100 : 1;
+  const val = raw * mult;
+  const primary = t.per100 ? `100 JPY = ¥${formatFxRate(100 / raw, 2)} CNY` : `1 ${t.symbol} = ¥${formatFxRate(1 / raw, 2)} CNY`;
+  const sub = t.per100 ? `100 CNY ≈ ${formatFxRate(val, t.decimals)} JPY` : `1 CNY ≈ ${t.symbol}${formatFxRate(val, t.decimals)}`;
+  return {
+    primary,
+    sub
+  };
+}
 function ExchangeRatesCard({
   fx
 }) {
@@ -9253,6 +9278,22 @@ function ExchangeRatesCard({
     EUR: "ops-icon-blue",
     JPY: "ops-icon-amber"
   };
+  const [foreignBase, setForeignBase] = useState(() => {
+    try {
+      return localStorage.getItem(FX_SWAP_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSwap = () => {
+    setForeignBase(v => {
+      const next = !v;
+      try {
+        localStorage.setItem(FX_SWAP_KEY, next ? "1" : "0");
+      } catch {/* ignore */}
+      return next;
+    });
+  };
   return /*#__PURE__*/React.createElement("div", {
     className: "ops-card ops-card-padded ops-card-elevated",
     style: {
@@ -9261,8 +9302,16 @@ function ExchangeRatesCard({
   }, /*#__PURE__*/React.createElement("div", {
     className: "ops-section-head"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-section-title-row"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ops-fx-swap-btn" + (foreignBase ? " active" : ""),
+    onClick: toggleSwap,
+    title: foreignBase ? "切换为：人民币 → 外币" : "切换为：外币 → 人民币",
+    "aria-label": "\u8C03\u6362\u6C47\u7387\u65B9\u5411"
+  }, "\u21C4"), /*#__PURE__*/React.createElement("div", {
     className: "ops-section-title"
-  }, "\uD83D\uDCB1 \u4ECA\u65E5\u6C47\u7387\uFF08\u4EBA\u6C11\u5E01\uFF09"), /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDCB1 \u4ECA\u65E5\u6C47\u7387", foreignBase ? "（外币→人民币）" : "（人民币→外币）")), /*#__PURE__*/React.createElement("div", {
     className: "ops-section-meta"
   }, fx.status === "ok" ? `参考 ${fx.asOf}` : fx.status === "stale" ? `缓存 ${fx.asOf}` : fx.status === "loading" ? "加载中…" : "暂不可用")), fx.status === "stale" && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9280,10 +9329,7 @@ function ExchangeRatesCard({
     className: "ops-rate-grid"
   }, FX_TARGETS.map(t => {
     const raw = fx.rates?.[t.code];
-    const mult = t.per100 ? 100 : 1;
-    const val = raw != null ? raw * mult : null;
-    const prefix = t.per100 ? "100 CNY =" : "1 CNY =";
-    const suffix = t.per100 ? ` ${formatFxRate(val, t.decimals)} JPY` : ` ${t.symbol}${formatFxRate(val, t.decimals)}`;
+    const lines = fxCellLines(t, raw, foreignBase);
     return /*#__PURE__*/React.createElement("div", {
       key: t.code,
       className: "ops-rate-cell"
@@ -9315,11 +9361,9 @@ function ExchangeRatesCard({
         fontVariantNumeric: "tabular-nums",
         letterSpacing: "-0.02em"
       }
-    }, fx.status === "loading" ? "…" : /*#__PURE__*/React.createElement("span", null, prefix, suffix)), raw != null && fx.status === "ok" && !t.per100 && /*#__PURE__*/React.createElement("div", {
+    }, fx.status === "loading" ? "…" : /*#__PURE__*/React.createElement("span", null, lines.primary)), raw != null && fx.status === "ok" && lines.sub && /*#__PURE__*/React.createElement("div", {
       className: "ops-metric-sub"
-    }, "1 ", t.symbol, " \u2248 \xA5", formatFxRate(1 / raw, 2), " CNY"), raw != null && fx.status === "ok" && t.per100 && /*#__PURE__*/React.createElement("div", {
-      className: "ops-metric-sub"
-    }, "100 JPY \u2248 \xA5", formatFxRate(100 / raw, 2), " CNY"));
+    }, lines.sub));
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,

@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-07-07T02:57:18.283Z",
+  "updatedAt": "2026-07-08T02:33:39.367Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "6 ways Amazon is investing in Louisiana",
-      "link": "https://www.aboutamazon.com/news/community/amazon-investment-louisiana-jobs-infrastructure-small-business?utm_source=rss",
-      "pubDate": "Thu, 02 Jul 2026 17:27:14 GMT",
-      "date": "7/2",
-      "summary": "Amazon's investments are boosting the Pelican State's economy while creating opportunities for those who call Louisiana home.",
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Wed, 08 Jul 2026 15:00:00 GMT",
+      "date": "7/8",
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
+    },
+    {
+      "title": "5 ways Amazon is investing in Georgia",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-georgia-jobs-small-business?utm_source=rss",
+      "pubDate": "Tue, 07 Jul 2026 18:21:54 GMT",
+      "date": "7/7",
+      "summary": "Amazon's investments are boosting Georgia's economy while creating opportunities for Georgians.",
       "category": "Community"
     },
     {
-      "title": "5 ways Amazon is investing in Florida",
-      "link": "https://www.aboutamazon.com/news/community/amazon-investment-florida-jobs-infrastructure-small-business?utm_source=rss",
-      "pubDate": "Thu, 02 Jul 2026 16:01:59 GMT",
-      "date": "7/2",
-      "summary": "Amazon's investments are boosting the Sunshine State's economy while creating opportunities for Floridians.",
-      "category": "Community"
-    },
-    {
-      "title": "How Amazon is helping after back-to-back earthquakes in Venezuela",
-      "link": "https://www.aboutamazon.com/news/community/amazon-response-venezuela-earthquakes-2026?utm_source=rss",
-      "pubDate": "Thu, 02 Jul 2026 00:55:00 GMT",
-      "date": "7/2",
-      "summary": "Amazon is supporting nonprofits on the ground and delivering relief supplies after devastating quakes hit northern Venezuela.",
-      "category": "Community"
+      "title": "Amazon's water conservation and replenishment efforts around the world",
+      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
+      "pubDate": "Tue, 07 Jul 2026 14:45:00 GMT",
+      "date": "7/7",
+      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
+      "category": "Sustainability"
     }
   ]
 }

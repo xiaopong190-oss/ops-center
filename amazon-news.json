@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-07-09T02:51:51.319Z",
+  "updatedAt": "2026-07-10T02:54:08.014Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Thu, 09 Jul 2026 18:28:00 GMT",
+      "date": "7/9",
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
+    },
+    {
+      "title": "Masterplan starring Stanley Tucci, coming to Prime Video October 16: Cast, release date, plot, and more",
+      "link": "https://www.aboutamazon.com/news/entertainment/masterplan-stanley-tucci-prime-video?utm_source=rss",
+      "pubDate": "Thu, 09 Jul 2026 11:55:35 GMT",
+      "date": "7/9",
+      "summary": "Academy Award nominee Stanley Tucci plays a legendary thief who recruits his long-lost children to steal the Mona Lisa in this new heist mov",
+      "category": "Entertainment"
+    },
     {
       "title": "Amazon MGM Studios and Prime Video earn 68 Emmy Award nominations for \"Spider-Noir,\" 'Fallout,' and more",
       "link": "https://www.aboutamazon.com/news/entertainment/emmys-amazon-mgm-studios-prime-video?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "7/8",
       "summary": "'The Boys,' 'Bait,' and 'John Candy: I Like Me' were also among the nominees for the 2026 Emmy Awards.",
       "category": "Entertainment"
-    },
-    {
-      "title": "A first look at ‘Campus Drivers,’ Prime Video’s adaptation of the best-selling novels coming November 2026",
-      "link": "https://www.aboutamazon.com/news/entertainment/campus-drivers-prime-video?utm_source=rss",
-      "pubDate": "Wed, 08 Jul 2026 16:34:46 GMT",
-      "date": "7/8",
-      "summary": "The French Prime Video young adult series adapts author C.S. Quill's popular college romance novels.",
-      "category": "Entertainment"
-    },
-    {
-      "title": "Amazon's water conservation and replenishment efforts around the world",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
-      "pubDate": "Wed, 08 Jul 2026 15:39:00 GMT",
-      "date": "7/8",
-      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
-      "category": "Sustainability"
     }
   ]
 }

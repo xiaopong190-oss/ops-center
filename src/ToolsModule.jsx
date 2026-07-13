@@ -434,6 +434,7 @@ const TOOL_CATALOG = [
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },
   { id: "fba-hanhai", name: "FBA → 瀚海万博转换", desc: "批量上传 FBA 原厂包装 CSV，转换为瀚海万博 B2B 单票导入模版 (.xls) 并打包下载", icon: "🚢", category: "物流", target: "inline", openUrl: "tools/fba-hanhai-converter/index.html" },
   { id: "amazon-tracker", name: "亚马逊推广追踪", desc: "精铺/精品 · 月度规划 · 投入产出分析", icon: "📦", category: "运营", url: "https://xiaopong190-oss.github.io/ops-center/tools/amazon-tracker/" },
+  { id: "jingpu-flow", name: "精铺流程", desc: "七阶段运营清单 · 从抵达到分类决策 · 逐项勾选跟踪", icon: "✅", category: "运营", target: "inline", openUrl: "tools/jingpu-flow/index.html" },
 ];
 
 const loadCustomUrls = () => {

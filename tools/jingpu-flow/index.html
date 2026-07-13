@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>精铺流程</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --ink:#1b2330; --ink-soft:#5b6472; --paper:#fbfbfa; --panel:#ffffff;
+    --line:#e4e2dc; --line-strong:#c9c6bd;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",-apple-system,BlinkMacSystemFont,sans-serif;}
+  .wrap{max-width:920px;margin:0 auto;padding:28px 20px 40px;}
+  .masthead{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+  .masthead h1{font-size:20px;font-weight:500;margin:0 0 4px;letter-spacing:.2px;}
+  .masthead p{margin:0;font-size:13px;color:var(--ink-soft);}
+  .tag-mono{font-family:"SF Mono","Roboto Mono",monospace;font-size:11px;letter-spacing:1px;color:var(--ink-soft);text-transform:uppercase;}
+  .overall{display:flex;align-items:center;gap:10px;min-width:180px;}
+  .overall-num{font-family:"SF Mono","Roboto Mono",monospace;font-size:22px;font-weight:500;}
+  .overall-bar{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden;}
+  .overall-bar>div{height:100%;background:#1b2330;border-radius:3px;transition:width .4s ease;}
+
+  .rail{position:relative;margin:22px 0 30px;padding:0 6px;}
+  .rail-line{position:absolute;top:21px;left:34px;right:34px;height:2px;background:var(--line-strong);z-index:0;}
+  .rail-fill{position:absolute;top:21px;left:34px;height:2px;background:var(--ink);z-index:1;transition:width .4s ease;}
+  .rail-nodes{position:relative;display:grid;grid-template-columns:repeat(7,1fr);z-index:2;}
+  .rail-node{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;}
+  .rail-dot{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:19px;border:2px solid var(--paper);transition:background .3s ease,opacity .3s ease;}
+  .rail-label{font-size:12px;color:var(--ink-soft);text-align:center;}
+  .rail-pct{font-family:"SF Mono","Roboto Mono",monospace;font-size:11px;color:var(--ink-soft);}
+
+  .stage{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--stage-color,#999);
+    border-radius:10px;margin-bottom:10px;overflow:hidden;}
+  .stage-head{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;user-select:none;}
+  .stage-code{font-family:"SF Mono","Roboto Mono",monospace;font-size:12px;color:var(--stage-color,#999);font-weight:500;min-width:22px;}
+  .stage-icon{width:30px;height:30px;border-radius:50%;background:var(--stage-color,#999);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;}
+  .stage-title{font-size:14px;font-weight:500;flex:1;}
+  .stage-count{font-family:"SF Mono","Roboto Mono",monospace;font-size:12px;color:var(--ink-soft);}
+  .stage-chev{font-size:16px;color:var(--ink-soft);transition:transform .25s ease;}
+  .stage.open .stage-chev{transform:rotate(180deg);}
+  .stage-body{max-height:0;overflow:hidden;transition:max-height .3s ease;}
+  .stage.open .stage-body{max-height:560px;}
+  .stage-list{list-style:none;margin:0;padding:2px 16px 14px 60px;}
+  .stage-list li{padding:7px 0;border-top:1px solid var(--line);}
+  .stage-list li:first-child{border-top:none;}
+  .chk-row{display:flex;align-items:center;gap:10px;cursor:pointer;}
+  .chk-box{width:17px;height:17px;border-radius:4px;border:1.5px solid var(--line-strong);flex:none;
+    display:flex;align-items:center;justify-content:center;transition:background .15s ease,border-color .15s ease;}
+  .chk-box.checked{background:var(--stage-color,#999);border-color:var(--stage-color,#999);}
+  .chk-box i{font-size:12px;color:#fff;opacity:0;transition:opacity .1s ease;}
+  .chk-box.checked i{opacity:1;}
+  .chk-text{font-size:13px;color:var(--ink);transition:color .15s ease,opacity .15s ease;}
+  .chk-text.done{color:var(--ink-soft);text-decoration:line-through;opacity:.7;}
+  .chk-fields{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0;}
+  .chk-field-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .chk-input{font-size:12px;color:var(--ink);background:var(--paper);border:1px solid var(--line-strong);
+    border-radius:5px;padding:4px 8px;outline:none;transition:border-color .15s ease;}
+  .chk-input:focus{border-color:var(--stage-color,#999);}
+  .chk-input::placeholder{color:var(--ink-soft);opacity:.7;}
+  .chk-input.short{width:72px;}
+  .chk-textarea{width:100%;min-height:52px;resize:vertical;font-family:inherit;line-height:1.45;}
+  .chk-field-label{font-size:12px;color:var(--ink-soft);white-space:nowrap;}
+  .chk-subs{list-style:none;margin:4px 0 0;padding:0 0 0 2px;}
+  .chk-subs li{font-size:12px;color:var(--ink-soft);padding:3px 0 3px 14px;position:relative;}
+  .chk-subs li::before{content:'';position:absolute;left:0;top:10px;width:5px;height:5px;border-radius:50%;background:var(--line-strong);}
+  .chk-row.has-subs{align-items:flex-start;}
+  .chk-row.has-subs .chk-box{margin-top:2px;}
+
+  .footer-row{display:flex;justify-content:space-between;align-items:center;margin-top:18px;}
+  .reset-btn{font-size:12px;color:var(--ink-soft);background:none;border:1px solid var(--line-strong);
+    border-radius:6px;padding:6px 12px;cursor:pointer;}
+  .reset-btn:hover{border-color:var(--ink-soft);color:var(--ink);}
+  .save-hint{font-size:11px;color:var(--ink-soft);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div>
+      <div class="tag-mono">泓森拓创科技 · 精铺流程</div>
+      <h1>精铺流程</h1>
+      <p>从产品抵达到分类决策,逐项勾选完成情况</p>
+    </div>
+    <div class="overall">
+      <div class="overall-bar"><div id="overallFill" style="width:0%"></div></div>
+      <div class="overall-num" id="overallNum">0%</div>
+    </div>
+  </div>
+
+  <div class="rail">
+    <div class="rail-line"></div>
+    <div class="rail-fill" id="railFill" style="width:0%"></div>
+    <div class="rail-nodes" id="railNodes"></div>
+  </div>
+
+  <div id="stageContainer"></div>
+
+  <div class="footer-row">
+    <span class="save-hint" id="saveHint">进度自动保存</span>
+    <button class="reset-btn" id="resetBtn">重置全部进度</button>
+  </div>
+
+</div>
+
+<script>
+const STAGES = [
+  { id:'arrival', code:'01', title:'产品抵达', color:'#185FA5', icon:'ti-truck-delivery', items:[
+    '核对物流单号与到仓时间',
+    '检查外观与包装完整性',
+    '抽检产品是否符合规格',
+    '核实产品资料(说明书 / 合格证)',
+    '重新评估标题与详情页文案'
+  ]},
+  { id:'evaluate', code:'02', title:'产品评估', color:'#1A6F8A', icon:'ti-chart-dots', items:[
+    '判断核心驱动力(外观 / 价格 / 功能 / 场景 / 品质)',
+    '外观驱动:颜值差异化、配色趋势、包装呈现力',
+    '价格驱动:单价竞争力、毛利空间、折扣弹性',
+    '功能驱动:核心卖点刚需度、差异化是否可感知',
+    '场景驱动:目标人群、使用场景、痛点是否尖锐',
+    '品质驱动:做工材质、耐用性、售后风险预判',
+    '竞品对标:同驱动力竞品的优劣势与差异化空间',
+    '输出结论:明确主驱动 + 辅驱动,进入做评'
+  ]},
+  { id:'review', code:'03', title:'做评', color:'#0F6E56', icon:'ti-star', items:[
+    '安排至少 2 条直评',
+    '安排 2 条 Vine 测评',
+    '撰写评价引导文案',
+    { text:'评估竞品星级', fields:[
+      { key:'star', placeholder:'如 4.0', short:true }
+    ]},
+    { text:'评估最低需要评论', fields:[
+      { key:'min', placeholder:'如 15 条', short:true },
+      { key:'plan', label:'上评方案', placeholder:'填写上评方案', multiline:true }
+    ]}
+  ]},
+  { id:'adjudge', code:'04', title:'广告判断', color:'#7A5C1E', icon:'ti-traffic-lights', items:[
+    { text:'评估关键词集中度', fields:[
+      { key:'concentration', placeholder:'高 / 低', short:true }
+    ]},
+    { text:'评估核心关键词依赖度(集中大词断层式出单,其它词出单比)', fields:[
+      { key:'dependency', placeholder:'高 / 低', short:true }
+    ]},
+    '集中度低:先做自动广告,积累数据后再切手动广告',
+    '集中度高:核查转化率(基准线 3%),对比关键词转化与平均转化',
+    '转化率低于 3%:测试转化,走 SBV + phase 分阶段',
+    '转化率高且关键词转化高于平均转化率:可用广告拉量',
+    '转化率高于 3%:结合依赖度确定匹配方式',
+    '转化率高 + 依赖度高:走精确 + 短语',
+    '转化率高 + 依赖度低:走短语 + 宽泛'
+  ]},
+  { id:'ads', code:'05', title:'广告', color:'#854F0B', icon:'ti-speakerphone', items:[
+    { text:'广告策略', subs:[
+      '刚开始不明白:直接用 Fixed',
+      '流量正常且 CPC 不高,产品跑出相关性:用 Up and Down',
+      '成熟产品做 ACOS:用 Only Down'
+    ]},
+    { text:'BID+ 位置流量控制', subs:[
+      '控制 Top、其它位置、产品页面的流量占比',
+      '产品页面流量与点击不能过高,过高则降 Bid'
+    ]},
+    '启动第一阶段广告(出流量)',
+    '出点击带否词',
+    '测转化',
+    '评估广告数据是否正常',
+    { text:'如30个点击还没有转化', subs:[
+      '确认类目转化率',
+      '确认产品单价',
+      '确认文案是否有错误',
+      '与竞品做对比(排名高于你的)'
+    ]}
+  ]},
+  { id:'judge', code:'06', title:'产品判断', color:'#A32D2D', icon:'ti-clipboard-check', items:[
+    { text:'仅针对以下情况', subs:[
+      '产品不盈利',
+      '链接没拉动,没有持续订单'
+    ]},
+    '判断流量、点击、转化',
+    { text:'判断流量流失位置', subs:[
+      '打了广告没有流量进来:评估文案,以竞品为参考',
+      '流量流失在点击:判断产品、图片、标题与单价',
+      '流失在转化:判断功能'
+    ]},
+    '给出继续 / 放弃初步结论'
+  ]},
+  { id:'classify', code:'07', title:'产品分类与放弃', color:'#534AB7', icon:'ti-flag', items:[
+    '核对 A/B/C 品分级标准',
+    '确认利润与描述完整度数据',
+    { text:'A 品分级', subs:[
+      'A:盈利达标且稳定',
+      'A-:不稳定,盈利低'
+    ]},
+    'B 品:标记继续观察优化',
+    'C 品:执行放弃 / 清仓流程',
+    '归档本轮决策依据'
+  ]}
+];
+
+const STORAGE_KEY = 'ops-center-jingpu-flow-v1';
+let state = {};
+let openStageId = null;
+
+function itemKey(stageId, idx){ return stageId + ':' + idx; }
+function fieldKey(stageId, idx, key){ return stageId + ':' + idx + ':' + key; }
+
+function normalizeItem(item){
+  if(typeof item === 'string') return { text: item, fields: [], subs: [] };
+  return { text: item.text, fields: item.fields || [], subs: item.subs || [] };
+}
+
+async function storageGet(key){
+  if(window.storage && typeof window.storage.get === 'function'){
+    const res = await window.storage.get(key, false);
+    return res && res.value ? res.value : null;
+  }
+  return localStorage.getItem(key);
+}
+
+async function storageSet(key, value){
+  if(window.storage && typeof window.storage.set === 'function'){
+    await window.storage.set(key, value, false);
+    return;
+  }
+  localStorage.setItem(key, value);
+}
+
+async function loadState(){
+  try{
+    const raw = await storageGet(STORAGE_KEY);
+    if(raw) state = JSON.parse(raw);
+  }catch(e){ state = {}; }
+}
+
+async function saveState(){
+  const hint = document.getElementById('saveHint');
+  try{
+    await storageSet(STORAGE_KEY, JSON.stringify(state));
+    hint.textContent = '进度自动保存';
+  }catch(e){
+    hint.textContent = '保存失败,请检查网络';
+  }
+}
+
+function stageProgress(stage){
+  const total = stage.items.length;
+  const done = stage.items.reduce((acc,_,idx)=> acc + (state[itemKey(stage.id,idx)] ? 1 : 0), 0);
+  return { done, total, pct: total ? Math.round(done/total*100) : 0 };
+}
+
+function overallProgress(){
+  let done=0, total=0;
+  STAGES.forEach(s=>{ const p=stageProgress(s); done+=p.done; total+=p.total; });
+  return total ? Math.round(done/total*100) : 0;
+}
+
+function renderRail(){
+  const nodes = document.getElementById('railNodes');
+  nodes.innerHTML = '';
+  STAGES.forEach((s)=>{
+    const p = stageProgress(s);
+    const dotBg = p.pct === 100 ? s.color : (p.pct > 0 ? s.color+'99' : '#c9c6bd');
+    const node = document.createElement('div');
+    node.className = 'rail-node';
+    node.innerHTML = `
+      <div class="rail-dot" style="background:${dotBg}"><i class="ti ${s.icon}"></i></div>
+      <div class="rail-label">${s.title}</div>
+      <div class="rail-pct">${p.pct}%</div>`;
+    node.addEventListener('click', ()=>{
+      const el = document.getElementById('stage-'+s.id);
+      if(el){ el.scrollIntoView({behavior:'smooth', block:'center'}); if(!el.classList.contains('open')) toggleStage(s.id); }
+    });
+    nodes.appendChild(node);
+  });
+  const completedStages = STAGES.filter(s=>stageProgress(s).pct===100).length;
+  const railWidth = STAGES.length>1 ? (completedStages/(STAGES.length-1))*100 : 0;
+  document.getElementById('railFill').style.width = Math.min(railWidth,100) + '%';
+}
+
+function renderOverall(){
+  const pct = overallProgress();
+  document.getElementById('overallNum').textContent = pct + '%';
+  document.getElementById('overallFill').style.width = pct + '%';
+}
+
+function toggleStage(stageId){
+  const el = document.getElementById('stage-'+stageId);
+  if(!el) return;
+  const isOpen = el.classList.contains('open');
+  document.querySelectorAll('.stage.open').forEach(s=>s.classList.remove('open'));
+  if(!isOpen){
+    el.classList.add('open');
+    openStageId = stageId;
+  }else{
+    openStageId = null;
+  }
+}
+
+function renderStages(){
+  const keepOpen = openStageId;
+  const container = document.getElementById('stageContainer');
+  container.innerHTML = '';
+  STAGES.forEach((stage)=>{
+    const p = stageProgress(stage);
+    const wrap = document.createElement('div');
+    wrap.className = 'stage';
+    wrap.id = 'stage-'+stage.id;
+    wrap.style.setProperty('--stage-color', stage.color);
+
+    const head = document.createElement('div');
+    head.className = 'stage-head';
+    head.innerHTML = `
+      <span class="stage-code">${stage.code}</span>
+      <span class="stage-icon"><i class="ti ${stage.icon}"></i></span>
+      <span class="stage-title">${stage.title}</span>
+      <span class="stage-count" data-role="count">${p.done}/${p.total} 已完成</span>
+      <i class="ti ti-chevron-down stage-chev"></i>`;
+    head.addEventListener('click', ()=> toggleStage(stage.id));
+
+    const list = document.createElement('ul');
+    list.className = 'stage-list';
+    stage.items.forEach((rawItem, idx)=>{
+      const item = normalizeItem(rawItem);
+      const key = itemKey(stage.id, idx);
+      const checked = !!state[key];
+      const li = document.createElement('li');
+
+      const row = document.createElement('div');
+      row.className = 'chk-row';
+
+      const box = document.createElement('span');
+      box.className = 'chk-box' + (checked ? ' checked' : '');
+      box.innerHTML = '<i class="ti ti-check"></i>';
+
+      if(item.fields.length || item.subs.length){
+        const fieldsWrap = document.createElement('div');
+        fieldsWrap.className = 'chk-fields';
+
+        const title = document.createElement('span');
+        title.className = 'chk-text' + (checked ? ' done' : '');
+        title.textContent = item.text;
+        fieldsWrap.appendChild(title);
+
+        if(item.subs.length){
+          const subs = document.createElement('ul');
+          subs.className = 'chk-subs';
+          item.subs.forEach(sub=>{
+            const subLi = document.createElement('li');
+            subLi.textContent = sub;
+            subs.appendChild(subLi);
+          });
+          fieldsWrap.appendChild(subs);
+          row.classList.add('has-subs');
+        }
+
+        item.fields.forEach(field=>{
+          const frow = document.createElement('div');
+          frow.className = 'chk-field-row';
+          if(field.label){
+            const label = document.createElement('span');
+            label.className = 'chk-field-label';
+            label.textContent = field.label;
+            frow.appendChild(label);
+          }
+          const input = document.createElement(field.multiline ? 'textarea' : 'input');
+          input.className = 'chk-input' + (field.short ? ' short' : '') + (field.multiline ? ' chk-textarea' : '');
+          if(!field.multiline) input.type = 'text';
+          input.placeholder = field.placeholder || '';
+          input.value = state[fieldKey(stage.id, idx, field.key)] || '';
+          input.addEventListener('click', e=> e.stopPropagation());
+          input.addEventListener('input', async ()=>{
+            state[fieldKey(stage.id, idx, field.key)] = input.value;
+            await saveState();
+          });
+          frow.appendChild(input);
+          fieldsWrap.appendChild(frow);
+        });
+
+        row.appendChild(box);
+        row.appendChild(fieldsWrap);
+      }else{
+        const text = document.createElement('span');
+        text.className = 'chk-text' + (checked ? ' done' : '');
+        text.textContent = item.text;
+        row.appendChild(box);
+        row.appendChild(text);
+      }
+
+      row.addEventListener('click', async ()=>{
+        state[key] = !state[key];
+        renderStages();
+        renderRail();
+        renderOverall();
+        await saveState();
+      });
+
+      li.appendChild(row);
+      list.appendChild(li);
+    });
+
+    const body = document.createElement('div');
+    body.className = 'stage-body';
+    body.appendChild(list);
+
+    wrap.appendChild(head);
+    wrap.appendChild(body);
+    container.appendChild(wrap);
+  });
+
+  if(keepOpen && document.getElementById('stage-'+keepOpen)){
+    document.getElementById('stage-'+keepOpen).classList.add('open');
+  }else if(!openStageId){
+    const firstIncomplete = STAGES.find(s => stageProgress(s).pct < 100) || STAGES[0];
+    const el = document.getElementById('stage-'+firstIncomplete.id);
+    if(el){
+      el.classList.add('open');
+      openStageId = firstIncomplete.id;
+    }
+  }
+}
+
+document.getElementById('resetBtn').addEventListener('click', async ()=>{
+  state = {};
+  renderStages();
+  renderRail();
+  renderOverall();
+  await saveState();
+});
+
+(async function init(){
+  await loadState();
+  renderStages();
+  renderRail();
+  renderOverall();
+})();
+</script>
+</body>
+</html>

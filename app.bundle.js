@@ -7484,6 +7484,14 @@ const TOOL_CATALOG = [{
   icon: "📦",
   category: "运营",
   url: "https://xiaopong190-oss.github.io/ops-center/tools/amazon-tracker/"
+}, {
+  id: "jingpu-flow",
+  name: "精铺流程",
+  desc: "七阶段运营清单 · 从抵达到分类决策 · 逐项勾选跟踪",
+  icon: "✅",
+  category: "运营",
+  target: "inline",
+  openUrl: "tools/jingpu-flow/index.html"
 }];
 const loadCustomUrls = () => {
   const saved = {};

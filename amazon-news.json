@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-07-13T02:38:52.795Z",
+  "updatedAt": "2026-07-14T02:23:04.333Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "A first look at Mike Flanagan's ‘Carrie,’ a Stephen King adaptation coming to Prime Video this fall",
+      "link": "https://www.aboutamazon.com/news/entertainment/carrie-stephen-king-mike-flanagan-prime-video?utm_source=rss",
+      "pubDate": "Mon, 13 Jul 2026 15:30:32 GMT",
+      "date": "7/13",
+      "summary": "Showrunner Mike Flanagan's bold reinvention of Stephen King's classic novel arrives on Prime Video this fall.",
+      "category": "Entertainment"
+    },
+    {
+      "title": "3 easy ways Amazon customers can help bring safe water to millions with Get Blue",
+      "link": "https://www.aboutamazon.com/news/sustainability/get-blue-easy-ways-donate-alexa-amazon-music?utm_source=rss",
+      "pubDate": "Mon, 13 Jul 2026 13:00:08 GMT",
+      "date": "7/13",
+      "summary": "With the launch of Get Blue, Amazon customers can turn everyday moments into safe water access—just ask Alexa+, stream a playlist, or shop t",
+      "category": "Sustainability"
+    },
     {
       "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
       "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "7/9",
       "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
       "category": "AWS"
-    },
-    {
-      "title": "Watch the teaser trailer for ‘Masterplan’ starring Stanley Tucci, coming to Prime Video October 16",
-      "link": "https://www.aboutamazon.com/news/entertainment/masterplan-stanley-tucci-prime-video?utm_source=rss",
-      "pubDate": "Thu, 09 Jul 2026 11:55:35 GMT",
-      "date": "7/9",
-      "summary": "Academy Award nominee Stanley Tucci plays a legendary thief who recruits his long-lost children to steal the Mona Lisa in this new heist mov",
-      "category": "Entertainment"
-    },
-    {
-      "title": "Amazon MGM Studios and Prime Video earn 68 Emmy Award nominations for \"Spider-Noir,\" 'Fallout,' and more",
-      "link": "https://www.aboutamazon.com/news/entertainment/emmys-amazon-mgm-studios-prime-video?utm_source=rss",
-      "pubDate": "Wed, 08 Jul 2026 17:23:25 GMT",
-      "date": "7/8",
-      "summary": "'The Boys,' 'Bait,' and 'John Candy: I Like Me' were also among the nominees for the 2026 Emmy Awards.",
-      "category": "Entertainment"
     }
   ]
 }

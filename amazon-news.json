@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-07-14T02:23:04.333Z",
+  "updatedAt": "2026-07-15T02:20:51.769Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Watch the trailer for 'Novak Djokovic: The Wolf in Winter,' Prime Video's new documentary coming August 20",
+      "link": "https://www.aboutamazon.com/news/entertainment/djokovic-prime-video-documentary?utm_source=rss",
+      "pubDate": "Tue, 14 Jul 2026 13:00:08 GMT",
+      "date": "7/14",
+      "summary": "The new Prime Video feature-length documentary goes behind the scenes with Novak Djokovic, the most accomplished men's tennis player in hist",
+      "category": "Entertainment"
+    },
+    {
+      "title": "'The Oprah Podcast' is coming to Prime Video on July 21, with new episodes twice weekly",
+      "link": "https://www.aboutamazon.com/news/entertainment/oprah-podcast-prime-video?utm_source=rss",
+      "pubDate": "Tue, 14 Jul 2026 13:00:07 GMT",
+      "date": "7/14",
+      "summary": "New episodes featuring today's thought leaders and cultural changemakers will air twice weekly on Prime Video.",
+      "category": "Entertainment"
+    },
     {
       "title": "A first look at Mike Flanagan's ‘Carrie,’ a Stephen King adaptation coming to Prime Video this fall",
       "link": "https://www.aboutamazon.com/news/entertainment/carrie-stephen-king-mike-flanagan-prime-video?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "7/13",
       "summary": "Showrunner Mike Flanagan's bold reinvention of Stephen King's classic novel arrives on Prime Video this fall.",
       "category": "Entertainment"
-    },
-    {
-      "title": "3 easy ways Amazon customers can help bring safe water to millions with Get Blue",
-      "link": "https://www.aboutamazon.com/news/sustainability/get-blue-easy-ways-donate-alexa-amazon-music?utm_source=rss",
-      "pubDate": "Mon, 13 Jul 2026 13:00:08 GMT",
-      "date": "7/13",
-      "summary": "With the launch of Get Blue, Amazon customers can turn everyday moments into safe water access—just ask Alexa+, stream a playlist, or shop t",
-      "category": "Sustainability"
-    },
-    {
-      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Thu, 09 Jul 2026 18:28:00 GMT",
-      "date": "7/9",
-      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
-      "category": "AWS"
     }
   ]
 }

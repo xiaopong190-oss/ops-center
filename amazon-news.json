@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-07-15T02:20:51.769Z",
+  "updatedAt": "2026-07-16T02:28:20.162Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Watch the trailer for 'Novak Djokovic: The Wolf in Winter,' Prime Video's new documentary coming August 20",
-      "link": "https://www.aboutamazon.com/news/entertainment/djokovic-prime-video-documentary?utm_source=rss",
-      "pubDate": "Tue, 14 Jul 2026 13:00:08 GMT",
-      "date": "7/14",
-      "summary": "The new Prime Video feature-length documentary goes behind the scenes with Novak Djokovic, the most accomplished men's tennis player in hist",
+      "title": "Dave Treadwell to lead AWS Compute and ML Services as Dave Brown departs",
+      "link": "https://www.aboutamazon.com/news/company-news/aws-dave-treadwell-replaces-dave-brown-compute-ml-services?utm_source=rss",
+      "pubDate": "Wed, 15 Jul 2026 16:50:52 GMT",
+      "date": "7/15",
+      "summary": "Treadwell brings nearly a decade of experience running Amazon’s technology platform to his new role.",
+      "category": "Company news"
+    },
+    {
+      "title": "Watch the trailer for 'I Play Rocky,' the true story behind ‘Rocky,’ coming to theaters November 2026",
+      "link": "https://www.aboutamazon.com/news/entertainment/i-play-rocky-trailer-cast-release-date-amazon-mgm-studios?utm_source=rss",
+      "pubDate": "Wed, 15 Jul 2026 13:00:14 GMT",
+      "date": "7/15",
+      "summary": "Anthony Ippolito stars as a young Sylvester Stallone in the Amazon MGM Studios film, directed by Academy Award winner Peter Farrelly.",
       "category": "Entertainment"
     },
     {
-      "title": "'The Oprah Podcast' is coming to Prime Video on July 21, with new episodes twice weekly",
-      "link": "https://www.aboutamazon.com/news/entertainment/oprah-podcast-prime-video?utm_source=rss",
-      "pubDate": "Tue, 14 Jul 2026 13:00:07 GMT",
-      "date": "7/14",
-      "summary": "New episodes featuring today's thought leaders and cultural changemakers will air twice weekly on Prime Video.",
-      "category": "Entertainment"
-    },
-    {
-      "title": "A first look at Mike Flanagan's ‘Carrie,’ a Stephen King adaptation coming to Prime Video this fall",
-      "link": "https://www.aboutamazon.com/news/entertainment/carrie-stephen-king-mike-flanagan-prime-video?utm_source=rss",
-      "pubDate": "Mon, 13 Jul 2026 15:30:32 GMT",
-      "date": "7/13",
-      "summary": "Showrunner Mike Flanagan's bold reinvention of Stephen King's classic novel arrives on Prime Video this fall.",
-      "category": "Entertainment"
+      "title": "Amazon Leo to power satellite internet for South Africa’s largest internet provider",
+      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-south-africa-herotel-evry?utm_source=rss",
+      "pubDate": "Wed, 15 Jul 2026 08:31:54 GMT",
+      "date": "7/15",
+      "summary": "South Africa's largest fixed internet service provider, Herotel, will use Amazon's satellite network to connect homes and small businesses b",
+      "category": "Amazon Leo"
     }
   ]
 }

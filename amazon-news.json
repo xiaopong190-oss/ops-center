@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-07-16T02:28:20.162Z",
+  "updatedAt": "2026-07-17T02:31:03.462Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon will share its Q2 2026 earnings on July 30",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-earnings-q2-2026-report?utm_source=rss",
+      "pubDate": "Thu, 16 Jul 2026 20:06:30 GMT",
+      "date": "7/16",
+      "summary": "On July 30, Amazon is set to hold a conference call to discuss its Q2 2026 financial results.",
+      "category": "Company news"
+    },
+    {
+      "title": "10 things to know about AWS’s new compute leader Dave Treadwell",
+      "link": "https://www.aboutamazon.com/news/aws/aws-compute-leader-dave-treadwell-things-to-know?utm_source=rss",
+      "pubDate": "Thu, 16 Jul 2026 16:00:11 GMT",
+      "date": "7/16",
+      "summary": "Now the Senior Vice President of Compute and Machine Learning Services, Treadwell joined Amazon almost by accident and was one of the coders",
+      "category": "AWS"
+    },
     {
       "title": "Dave Treadwell to lead AWS Compute and ML Services as Dave Brown departs",
       "link": "https://www.aboutamazon.com/news/company-news/aws-dave-treadwell-replaces-dave-brown-compute-ml-services?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "7/15",
       "summary": "Treadwell brings nearly a decade of experience running Amazon’s technology platform to his new role.",
       "category": "Company news"
-    },
-    {
-      "title": "Watch the trailer for 'I Play Rocky,' the true story behind ‘Rocky,’ coming to theaters November 2026",
-      "link": "https://www.aboutamazon.com/news/entertainment/i-play-rocky-trailer-cast-release-date-amazon-mgm-studios?utm_source=rss",
-      "pubDate": "Wed, 15 Jul 2026 13:00:14 GMT",
-      "date": "7/15",
-      "summary": "Anthony Ippolito stars as a young Sylvester Stallone in the Amazon MGM Studios film, directed by Academy Award winner Peter Farrelly.",
-      "category": "Entertainment"
-    },
-    {
-      "title": "Amazon Leo to power satellite internet for South Africa’s largest internet provider",
-      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-south-africa-herotel-evry?utm_source=rss",
-      "pubDate": "Wed, 15 Jul 2026 08:31:54 GMT",
-      "date": "7/15",
-      "summary": "South Africa's largest fixed internet service provider, Herotel, will use Amazon's satellite network to connect homes and small businesses b",
-      "category": "Amazon Leo"
     }
   ]
 }

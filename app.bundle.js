@@ -8703,14 +8703,18 @@ function AgentsPanel({
 // Shared helpers (TODAY, fmtD, Avatar, …) come from LogisticsModule.browser.jsx loaded first.
 
 // ─── KNOWLEDGE BASE MODULE ─────────────────────────────────────────────
-// 内嵌亚马逊卖家知识库（GitHub Pages）
+// 内嵌亚马逊卖家知识库（GitHub Pages）与关键词库
 
 const KNOWLEDGE_BASE_URL = "https://xiaopong190-oss.github.io/knowledge/";
-function KnowledgePanel({
-  active = true
+const KEYWORD_LIBRARY_URL = "https://rootline-keyword-dashboard.xiaopong190-asin-radar.workers.dev/";
+function EmbedPanel({
+  title,
+  subtitle,
+  url,
+  iframeTitle
 }) {
   const openExternal = () => {
-    window.open(KNOWLEDGE_BASE_URL, "_blank", "noopener,noreferrer");
+    window.open(url, "_blank", "noopener,noreferrer");
   };
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8734,13 +8738,13 @@ function KnowledgePanel({
       fontSize: 15,
       fontWeight: 600
     }
-  }, "\uD83D\uDCDA \u4E9A\u9A6C\u900A\u5356\u5BB6\u77E5\u8BC6\u5E93"), /*#__PURE__*/React.createElement("div", {
+  }, title), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "var(--tm)",
       marginTop: 2
     }
-  }, "Amazon Seller OS \xB7 \u8FD0\u8425\u65B9\u6CD5\u8BBA\u4E0E\u5DE5\u5177\u5408\u96C6\uFF0C\u6301\u7EED\u66F4\u65B0")), /*#__PURE__*/React.createElement("button", {
+  }, subtitle)), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: openExternal,
     style: {
@@ -8755,8 +8759,8 @@ function KnowledgePanel({
       fontWeight: 500
     }
   }, "\u2197 \u65B0\u7A97\u53E3\u6253\u5F00")), /*#__PURE__*/React.createElement("iframe", {
-    src: KNOWLEDGE_BASE_URL,
-    title: "\u4E9A\u9A6C\u900A\u5356\u5BB6\u77E5\u8BC6\u5E93",
+    src: url,
+    title: iframeTitle,
     style: {
       flex: 1,
       width: "100%",
@@ -8766,6 +8770,26 @@ function KnowledgePanel({
       background: "#fff"
     }
   }));
+}
+function KnowledgePanel({
+  active = true
+}) {
+  return /*#__PURE__*/React.createElement(EmbedPanel, {
+    title: "\uD83D\uDCDA \u4E9A\u9A6C\u900A\u5356\u5BB6\u77E5\u8BC6\u5E93",
+    subtitle: "Amazon Seller OS \xB7 \u8FD0\u8425\u65B9\u6CD5\u8BBA\u4E0E\u5DE5\u5177\u5408\u96C6\uFF0C\u6301\u7EED\u66F4\u65B0",
+    url: KNOWLEDGE_BASE_URL,
+    iframeTitle: "\u4E9A\u9A6C\u900A\u5356\u5BB6\u77E5\u8BC6\u5E93"
+  });
+}
+function KeywordPanel({
+  active = true
+}) {
+  return /*#__PURE__*/React.createElement(EmbedPanel, {
+    title: "\uD83D\uDD11 \u5173\u952E\u8BCD\u5E93",
+    subtitle: "Rootline Keyword Dashboard \xB7 ASIN \u5173\u952E\u8BCD\u5206\u6790\u4E0E\u8BCD\u5E93",
+    url: KEYWORD_LIBRARY_URL,
+    iframeTitle: "\u5173\u952E\u8BCD\u5E93"
+  });
 }
 const FX_CACHE_KEY = "ops-center-fx-rates";
 const FX_SWAP_KEY = "ops-center-fx-swap";
@@ -15663,6 +15687,10 @@ const TABS = [{
   key: "knowledge",
   label: "知识库",
   icon: "knowledge"
+}, {
+  key: "keywords",
+  label: "关键词库",
+  icon: "keywords"
 }];
 const TAB_TITLES = Object.fromEntries(TABS.map(t => [t.key, t.label]));
 function NavIcon({
@@ -15754,6 +15782,18 @@ function NavIcon({
     d: "M4 19.5A2.5 2.5 0 016.5 17H20"
   }), /*#__PURE__*/React.createElement("path", {
     d: "M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"
+  }));
+  if (name === "keywords") return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    style: s
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "11",
+    cy: "11",
+    r: "7"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M21 21l-4.3-4.3"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M8 11h6M11 8v6"
   }));
   return null;
 }
@@ -16047,7 +16087,7 @@ function AppShell({
   }, dark ? "☀ 日间" : "☾ 夜间"))), /*#__PURE__*/React.createElement("main", {
     className: "ops-content",
     style: {
-      maxWidth: tab === "kpi" || tab === "knowledge" ? 1280 : 960
+      maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" ? 1280 : 960
     }
   }, /*#__PURE__*/React.createElement(GlobalCloudBar, null), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -16083,6 +16123,12 @@ function AppShell({
     }
   }, /*#__PURE__*/React.createElement(KnowledgePanel, {
     active: tab === "knowledge"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: tab === "keywords" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(KeywordPanel, {
+    active: tab === "keywords"
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "tools" ? "block" : "none"

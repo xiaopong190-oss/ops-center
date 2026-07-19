@@ -3,7 +3,7 @@ import { LogisticsPanel } from "./LogisticsModule.jsx";
 import { ProductionPanel } from "./ProductionModule.jsx";
 import { ToolsPanel } from "./ToolsModule.jsx";
 import { AgentsPanel } from "./AgentsModule.jsx";
-import { KnowledgePanel } from "./KnowledgeModule.jsx";
+import { KnowledgePanel, KeywordPanel } from "./KnowledgeModule.jsx";
 import { HomePanel } from "./HomeModule.jsx";
 import { KpiPanel } from "./KpiModule.jsx";
 import { GlobalSettingsModal, OwnerField, getStaffRole, RoleBadge, getStaffNames, STAFF_ROLE_OPTIONS, ROLE_COLORS } from "./GlobalConfig.jsx";
@@ -217,6 +217,7 @@ const TABS = [
   { key: "tools", label: "工具", icon: "tools" },
   { key: "agents", label: "AI 智能体", icon: "agents" },
   { key: "knowledge", label: "知识库", icon: "knowledge" },
+  { key: "keywords", label: "关键词库", icon: "keywords" },
 ];
 
 const TAB_TITLES = Object.fromEntries(TABS.map(t => [t.key, t.label]));
@@ -231,6 +232,7 @@ function NavIcon({ name }) {
   if (name === "tools") return <svg viewBox="0 0 24 24" style={s}><path d="M14.7 6.3a4 4 0 105.4 5.4L12 20l-3-3 7.7-10.7z" /></svg>;
   if (name === "agents") return <svg viewBox="0 0 24 24" style={s}><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>;
   if (name === "knowledge") return <svg viewBox="0 0 24 24" style={s}><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>;
+  if (name === "keywords") return <svg viewBox="0 0 24 24" style={s}><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /><path d="M8 11h6M11 8v6" /></svg>;
   return null;
 }
 
@@ -381,7 +383,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel 
           </div>
         </header>
 
-        <main className="ops-content" style={{ maxWidth: tab === "kpi" || tab === "knowledge" ? 1280 : 960 }}>
+        <main className="ops-content" style={{ maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" ? 1280 : 960 }}>
           <GlobalCloudBar />
           <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
@@ -389,6 +391,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel 
           <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
           <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
           <div style={{ display: tab === "knowledge" ? "block" : "none" }}><KnowledgePanel active={tab === "knowledge"} /></div>
+          <div style={{ display: tab === "keywords" ? "block" : "none" }}><KeywordPanel active={tab === "keywords"} /></div>
           <div style={{ display: tab === "tools" ? "block" : "none" }}><ToolsPanel active={tab === "tools"} /></div>
           <div style={{ display: tab === "agents" ? "block" : "none" }}><AgentsPanel active={tab === "agents"} /></div>
         </main>

@@ -174,6 +174,7 @@ const knowledge = fs.readFileSync(path.join(dir, "KnowledgeModule.jsx"), "utf8")
 fs.writeFileSync(
   path.join(dir, "KnowledgeModule.browser.jsx"),
   toBrowser(knowledge, { exportName: "KnowledgePanel", stripUtilsThrough: "// ─── KNOWLEDGE BASE MODULE" })
+    .replace(/^export function KeywordPanel/m, "function KeywordPanel")
 );
 
 const home = fs.readFileSync(path.join(dir, "HomeModule.jsx"), "utf8");

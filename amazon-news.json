@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-07-24T02:33:07.397Z",
+  "updatedAt": "2026-07-25T02:30:55.392Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Watch the teaser trailer for 'Blade Runner 2099,' a new sci-fi series coming to Prime Video November 25",
+      "link": "https://www.aboutamazon.com/news/entertainment/blade-runner-2099-prime-video?utm_source=rss",
+      "pubDate": "Fri, 24 Jul 2026 17:40:06 GMT",
+      "date": "7/24",
+      "summary": "The limited series starring Michelle Yeoh and Hunter Schafer is set 50 years after 'Blade Runner 2049'.",
+      "category": "Entertainment"
+    },
     {
       "title": "Prime Video announces Lily Allen documentary, coming to streaming in 2027",
       "link": "https://www.aboutamazon.com/news/entertainment/lily-allen-documentary-prime-video?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "7/16",
       "summary": "On July 30, Amazon is set to hold a conference call to discuss its Q2 2026 financial results.",
       "category": "Company news"
-    },
-    {
-      "title": "10 things to know about AWS’s new compute leader Dave Treadwell",
-      "link": "https://www.aboutamazon.com/news/aws/aws-compute-leader-dave-treadwell-things-to-know?utm_source=rss",
-      "pubDate": "Thu, 16 Jul 2026 16:00:11 GMT",
-      "date": "7/16",
-      "summary": "Now the Senior Vice President of Compute and Machine Learning Services, Treadwell joined Amazon almost by accident and was one of the coders",
-      "category": "AWS"
     }
   ]
 }

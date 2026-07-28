@@ -45,6 +45,7 @@
 </script>
 <title>亚马逊推广追踪 v6</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+SC:wght@400;500;700&display=swap');
 :root{
@@ -215,6 +216,16 @@ tr:hover td{background:rgba(77,166,255,.05)}
 .cm-btns{display:flex;gap:10px;justify-content:center}
 .cm-ok{padding:8px 22px;border-radius:7px;border:none;background:var(--red);color:#fff;font-size:13px;cursor:pointer;font-family:var(--sans)}
 .cm-cancel{padding:8px 22px;border-radius:7px;border:1px solid var(--border2);background:var(--bg4);color:var(--text2);font-size:13px;cursor:pointer;font-family:var(--sans)}
+.data-center{background:linear-gradient(135deg,rgba(77,166,255,.09),rgba(157,111,219,.05));border:1px solid rgba(77,166,255,.35);border-radius:12px;margin-bottom:16px;overflow:hidden}
+.data-center-h{padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer}
+.data-center-b{display:none;padding:16px;border-top:1px solid var(--border)}
+.data-center-b.on{display:block}
+.import-drop{border:1px dashed var(--border2);border-radius:9px;padding:16px;text-align:center;background:rgba(255,255,255,.025)}
+.db-status{font-size:10px;color:var(--green);font-family:var(--mono)}
+.people-box{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:9px;padding:12px}
+.people-tags{display:flex;gap:6px;flex-wrap:wrap;min-height:28px;margin:8px 0}
+.person-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;background:var(--bg4);border:1px solid var(--border2);border-radius:12px;font-size:11px}
+.person-tag button{border:0;background:transparent;color:var(--red);cursor:pointer}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
@@ -245,6 +256,52 @@ tr:hover td{background:rgba(77,166,255,.05)}
   </div>
   <div id="market-badge" class="us-badge">无增值税</div>
 </div>
+
+<!-- 数据库、固定参数与批量导入 -->
+<section class="data-center">
+  <div class="data-center-h" onclick="toggleDataCenter()">
+    <div>
+      <strong style="color:var(--blue)">⚙ 数据与参数中心</strong>
+      <span style="font-size:11px;color:var(--text3);margin-left:8px">固定参数 · 运营/开发 · CSV/Excel 导入</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px"><span id="db-status" class="db-status">数据库准备中…</span><span id="dc-arrow">⌄</span></div>
+  </div>
+  <div class="data-center-b" id="data-center-body">
+    <div class="sec" style="margin-top:0">负责人名单</div>
+    <div class="g2" style="margin-bottom:14px">
+      <div class="people-box">
+        <strong>运营负责人</strong><div id="owner-tags" class="people-tags"></div>
+        <div style="display:flex;gap:7px"><input id="new-owner" class="btn" style="flex:1;text-align:left" placeholder="输入姓名"/><button class="btn pri" onclick="addPerson('owner')">＋ 增加</button></div>
+      </div>
+      <div class="people-box">
+        <strong>开发负责人</strong><div id="developer-tags" class="people-tags"></div>
+        <div style="display:flex;gap:7px"><input id="new-developer" class="btn" style="flex:1;text-align:left" placeholder="输入姓名"/><button class="btn pri" onclick="addPerson('developer')">＋ 增加</button></div>
+      </div>
+    </div>
+    <div class="sec" style="margin-top:0">固定参数</div>
+    <div class="g4">
+      <div class="f"><label>默认运营负责人</label><input id="cfg-owner" placeholder="请输入真实姓名" onchange="saveSettings()"/></div>
+      <div class="f"><label>默认开发负责人</label><input id="cfg-developer" placeholder="请输入真实姓名" onchange="saveSettings()"/></div>
+      <div class="f"><label>默认汇率（RMB/外币）</label><input id="cfg-rate" type="number" step="0.01" onchange="saveSettings()"/></div>
+      <div class="f"><label>默认广告预算</label><input id="cfg-ad" type="number" step="100" onchange="saveSettings()"/></div>
+      <div class="f"><label>默认采购成本 ¥/件</label><input id="cfg-cost" type="number" step="0.01" onchange="saveSettings()"/></div>
+      <div class="f"><label>默认头程 ¥/件</label><input id="cfg-freight" type="number" step="0.01" onchange="saveSettings()"/></div>
+      <div class="f"><label>默认退货率 %</label><input id="cfg-return" type="number" step="0.1" onchange="saveSettings()"/></div>
+      <div class="f"><label>默认报废率 %</label><input id="cfg-scrap" type="number" step="1" onchange="saveSettings()"/></div>
+    </div>
+    <div class="sec">批量导入</div>
+    <div class="import-drop" id="import-drop">
+      <div style="font-weight:700;margin-bottom:5px">导入领星 CSV 或 Excel</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">严格清洗：只新增同时具有有效“首单时间”和 FNSKU 的产品，并按首单月份归档</div>
+      <button class="btn pri" onclick="el('sheet-import').click()">选择文件</button>
+      <button class="btn" onclick="downloadImportTemplate()">下载 CSV 模板</button>
+      <input id="sheet-import" type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importSheet(this)"/>
+      <div id="import-result" style="font-size:11px;color:var(--text2);margin-top:10px"></div>
+    </div>
+    <div class="tip" style="margin-top:8px">没有首单时间或没有 FNSKU 的产品都会跳过；若存在“全部”工作表则只读取该表，避免与订单状态子表重复。SKU 名称作为中文产品名，FNSKU 作为唯一识别码。</div>
+  </div>
+</section>
+<datalist id="owner-list"></datalist><datalist id="developer-list"></datalist>
 
 <!-- ═══ 精铺模式 ═══ -->
 <div class="mode on" id="mode-fine">
@@ -327,15 +384,16 @@ tr:hover td{background:rgba(77,166,255,.05)}
   </div>
 
   <div class="pane" id="fp-report">
-    <div class="g4" style="margin-bottom:16px">
-      <div class="mc"><div class="ml">实际总收入</div><div class="mv" id="fr-rev">—</div></div>
-      <div class="mc"><div class="ml">实际推广支出</div><div class="mv" id="fr-sp">—</div></div>
-      <div class="mc"><div class="ml">退货损失</div><div class="mv warn" id="fr-ret">—</div></div>
-      <div class="mc"><div class="ml">实际净利润</div><div class="mv" id="fr-net">—</div></div>
+    <div class="sec">季度与全部产品结果</div>
+    <div class="chart-box">
+      <div class="legend"><span><b style="background:#80c4ff"></b>总产品（折线）</span><span><b style="background:#2ecc8e"></b>A品</span><span><b style="background:#e8a020"></b>B品</span><span><b style="background:#e8445a"></b>C品</span></div>
+      <div style="position:relative;height:280px"><canvas id="fine-outcome-chart"></canvas></div>
+      <div id="fine-outcome-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+      <div id="fine-quarter-rates" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:10px"></div>
     </div>
     <div class="sec">SKU 明细</div>
     <div class="tw"><table>
-      <thead><tr><th>月份</th><th>负责人</th><th>SKU</th><th>推广预算</th><th>实际支出</th><th>目标单</th><th>实际单</th><th>退货损失</th><th>目标收入</th><th>实际收入</th><th>净利润</th><th>ROI</th></tr></thead>
+      <thead><tr><th>首单月份</th><th>负责人</th><th>SKU</th><th>推广预算</th><th>近30天广告费</th><th>目标单</th><th>近30天销量</th><th>退货损失</th><th>目标收入</th><th>近30天销售额</th><th>近30天净利润</th><th>ROI</th></tr></thead>
       <tbody id="fr-body"></tbody>
     </table></div>
     <div class="chart-box">
@@ -466,13 +524,13 @@ tr:hover td{background:rgba(77,166,255,.05)}
   <div id="snap-slots"><span style="color:var(--text3)">暂无快照</span></div>
   <div id="snap-ops" style="position:relative;display:flex;align-items:center;gap:8px;flex-shrink:0">
     <button class="snap-btn" onclick="saveSnapshot()">保存快照</button>
-    <button class="snap-btn" onclick="openCloudConfig()" style="border-color:#4da6ff;color:#4da6ff;background:rgba(77,166,255,.08)" title="配置 GitHub Gist 云同步">☁️ 云同步配置</button>
-    <button class="snap-btn" onclick="manualCloudPull()" style="border-color:#4da6ff;color:#4da6ff;background:rgba(77,166,255,.08)" title="立即从云端拉取最新数据">↓ 拉取云端</button>
+    <button class="snap-btn" onclick="toggleDataCenter()" style="border-color:#4da6ff;color:#4da6ff;background:rgba(77,166,255,.08)" title="打开参数与导入中心">⚙️ 参数与导入</button>
+    <button class="snap-btn" onclick="manualCloudPull()" style="border-color:#4da6ff;color:#4da6ff;background:rgba(77,166,255,.08)" title="从云端 Gist / 本地数据库重新读取">↓ 读取云端</button>
     <button class="snap-btn" onclick="exportDataJSON()" style="border-color:#a78bfa;color:#a78bfa;background:rgba(167,139,250,.08)" title="导出全部数据为JSON，升级HTML前必备">💾 备份数据</button>
     <button class="snap-btn" onclick="el('import-json-inp').click()" style="border-color:#a78bfa;color:#a78bfa;background:rgba(167,139,250,.08)" title="导入之前备份的JSON数据">📂 恢复数据</button>
     <input id="import-json-inp" type="file" accept=".json" style="display:none" onchange="importDataJSON(this)"/>
     <button class="snap-btn" onclick="showExportModal('all')" style="border-color:#30c4e8;color:#30c4e8;background:rgba(48,196,232,.08)">📄 导出PDF</button>
-    <button class="snap-btn reset" onclick="confirmReset()">🔄 恢复示例</button>
+    <button class="snap-btn reset" onclick="confirmReset()">🗑 清空数据</button>
     <!-- 锁定遮罩：只盖住操作按钮区 -->
     <div id="sbar-overlay" class="sbar-locked-overlay" style="display:none">
       <div class="sbar-lock-badge">🔒 已锁定 — 点击左侧 🔒 解锁</div>
@@ -509,11 +567,14 @@ var G = { market:'US', cur:'$', vat:0, vatRate:0.20, rate:7.20 };
 var fineMonths = [];
 var products   = [];
 var fineChart  = null;
+var fineOutcomeChart = null;
 var boutiqueChart = null;
 var _lastEdit  = null;
 var SAVE_KEY   = 'amz_v6_auto';
 var SNAP_KEY   = 'amz_v6_snaps';
-// ── GitHub Gist 云同步配置 ──────────────────────────
+var SETTINGS = {owner:'',developer:'',rate:7.20,adBudget:5000,costRmb:35,freightRmb:10,returnRate:3,scrapRate:50};
+var PEOPLE={owners:[],developers:[]};
+// ── GitHub Gist 云同步配置（保留精品/精铺云端数据）──
 var _amzGist = window.__AMZ_GIST__ || {};
 var GIST_TOKEN  = _amzGist.token || '';
 var GIST_ID     = _amzGist.id || 'a24d08263026d407b32e9c9dbe70fe35';
@@ -529,6 +590,13 @@ function n(v){ return parseFloat(v)||0; }
 function ni(v){ return parseInt(v)||0; }
 function f2(v){ return parseFloat(v||0).toFixed(2); }
 function uid(){ return Math.random().toString(36).slice(2,9); }
+function h(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function personOptions(type,current){
+  var arr=(type==='owner'?PEOPLE.owners:PEOPLE.developers).slice();
+  current=String(current||'');
+  if(current&&arr.indexOf(current)<0)arr.unshift(current);
+  return '<option value="">请选择</option>'+arr.map(function(name){return '<option value="'+h(name)+'"'+(name===current?' selected':'')+'>'+h(name)+'</option>';}).join('');
+}
 function fc(v){ return G.cur+f2(v); }
 function rmb2fx(rmb,rate){ return n(rmb)/(rate||G.rate); }
 function netRev(price){ return G.vat>0 ? price/(1+G.vat) : price; }
@@ -665,7 +733,7 @@ function closeConfirm(){ el('confirm-modal').classList.remove('show'); }
 // ════════════════════════════════════════════
 // AUTO-SAVE + SNAPSHOTS
 // ════════════════════════════════════════════
-function getState(){ return JSON.stringify({fineMonths:fineMonths,products:products,G:G}); }
+function getState(){ return JSON.stringify({fineMonths:fineMonths,products:products,G:G,settings:SETTINGS,people:PEOPLE}); }
 function setState(json){
   try{
     var d=JSON.parse(json);
@@ -677,11 +745,15 @@ function setState(json){
           if(s.developer!=null) s.developer=String(s.developer);
           if(s.owner!=null) s.owner=String(s.owner);
           if(s.name!=null) s.name=String(s.name);
+          if(s.fnsku==null) s.fnsku='';
+          if(s.listingTag==null) s.listingTag='';
         });
       });
       fineMonths=d.fineMonths;
     }
     if(d.products)   products=d.products;
+    if(d.settings) SETTINGS=Object.assign(SETTINGS,d.settings);
+    if(d.people) PEOPLE=Object.assign(PEOPLE,d.people);
     if(d.G){ G.market=d.G.market;G.rate=d.G.rate;G.cur=d.G.cur;G.vat=d.G.vat; }
     _skip=true; renderFinePlan(); renderBoutiquePlan(); _skip=false;
     renderFineDevTab();
@@ -691,7 +763,36 @@ function setState(json){
     var badge=el('market-badge');
     if(G.market==='EU'){badge.className='vat-badge';badge.textContent='VAT 20% 已启用';}
     else{badge.className='us-badge';badge.textContent='无增值税';}
+    renderSettings();
+    renderPeople();
   }catch(e){console.error('setState',e);}
+}
+var _db=null;
+function openDatabase(){
+  return new Promise(function(resolve,reject){
+    if(_db){resolve(_db);return;}
+    var req=indexedDB.open('amazon_budget_db',1);
+    req.onupgradeneeded=function(){if(!req.result.objectStoreNames.contains('state'))req.result.createObjectStore('state');};
+    req.onsuccess=function(){_db=req.result;resolve(_db);};
+    req.onerror=function(){reject(req.error);};
+  });
+}
+function dbSave(){
+  return openDatabase().then(function(db){
+    return new Promise(function(resolve,reject){
+      var tx=db.transaction('state','readwrite');
+      tx.objectStore('state').put(getState(),'current');
+      tx.oncomplete=function(){resolve(true);};tx.onerror=function(){reject(tx.error);};
+    });
+  });
+}
+function dbLoad(){
+  return openDatabase().then(function(db){
+    return new Promise(function(resolve,reject){
+      var req=db.transaction('state','readonly').objectStore('state').get('current');
+      req.onsuccess=function(){resolve(req.result||null);};req.onerror=function(){reject(req.error);};
+    });
+  });
 }
 function autoSave(){
   if(_skip) return;
@@ -700,52 +801,93 @@ function autoSave(){
   // 时间戳
   var ts=new Date();
   var lb=el('snap-auto');
-  // 云端同步（防抖 1.5s）
+  // IndexedDB 数据库保存（防抖 0.5s）
   if(_cloudDebounce) clearTimeout(_cloudDebounce);
-  _cloudDebounce = setTimeout(function(){ cloudPush(); }, 1500);
-  if(lb) lb.textContent='待同步 '+('0'+ts.getHours()).slice(-2)+':'+('0'+ts.getMinutes()).slice(-2)+':'+('0'+ts.getSeconds()).slice(-2);
+  _cloudDebounce = setTimeout(function(){
+    if(location.protocol==='http:'||location.protocol==='https:') cloudPush();
+    else dbSave().then(function(){if(lb)lb.textContent='数据库已保存';if(el('db-status'))el('db-status').textContent='● 数据库已连接';})
+      .catch(function(){if(lb)lb.textContent='数据库保存失败';});
+  }, 500);
+  if(lb) lb.textContent='待保存 '+('0'+ts.getHours()).slice(-2)+':'+('0'+ts.getMinutes()).slice(-2)+':'+('0'+ts.getSeconds()).slice(-2);
 }
 function cloudPush(onDone){
-  if(_cloudSaving) return;
-  _cloudSaving = true;
-  var lb=el('snap-auto');
-  if(lb) lb.textContent='☁️ 同步中…';
-  var files = {};
-  files[GIST_FILE] = { content: getState() };
-  fetch('https://api.github.com/gists/'+GIST_ID, {
-    method:'PATCH',
-    headers:{'Content-Type':'application/json','Authorization':'token '+GIST_TOKEN},
-    body: JSON.stringify({ files: files })
-  }).then(function(r){
-    _cloudSaving=false;
-    var ts=new Date();
-    if(r.ok){
-      if(lb) lb.textContent='☁️ 已同步 '+('0'+ts.getHours()).slice(-2)+':'+('0'+ts.getMinutes()).slice(-2)+':'+('0'+ts.getSeconds()).slice(-2);
-      if(onDone) onDone(true);
-    } else {
-      if(lb) lb.textContent='⚠️ 同步失败 '+r.status;
+  // 本机 IndexedDB 始终备份
+  dbSave().catch(function(){});
+  // GitHub Pages / 正式环境：有 Token 时写回 Gist（精品数据云端保留）
+  if(GIST_TOKEN && GIST_ID){
+    if(_cloudSaving) return;
+    _cloudSaving = true;
+    var lb=el('snap-auto');
+    if(lb) lb.textContent='☁️ 同步中…';
+    var files = {};
+    files[GIST_FILE] = { content: getState() };
+    fetch('https://api.github.com/gists/'+GIST_ID, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','Authorization':'token '+GIST_TOKEN},
+      body: JSON.stringify({ files: files })
+    }).then(function(r){
+      _cloudSaving=false;
+      var ts=new Date();
+      if(r.ok){
+        if(lb) lb.textContent='☁️ 已同步 '+('0'+ts.getHours()).slice(-2)+':'+('0'+ts.getMinutes()).slice(-2)+':'+('0'+ts.getSeconds()).slice(-2);
+        if(el('db-status')) el('db-status').textContent='● 云端已同步';
+        if(onDone) onDone(true);
+      } else {
+        if(lb) lb.textContent='⚠️ 同步失败 '+r.status;
+        if(onDone) onDone(false);
+      }
+    }).catch(function(){
+      _cloudSaving=false;
+      if(lb) lb.textContent='⚠️ 网络错误';
       if(onDone) onDone(false);
-    }
-  }).catch(function(){
-    _cloudSaving=false;
-    if(lb) lb.textContent='⚠️ 网络错误';
-    if(onDone) onDone(false);
-  });
+    });
+    return;
+  }
+  // 可选本地 API（非 Pages）
+  if(location.protocol==='http:'||location.protocol==='https:'){
+    fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:getState()})
+      .then(function(r){if(!r.ok)throw new Error(String(r.status));return r.json();})
+      .then(function(){if(el('snap-auto'))el('snap-auto').textContent='☁️ 云数据库已保存';if(el('db-status'))el('db-status').textContent='● 云数据库已连接';if(onDone)onDone(true);})
+      .catch(function(){if(el('snap-auto'))el('snap-auto').textContent='数据库已保存（本地）';if(onDone)onDone(true);});
+    return;
+  }
+  dbSave().then(function(){if(onDone)onDone(true);});
 }
 function cloudPull(onDone){
-  fetch('https://api.github.com/gists/'+GIST_ID, {
-    headers:{'Authorization':'token '+GIST_TOKEN}
-  }).then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
-  .then(function(d){
-    var file = d.files && d.files[GIST_FILE];
-    var json = file ? file.content : null;
-    if(!json||json==='{}'||json==='{"data":"init"}'){ if(onDone) onDone(false,'empty'); return; }
-    setState(json);
-    try{ localStorage.setItem(SAVE_KEY, json); }catch(e){}
-    if(onDone) onDone(true);
-  }).catch(function(e){
-    if(onDone) onDone(false, e);
-  });
+  // 优先从 Gist 拉取精品/精铺数据（Pages 与正式环境）
+  if(GIST_ID){
+    var headers = {};
+    if(GIST_TOKEN) headers['Authorization'] = 'token '+GIST_TOKEN;
+    fetch('https://api.github.com/gists/'+GIST_ID, { headers: headers })
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function(d){
+        var file = d.files && d.files[GIST_FILE];
+        var json = file ? file.content : null;
+        if(!json||json==='{}'||json==='{"data":"init"}'){ if(onDone) onDone(false,'empty'); return; }
+        setState(json);
+        try{ localStorage.setItem(SAVE_KEY, json); }catch(e){}
+        dbSave().catch(function(){});
+        if(onDone) onDone(true);
+      }).catch(function(e){
+        // Gist 失败：降级 IndexedDB / localStorage
+        dbLoad().then(function(json){
+          if(json){ setState(json); if(onDone) onDone(true); return; }
+          try{
+            var local=localStorage.getItem(SAVE_KEY);
+            if(local){ setState(local); if(onDone) onDone(true); return; }
+          }catch(err){}
+          if(onDone) onDone(false, e);
+        }).catch(function(){ if(onDone) onDone(false, e); });
+      });
+    return;
+  }
+  if(location.protocol==='http:'||location.protocol==='https:'){
+    fetch('/api/state').then(function(r){if(!r.ok)throw new Error(String(r.status));return r.json();})
+      .then(function(d){if(d&&d.state){setState(JSON.stringify(d.state));if(onDone)onDone(true);}else if(onDone)onDone(false);})
+      .catch(function(e){if(onDone)onDone(false,e);});
+    return;
+  }
+  dbLoad().then(function(json){if(json)setState(json);if(onDone)onDone(!!json);}).catch(function(e){if(onDone)onDone(false,e);});
 }
 // ── GitHub Gist 配置 UI ───────────────────────────
 function openCloudConfig(){
@@ -838,9 +980,11 @@ function renderSnapBar(){
   }catch(e){}
 }
 function confirmReset(){
-  showConfirm('恢复示例数据','当前所有数据将被清空，确认继续吗？',function(){
+  showConfirm('清空数据','当前所有数据将被清空，确认继续吗？',function(){
     try{localStorage.removeItem(SAVE_KEY);}catch(e){}
-    loadSampleData(); showToast('🔄','已恢复示例数据','',null,false);
+    fineMonths=[];products=[];PEOPLE={owners:[],developers:[]};SETTINGS.owner='';SETTINGS.developer='';
+    renderSettings();renderFinePlan();renderBoutiquePlan();
+    showToast('🗑','数据已清空','',null,false);
     autoSave();
   },true);
 }
@@ -849,7 +993,7 @@ function confirmReset(){
 // FINE MODE — COST HELPERS
 // ────────────────────────────────────────────
 // 前期需先付（备货成本/单，全部¥换算为外币）：
-//   采购/单 + 头程/单 + 物流/单 + 包材/单
+//   采购/单 + 头程/单 + 包材/单
 // 卖后平台扣（不占前期资金）：
 //   FBA配送费/单 + 佣金15%
 // ════════════════════════════════════════════
@@ -858,7 +1002,6 @@ function confirmReset(){
 function fPreCpu(s,rate){
   return rmb2fx(s.costRmb,rate)       // 采购/单
        + rmb2fx(s.freightRmb,rate)    // 头程/单
-       + rmb2fx(s.logisticsRmb,rate)  // 物流/单（国内派送等）
        + rmb2fx(s.packagingRmb,rate); // 包材/单
 }
 // 卖后扣/单（外币，用于利润计算）
@@ -943,11 +1086,12 @@ function addFineSku(mid){
   var m=fineMonths.find(function(m){return m.id===mid;}); if(!m) return;
   var inp=el('ni-'+mid);
   var name=inp&&inp.value.trim()?inp.value.trim():'SKU-'+(m.skus.length+1);
-  m.skus.push({id:uid(),owner:'',name:name,developer:'',
-    costRmb:0,freightRmb:0,logisticsRmb:0,packagingRmb:0,  // 前期¥成本/单
-    fbaFx:0,misc:0,price:0,                                  // 后付$/单 + 固定杂费
-    adBudget:5000,targetOrders:0,batch1:0,batch2:0,
-    returnRate:0.03,scrapRate:0.5,locked:false,
+  m.skus.push({id:uid(),owner:SETTINGS.owner,name:name,developer:SETTINGS.developer,
+    fnsku:'',listingTag:'',
+    costRmb:SETTINGS.costRmb,freightRmb:SETTINGS.freightRmb,logisticsRmb:0,packagingRmb:0,  // 前期¥成本/单
+    fbaFx:0,misc:1,price:0,                                  // 后付$/单 + 固定杂费
+    adBudget:SETTINGS.adBudget,targetOrders:0,batch1:0,batch2:0,
+    returnRate:SETTINGS.returnRate/100,scrapRate:SETTINGS.scrapRate/100,locked:false,
     // 开发预算（¥，整体，非/单）
     dev:{sampleCost:0,freightRmb:0,designFee:0,certFee:0,otherFee:0},
     actual:{orders:0,revenue:0,adSpend:0,returnOrders:0,devActual:0}});
@@ -968,8 +1112,9 @@ function genSkusForMonth(mid){
     var noun=nouns[Math.floor((existing+i)/adjectives.length)%nouns.length];
     var seq=String(existing+i+1).padStart(3,'0');
     m.skus.push({id:uid(),owner:'',name:'待命名-'+seq+' '+adj+noun,developer:'',
+      fnsku:'',listingTag:'',
       costRmb:35,freightRmb:10,logisticsRmb:0,packagingRmb:0,
-      fbaFx:0,misc:0,price:0,
+      fbaFx:0,misc:1,price:0,
       adBudget:5000,targetOrders:0,batch1:0,batch2:0,
       returnRate:0.03,scrapRate:0.5,locked:false,
       dev:{sampleCost:0,freightRmb:10,designFee:0,certFee:0,otherFee:0},
@@ -992,7 +1137,7 @@ function setFineSku(mid,sid,field,val){
   var oldVal=s[field];
   if(field==='targetOrders'||field==='batch1'||field==='batch2') s[field]=ni(val);
   else if(field==='logisticsRmb'||field==='packagingRmb') s[field]=n(val);
-  else if(field==='owner'||field==='name'||field==='developer') s[field]=val;
+  else if(field==='owner'||field==='name'||field==='developer'||field==='fnsku'||field==='listingTag') s[field]=String(val||'').trim();
   else s[field]=n(val);
   _lastEdit={type:'fine',ids:[mid,sid],field:field,oldVal:oldVal};
   showToast('✏️','已修改 '+s.name,'撤销',undoLast,false);
@@ -1697,12 +1842,12 @@ function renderFinePlan(){
       var gpu=fGpu(s,rate),be=fBe(s,rate),pn=fPlanNet(s,rate),retL=fPlanRetLoss(s,rate);
       var b1=fB1Cost(s,rate),ti=fTotalInvest(s,rate),pre=fPreCpu(s,rate);
       return '<tr>'
-        +'<td><input class="ti w60" value="'+s.owner+'" placeholder="负责人" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'owner\',this.value)"/></td>'
-        +'<td><input class="ti w60" value="'+(s.developer||'')+'" placeholder="开发" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'developer\',this.value)" style="color:#c4b5fd"/></td>'
+        +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'owner\',this.value)">'+personOptions('owner',s.owner)+'</select></td>'
+        +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'developer\',this.value)" style="color:#c4b5fd">'+personOptions('developer',s.developer)+'</select></td>'
         +'<td><input class="ti w90" value="'+s.name+'" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'name\',this.value)"/></td>'
+        +'<td><input class="ti w90" value="'+(s.fnsku||'')+'" placeholder="FNSKU" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'fnsku\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td style="background:rgba(77,166,255,.04)"><div><input class="ti w60" type="number" value="'+(s.costRmb||'')+'" placeholder="¥" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'costRmb\',this.value)"/><div id="fcc-'+s.id+'" class="converted">'+(n(s.costRmb)>0?'→'+G.cur+f2(rmb2fx(s.costRmb,rate)):'')+'</div></div></td>'
         +'<td style="background:rgba(77,166,255,.04)"><div><input class="ti w60" type="number" value="'+(s.freightRmb||'')+'" placeholder="¥" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'freightRmb\',this.value)"/><div id="ffc-'+s.id+'" class="converted">'+(n(s.freightRmb)>0?'→'+G.cur+f2(rmb2fx(s.freightRmb,rate)):'')+'</div></div></td>'
-        +'<td style="background:rgba(77,166,255,.04)"><div><input class="ti w60" type="number" value="'+(s.logisticsRmb||'')+'" placeholder="¥" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'logisticsRmb\',this.value)"/><div id="flc-'+s.id+'" class="converted">'+(n(s.logisticsRmb)>0?'→'+G.cur+f2(rmb2fx(s.logisticsRmb,rate)):'')+'</div></div></td>'
         +'<td style="background:rgba(77,166,255,.04)"><div><input class="ti w60" type="number" value="'+(s.packagingRmb||'')+'" placeholder="¥" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'packagingRmb\',this.value)"/><div id="fpkc-'+s.id+'" class="converted">'+(n(s.packagingRmb)>0?'→'+G.cur+f2(rmb2fx(s.packagingRmb,rate)):'')+'</div></div></td>'
         +'<td id="fpre-'+s.id+'" class="tm" style="background:rgba(77,166,255,.07);color:#a8c0d8;font-weight:600">'+G.cur+f2(pre)+'</td>'
         +'<td style="background:rgba(120,152,184,.04)"><input class="ti w55" type="number" value="'+(s.fbaFx||'')+'" placeholder="FBA$" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'fbaFx\',this.value)"/></td>'
@@ -1750,22 +1895,21 @@ function renderFinePlan(){
           +'<span class="gb-label">本月汇率 1 '+G.cur+' =</span>'
           +'<div class="f"><input type="number" value="'+rate+'" step="0.01" onchange="setFineMonthRate(\''+m.id+'\',this.value)" style="height:28px;font-size:12px;width:80px"/></div>'
           +'<span class="gb-label">RMB</span>'
-          +'<span style="font-size:10px;color:var(--amber);font-family:var(--mono)">采购/头程/物流/其他杂费填 ¥RMB，按此汇率换算</span>'
+          +'<span style="font-size:10px;color:var(--amber);font-family:var(--mono)">采购/头程/其他杂费填 ¥RMB，按此汇率换算</span>'
           +'<span style="font-size:10px;color:#3dd9a0;font-family:var(--mono);background:rgba(46,204,142,.08);border:1px solid rgba(46,204,142,.2);padding:2px 8px;border-radius:4px">📅 按6周推广投入预估</span>'
           +(G.market==='EU'?'<span class="vat-badge">VAT 20% · 净收入=售价÷1.2</span>':'')
         +'</div>'
         +'<div class="tw"><table><thead><tr>'
-          +'<th>负责人</th><th>开发人员</th><th>SKU 名称</th>'
-          +'<th colspan="5" style="background:rgba(77,166,255,.1);text-align:center;color:#4da6ff">← 前期投入/单（¥先付）→</th>'
+          +'<th>负责人</th><th>开发人员</th><th>SKU 名称（中文产品名）</th><th>FNSKU</th>'
+          +'<th colspan="4" style="background:rgba(77,166,255,.1);text-align:center;color:#4da6ff">← 前期投入/单（¥先付）→</th>'
           +'<th colspan="2" style="background:rgba(120,152,184,.07);text-align:center;color:#7898b8">卖后扣</th>'
           +'<th>售价</th><th>毛利/单</th><th>退货率</th><th>退货损失</th>'
           +'<th>首批量</th><th>第二批</th><th>备货成本</th>'
           +'<th>推广预算</th><th>目标单</th><th>总投入</th><th>盈亏平衡</th><th>预计净利</th><th></th>'
           +'</tr><tr>'
-          +'<th></th><th></th><th></th>'
+          +'<th></th><th></th><th></th><th></th>'
           +'<th style="background:rgba(77,166,255,.06);font-size:9px">采购¥</th>'
           +'<th style="background:rgba(77,166,255,.06);font-size:9px">头程¥</th>'
-          +'<th style="background:rgba(77,166,255,.06);font-size:9px">物流¥</th>'
           +'<th style="background:rgba(77,166,255,.06);font-size:9px">杂费¥</th>'
           +'<th style="background:rgba(77,166,255,.08);font-size:9px">小计</th>'
           +'<th style="background:rgba(120,152,184,.04);font-size:9px">FBA$</th>'
@@ -1924,19 +2068,22 @@ function renderFineActual(){
       var grossAfterRet=gross-actRet;
       var gm=aRev>0?grossAfterRet/netRev(aRev):0;
       var net=grossAfterRet-aSpend-n(s.misc);
+      if(!a.verdictManual)a.verdict=(grossAfterRet>0&&gm>0.15&&aOrders>30)?'success':'';
       var planRev=fPlanRev(s);
       var achieve=planRev>0?(aRev/planRev*100).toFixed(1)+'%':'—';
       var nc=net>=0?'#3dd9a0':'#f06070';
       return '<tr>'
-        +'<td style="color:var(--text3);font-size:11px;white-space:nowrap">'+s.owner+'</td>'
-        +'<td style="color:#c4b5fd;font-size:11px;white-space:nowrap;font-family:var(--mono)">'+(s.developer||'—')+'</td>'
+        +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'owner\',this.value)">'+personOptions('owner',s.owner)+'</select></td>'
+        +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'developer\',this.value)" style="color:#c4b5fd">'+personOptions('developer',s.developer)+'</select></td>'
         +'<td style="font-weight:600;color:var(--text);min-width:90px">'+s.name+'</td>'
+        +'<td><input class="ti w90" value="'+h(s.listingTag||'')+'" placeholder="Listing 标签" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'listingTag\',this.value)" style="color:#e8a020"/></td>'
+        +'<td><input class="ti w90" value="'+(s.fnsku||'')+'" placeholder="FNSKU" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'fnsku\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td class="tm" style="color:var(--text2)">'+fc(s.adBudget)+'</td>'
-        +'<td><input class="ti w75" type="number" value="'+(a.adSpend||'')+'" placeholder="实际" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'adSpend\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
+        +'<td><input class="ti w75" type="number" value="'+(a.adSpend==null?'':a.adSpend)+'" placeholder="近30天" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'adSpend\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
         +'<td class="tm" style="color:var(--text2)">'+s.targetOrders+'单</td>'
-        +'<td><input class="ti w60" type="number" value="'+(a.orders||'')+'" placeholder="实际" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'orders\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
+        +'<td><input class="ti w60" type="number" value="'+(a.orders==null?'':a.orders)+'" placeholder="近30天" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'orders\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
         +'<td class="tm" style="color:var(--text2)">'+fc(planRev)+'</td>'
-        +'<td><input class="ti w75" type="number" value="'+(a.revenue||'')+'" placeholder="实际" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'revenue\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
+        +'<td><input class="ti w75" type="number" value="'+(a.revenue==null?'':a.revenue)+'" placeholder="近30天" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'revenue\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
         +'<td id="fra-'+s.id+'" class="tm" style="color:#a8c0d8">'+achieve+'</td>'
         +'<td><input class="ti w55" type="number" value="'+(a.returnOrders||'')+'" placeholder="退货" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'returnOrders\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
         +'<td id="fga-'+s.id+'" class="tm" style="color:'+(grossAfterRet>=0?'#3dd9a0':'#f06070')+';font-weight:600">'+fc(grossAfterRet)+'</td>'
@@ -1974,10 +2121,10 @@ function renderFineActual(){
       +'</div>'
       +'<div class="card-body" id="fab-'+m.id+'">'
         +'<div class="tw" style="border:none;border-radius:0"><table><thead><tr>'
-          +'<th>负责人</th><th>开发人员</th><th>SKU</th>'
-          +'<th>推广预算</th><th>实际推广</th>'
-          +'<th>目标单</th><th>实际单</th>'
-          +'<th>目标收入</th><th>实际收入</th><th>达成率</th>'
+          +'<th>负责人</th><th>开发人员</th><th>SKU 名称（中文产品名）</th><th>Listing 标签</th><th>FNSKU</th>'
+          +'<th>推广预算</th><th>近30天广告费</th>'
+          +'<th>目标单</th><th>近30天销量</th>'
+          +'<th>目标收入</th><th>近30天销售额</th><th>达成率</th>'
           +'<th>退货单</th>'
           +'<th>毛利</th><th>毛利率</th><th>净利润</th><th style="min-width:180px">系统评估 / 运营确认</th>'
         +'</tr></thead><tbody>'+rows+'</tbody></table></div>'
@@ -2172,6 +2319,7 @@ function refreshFineActRow(mid,sid){
   var grossAfterRet=gross-actRet;
   var gm=aRev>0?grossAfterRet/netRev(aRev):0;
   var net=grossAfterRet-aSpend-n(s.misc);
+  if(!a.verdictManual)a.verdict=(grossAfterRet>0&&gm>0.15&&aOrders>30)?'success':'';
   var planRev=fPlanRev(s);
   var achieve=planRev>0?(aRev/planRev*100).toFixed(1)+'%':'—';
   var e;
@@ -2180,6 +2328,60 @@ function refreshFineActRow(mid,sid){
   e=el('fgm-'+sid); if(e){e.textContent=aRev>0?(gm*100).toFixed(1)+'%':'—';e.style.color=gm>=0.20?'#3dd9a0':gm>=0?'#e8a020':'#f06070';}
   e=el('fan-'+sid); if(e){e.textContent=fc(net);e.style.color=net>=0?'#3dd9a0':'#f06070';}
   e=el('fok-'+sid); if(e){ var s2=m.skus.find(function(x){return x.id===sid;}); if(s2) e.innerHTML=buildVerdictCell(mid,s2,aOrders,gm,net,rate); }
+  autoSave();
+}
+function listingClassHas(tag,grade){
+  return String(tag||'').toUpperCase().split(/[\s,，;；|/]+/).filter(Boolean).indexOf(grade)>=0;
+}
+function renderFineOutcomeChart(all){
+  var quarters={};
+  all.forEach(function(x){
+    var mt=String(x.m.label||'').match(/(\d{4})年(\d{1,2})月/);
+    if(!mt)return;
+    var year=ni(mt[1]),month=ni(mt[2]),q=Math.ceil(month/3),key=year+' Q'+q;
+    if(!quarters[key])quarters[key]={year:year,q:q,total:0,success:0,b:0,fail:0};
+    var item=quarters[key],tag=x.s.listingTag;
+    item.total++;
+    if(listingClassHas(tag,'A'))item.success++;
+    if(listingClassHas(tag,'B'))item.b++;
+    if(listingClassHas(tag,'C'))item.fail++;
+  });
+  var items=Object.keys(quarters).map(function(k){return {key:k,data:quarters[k]};})
+    .sort(function(a,b){return a.data.year-b.data.year||a.data.q-b.data.q;});
+  var total={total:0,success:0,b:0,fail:0};
+  items.forEach(function(x){total.total+=x.data.total;total.success+=x.data.success;total.b+=x.data.b;total.fail+=x.data.fail;});
+  var labels=items.map(function(x){return x.key;}).concat(['全部']);
+  var totals=items.map(function(x){return x.data.total;}).concat([total.total]);
+  var successes=items.map(function(x){return x.data.success;}).concat([total.success]);
+  var bProducts=items.map(function(x){return x.data.b;}).concat([total.b]);
+  var failures=items.map(function(x){return x.data.fail;}).concat([total.fail]);
+  if(fineOutcomeChart)fineOutcomeChart.destroy();
+  fineOutcomeChart=new Chart(el('fine-outcome-chart'),{
+    type:'bar',
+    data:{labels:labels,datasets:[
+      {type:'line',label:'总产品',data:totals,borderColor:'#80c4ff',backgroundColor:'rgba(128,196,255,.12)',borderWidth:3,pointRadius:4,pointBackgroundColor:'#80c4ff',tension:.25,fill:false,order:0},
+      {type:'bar',label:'A品',data:successes,backgroundColor:'rgba(46,204,142,.55)',borderColor:'#2ecc8e',borderWidth:1,order:1},
+      {type:'bar',label:'B品',data:bProducts,backgroundColor:'rgba(232,160,32,.55)',borderColor:'#e8a020',borderWidth:1,order:1},
+      {type:'bar',label:'C品',data:failures,backgroundColor:'rgba(232,68,90,.55)',borderColor:'#e8445a',borderWidth:1,order:1}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,ticks:{precision:0,color:'#7898b8'},grid:{color:'rgba(70,110,170,.12)'}},
+        x:{ticks:{color:'#7898b8'},grid:{display:false}}}}
+  });
+  var successRate=total.total?total.success/total.total*100:0,bRate=total.total?total.b/total.total*100:0,failRate=total.total?total.fail/total.total*100:0;
+  el('fine-outcome-summary').innerHTML=
+    '<span class="bg">全部 '+total.total+' 款</span>'
+    +'<span class="bg pos">A品成功 '+total.success+' 款（'+successRate.toFixed(1)+'%）</span>'
+    +'<span class="bg warn">B品 '+total.b+' 款（'+bRate.toFixed(1)+'%）</span>'
+    +'<span class="bg neg">C品失败 '+total.fail+' 款（'+failRate.toFixed(1)+'%）</span>';
+  el('fine-quarter-rates').innerHTML=items.map(function(x){
+    var rate=x.data.total?x.data.success/x.data.total*100:0;
+    return '<div style="padding:9px 12px;border:1px solid rgba(46,204,142,.25);border-radius:7px;background:rgba(46,204,142,.06)">'
+      +'<div style="font-size:11px;color:var(--text2);margin-bottom:4px">'+x.key+' A品成功率</div>'
+      +'<div style="font-family:var(--mono);font-size:16px;font-weight:700;color:#3dd9a0">'+rate.toFixed(1)+'%</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-top:2px">A品 '+x.data.success+' 款 ÷ 总产品 '+x.data.total+' 款</div>'
+      +'</div>';
+  }).join('');
 }
 function renderFineReport(){
   var all=[]; fineMonths.forEach(function(m){m.skus.forEach(function(s){all.push({m:m,s:s});});});
@@ -2211,12 +2413,10 @@ function renderFineReport(){
       +'<td class="tm" style="color:'+rc+';font-weight:700">'+roi.toFixed(2)+'x</td>'
       +'</tr>';
   });
-  var totNet=totGross-totSpend-totRet,totRoi=totSpend>0?totGross/totSpend:0;
-  el('fr-rev').textContent=fc(totRev); el('fr-sp').textContent=fc(totSpend); el('fr-ret').textContent=fc(totRet);
-  var fn=el('fr-net');fn.textContent=fc(totNet);fn.className='mv '+(totNet>=0?'pos':'neg');
   el('fr-body').innerHTML=rows.join('');
   if(fineChart) fineChart.destroy();
   fineChart=mkChart('fine-chart',labels,bArr,aArr,sArr);
+  renderFineOutcomeChart(all);
 }
 
 // ════════════════════════════════════════════
@@ -3300,14 +3500,12 @@ function loadSampleData(){
   months.forEach(function(md){
     var m={id:uid(),label:md.label,rate:md.rate,locked:false,skus:[]};
     md.skus.forEach(function(sd){
-    md.skus.forEach(function(sd){
-      m.skus.push({id:uid(),owner:sd.owner||'',developer:sd.developer||'',name:sd.name,
+      m.skus.push({id:uid(),owner:sd.owner||'',developer:sd.developer||'',name:sd.name,fnsku:'',listingTag:'',
         costRmb:sd.costRmb,fbaFx:sd.fbaFx,freightRmb:sd.freightRmb,misc:sd.misc,
         price:sd.price,adBudget:sd.adBudget,targetOrders:sd.targetOrders,
         batch1:sd.batch1,batch2:sd.batch2,returnRate:sd.returnRate,scrapRate:0.5,locked:false,
         dev:{sampleCost:0,freightRmb:0,designFee:0,certFee:0,otherFee:0},
         actual:sd.actual||{orders:0,revenue:0,adSpend:0,returnOrders:0}});
-    });
     });
     fineMonths.push(m);
   });
@@ -3447,8 +3645,8 @@ function importDataJSON(input){
 
 // ── 成活评估 ──
 function buildVerdictCell(mid,s,aOrders,gm,net,rate){
-  // 日均单量（以60天=2个月新品期计算）
-  var days=60;
+  // 日均单量（以导入的最近30天数据计算）
+  var days=30;
   var daily=aOrders/days;
   var og=orderGrade(daily);
   var pg=profitGrade(gm);
@@ -3533,7 +3731,13 @@ function setVerdict(mid,sid,verdict){
   var m=fineMonths.find(function(m){return m.id===mid;}); if(!m) return;
   var s=m.skus.find(function(s){return s.id===sid;}); if(!s) return;
   // 点同一个再次点击则取消（toggle）
-  s.actual.verdict = s.actual.verdict===verdict ? '' : verdict;
+  if(s.actual.verdictManual&&s.actual.verdict===verdict){
+    s.actual.verdict='';
+    s.actual.verdictManual=false;
+  }else{
+    s.actual.verdict=verdict;
+    s.actual.verdictManual=true;
+  }
   autoSave();
   // 刷新这一格
   var rate=m.rate||G.rate,a=s.actual;
@@ -3544,6 +3748,7 @@ function setVerdict(mid,sid,verdict){
   var grossAfterRet=gross-actRet;
   var gm=aRev>0?grossAfterRet/netRev(aRev):0;
   var net=grossAfterRet-aSpend-n(s.misc);
+  if(!s.actual.verdictManual)s.actual.verdict=(grossAfterRet>0&&gm>0.15&&aOrders>30)?'success':'';
   var cell=el('fok-'+sid);
   if(cell) cell.innerHTML=buildVerdictCell(mid,s,aOrders,gm,net,rate);
   // 刷新月卡片头部统计
@@ -3563,7 +3768,7 @@ function showMonthInfo(mid, mode){
 
   var planRows = [
     ['汇率', r + '（¥→' + cur + '）', '本月汇率设置，用于 ¥RMB 成本换算'],
-    ['前期成本/单', '—', '（采购¥ ＋ 头程¥ ＋ 物流¥ ＋ 杂费¥）÷ 汇率'],
+    ['前期成本/单', '—', '（采购¥ ＋ 头程¥ ＋ 杂费¥）÷ 汇率'],
     ['首批备货成本', '—', '前期成本/单 × 首批发货量'],
     ['第二批备货成本', '—', '前期成本/单 × 第二批发货量'],
     ['FBA费/单', '—', '直接填入（外币），卖后由 AMZ 扣除'],
@@ -3663,7 +3868,7 @@ var _fieldInfo = {
   '净利润':    '= 实际毛利 − 实际推广费 − 杂费（实录页）',
   '毛利':      '= 实际净收 − 已售单量 × 前期成本/单 − 退货损失（实录页）',
   '毛利率':    '= 实际毛利 ÷ 实际净收 × 100%',
-  '系统评估':  '出单评级：≥1单/天=活，≥5=良，≥10=优\n利润评级：>0%=活，≥10%=良，≥20%=优\n基于2个月新品期(60天)计算日均单量',
+  '系统评估':  '自动成功：毛利为正、毛利率>15%、最近30天销量>30单（>1单/天）\n运营可手动确认成功或失败',
   '达成率':    '= 实际收入 ÷ 规划收入 × 100%',
   '成活率':    '= 本月有出单的 SKU 数 ÷ 本月总 SKU 数\n例：投了10个SKU，有2个出单 → 成活率 2/10 (20%)',
 };
@@ -3716,18 +3921,257 @@ function showFieldInfo(key){
   ov.onclick=function(ev){if(ev.target===ov)ov.style.display='none';};
 }
 
+function toggleDataCenter(){
+  var body=el('data-center-body');body.classList.toggle('on');
+  el('dc-arrow').textContent=body.classList.contains('on')?'⌃':'⌄';
+  if(body.classList.contains('on'))body.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function renderSettings(){
+  var map={owner:'cfg-owner',developer:'cfg-developer',rate:'cfg-rate',adBudget:'cfg-ad',costRmb:'cfg-cost',freightRmb:'cfg-freight',returnRate:'cfg-return',scrapRate:'cfg-scrap'};
+  Object.keys(map).forEach(function(k){if(el(map[k]))el(map[k]).value=SETTINGS[k];});
+}
+function renderPeople(){
+  if(!PEOPLE.owners.length) fineMonths.forEach(function(m){(m.skus||[]).forEach(function(s){if(s.owner&&PEOPLE.owners.indexOf(s.owner)<0)PEOPLE.owners.push(s.owner);});});
+  if(!PEOPLE.developers.length) fineMonths.forEach(function(m){(m.skus||[]).forEach(function(s){if(s.developer&&PEOPLE.developers.indexOf(s.developer)<0)PEOPLE.developers.push(s.developer);});});
+  [['owner','owners','owner-tags','owner-list'],['developer','developers','developer-tags','developer-list']].forEach(function(cfg){
+    var arr=PEOPLE[cfg[1]]||[],box=el(cfg[2]),dl=el(cfg[3]);
+    if(box)box.innerHTML=arr.length?arr.map(function(name){return '<span class="person-tag">'+name+'<button onclick="removePerson(\''+cfg[0]+'\',\''+String(name).replace(/'/g,"\\'")+'\')" title="删除">×</button></span>';}).join(''):'<span style="color:var(--text3);font-size:11px">暂无人员</span>';
+    if(dl)dl.innerHTML=arr.map(function(name){return '<option value="'+String(name).replace(/"/g,'&quot;')+'"></option>';}).join('');
+  });
+  applyPeopleLists();
+}
+function applyPeopleLists(){
+  document.querySelectorAll('input').forEach(function(inp){
+    var oc=inp.getAttribute('onchange')||inp.getAttribute('oninput')||'';
+    if(/['"]owner['"]/.test(oc))inp.setAttribute('list','owner-list');
+    if(/['"]developer['"]/.test(oc))inp.setAttribute('list','developer-list');
+  });
+}
+function addPerson(type){
+  var input=el(type==='owner'?'new-owner':'new-developer'),name=input.value.trim(),arr=type==='owner'?PEOPLE.owners:PEOPLE.developers;
+  if(!name)return;
+  if(arr.indexOf(name)<0)arr.push(name);
+  input.value='';renderPeople();renderFinePlan();renderFineActual();autoSave();
+}
+function removePerson(type,name){
+  var arr=type==='owner'?PEOPLE.owners:PEOPLE.developers;
+  var used=type==='owner'
+    ? fineMonths.some(function(m){return (m.skus||[]).some(function(s){return s.owner===name;});})
+    : fineMonths.some(function(m){return (m.skus||[]).some(function(s){return s.developer===name;});});
+  showConfirm('删除负责人','从可选名单删除“'+name+'”'+(used?'。历史记录仍会保留该姓名。':'。'),function(){
+    if(type==='owner')PEOPLE.owners=arr.filter(function(x){return x!==name;});
+    else PEOPLE.developers=arr.filter(function(x){return x!==name;});
+    if(SETTINGS[type]===name)SETTINGS[type]='';
+    renderPeople();renderSettings();renderFinePlan();renderFineActual();autoSave();
+  });
+}
+function saveSettings(){
+  SETTINGS.owner=el('cfg-owner').value.trim();
+  SETTINGS.developer=el('cfg-developer').value.trim();
+  SETTINGS.rate=n(el('cfg-rate').value)||7.2;
+  SETTINGS.adBudget=n(el('cfg-ad').value);
+  SETTINGS.costRmb=n(el('cfg-cost').value);
+  SETTINGS.freightRmb=n(el('cfg-freight').value);
+  SETTINGS.returnRate=n(el('cfg-return').value);
+  SETTINGS.scrapRate=n(el('cfg-scrap').value);
+  G.rate=SETTINGS.rate;autoSave();
+  showToast('✅','固定参数已保存到数据库','',null,false);
+}
+function rowValue(row,names,def){
+  for(var i=0;i<names.length;i++)if(row[names[i]]!==undefined&&row[names[i]]!=='')return row[names[i]];
+  return def;
+}
+function normalizeMonth(v){
+  var s=String(v||'').trim(),m;
+  if(/^\d{4}年\d{1,2}月$/.test(s))return s;
+  m=s.match(/^(\d{4})[-\/.](\d{1,2})/);
+  if(m)return m[1]+'年'+parseInt(m[2])+'月';
+  return new Date().getFullYear()+'年'+(new Date().getMonth()+1)+'月';
+}
+function importSheet(input){
+  var file=input.files&&input.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      var rows=[];
+      var importSheets=wb.SheetNames.indexOf('全部')>=0?['全部']:wb.SheetNames;
+      importSheets.forEach(function(sheetName){
+        XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{defval:'',raw:false,dateNF:'yyyy-mm-dd hh:mm:ss'}).forEach(function(r){r.__sheet=sheetName;rows.push(r);});
+      });
+      if(!rows.length)throw new Error('文件没有数据行');
+      function cleanNumber(v){
+        if(v===null||v===undefined||v==='')return 0;
+        if(typeof v==='number')return v;
+        var s=String(v).replace(/[￥¥$€,%\s,]/g,'').replace(/[()]/g,function(x){return x==='('?'-':'';});
+        return parseFloat(s)||0;
+      }
+      function parseDate(v){
+        if(!v)return null;
+        if(v instanceof Date&&!isNaN(v))return v;
+        if(typeof v==='number'&&v>20000&&v<80000)return new Date(Math.round((v-25569)*86400*1000));
+        var s=String(v).trim().replace(/[年月]/g,'-').replace(/日/g,'').replace(/\./g,'-');
+        var d=new Date(s);return isNaN(d)?null:d;
+      }
+      function earliest(a,b){if(!a)return b;if(!b)return a;return a<b?a:b;}
+      var aliases={
+        sku:['SKU','SKU名称','MSKU','Seller SKU','seller-sku','商品SKU','本地SKU','子SKU','产品SKU'],
+        fnsku:['FNSKU','FNSKU编码','FNSKU码','亚马逊FNSKU','FNSKU Code','fnsku'],
+        asin:['ASIN','子ASIN','商品ASIN','asin'],
+        name:['品名','产品名称','商品名称'],
+        first:['首单时间','首次出单时间','首次订单时间','第一单时间','首销时间','First Order Time','first_order_time'],
+        orderDate:['订单时间','下单时间','购买日期','付款时间','Purchase Date','purchase-date','创建时间','日期','Date'],
+        owner:['负责人1（业绩归属人）','负责人1(业绩归属人)','运营负责人','运营','负责人','店铺负责人','Owner','owner'],
+        developer:['开发负责人','开发','产品开发','Developer','developer'],
+        listingTag:['商品标签','Listing标签','Listing 标签','listingTag'],
+        cost:['采购成本','采购价','采购单价','产品成本','商品成本','Cost','costRmb'],
+        freight:['头程','头程费','头程费用','头程成本','头程运费','采购头程','First Leg Cost','firstLegCost','freightRmb'],
+        fba:['预估FBA费（API）','预估FBA费(API)','预估FBA费（报表）','预估FBA费(报表)','FBA','FBA费用','FBA配送费','FBA Fee','配送费','履约费','fbaFx'],
+        price:['价格','售价(总价)','售价（总价）','售价','销售价','单价','Price','price'],
+        ad:['广告预算','AdBudget','adBudget'],
+        target:['目标单量','目标订单','TargetOrders','targetOrders'],
+        batch1:['首批量','首批备货量','Batch1','batch1'],
+        batch2:['第二批量','二批量','第二批备货量','Batch2','batch2'],
+        returnRate:['退货率','ReturnRate','returnRate'],
+        orders:['30日销量','近30日销量','30天销量','实际单量','实际订单','订单量','订单数','销量','销售数量','Units Ordered','units','ActualOrders','orders'],
+        revenue:['30日销售额','近30日销售额','30天销售额','实际收入','销售额','销售收入','订单金额','GMV','Sales','ActualRevenue','revenue'],
+        adSpend:['30日广告费','近30日广告费','30天广告费','实际广告支出','实际广告费','广告花费','广告费用','PPC花费','Spend','Ad Spend','adSpend'],
+        sales30:['30日销量','近30日销量','30天销量'],
+        adSpend30:['30日广告费','近30日广告费','30天广告费'],
+        returns:['实际退货单量','退货量','退货数量','ReturnOrders','returns']
+      };
+      var has30Stats=rows.some(function(r){return aliases.sales30.some(function(k){return Object.prototype.hasOwnProperty.call(r,k);});})
+        &&rows.some(function(r){return aliases.adSpend30.some(function(k){return Object.prototype.hasOwnProperty.call(r,k);});});
+      var isListingSnapshot=has30Stats
+        &&rows.some(function(r){return aliases.first.some(function(k){return Object.prototype.hasOwnProperty.call(r,k);});})
+        &&rows.some(function(r){return aliases.fnsku.some(function(k){return Object.prototype.hasOwnProperty.call(r,k);});});
+      var groups={};
+      rows.forEach(function(r,idx){
+        var sku=String(rowValue(r,aliases.sku,'')).trim();
+        var fnsku=String(rowValue(r,aliases.fnsku,'')).trim();
+        var asin=String(rowValue(r,aliases.asin,'')).trim();
+        var pname=String(rowValue(r,aliases.name,'')).trim();
+        var key=fnsku||sku||asin||pname||('ROW-'+idx);
+        if(!groups[key])groups[key]={key:key,fnsku:fnsku,sku:sku,asin:asin,name:pname,rows:[],first:null,explicitFirst:null};
+        var g=groups[key];g.rows.push(r);
+        if(!g.fnsku&&fnsku)g.fnsku=fnsku;if(!g.sku&&sku)g.sku=sku;if(!g.asin&&asin)g.asin=asin;if(!g.name&&pname)g.name=pname;
+        g.explicitFirst=earliest(g.explicitFirst,parseDate(rowValue(r,aliases.first,'')));
+        var orderQty=cleanNumber(rowValue(r,aliases.orders,0));
+        var od=parseDate(rowValue(r,aliases.orderDate,''));
+        if(od&&(orderQty>0||rowValue(r,aliases.orders,'')===''))g.first=earliest(g.first,od);
+      });
+      var count=0,removedOld=0,skippedNoFirst=0,skippedNoFnsku=0,months={},preservedDevelopers={},fieldHits={freight:0,cost:0,fba:0,first:0,owner:0,tag:0,price:0,noSales:0},groupList=Object.keys(groups).map(function(k){return groups[k];});
+      if(isListingSnapshot){
+        fineMonths.forEach(function(m){
+          (m.skus||[]).forEach(function(s){
+            removedOld++;
+            if(s.fnsku&&s.developer)preservedDevelopers[String(s.fnsku).trim()]=String(s.developer).trim();
+          });
+        });
+        fineMonths=[];
+        PEOPLE={owners:[],developers:[]};
+        SETTINGS.owner='';
+        SETTINGS.developer='';
+      }
+      groupList.forEach(function(g){
+        var firstOrder=g.explicitFirst;
+        if(!firstOrder){skippedNoFirst++;return;}
+        if(!g.fnsku){skippedNoFnsku++;return;}
+        var base=g.rows[0];
+        var label=firstOrder.getFullYear()+'年'+(firstOrder.getMonth()+1)+'月';
+        var m=fineMonths.find(function(x){return x.label===label;});
+        if(!m){m={id:uid(),label:label,rate:SETTINGS.rate,locked:false,skus:[]};fineMonths.push(m);}
+        months[label]=1;
+        function firstVal(names,def){for(var i=0;i<g.rows.length;i++){var v=rowValue(g.rows[i],names,'');if(v!==''&&v!=null)return v;}return def;}
+        function val(names,def){return cleanNumber(firstVal(names,def));}
+        function sum(names){return g.rows.reduce(function(t,r){return t+cleanNumber(rowValue(r,names,0));},0);}
+        function pct(names,def){var v=val(names,def);return v>1?v/100:v;}
+        var orders=sum(aliases.orders),revenue=sum(aliases.revenue),price=val(aliases.price,0);
+        if(!price&&orders>0&&revenue>0)price=revenue/orders;
+        var cost=val(aliases.cost,SETTINGS.costRmb),freight=val(aliases.freight,SETTINGS.freightRmb),fba=val(aliases.fba,0);
+        var importedOwner=String(firstVal(aliases.owner,'')).trim();
+        var importedTag=String(firstVal(aliases.listingTag,'')).trim();
+        var sales30=sum(aliases.sales30),adSpend30=sum(aliases.adSpend30);
+        if(has30Stats&&sales30===0&&adSpend30===0){
+          var tagParts=importedTag.split(/[,，]/).map(function(x){return x.trim();}).filter(Boolean);
+          if(tagParts.indexOf('无销量')<0)tagParts.push('无销量');
+          importedTag=tagParts.join(',');
+          fieldHits.noSales++;
+        }
+        if(firstOrder)fieldHits.first++;if(cost)fieldHits.cost++;if(freight)fieldHits.freight++;if(fba)fieldHits.fba++;if(price)fieldHits.price++;if(importedOwner)fieldHits.owner++;if(importedTag)fieldHits.tag++;
+        var displayName=g.name||(g.sku?g.sku+'（待补中文名）':g.asin||'未命名产品');
+        var existing=m.skus.find(function(s){return (g.fnsku&&s.fnsku===g.fnsku)||(s.sourceSku&&s.sourceSku===g.sku)||(s.sourceAsin&&s.sourceAsin===g.asin)||(s.name===displayName);});
+        var imported={
+          id:existing?existing.id:uid(),owner:importedOwner||(existing&&existing.owner)||SETTINGS.owner,
+          developer:String(firstVal(aliases.developer,preservedDevelopers[g.fnsku]||SETTINGS.developer||'')),
+          name:displayName,fnsku:g.fnsku,listingTag:importedTag,sourceSku:g.sku,sourceAsin:g.asin,
+          firstOrderDate:firstOrder?firstOrder.toISOString().slice(0,10):'',
+          importSource:'领星',costRmb:cost,freightRmb:freight,
+          logisticsRmb:0,packagingRmb:0,fbaFx:fba,misc:1,
+          price:price,adBudget:val(aliases.ad,SETTINGS.adBudget),
+          targetOrders:val(aliases.target,0),batch1:val(aliases.batch1,0),batch2:val(aliases.batch2,0),
+          returnRate:pct(aliases.returnRate,SETTINGS.returnRate),
+          scrapRate:SETTINGS.scrapRate/100,locked:false,
+          dev:{sampleCost:0,freightRmb:0,designFee:0,certFee:0,otherFee:0},
+          actual:{
+            orders:orders,revenue:revenue,adSpend:sum(aliases.adSpend),returnOrders:sum(aliases.returns),devActual:0,
+            verdict:existing&&existing.actual&&existing.actual.verdictManual?existing.actual.verdict:'',
+            verdictManual:!!(existing&&existing.actual&&existing.actual.verdictManual)
+          }
+        };
+        if(!imported.actual.verdictManual){
+          var importedRev=n(imported.actual.revenue),importedOrders=ni(imported.actual.orders);
+          var importedUc=fUnitCost(imported,m.rate||G.rate);
+          var importedGross=netRev(importedRev)-importedOrders*importedUc;
+          var importedRet=ni(imported.actual.returnOrders||0)*(importedUc*n(imported.scrapRate)+n(imported.fbaFx)*2);
+          var importedGrossAfterRet=importedGross-importedRet;
+          var importedGm=importedRev>0?importedGrossAfterRet/netRev(importedRev):0;
+          imported.actual.verdict=(importedGrossAfterRet>0&&importedGm>0.15&&importedOrders>30)?'success':'';
+        }
+        if(existing)Object.assign(existing,imported);else m.skus.push(imported);
+        if(imported.owner&&PEOPLE.owners.indexOf(imported.owner)<0)PEOPLE.owners.push(imported.owner);
+        if(imported.developer&&PEOPLE.developers.indexOf(imported.developer)<0)PEOPLE.developers.push(imported.developer);
+        count++;
+      });
+      _sortFineMonths();renderPeople();renderFineDevTab();renderFinePlan();autoSave();
+      el('import-result').textContent='✅ Listing 最新快照清洗完成：读取 '+importSheets.join('、')+'，清除 '+removedOld+' 条领星旧记录，按 FNSKU 重建 '+count+' 款同时具有首单时间和 FNSKU 的产品；跳过 '+skippedNoFirst+' 款无首单时间、'+skippedNoFnsku+' 款无 FNSKU 产品，归入 '+Object.keys(months).length+' 个月份；识别负责人 '+fieldHits.owner+'、完整 Listing 标签 '+fieldHits.tag+'、标记无销量 '+fieldHits.noSales+'、价格 '+fieldHits.price+'、FBA '+fieldHits.fba+' 款。';
+    }catch(err){el('import-result').textContent='⚠️ 导入失败：'+err.message;}
+    input.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function downloadImportTemplate(){
+  var csv='\ufeff月份,运营负责人,开发负责人,SKU名称,FNSKU,采购成本,头程,FBA,售价,广告预算,目标单量,首批量,第二批量,退货率,实际单量,实际收入,实际广告支出\r\n2026年8月,张伟,林小明,示例中文产品名,X001EXAMPLE,35,10,4.5,29.99,5000,300,300,200,3%,0,0,0';
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='亚马逊预算导入模板.csv';a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+}
+
 (function init(){
   var lb=el('snap-auto');
+  renderSettings();
   if(lb) lb.textContent='☁️ 加载云端数据…';
   cloudPull(function(ok){
     if(ok){
       _skip=true; renderFinePlan(); renderBoutiquePlan(); renderSnapBar(); _skip=false;
       if(lb) lb.textContent='☁️ 云端数据已加载';
+      if(el('db-status'))el('db-status').textContent='● 云端已连接';
     } else {
-      // 云端失败，降级读本地
-      try{ if(localStorage.getItem(SAVE_KEY)){ setState(localStorage.getItem(SAVE_KEY)); renderSnapBar(); if(lb) lb.textContent='⚠️ 云端失败，已加载本地'; return; } }catch(e){}
-      loadSampleData();
-      if(lb) lb.textContent='⚠️ 云端失败，已加载示例';
+      // 云端失败：绝不清空精品 products，优先本地兜底
+      try{
+        if(localStorage.getItem(SAVE_KEY)){
+          setState(localStorage.getItem(SAVE_KEY));
+          renderSnapBar();
+          dbSave().catch(function(){});
+          if(lb) lb.textContent='⚠️ 云端失败，已加载本地';
+          if(el('db-status'))el('db-status').textContent='● 本地数据';
+          return;
+        }
+      }catch(e){}
+      fineMonths=[];products=[];PEOPLE={owners:[],developers:[]};
+      renderSettings();renderFinePlan();renderBoutiquePlan();
+      dbSave().catch(function(){});
+      if(lb) lb.textContent='⚠️ 暂无数据，可导入备份';
+      if(el('db-status'))el('db-status').textContent='○ 等待数据';
     }
   });
 })();

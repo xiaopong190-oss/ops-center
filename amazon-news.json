@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-07-27T02:46:55.303Z",
+  "updatedAt": "2026-07-28T02:25:29.878Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
+      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
+      "pubDate": "Mon, 27 Jul 2026 13:56:00 GMT",
+      "date": "7/27",
+      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
+      "category": "Community"
+    },
+    {
+      "title": "How Amazon Leo plans to connect mobile devices from space",
+      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-direct-to-device-satellite-service-explained?utm_source=rss",
+      "pubDate": "Mon, 27 Jul 2026 12:48:56 GMT",
+      "date": "7/27",
+      "summary": "Amazon Leo has filed with the FCC to deploy up to 5,105 new satellites designed to use Globalstar’s spectrum to bring voice, data, messaging",
+      "category": "Amazon Leo"
+    },
     {
       "title": "Watch the teaser trailer for 'Blade Runner 2099,' a new sci-fi series coming to Prime Video November 25",
       "link": "https://www.aboutamazon.com/news/entertainment/blade-runner-2099-prime-video?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "7/24",
       "summary": "The limited series starring Michelle Yeoh and Hunter Schafer is set 50 years after 'Blade Runner 2049'.",
       "category": "Entertainment"
-    },
-    {
-      "title": "Prime Video announces Lily Allen documentary, coming to streaming in 2027",
-      "link": "https://www.aboutamazon.com/news/entertainment/lily-allen-documentary-prime-video?utm_source=rss",
-      "pubDate": "Wed, 22 Jul 2026 12:55:11 GMT",
-      "date": "7/22",
-      "summary": "The upcoming film will chart the life and work of Lily Allen, from her early years through to 'West End Girl.'",
-      "category": "Entertainment"
-    },
-    {
-      "title": "Amazon will share its Q2 2026 earnings on July 30",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-earnings-q2-2026-report?utm_source=rss",
-      "pubDate": "Thu, 16 Jul 2026 20:06:30 GMT",
-      "date": "7/16",
-      "summary": "On July 30, Amazon is set to hold a conference call to discuss its Q2 2026 financial results.",
-      "category": "Company news"
     }
   ]
 }

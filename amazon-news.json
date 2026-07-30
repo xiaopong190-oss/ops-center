@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-07-29T02:30:16.750Z",
+  "updatedAt": "2026-07-30T02:12:15.055Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon in the community: Service, community, and commitment at HQ2",
+      "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
+      "pubDate": "Wed, 29 Jul 2026 20:18:00 GMT",
+      "date": "7/29",
+      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
+      "category": "Community"
+    },
+    {
+      "title": "'The Thomas Crown Affair': Everything to know about the Michael B. Jordan film, in theaters March 5, 2027",
+      "link": "https://www.aboutamazon.com/news/entertainment/thomas-crown-affair-michael-b-jordan-amazon-mgm-studios?utm_source=rss",
+      "pubDate": "Wed, 29 Jul 2026 13:00:07 GMT",
+      "date": "7/29",
+      "summary": "Jordan directs, produces, and stars in a visually breathtaking heist thriller from Amazon MGM Studios.",
+      "category": "Entertainment"
+    },
     {
       "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
       "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "7/27",
       "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
       "category": "Community"
-    },
-    {
-      "title": "How Amazon Leo plans to connect mobile devices from space",
-      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-direct-to-device-satellite-service-explained?utm_source=rss",
-      "pubDate": "Mon, 27 Jul 2026 12:48:56 GMT",
-      "date": "7/27",
-      "summary": "Amazon Leo has filed with the FCC to deploy up to 5,105 new satellites designed to use Globalstar’s spectrum to bring voice, data, messaging",
-      "category": "Amazon Leo"
-    },
-    {
-      "title": "Watch the teaser trailer for 'Blade Runner 2099,' a new sci-fi series coming to Prime Video November 25",
-      "link": "https://www.aboutamazon.com/news/entertainment/blade-runner-2099-prime-video?utm_source=rss",
-      "pubDate": "Fri, 24 Jul 2026 17:40:06 GMT",
-      "date": "7/24",
-      "summary": "The limited series starring Michelle Yeoh and Hunter Schafer is set 50 years after 'Blade Runner 2049'.",
-      "category": "Entertainment"
     }
   ]
 }

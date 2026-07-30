@@ -289,16 +289,24 @@ tr:hover td{background:rgba(77,166,255,.05)}
       <div class="f"><label>默认退货率 %</label><input id="cfg-return" type="number" step="0.1" onchange="saveSettings()"/></div>
       <div class="f"><label>默认报废率 %</label><input id="cfg-scrap" type="number" step="1" onchange="saveSettings()"/></div>
     </div>
-    <div class="sec">批量导入</div>
-    <div class="import-drop" id="import-drop">
-      <div style="font-weight:700;margin-bottom:5px">导入领星 CSV 或 Excel</div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">严格清洗：只新增同时具有有效“首单时间”和 FNSKU 的产品，并按首单月份归档</div>
+    <div class="sec">批量导入（两步）</div>
+    <div class="import-drop" id="import-drop" style="margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:5px">① Listing / 身份映射</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">支持两种表：<br/>• <b>Listing 快照</b>（需首单时间+FNSKU）：按月份建档，写入品名/标签/ASIN/父ASIN<br/>• <b>身份映射表</b>（SKU/FNSKU/ASIN/父ASIN/标题，如你截图这张）：按 FNSKU 补全已有款的父ASIN与ASIN，不改利润</div>
       <button class="btn pri" onclick="el('sheet-import').click()">选择文件</button>
-      <button class="btn" onclick="downloadImportTemplate()">下载 CSV 模板</button>
+      <button class="btn" onclick="downloadImportTemplate()">下载对标模板</button>
       <input id="sheet-import" type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importSheet(this)"/>
       <div id="import-result" style="font-size:11px;color:var(--text2);margin-top:10px"></div>
     </div>
-    <div class="tip" style="margin-top:8px">没有首单时间或没有 FNSKU 的产品都会跳过；若存在“全部”工作表则只读取该表，避免与订单状态子表重复。SKU 名称作为中文产品名，FNSKU 作为唯一识别码。</div>
+    <div class="import-drop" id="import-profit-drop">
+      <div style="font-weight:700;margin-bottom:5px">② 利润实测导入（按 FNSKU / ASIN / 父ASIN 一一对应）</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">先完成①。匹配优先级：FNSKU → ASIN → 父ASIN+ASIN → 唯一父ASIN。匹配到唯一 SKU 后写入实测利润字段；一对多或不匹配会跳过并统计。</div>
+      <button class="btn pri" onclick="el('profit-import').click()">选择利润文件</button>
+      <button class="btn" onclick="downloadProfitTemplate()">下载利润模板</button>
+      <input id="profit-import" type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importProfitSheet(this)"/>
+      <div id="profit-import-result" style="font-size:11px;color:var(--text2);margin-top:10px"></div>
+    </div>
+    <div class="tip" style="margin-top:8px">建议：先导 Listing 快照建档 → 再导身份映射表补父ASIN → 最后导利润表。近30天 Listing 数据不进利润评估。</div>
   </div>
 </section>
 <datalist id="owner-list"></datalist><datalist id="developer-list"></datalist>
@@ -747,6 +755,9 @@ function setState(json){
           if(s.name!=null) s.name=String(s.name);
           if(s.fnsku==null) s.fnsku='';
           if(s.listingTag==null) s.listingTag='';
+          if(s.asin==null) s.asin=s.sourceAsin||'';
+          if(s.parentAsin==null) s.parentAsin='';
+          if(s.sourceAsin&&!s.asin) s.asin=s.sourceAsin;
         });
       });
       fineMonths=d.fineMonths;
@@ -1087,7 +1098,7 @@ function addFineSku(mid){
   var inp=el('ni-'+mid);
   var name=inp&&inp.value.trim()?inp.value.trim():'SKU-'+(m.skus.length+1);
   m.skus.push({id:uid(),owner:SETTINGS.owner,name:name,developer:SETTINGS.developer,
-    fnsku:'',listingTag:'',
+    fnsku:'',asin:'',parentAsin:'',listingTag:'',
     costRmb:SETTINGS.costRmb,freightRmb:SETTINGS.freightRmb,logisticsRmb:0,packagingRmb:0,  // 前期¥成本/单
     fbaFx:0,misc:1,price:0,                                  // 后付$/单 + 固定杂费
     adBudget:SETTINGS.adBudget,targetOrders:0,batch1:0,batch2:0,
@@ -1112,7 +1123,7 @@ function genSkusForMonth(mid){
     var noun=nouns[Math.floor((existing+i)/adjectives.length)%nouns.length];
     var seq=String(existing+i+1).padStart(3,'0');
     m.skus.push({id:uid(),owner:'',name:'待命名-'+seq+' '+adj+noun,developer:'',
-      fnsku:'',listingTag:'',
+      fnsku:'',asin:'',parentAsin:'',listingTag:'',
       costRmb:35,freightRmb:10,logisticsRmb:0,packagingRmb:0,
       fbaFx:0,misc:1,price:0,
       adBudget:5000,targetOrders:0,batch1:0,batch2:0,
@@ -1137,7 +1148,7 @@ function setFineSku(mid,sid,field,val){
   var oldVal=s[field];
   if(field==='targetOrders'||field==='batch1'||field==='batch2') s[field]=ni(val);
   else if(field==='logisticsRmb'||field==='packagingRmb') s[field]=n(val);
-  else if(field==='owner'||field==='name'||field==='developer'||field==='fnsku'||field==='listingTag') s[field]=String(val||'').trim();
+  else if(field==='owner'||field==='name'||field==='developer'||field==='fnsku'||field==='listingTag'||field==='asin'||field==='parentAsin') s[field]=String(val||'').trim();
   else s[field]=n(val);
   _lastEdit={type:'fine',ids:[mid,sid],field:field,oldVal:oldVal};
   showToast('✏️','已修改 '+s.name,'撤销',undoLast,false);
@@ -1845,6 +1856,8 @@ function renderFinePlan(){
         +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'owner\',this.value)">'+personOptions('owner',s.owner)+'</select></td>'
         +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'developer\',this.value)" style="color:#c4b5fd">'+personOptions('developer',s.developer)+'</select></td>'
         +'<td><input class="ti w90" value="'+s.name+'" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'name\',this.value)"/></td>'
+        +'<td><input class="ti w90" value="'+h(s.parentAsin||'')+'" placeholder="父ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'parentAsin\',this.value)" style="font-family:var(--mono);color:#c4a0f0"/></td>'
+        +'<td><input class="ti w90" value="'+h(s.asin||s.sourceAsin||'')+'" placeholder="ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'asin\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td><input class="ti w90" value="'+(s.fnsku||'')+'" placeholder="FNSKU" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'fnsku\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td style="background:rgba(77,166,255,.04)"><div><input class="ti w60" type="number" value="'+(s.costRmb||'')+'" placeholder="¥" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'costRmb\',this.value)"/><div id="fcc-'+s.id+'" class="converted">'+(n(s.costRmb)>0?'→'+G.cur+f2(rmb2fx(s.costRmb,rate)):'')+'</div></div></td>'
         +'<td style="background:rgba(77,166,255,.04)"><div><input class="ti w60" type="number" value="'+(s.freightRmb||'')+'" placeholder="¥" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'freightRmb\',this.value)"/><div id="ffc-'+s.id+'" class="converted">'+(n(s.freightRmb)>0?'→'+G.cur+f2(rmb2fx(s.freightRmb,rate)):'')+'</div></div></td>'
@@ -1900,7 +1913,7 @@ function renderFinePlan(){
           +(G.market==='EU'?'<span class="vat-badge">VAT 20% · 净收入=售价÷1.2</span>':'')
         +'</div>'
         +'<div class="tw"><table><thead><tr>'
-          +'<th>负责人</th><th>开发人员</th><th>SKU 名称（中文产品名）</th><th>FNSKU</th>'
+          +'<th>负责人</th><th>开发人员</th><th>SKU 名称（中文产品名）</th><th>父ASIN</th><th>ASIN</th><th>FNSKU</th>'
           +'<th colspan="4" style="background:rgba(77,166,255,.1);text-align:center;color:#4da6ff">← 前期投入/单（¥先付）→</th>'
           +'<th colspan="2" style="background:rgba(120,152,184,.07);text-align:center;color:#7898b8">卖后扣</th>'
           +'<th>售价</th><th>毛利/单</th><th>退货率</th><th>退货损失</th>'
@@ -2077,6 +2090,8 @@ function renderFineActual(){
         +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'developer\',this.value)" style="color:#c4b5fd">'+personOptions('developer',s.developer)+'</select></td>'
         +'<td style="font-weight:600;color:var(--text);min-width:90px">'+s.name+'</td>'
         +'<td><input class="ti w90" value="'+h(s.listingTag||'')+'" placeholder="Listing 标签" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'listingTag\',this.value)" style="color:#e8a020"/></td>'
+        +'<td><input class="ti w90" value="'+h(s.parentAsin||'')+'" placeholder="父ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'parentAsin\',this.value)" style="font-family:var(--mono);color:#c4a0f0"/></td>'
+        +'<td><input class="ti w90" value="'+h(s.asin||s.sourceAsin||'')+'" placeholder="ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'asin\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td><input class="ti w90" value="'+(s.fnsku||'')+'" placeholder="FNSKU" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'fnsku\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td class="tm" style="color:var(--text2)">'+fc(s.adBudget)+'</td>'
         +'<td><input class="ti w75" type="number" value="'+(a.adSpend==null?'':a.adSpend)+'" placeholder="近30天" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'adSpend\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
@@ -2121,7 +2136,7 @@ function renderFineActual(){
       +'</div>'
       +'<div class="card-body" id="fab-'+m.id+'">'
         +'<div class="tw" style="border:none;border-radius:0"><table><thead><tr>'
-          +'<th>负责人</th><th>开发人员</th><th>SKU 名称（中文产品名）</th><th>Listing 标签</th><th>FNSKU</th>'
+          +'<th>负责人</th><th>开发人员</th><th>SKU 名称（中文产品名）</th><th>Listing 标签</th><th>父ASIN</th><th>ASIN</th><th>FNSKU</th>'
           +'<th>推广预算</th><th>近30天广告费</th>'
           +'<th>目标单</th><th>近30天销量</th>'
           +'<th>目标收入</th><th>近30天销售额</th><th>达成率</th>'
@@ -3500,7 +3515,7 @@ function loadSampleData(){
   months.forEach(function(md){
     var m={id:uid(),label:md.label,rate:md.rate,locked:false,skus:[]};
     md.skus.forEach(function(sd){
-      m.skus.push({id:uid(),owner:sd.owner||'',developer:sd.developer||'',name:sd.name,fnsku:'',listingTag:'',
+      m.skus.push({id:uid(),owner:sd.owner||'',developer:sd.developer||'',name:sd.name,fnsku:'',asin:'',parentAsin:'',listingTag:'',
         costRmb:sd.costRmb,fbaFx:sd.fbaFx,freightRmb:sd.freightRmb,misc:sd.misc,
         price:sd.price,adBudget:sd.adBudget,targetOrders:sd.targetOrders,
         batch1:sd.batch1,batch2:sd.batch2,returnRate:sd.returnRate,scrapRate:0.5,locked:false,
@@ -3978,8 +3993,81 @@ function saveSettings(){
   showToast('✅','固定参数已保存到数据库','',null,false);
 }
 function rowValue(row,names,def){
-  for(var i=0;i<names.length;i++)if(row[names[i]]!==undefined&&row[names[i]]!=='')return row[names[i]];
+  for(var i=0;i<names.length;i++){
+    var n=names[i];
+    if(row[n]!==undefined&&row[n]!=='')return row[n];
+    var nn=normalizeHeaderKey(n);
+    if(nn&&nn!==n&&row[nn]!==undefined&&row[nn]!=='')return row[nn];
+  }
   return def;
+}
+function normalizeHeaderKey(k){
+  return String(k==null?'':k).replace(/^\uFEFF/,'').replace(/\s+/g,'').replace(/[（(]/g,'(').replace(/[）)]/g,')').trim();
+}
+function normalizeSheetRows(rows){
+  return (rows||[]).map(function(r){
+    var out={},keys=Object.keys(r||{});
+    keys.forEach(function(k){
+      var nk=normalizeHeaderKey(k);
+      if(!nk)return;
+      if(out[nk]===undefined||out[nk]==='')out[nk]=r[k];
+      // 同时保留原键，兼容旧别名
+      if(out[k]===undefined)out[k]=r[k];
+    });
+    return out;
+  });
+}
+function rowHasAnyAlias(rows,names){
+  var wanted={};
+  names.forEach(function(n){wanted[normalizeHeaderKey(n)]=1;wanted[n]=1;});
+  // 宽松：任一列名规范化后等于别名，或包含 fnsku
+  return (rows||[]).some(function(r){
+    return Object.keys(r||{}).some(function(k){
+      var nk=normalizeHeaderKey(k);
+      if(wanted[nk]||wanted[k])return true;
+      if(/fnsku/i.test(nk)||/fnsku/i.test(k))return true;
+      if(nk==='亚马逊FNSKU'||nk.indexOf('FNSKU')>=0)return true;
+      return false;
+    });
+  });
+}
+function pickFnskuFromRow(row,aliases){
+  var v=rowValue(row,aliases,'');
+  if(v!==''&&v!=null)return String(v).trim();
+  var keys=Object.keys(row||{});
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],nk=normalizeHeaderKey(k);
+    if(/fnsku/i.test(k)||/fnsku/i.test(nk)||nk.indexOf('FNSKU')>=0){
+      var s=String(row[k]==null?'':row[k]).trim();
+      if(s)return s;
+    }
+  }
+  return '';
+}
+function pickByHeaderHints(row,aliases,hints){
+  var v=rowValue(row,aliases||[],'');
+  if(v!==''&&v!=null)return String(v).trim();
+  var keys=Object.keys(row||{});
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],nk=normalizeHeaderKey(k).toLowerCase();
+    var ok=(hints||[]).some(function(h){return nk.indexOf(String(h).toLowerCase())>=0;});
+    if(!ok)continue;
+    var s=String(row[k]==null?'':row[k]).trim();
+    if(s)return s;
+  }
+  return '';
+}
+function sheetColumnPreview(rows){
+  if(!rows||!rows.length)return '(无列)';
+  return Object.keys(rows[0]).filter(function(k){return k&&k.charAt(0)!=='_';}).slice(0,40).join('、');
+}
+function findAsinLikeColumns(rows){
+  if(!rows||!rows.length)return [];
+  return Object.keys(rows[0]).filter(function(k){
+    if(!k||k.charAt(0)==='_')return false;
+    var nk=normalizeHeaderKey(k).toLowerCase();
+    return nk.indexOf('asin')>=0||nk.indexOf('父')>=0&&nk.indexOf('as')>=0;
+  });
 }
 function normalizeMonth(v){
   var s=String(v||'').trim(),m;
@@ -4000,6 +4088,7 @@ function importSheet(input){
         XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{defval:'',raw:false,dateNF:'yyyy-mm-dd hh:mm:ss'}).forEach(function(r){r.__sheet=sheetName;rows.push(r);});
       });
       if(!rows.length)throw new Error('文件没有数据行');
+      rows=normalizeSheetRows(rows);
       function cleanNumber(v){
         if(v===null||v===undefined||v==='')return 0;
         if(typeof v==='number')return v;
@@ -4017,132 +4106,416 @@ function importSheet(input){
       var aliases={
         sku:['SKU','SKU名称','MSKU','Seller SKU','seller-sku','商品SKU','本地SKU','子SKU','产品SKU'],
         fnsku:['FNSKU','FNSKU编码','FNSKU码','亚马逊FNSKU','FNSKU Code','fnsku'],
-        asin:['ASIN','子ASIN','商品ASIN','asin'],
-        name:['品名','产品名称','商品名称'],
+        asin:['ASIN','子ASIN','商品ASIN','asin','Child ASIN','子体ASIN','MSKU对应ASIN','ASIN(子)'],
+        parentAsin:['父ASIN','父 Asin','父asin','Parent ASIN','parentAsin','父体ASIN','ParentAsin','父ASIN编码','父ASIN(Parent)','PASIN','ParentASIN','主ASIN','父体 asin','父ASIN号'],
+        name:['品名','产品名称','商品名称','标题','商品标题','Title','listingTitle'],
         first:['首单时间','首次出单时间','首次订单时间','第一单时间','首销时间','First Order Time','first_order_time'],
         orderDate:['订单时间','下单时间','购买日期','付款时间','Purchase Date','purchase-date','创建时间','日期','Date'],
         owner:['负责人1（业绩归属人）','负责人1(业绩归属人)','运营负责人','运营','负责人','店铺负责人','Owner','owner'],
         developer:['开发负责人','开发','产品开发','Developer','developer'],
-        listingTag:['商品标签','Listing标签','Listing 标签','listingTag'],
-        cost:['采购成本','采购价','采购单价','产品成本','商品成本','Cost','costRmb'],
-        freight:['头程','头程费','头程费用','头程成本','头程运费','采购头程','First Leg Cost','firstLegCost','freightRmb'],
-        fba:['预估FBA费（API）','预估FBA费(API)','预估FBA费（报表）','预估FBA费(报表)','FBA','FBA费用','FBA配送费','FBA Fee','配送费','履约费','fbaFx'],
-        price:['价格','售价(总价)','售价（总价）','售价','销售价','单价','Price','price'],
-        ad:['广告预算','AdBudget','adBudget'],
-        target:['目标单量','目标订单','TargetOrders','targetOrders'],
-        batch1:['首批量','首批备货量','Batch1','batch1'],
-        batch2:['第二批量','二批量','第二批备货量','Batch2','batch2'],
-        returnRate:['退货率','ReturnRate','returnRate'],
-        orders:['30日销量','近30日销量','30天销量','实际单量','实际订单','订单量','订单数','销量','销售数量','Units Ordered','units','ActualOrders','orders'],
-        revenue:['30日销售额','近30日销售额','30天销售额','实际收入','销售额','销售收入','订单金额','GMV','Sales','ActualRevenue','revenue'],
-        adSpend:['30日广告费','近30日广告费','30天广告费','实际广告支出','实际广告费','广告花费','广告费用','PPC花费','Spend','Ad Spend','adSpend'],
+        listingTag:['商品标签','Listing标签','Listing 标签','listingTag','状态'],
         sales30:['30日销量','近30日销量','30天销量'],
-        adSpend30:['30日广告费','近30日广告费','30天广告费'],
-        returns:['实际退货单量','退货量','退货数量','ReturnOrders','returns']
+        adSpend30:['30日广告费','近30日广告费','30天广告费']
       };
-      var has30Stats=rows.some(function(r){return aliases.sales30.some(function(k){return Object.prototype.hasOwnProperty.call(r,k);});})
-        &&rows.some(function(r){return aliases.adSpend30.some(function(k){return Object.prototype.hasOwnProperty.call(r,k);});});
-      var isListingSnapshot=has30Stats
-        &&rows.some(function(r){return aliases.first.some(function(k){return Object.prototype.hasOwnProperty.call(r,k);});})
-        &&rows.some(function(r){return aliases.fnsku.some(function(k){return Object.prototype.hasOwnProperty.call(r,k);});});
+      var hasFirst=rowHasAnyAlias(rows,aliases.first);
+      var hasFnsku=rowHasAnyAlias(rows,aliases.fnsku);
+      var hasAsin=rowHasAnyAlias(rows,aliases.asin);
+      var hasParent=rowHasAnyAlias(rows,aliases.parentAsin);
+      var isListingSnapshot=hasFirst&&hasFnsku;
+      var isIdentityMap=!hasFirst&&hasFnsku&&(hasAsin||hasParent);
+      if(isIdentityMap){
+        enrichIdentityFromMap(rows,aliases);
+        input.value='';
+        return;
+      }
+      if(!isListingSnapshot) throw new Error('未识别文件类型。Listing 快照需「首单时间+FNSKU」；身份映射表需「FNSKU + ASIN/父ASIN」（如你截图：SKU/FNSKU/ASIN/父ASIN/标题）。当前列：'+sheetColumnPreview(rows));
+      var has30Stats=rows.some(function(r){return aliases.sales30.some(function(k){return Object.prototype.hasOwnProperty.call(r,k)||Object.prototype.hasOwnProperty.call(r,normalizeHeaderKey(k));});})
+        &&rows.some(function(r){return aliases.adSpend30.some(function(k){return Object.prototype.hasOwnProperty.call(r,k)||Object.prototype.hasOwnProperty.call(r,normalizeHeaderKey(k));});});
       var groups={};
       rows.forEach(function(r,idx){
         var sku=String(rowValue(r,aliases.sku,'')).trim();
-        var fnsku=String(rowValue(r,aliases.fnsku,'')).trim();
-        var asin=String(rowValue(r,aliases.asin,'')).trim();
+        var fnsku=pickFnskuFromRow(r,aliases.fnsku);
+        // ASIN：先别名；再取「纯 ASIN / 子ASIN」，排除父ASIN列
+        var asin=String(rowValue(r,aliases.asin,'')).trim().toUpperCase();
+        if(!asin){
+          var akeys=Object.keys(r||[]);
+          for(var ai=0;ai<akeys.length;ai++){
+            var ak=akeys[ai],ank=normalizeHeaderKey(ak).toLowerCase();
+            if(ank.indexOf('父')>=0||ank.indexOf('parent')>=0||ank.indexOf('pasin')>=0||ank.indexOf('主asin')>=0)continue;
+            if(ank==='asin'||ank==='子asin'||ank==='商品asin'||ank==='childasin'||ank.indexOf('子asin')>=0){
+              asin=String(r[ak]==null?'':r[ak]).trim().toUpperCase();
+              if(asin)break;
+            }
+          }
+        }
+        // 父ASIN：别名 + 模糊（含父/parent + asin）
+        var parentAsin=String(rowValue(r,aliases.parentAsin,'')).trim().toUpperCase();
+        if(!parentAsin){
+          var keys=Object.keys(r||{});
+          for(var pi=0;pi<keys.length;pi++){
+            var pk=keys[pi],pnk=normalizeHeaderKey(pk).toLowerCase();
+            if(pnk==='asin'||pnk==='子asin'||pnk==='商品asin'||pnk==='childasin')continue;
+            if((pnk.indexOf('父')>=0&&pnk.indexOf('asin')>=0)||(pnk.indexOf('parent')>=0&&pnk.indexOf('asin')>=0)||pnk==='pasin'||pnk.indexOf('主asin')>=0){
+              parentAsin=String(r[pk]==null?'':r[pk]).trim().toUpperCase();
+              if(parentAsin)break;
+            }
+          }
+        }
+        // 报表无父ASIN时，单品常用子ASIN等同父体，便于后续对应
+        var parentFromFallback=false;
+        if(!parentAsin&&asin){parentAsin=asin;parentFromFallback=true;}
         var pname=String(rowValue(r,aliases.name,'')).trim();
-        var key=fnsku||sku||asin||pname||('ROW-'+idx);
-        if(!groups[key])groups[key]={key:key,fnsku:fnsku,sku:sku,asin:asin,name:pname,rows:[],first:null,explicitFirst:null};
+        var key=fnsku||asin||sku||parentAsin||pname||('ROW-'+idx);
+        if(!groups[key])groups[key]={key:key,fnsku:fnsku,sku:sku,asin:asin,parentAsin:parentAsin,parentFromFallback:parentFromFallback,name:pname,rows:[],first:null,explicitFirst:null};
         var g=groups[key];g.rows.push(r);
-        if(!g.fnsku&&fnsku)g.fnsku=fnsku;if(!g.sku&&sku)g.sku=sku;if(!g.asin&&asin)g.asin=asin;if(!g.name&&pname)g.name=pname;
+        if(!g.fnsku&&fnsku)g.fnsku=fnsku;if(!g.sku&&sku)g.sku=sku;if(!g.asin&&asin)g.asin=asin;if(!g.parentAsin&&parentAsin)g.parentAsin=parentAsin;if(!g.name&&pname)g.name=pname;
+        if(parentFromFallback)g.parentFromFallback=true;
         g.explicitFirst=earliest(g.explicitFirst,parseDate(rowValue(r,aliases.first,'')));
-        var orderQty=cleanNumber(rowValue(r,aliases.orders,0));
         var od=parseDate(rowValue(r,aliases.orderDate,''));
-        if(od&&(orderQty>0||rowValue(r,aliases.orders,'')===''))g.first=earliest(g.first,od);
+        if(od)g.first=earliest(g.first,od);
       });
-      var count=0,removedOld=0,skippedNoFirst=0,skippedNoFnsku=0,months={},preservedDevelopers={},fieldHits={freight:0,cost:0,fba:0,first:0,owner:0,tag:0,price:0,noSales:0},groupList=Object.keys(groups).map(function(k){return groups[k];});
-      if(isListingSnapshot){
-        fineMonths.forEach(function(m){
-          (m.skus||[]).forEach(function(s){
-            removedOld++;
-            if(s.fnsku&&s.developer)preservedDevelopers[String(s.fnsku).trim()]=String(s.developer).trim();
-          });
-        });
-        fineMonths=[];
-        PEOPLE={owners:[],developers:[]};
-        SETTINGS.owner='';
-        SETTINGS.developer='';
+      var count=0,removedOld=0,skippedNoFirst=0,skippedNoFnsku=0,skippedBoutiqueTag=0,months={},preserved={},fieldHits={first:0,owner:0,tag:0,noSales:0,asin:0,parentAsin:0,parentFallback:0},groupList=Object.keys(groups).map(function(k){return groups[k];});
+      var asinCols=findAsinLikeColumns(rows);
+      function tagListHasBoutique(tag){
+        return String(tag||'').split(/[\s,，;；|/]+/).map(function(x){return x.trim();}).filter(Boolean).indexOf('精品')>=0;
       }
+      // 清洗精铺身份表；按 FNSKU/ASIN 保留已导入的利润实测，避免重导 Listing 冲掉②
+      fineMonths.forEach(function(m){
+        (m.skus||[]).forEach(function(s){
+          removedOld++;
+          var preserveKey=String(s.fnsku||'').trim()||String(s.asin||s.sourceAsin||'').trim().toUpperCase();
+          if(!preserveKey) return;
+          preserved[preserveKey]={
+            developer:s.developer||'',
+            costRmb:s.costRmb,freightRmb:s.freightRmb,logisticsRmb:s.logisticsRmb,packagingRmb:s.packagingRmb,
+            fbaFx:s.fbaFx,misc:s.misc,price:s.price,adBudget:s.adBudget,targetOrders:s.targetOrders,
+            batch1:s.batch1,batch2:s.batch2,returnRate:s.returnRate,scrapRate:s.scrapRate,locked:!!s.locked,
+            actual:s.actual?Object.assign({},s.actual):null,
+            importProfit:!!s.importProfit
+          };
+        });
+      });
+      fineMonths=[];
+      PEOPLE={owners:[],developers:[]};
+      SETTINGS.owner='';
+      SETTINGS.developer='';
       groupList.forEach(function(g){
         var firstOrder=g.explicitFirst;
         if(!firstOrder){skippedNoFirst++;return;}
         if(!g.fnsku){skippedNoFnsku++;return;}
-        var base=g.rows[0];
-        var label=firstOrder.getFullYear()+'年'+(firstOrder.getMonth()+1)+'月';
-        var m=fineMonths.find(function(x){return x.label===label;});
-        if(!m){m={id:uid(),label:label,rate:SETTINGS.rate,locked:false,skus:[]};fineMonths.push(m);}
-        months[label]=1;
         function firstVal(names,def){for(var i=0;i<g.rows.length;i++){var v=rowValue(g.rows[i],names,'');if(v!==''&&v!=null)return v;}return def;}
-        function val(names,def){return cleanNumber(firstVal(names,def));}
         function sum(names){return g.rows.reduce(function(t,r){return t+cleanNumber(rowValue(r,names,0));},0);}
-        function pct(names,def){var v=val(names,def);return v>1?v/100:v;}
-        var orders=sum(aliases.orders),revenue=sum(aliases.revenue),price=val(aliases.price,0);
-        if(!price&&orders>0&&revenue>0)price=revenue/orders;
-        var cost=val(aliases.cost,SETTINGS.costRmb),freight=val(aliases.freight,SETTINGS.freightRmb),fba=val(aliases.fba,0);
-        var importedOwner=String(firstVal(aliases.owner,'')).trim();
         var importedTag=String(firstVal(aliases.listingTag,'')).trim();
-        var sales30=sum(aliases.sales30),adSpend30=sum(aliases.adSpend30);
-        if(has30Stats&&sales30===0&&adSpend30===0){
+        if(tagListHasBoutique(importedTag)){skippedBoutiqueTag++;return;}
+        // 仅用近30天判断是否打「无销量」标签，不进入利润字段
+        if(has30Stats&&sum(aliases.sales30)===0&&sum(aliases.adSpend30)===0){
           var tagParts=importedTag.split(/[,，]/).map(function(x){return x.trim();}).filter(Boolean);
           if(tagParts.indexOf('无销量')<0)tagParts.push('无销量');
           importedTag=tagParts.join(',');
           fieldHits.noSales++;
         }
-        if(firstOrder)fieldHits.first++;if(cost)fieldHits.cost++;if(freight)fieldHits.freight++;if(fba)fieldHits.fba++;if(price)fieldHits.price++;if(importedOwner)fieldHits.owner++;if(importedTag)fieldHits.tag++;
-        var displayName=g.name||(g.sku?g.sku+'（待补中文名）':g.asin||'未命名产品');
-        var existing=m.skus.find(function(s){return (g.fnsku&&s.fnsku===g.fnsku)||(s.sourceSku&&s.sourceSku===g.sku)||(s.sourceAsin&&s.sourceAsin===g.asin)||(s.name===displayName);});
+        var label=firstOrder.getFullYear()+'年'+(firstOrder.getMonth()+1)+'月';
+        var m=fineMonths.find(function(x){return x.label===label;});
+        if(!m){m={id:uid(),label:label,rate:SETTINGS.rate,locked:false,skus:[]};fineMonths.push(m);}
+        months[label]=1;
+        var importedOwner=String(firstVal(aliases.owner,'')).trim();
+        var asin=String(g.asin||'').trim().toUpperCase();
+        var parentAsin=String(g.parentAsin||'').trim().toUpperCase();
+        if(!asin) asin=String(firstVal(aliases.asin,'')).trim().toUpperCase();
+        if(!parentAsin) parentAsin=String(firstVal(aliases.parentAsin,'')).trim().toUpperCase();
+        if(!parentAsin&&asin) parentAsin=asin;
+        var prev=preserved[g.fnsku]||preserved[asin]||{};
+        var displayName=g.name||(g.sku?g.sku+'（待补中文名）':asin||'未命名产品');
+        if(firstOrder)fieldHits.first++;if(importedOwner)fieldHits.owner++;if(importedTag)fieldHits.tag++;
+        if(asin)fieldHits.asin++;if(parentAsin)fieldHits.parentAsin++;
+        if(g.parentFromFallback)fieldHits.parentFallback++;
         var imported={
-          id:existing?existing.id:uid(),owner:importedOwner||(existing&&existing.owner)||SETTINGS.owner,
-          developer:String(firstVal(aliases.developer,preservedDevelopers[g.fnsku]||SETTINGS.developer||'')),
-          name:displayName,fnsku:g.fnsku,listingTag:importedTag,sourceSku:g.sku,sourceAsin:g.asin,
-          firstOrderDate:firstOrder?firstOrder.toISOString().slice(0,10):'',
-          importSource:'领星',costRmb:cost,freightRmb:freight,
-          logisticsRmb:0,packagingRmb:0,fbaFx:fba,misc:1,
-          price:price,adBudget:val(aliases.ad,SETTINGS.adBudget),
-          targetOrders:val(aliases.target,0),batch1:val(aliases.batch1,0),batch2:val(aliases.batch2,0),
-          returnRate:pct(aliases.returnRate,SETTINGS.returnRate),
-          scrapRate:SETTINGS.scrapRate/100,locked:false,
+          id:uid(),
+          owner:importedOwner||SETTINGS.owner,
+          developer:String(firstVal(aliases.developer,prev.developer||SETTINGS.developer||'')),
+          name:displayName,fnsku:g.fnsku,asin:asin,parentAsin:parentAsin,listingTag:importedTag,sourceSku:g.sku,sourceAsin:asin,
+          firstOrderDate:firstOrder.toISOString().slice(0,10),
+          importSource:'领星Listing',
+          importProfit:!!prev.importProfit,
+          costRmb:prev.importProfit&&prev.costRmb!=null?prev.costRmb:SETTINGS.costRmb,
+          freightRmb:prev.importProfit&&prev.freightRmb!=null?prev.freightRmb:SETTINGS.freightRmb,
+          logisticsRmb:prev.importProfit&&prev.logisticsRmb?prev.logisticsRmb:0,
+          packagingRmb:prev.importProfit&&prev.packagingRmb?prev.packagingRmb:0,
+          fbaFx:prev.importProfit&&prev.fbaFx!=null?prev.fbaFx:0,
+          misc:prev.importProfit&&prev.misc!=null?prev.misc:1,
+          price:prev.importProfit&&prev.price!=null?prev.price:0,
+          adBudget:prev.adBudget!=null?prev.adBudget:SETTINGS.adBudget,
+          targetOrders:prev.targetOrders||0,batch1:prev.batch1||0,batch2:prev.batch2||0,
+          returnRate:prev.importProfit&&prev.returnRate!=null?prev.returnRate:SETTINGS.returnRate/100,
+          scrapRate:prev.importProfit&&prev.scrapRate!=null?prev.scrapRate:SETTINGS.scrapRate/100,
+          locked:!!prev.locked,
           dev:{sampleCost:0,freightRmb:0,designFee:0,certFee:0,otherFee:0},
-          actual:{
-            orders:orders,revenue:revenue,adSpend:sum(aliases.adSpend),returnOrders:sum(aliases.returns),devActual:0,
-            verdict:existing&&existing.actual&&existing.actual.verdictManual?existing.actual.verdict:'',
-            verdictManual:!!(existing&&existing.actual&&existing.actual.verdictManual)
-          }
+          actual:prev.importProfit&&prev.actual
+            ? Object.assign({orders:0,revenue:0,adSpend:0,returnOrders:0,devActual:0,verdict:'',verdictManual:false},prev.actual)
+            : {orders:0,revenue:0,adSpend:0,returnOrders:0,devActual:0,verdict:'',verdictManual:false}
         };
-        if(!imported.actual.verdictManual){
-          var importedRev=n(imported.actual.revenue),importedOrders=ni(imported.actual.orders);
-          var importedUc=fUnitCost(imported,m.rate||G.rate);
-          var importedGross=netRev(importedRev)-importedOrders*importedUc;
-          var importedRet=ni(imported.actual.returnOrders||0)*(importedUc*n(imported.scrapRate)+n(imported.fbaFx)*2);
-          var importedGrossAfterRet=importedGross-importedRet;
-          var importedGm=importedRev>0?importedGrossAfterRet/netRev(importedRev):0;
-          imported.actual.verdict=(importedGrossAfterRet>0&&importedGm>0.15&&importedOrders>30)?'success':'';
-        }
-        if(existing)Object.assign(existing,imported);else m.skus.push(imported);
+        m.skus.push(imported);
         if(imported.owner&&PEOPLE.owners.indexOf(imported.owner)<0)PEOPLE.owners.push(imported.owner);
         if(imported.developer&&PEOPLE.developers.indexOf(imported.developer)<0)PEOPLE.developers.push(imported.developer);
         count++;
       });
-      _sortFineMonths();renderPeople();renderFineDevTab();renderFinePlan();autoSave();
-      el('import-result').textContent='✅ Listing 最新快照清洗完成：读取 '+importSheets.join('、')+'，清除 '+removedOld+' 条领星旧记录，按 FNSKU 重建 '+count+' 款同时具有首单时间和 FNSKU 的产品；跳过 '+skippedNoFirst+' 款无首单时间、'+skippedNoFnsku+' 款无 FNSKU 产品，归入 '+Object.keys(months).length+' 个月份；识别负责人 '+fieldHits.owner+'、完整 Listing 标签 '+fieldHits.tag+'、标记无销量 '+fieldHits.noSales+'、价格 '+fieldHits.price+'、FBA '+fieldHits.fba+' 款。';
+      _sortFineMonths();renderPeople();renderFineDevTab();renderFinePlan();renderFineActual();autoSave();
+      el('import-result').textContent='✅ Listing 基础对标完成：重建 '+count+' 款；ASIN '+fieldHits.asin+'、父ASIN '+fieldHits.parentAsin+(fieldHits.parentFallback?'（其中 '+fieldHits.parentFallback+' 条因报表无父ASIN列，暂用子ASIN兜底）':'')+'。检测到含 ASIN 相关列：'+(asinCols.length?asinCols.join('、'):'无')+'。跳过无首单 '+skippedNoFirst+'、无 FNSKU '+skippedNoFnsku+'、标签「精品」 '+skippedBoutiqueTag+'。若父ASIN仍不对，把报表表头（或截图）发我。';
     }catch(err){el('import-result').textContent='⚠️ 导入失败：'+err.message;}
     input.value='';
   };
   reader.readAsArrayBuffer(file);
 }
+function enrichIdentityFromMap(rows,aliases){
+  if(!fineMonths.length) throw new Error('请先导入 Listing 快照建档，再导入这张身份映射表（SKU/FNSKU/ASIN/父ASIN/标题）补全父ASIN');
+  var updated=0,skippedNoFnsku=0,skippedUnmatched=0,filledParent=0,filledAsin=0,seen={};
+  rows.forEach(function(r){
+    var fnsku=pickFnskuFromRow(r,aliases.fnsku);
+    if(!fnsku){skippedNoFnsku++;return;}
+    if(seen[fnsku])return;
+    seen[fnsku]=1;
+    var hit=findFineSkuByFnsku(fnsku);
+    if(!hit){skippedUnmatched++;return;}
+    var s=hit.sku;
+    var asin=String(rowValue(r,aliases.asin,'')).trim().toUpperCase();
+    if(!asin){
+      var akeys=Object.keys(r||[]);
+      for(var ai=0;ai<akeys.length;ai++){
+        var ak=akeys[ai],ank=normalizeHeaderKey(ak).toLowerCase();
+        if(ank.indexOf('父')>=0||ank.indexOf('parent')>=0)continue;
+        if(ank==='asin'||ank==='子asin'||ank==='商品asin'){asin=String(r[ak]==null?'':r[ak]).trim().toUpperCase();if(asin)break;}
+      }
+    }
+    var parentAsin=String(rowValue(r,aliases.parentAsin,'')).trim().toUpperCase();
+    if(!parentAsin){
+      var keys=Object.keys(r||{});
+      for(var pi=0;pi<keys.length;pi++){
+        var pk=keys[pi],pnk=normalizeHeaderKey(pk).toLowerCase();
+        if(pnk==='asin'||pnk==='子asin')continue;
+        if((pnk.indexOf('父')>=0&&pnk.indexOf('asin')>=0)||(pnk.indexOf('parent')>=0&&pnk.indexOf('asin')>=0)){
+          parentAsin=String(r[pk]==null?'':r[pk]).trim().toUpperCase();
+          if(parentAsin)break;
+        }
+      }
+    }
+    var title=String(rowValue(r,aliases.name,'')).trim();
+    var sku=String(rowValue(r,aliases.sku,'')).trim();
+    var statusTag=String(rowValue(r,aliases.listingTag,'')).trim();
+    if(asin){s.asin=asin;s.sourceAsin=asin;filledAsin++;}
+    if(parentAsin){s.parentAsin=parentAsin;filledParent++;}
+    else if(asin&&!s.parentAsin){s.parentAsin=asin;}
+    if(sku)s.sourceSku=sku;
+    // 标题仅在名称仍是占位/SKU名时覆盖，避免冲掉更好的中文品名
+    if(title&&(!s.name||/待补中文名|未命名|待命名/.test(s.name)||s.name===s.sourceSku))s.name=title;
+    if(statusTag&&!s.listingTag)s.listingTag=statusTag;
+    updated++;
+  });
+  renderFinePlan();renderFineActual();autoSave();
+  el('import-result').textContent='✅ 身份映射补全完成：按 FNSKU 更新 '+updated+' 款（写入父ASIN '+filledParent+'、ASIN '+filledAsin+'）；跳过无 FNSKU '+skippedNoFnsku+'、未匹配 Listing '+skippedUnmatched+'。请到「②月度规划 / ③实录」查看父ASIN列。';
+}
+function collectFineSkuHits(predicate){
+  var hits=[];
+  fineMonths.forEach(function(m){
+    (m.skus||[]).forEach(function(s){
+      if(predicate(s)) hits.push({month:m,sku:s});
+    });
+  });
+  return hits;
+}
+function findFineSkuByFnsku(fnsku){
+  var key=String(fnsku||'').trim(); if(!key) return null;
+  var hits=collectFineSkuHits(function(s){return String(s.fnsku||'').trim()===key;});
+  return hits.length===1?hits[0]:null;
+}
+function findFineSkuUniqueMatch(keys){
+  // 优先级：FNSKU → ASIN → 父ASIN+ASIN → 唯一父ASIN（一对多则不算一一对应）
+  var fnsku=String(keys.fnsku||'').trim();
+  var asin=String(keys.asin||'').trim().toUpperCase();
+  var parentAsin=String(keys.parentAsin||'').trim().toUpperCase();
+  if(fnsku){
+    var byFn=collectFineSkuHits(function(s){return String(s.fnsku||'').trim()===fnsku;});
+    if(byFn.length===1) return {hit:byFn[0],method:'FNSKU',ambiguous:0};
+    if(byFn.length>1) return {hit:null,method:'FNSKU',ambiguous:byFn.length};
+  }
+  if(asin){
+    var byAsin=collectFineSkuHits(function(s){
+      return String(s.asin||s.sourceAsin||'').trim().toUpperCase()===asin;
+    });
+    if(byAsin.length===1) return {hit:byAsin[0],method:'ASIN',ambiguous:0};
+    if(byAsin.length>1) return {hit:null,method:'ASIN',ambiguous:byAsin.length};
+  }
+  if(parentAsin&&asin){
+    var byPair=collectFineSkuHits(function(s){
+      return String(s.parentAsin||'').trim().toUpperCase()===parentAsin
+        && String(s.asin||s.sourceAsin||'').trim().toUpperCase()===asin;
+    });
+    if(byPair.length===1) return {hit:byPair[0],method:'父ASIN+ASIN',ambiguous:0};
+    if(byPair.length>1) return {hit:null,method:'父ASIN+ASIN',ambiguous:byPair.length};
+  }
+  if(parentAsin){
+    var byParent=collectFineSkuHits(function(s){
+      return String(s.parentAsin||'').trim().toUpperCase()===parentAsin;
+    });
+    if(byParent.length===1) return {hit:byParent[0],method:'父ASIN',ambiguous:0};
+    if(byParent.length>1) return {hit:null,method:'父ASIN',ambiguous:byParent.length};
+  }
+  return {hit:null,method:'',ambiguous:0};
+}
+function applyProfitVerdict(s,rate){
+  var a=s.actual||(s.actual={orders:0,revenue:0,adSpend:0,returnOrders:0,devActual:0,verdict:'',verdictManual:false});
+  if(a.verdictManual) return;
+  var aRev=n(a.revenue),aOrders=ni(a.orders),aSpend=n(a.adSpend);
+  var uc=fUnitCost(s,rate);
+  var gross=netRev(aRev)-aOrders*uc;
+  var actRet=ni(a.returnOrders||0)*(uc*n(s.scrapRate)+n(s.fbaFx)*2);
+  var grossAfterRet=gross-actRet;
+  var gm=aRev>0?grossAfterRet/netRev(aRev):0;
+  a.verdict=(grossAfterRet>0&&gm>0.15&&aOrders>30)?'success':'';
+}
+function sheetRowsWithRealHeader(sheet){
+  // 领星利润表常为双行表头：第一行分组名，第二行才是 ASIN/销量/销售额…
+  var aoa=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false,dateNF:'yyyy-mm-dd hh:mm:ss'});
+  if(!aoa.length)return [];
+  var headerIdx=-1;
+  for(var i=0;i<Math.min(aoa.length,8);i++){
+    var row=aoa[i]||[];
+    var cells=row.map(function(c){return normalizeHeaderKey(c);});
+    if(cells.indexOf('ASIN')>=0||cells.indexOf('FNSKU')>=0||cells.indexOf('父ASIN')>=0){headerIdx=i;break;}
+  }
+  if(headerIdx<0){
+    return normalizeSheetRows(XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false,dateNF:'yyyy-mm-dd hh:mm:ss'}));
+  }
+  var headers=(aoa[headerIdx]||[]).map(function(h){return String(h==null?'':h).replace(/^\uFEFF/,'').trim();});
+  var out=[];
+  for(var r=headerIdx+1;r<aoa.length;r++){
+    var arr=aoa[r]||[],obj={},empty=true;
+    for(var c=0;c<headers.length;c++){
+      var h=headers[c]; if(!h) continue;
+      var val=arr[c]==null?'':arr[c];
+      if(obj[h]===undefined||obj[h]==='')obj[h]=val;
+      if(String(val).trim()!=='')empty=false;
+    }
+    if(empty)continue;
+    var asin=String(obj.ASIN||obj['子ASIN']||'').trim().toUpperCase();
+    if(asin==='ASIN'||String(obj['父ASIN']||'').trim()==='父ASIN')continue;
+    out.push(obj);
+  }
+  return normalizeSheetRows(out);
+}
+function importProfitSheet(input){
+  var file=input.files&&input.files[0];if(!file)return;
+  var out=el('profit-import-result');
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      if(!fineMonths.length) throw new Error('请先完成① Listing 基础对标，再导入利润实测');
+      var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      var rows=[];
+      var importSheets=wb.SheetNames.indexOf('全部')>=0?['全部']:wb.SheetNames;
+      importSheets.forEach(function(sheetName){
+        sheetRowsWithRealHeader(wb.Sheets[sheetName]).forEach(function(r){rows.push(r);});
+      });
+      if(!rows.length)throw new Error('文件没有数据行');
+      function cleanNumber(v){
+        if(v===null||v===undefined||v==='')return null;
+        if(typeof v==='number')return v;
+        var s=String(v).replace(/[￥¥$€,%\s,]/g,'').replace(/[()]/g,function(x){return x==='('?'-':'';});
+        if(s==='')return null;
+        var n0=parseFloat(s); return isNaN(n0)?null:n0;
+      }
+      function absNum(v){ var x=cleanNumber(v); return x==null?null:Math.abs(x); }
+      var aliases={
+        fnsku:['FNSKU','FNSKU编码','FNSKU码','亚马逊FNSKU','FNSKU Code','fnsku','配送网络SKU','Fulfilled Network SKU'],
+        asin:['ASIN','子ASIN','商品ASIN','asin','Child ASIN','子体ASIN'],
+        parentAsin:['父ASIN','父 Asin','父asin','Parent ASIN','parentAsin','父体ASIN','ParentAsin','父ASIN编码'],
+        owner:['Listing负责人','运营负责人','负责人','Owner'],
+        developer:['开发负责人','开发','Developer'],
+        listingTag:['Listing标签','Listing 标签','商品标签','listingTag'],
+        cost:['采购成本','采购价','采购单价','产品成本','商品成本','Cost','costRmb'],
+        freight:['头程','头程费','头程费用','头程成本','头程运费','采购头程','freightRmb'],
+        fba:['FBA发货费','预估FBA费（API）','预估FBA费(API)','FBA','FBA费用','FBA配送费','FBA Fee','配送费','fbaFx'],
+        price:['价格','售价(总价)','售价（总价）','售价','销售价','单价','Price','price'],
+        returnRate:['退货率','ReturnRate','returnRate'],
+        scrapRate:['报废率','ScrapRate','scrapRate'],
+        orders:['销量','实际单量','实际订单','订单量','订单数','销售数量','Units Ordered','ActualOrders','orders','累计销量','总销量','销量合计','销售量'],
+        revenue:['销售额','实际收入','销售收入','订单金额','GMV','Sales','ActualRevenue','revenue','累计销售额','总销售额','销售额合计'],
+        adSpend:['广告费','实际广告支出','实际广告费','广告花费','广告费用','PPC花费','Spend','Ad Spend','adSpend','累计广告费','总广告费'],
+        promoSpend:['推广费','站外推广费'],
+        returns:['退货量','实际退货单量','退货数量','ReturnOrders','returns']
+      };
+      var hasKey=rowHasAnyAlias(rows,aliases.fnsku)||rowHasAnyAlias(rows,aliases.asin)||rowHasAnyAlias(rows,aliases.parentAsin);
+      if(!hasKey) throw new Error('利润表至少需要 FNSKU / ASIN / 父ASIN 之一。当前列：'+sheetColumnPreview(rows));
+      var hasOrdersCol=rowHasAnyAlias(rows,aliases.orders);
+      var hasRevenueCol=rowHasAnyAlias(rows,aliases.revenue);
+      var hasAdCol=rowHasAnyAlias(rows,aliases.adSpend);
+      if(!hasOrdersCol&&!hasRevenueCol&&!hasAdCol) throw new Error('未识别到利润字段（销量/销售额/广告费）。当前列：'+sheetColumnPreview(rows));
+      var fxRate=n(SETTINGS.rate)||n(G.rate)||7.2;
+      var updated=0,skippedNoKey=0,skippedUnmatched=0,skippedAmbiguous=0,skippedBoutique=0,fieldHits={orders:0,revenue:0,adSpend:0,cost:0,price:0,fba:0};
+      var methodHits={FNSKU:0,ASIN:0,'父ASIN+ASIN':0,'父ASIN':0};
+      var seen={};
+      rows.forEach(function(r){
+        var fnsku=pickFnskuFromRow(r,aliases.fnsku);
+        var asin=String(rowValue(r,aliases.asin,'')).trim().toUpperCase();
+        var parentAsin=String(rowValue(r,aliases.parentAsin,'')).trim().toUpperCase();
+        if(!fnsku&&!asin&&!parentAsin){skippedNoKey++;return;}
+        var tag=String(rowValue(r,aliases.listingTag,'')).trim();
+        if(String(tag||'').split(/[\s,，;；|/]+/).indexOf('精品')>=0){skippedBoutique++;return;}
+        var dedupe=fnsku||asin||(parentAsin+'|'+asin);
+        if(seen[dedupe])return;
+        seen[dedupe]=1;
+        var matched=findFineSkuUniqueMatch({fnsku:fnsku,asin:asin,parentAsin:parentAsin});
+        if(matched.ambiguous>0){skippedAmbiguous++;return;}
+        if(!matched.hit){skippedUnmatched++;return;}
+        var s=matched.hit.sku, rate=matched.hit.month.rate||fxRate;
+        methodHits[matched.method]=(methodHits[matched.method]||0)+1;
+        if(fnsku&&!s.fnsku)s.fnsku=fnsku;
+        if(asin&&!(s.asin||s.sourceAsin)){s.asin=asin;s.sourceAsin=asin;}
+        if(parentAsin&&!s.parentAsin)s.parentAsin=parentAsin;
+        var owner=String(rowValue(r,aliases.owner,'')).trim();
+        var developer=String(rowValue(r,aliases.developer,'')).trim();
+        if(owner)s.owner=owner;
+        if(developer)s.developer=developer;
+        if(tag)s.listingTag=tag;
+        if(!s.actual)s.actual={orders:0,revenue:0,adSpend:0,returnOrders:0,devActual:0,verdict:'',verdictManual:false};
+        var orders=absNum(rowValue(r,aliases.orders,''));
+        var revenueCny=absNum(rowValue(r,aliases.revenue,''));
+        var adCny=absNum(rowValue(r,aliases.adSpend,''));
+        var promoCny=absNum(rowValue(r,aliases.promoSpend,''));
+        var returns=absNum(rowValue(r,aliases.returns,''));
+        var costTotalCny=absNum(rowValue(r,aliases.cost,''));
+        var freightTotalCny=absNum(rowValue(r,aliases.freight,''));
+        var fbaTotalCny=absNum(rowValue(r,aliases.fba,''));
+        var rr=cleanNumber(rowValue(r,aliases.returnRate,''));
+        if(orders!=null){s.actual.orders=orders;fieldHits.orders++;}
+        if(revenueCny!=null){s.actual.revenue=revenueCny/rate;fieldHits.revenue++;}
+        if(adCny!=null||promoCny!=null){s.actual.adSpend=((adCny||0)+(promoCny||0))/rate;fieldHits.adSpend++;}
+        if(returns!=null)s.actual.returnOrders=returns;
+        if(orders>0&&costTotalCny!=null){s.costRmb=costTotalCny/orders;fieldHits.cost++;}
+        if(orders>0&&freightTotalCny!=null)s.freightRmb=freightTotalCny/orders;
+        if(orders>0&&fbaTotalCny!=null){s.fbaFx=(fbaTotalCny/orders)/rate;fieldHits.fba++;}
+        if(orders>0&&revenueCny!=null){s.price=(revenueCny/orders)/rate;fieldHits.price++;}
+        if(rr!=null)s.returnRate=rr>1?rr/100:rr;
+        s.importProfit=true;
+        s.importSource=(s.importSource||'领星Listing')+'+利润';
+        s.matchMethod=matched.method;
+        applyProfitVerdict(s,rate);
+        updated++;
+      });
+      renderPeople();renderFinePlan();renderFineActual();renderFineReport();autoSave();
+      if(out) out.textContent='✅ 领星利润表导入完成：按 ASIN/父ASIN/FNSKU 一一对应更新 '+updated+' 款（ASIN '+methodHits.ASIN+' / 父+ASIN '+methodHits['父ASIN+ASIN']+' / 父ASIN '+methodHits['父ASIN']+' / FNSKU '+methodHits.FNSKU+'）；跳过无键 '+skippedNoKey+'、未匹配 '+skippedUnmatched+'、一对多 '+skippedAmbiguous+'、精品标签 '+skippedBoutique+'。金额已按汇率 '+fxRate+' 从人民币换算为站点外币；采购/头程按销量折算为单件¥。请到「③ 实录录入」查看。';
+    }catch(err){if(out) out.textContent='⚠️ 利润导入失败：'+err.message;}
+    input.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
 function downloadImportTemplate(){
-  var csv='\ufeff月份,运营负责人,开发负责人,SKU名称,FNSKU,采购成本,头程,FBA,售价,广告预算,目标单量,首批量,第二批量,退货率,实际单量,实际收入,实际广告支出\r\n2026年8月,张伟,林小明,示例中文产品名,X001EXAMPLE,35,10,4.5,29.99,5000,300,300,200,3%,0,0,0';
-  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='亚马逊预算导入模板.csv';a.click();
+  var csv='\ufeff品名,父ASIN,ASIN,FNSKU,商品标签,负责人1（业绩归属人）,开发负责人,首单时间,SKU名称\r\n硅胶锅铲示例,B0PARENT001,B0CHILD001,X001EXAMPLE,A,张伟,林小明,2026-01-15,SKU-DEMO-001';
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='Listing基础对标模板.csv';a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+}
+function downloadProfitTemplate(){
+  var csv='\ufeffFNSKU,父ASIN,ASIN,实际单量,实际收入,实际广告支出,实际退货单量,采购成本,头程,FBA,售价,退货率,报废率\r\nX001EXAMPLE,B0PARENT001,B0CHILD001,120,3598.8,980,4,35,10,4.5,29.99,3,50';
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='利润实测导入模板.csv';a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
 }
 

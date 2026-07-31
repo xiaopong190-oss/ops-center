@@ -141,9 +141,44 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .tw{overflow-x:auto;border-radius:8px;border:1px solid var(--border);margin-bottom:8px}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th{padding:8px 10px;color:var(--text2);font-weight:500;font-size:10px;letter-spacing:.05em;background:var(--bg3);text-align:left;border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap}
-td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle;transition:background .12s ease,box-shadow .12s ease}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(77,166,255,.05)}
+tbody tr{position:relative}
+tbody tr:hover td{
+  background:rgba(77,166,255,.18)!important;
+  box-shadow:inset 0 0 0 1px rgba(77,166,255,.35);
+}
+tbody tr:hover td:first-child{
+  box-shadow:inset 3px 0 0 #4da6ff, inset 0 0 0 1px rgba(77,166,255,.35);
+}
+tbody tr:hover td .ti:not(.ltag-inp){
+  background:rgba(15,20,35,.55);
+  border-color:rgba(77,166,255,.55);
+}
+tbody tr:hover td.ltag-td-a{background:rgba(46,204,142,.32)!important;box-shadow:inset 0 0 0 1px rgba(46,204,142,.55)}
+tbody tr:hover td.ltag-td-b{background:rgba(245,158,11,.38)!important;box-shadow:inset 0 0 0 1px rgba(245,158,11,.7)}
+tbody tr:hover td.ltag-td-c{background:rgba(232,68,90,.32)!important;box-shadow:inset 0 0 0 1px rgba(232,68,90,.55)}
+.hover-row{transition:background .12s ease,box-shadow .12s ease,border-color .12s ease;cursor:default}
+.hover-row:hover{
+  background:rgba(77,166,255,.18)!important;
+  border-color:rgba(77,166,255,.55)!important;
+  box-shadow:inset 3px 0 0 #4da6ff,0 0 0 1px rgba(77,166,255,.25);
+}
+/* Listing A/B/C tags — B 用更深琥珀橙，避免和旧琥珀色字色混同 */
+.ltag-td{min-width:96px;vertical-align:middle!important}
+.ltag-td-a{background:rgba(46,204,142,.22)!important}
+.ltag-td-b{background:rgba(245,158,11,.32)!important}
+.ltag-td-c{background:rgba(232,68,90,.22)!important}
+.ltag-wrap{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px}
+.ltag{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:700;font-family:var(--mono);letter-spacing:.04em;line-height:1.5}
+.ltag-grade-a{background:#1f8f63;color:#d8ffe9;border:1px solid #3dd9a0}
+.ltag-grade-b{background:#c47a00;color:#fff4d6;border:1px solid #ffb020}
+.ltag-grade-c{background:#b83248;color:#ffe0e5;border:1px solid #f06070}
+.ltag-other{background:rgba(74,106,144,.25);color:var(--text2);border:1px solid var(--border2);font-weight:500}
+.ltag-empty{background:transparent;color:var(--text3);border:1px dashed var(--border);font-weight:500}
+.ti.ltag-inp.ltag-grade-a{background:rgba(46,204,142,.35)!important;color:#d8ffe9!important;border-color:#3dd9a0!important;font-weight:700}
+.ti.ltag-inp.ltag-grade-b{background:rgba(245,158,11,.45)!important;color:#fff4d6!important;border-color:#ffb020!important;font-weight:700}
+.ti.ltag-inp.ltag-grade-c{background:rgba(232,68,90,.35)!important;color:#ffe0e5!important;border-color:#f06070!important;font-weight:700}
 .tm{font-family:var(--mono)}
 /* INLINE INPUT */
 .ti{height:26px;border:1px solid var(--border2);border-radius:5px;padding:0 6px;font-size:11px;background:var(--bg3);color:var(--text);font-family:var(--mono);transition:border-color .15s}
@@ -2090,7 +2125,7 @@ function renderFineActual(){
         +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'owner\',this.value)">'+personOptions('owner',s.owner)+'</select></td>'
         +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'developer\',this.value)" style="color:#c4b5fd">'+personOptions('developer',s.developer)+'</select></td>'
         +'<td style="font-weight:600;color:var(--text);min-width:90px">'+s.name+'</td>'
-        +'<td><input class="ti w90" value="'+h(s.listingTag||'')+'" placeholder="Listing 标签" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'listingTag\',this.value)" style="color:#e8a020"/></td>'
+        +buildListingTagCell(m.id,s.id,s.listingTag)
         +'<td><input class="ti w90" value="'+h(s.parentAsin||'')+'" placeholder="父ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'parentAsin\',this.value)" style="font-family:var(--mono);color:#c4a0f0"/></td>'
         +'<td><input class="ti w90" value="'+h(s.asin||s.sourceAsin||'')+'" placeholder="ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'asin\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td><input class="ti w90" value="'+(s.fnsku||'')+'" placeholder="FNSKU" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'fnsku\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
@@ -2248,6 +2283,7 @@ function renderSuccessRatePanel(wrap,opts){
       var rateColor=rate>=70?'#3dd9a0':rate>=40?'#e8a020':'#f06070';
       var medal=opts.medals?(idx===0&&d.total>0?'🥇 ':idx===1?'🥈 ':idx===2?'🥉 ':''):'';
       var row=document.createElement('div');
+      row.className='hover-row';
       row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:4px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-family:var(--mono)';
       var nameEl=document.createElement('span');
       nameEl.style.cssText='min-width:60px;font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
@@ -2312,8 +2348,60 @@ function refreshFineActRow(mid,sid){
   e=el('fok-'+sid); if(e){ var s2=m.skus.find(function(x){return x.id===sid;}); if(s2) e.innerHTML=buildVerdictCell(mid,s2,aOrders,gm,net,rate); }
   autoSave();
 }
+function normalizeListingTagPart(part){
+  return String(part||'')
+    .replace(/[Ａ-Ｚａ-ｚ]/g,function(ch){return String.fromCharCode(ch.charCodeAt(0)-0xFEE0);})
+    .trim();
+}
+function listingGradeOfPart(part){
+  var u=normalizeListingTagPart(part).toUpperCase();
+  // 兼容：A / A品 / A类 / 等级A / Grade A
+  if(/^(A品|A类|A级|等级A|GRADE\s*A|A)$/.test(u) || /^A[\-_/]?PRODUCT$/.test(u)) return 'A';
+  if(/^(B品|B类|B级|等级B|GRADE\s*B|B)$/.test(u) || /^B[\-_/]?PRODUCT$/.test(u)) return 'B';
+  if(/^(C品|C类|C级|等级C|GRADE\s*C|C)$/.test(u) || /^C[\-_/]?PRODUCT$/.test(u)) return 'C';
+  return '';
+}
 function listingClassHas(tag,grade){
-  return String(tag||'').toUpperCase().split(/[\s,，;；|/]+/).filter(Boolean).indexOf(grade)>=0;
+  return splitListingTags(tag).some(function(p){return listingGradeOfPart(p)===grade;});
+}
+function splitListingTags(tag){
+  return String(tag||'').split(/[\s,，;；|/]+/).map(function(x){return x.trim();}).filter(Boolean);
+}
+function listingTagTone(part){
+  var g=listingGradeOfPart(part);
+  if(g==='A') return 'a';
+  if(g==='B') return 'b';
+  if(g==='C') return 'c';
+  return 'other';
+}
+function listingTagPrimaryTone(tag){
+  if(listingClassHas(tag,'A')) return 'a';
+  if(listingClassHas(tag,'B')) return 'b';
+  if(listingClassHas(tag,'C')) return 'c';
+  return '';
+}
+function listingTagsHtml(tag){
+  var parts=splitListingTags(tag);
+  if(!parts.length) return '<span class="ltag ltag-empty">未标</span>';
+  return parts.map(function(p){
+    var tone=listingTagTone(p);
+    var cls=tone==='other'?'ltag-other':'ltag-grade-'+tone;
+    return '<span class="ltag '+cls+'">'+h(p)+'</span>';
+  }).join('');
+}
+function buildListingTagCell(mid,sid,tag){
+  var tone=listingTagPrimaryTone(tag);
+  return '<td class="ltag-td'+(tone?' ltag-td-'+tone:'')+'" id="ltag-td-'+sid+'">'
+    +'<div class="ltag-wrap" id="ltag-chips-'+sid+'">'+listingTagsHtml(tag)+'</div>'
+    +'<input class="ti w90 ltag-inp'+(tone?' ltag-grade-'+tone:'')+'" id="ltag-inp-'+sid+'" value="'+h(tag||'')+'" placeholder="A / B / C" onchange="onListingTagEdit(\''+mid+'\',\''+sid+'\',this.value)"/>'
+    +'</td>';
+}
+function onListingTagEdit(mid,sid,val){
+  setFineSku(mid,sid,'listingTag',val);
+  var tone=listingTagPrimaryTone(val);
+  var td=el('ltag-td-'+sid); if(td) td.className='ltag-td'+(tone?' ltag-td-'+tone:'');
+  var chips=el('ltag-chips-'+sid); if(chips) chips.innerHTML=listingTagsHtml(val);
+  var inp=el('ltag-inp-'+sid); if(inp) inp.className='ti w90 ltag-inp'+(tone?' ltag-grade-'+tone:'');
 }
 function renderPersonDualRatePanel(wrap,cfg){
   // cfg: {title, sub, color, getFlags(s)->{hit,b,c}, countText(d)} — 按父ASIN去重
@@ -2364,6 +2452,7 @@ function renderPersonDualRatePanel(wrap,cfg){
       var rate=d.total>0?(d.hit/d.total*100).toFixed(0):0;
       var rateColor=rate>=70?'#3dd9a0':rate>=40?'#e8a020':'#f06070';
       var row=document.createElement('div');
+      row.className='hover-row';
       row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:4px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-family:var(--mono)';
       var nameEl=document.createElement('span');
       nameEl.style.cssText='min-width:64px;font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';

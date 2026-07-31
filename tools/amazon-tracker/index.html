@@ -2355,10 +2355,10 @@ function normalizeListingTagPart(part){
 }
 function listingGradeOfPart(part){
   var u=normalizeListingTagPart(part).toUpperCase();
-  // 兼容：A / A品 / A类 / 等级A / Grade A
-  if(/^(A品|A类|A级|等级A|GRADE\s*A|A)$/.test(u) || /^A[\-_/]?PRODUCT$/.test(u)) return 'A';
-  if(/^(B品|B类|B级|等级B|GRADE\s*B|B)$/.test(u) || /^B[\-_/]?PRODUCT$/.test(u)) return 'B';
-  if(/^(C品|C类|C级|等级C|GRADE\s*C|C)$/.test(u) || /^C[\-_/]?PRODUCT$/.test(u)) return 'C';
+  // 兼容：A / A- / A+ / A品 / A类 / 等级A / Grade A（A- 按 A 计）
+  if(/^(A[\-\+_]?|A品|A类|A级|等级A|GRADE\s*A)$/.test(u) || /^A[\-_/]?PRODUCT$/.test(u)) return 'A';
+  if(/^(B[\-\+_]?|B品|B类|B级|等级B|GRADE\s*B)$/.test(u) || /^B[\-_/]?PRODUCT$/.test(u)) return 'B';
+  if(/^(C[\-\+_]?|C品|C类|C级|等级C|GRADE\s*C)$/.test(u) || /^C[\-_/]?PRODUCT$/.test(u)) return 'C';
   return '';
 }
 function listingClassHas(tag,grade){

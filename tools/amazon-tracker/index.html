@@ -394,7 +394,7 @@ tr:hover td{background:rgba(77,166,255,.05)}
   <div class="pane" id="fp-report">
     <div class="sec">季度与全部产品结果</div>
     <div class="chart-box">
-      <div class="legend"><span><b style="background:#80c4ff"></b>总产品（折线）</span><span><b style="background:#2ecc8e"></b>A品</span><span><b style="background:#e8a020"></b>B品</span><span><b style="background:#e8445a"></b>C品</span></div>
+      <div class="legend"><span><b style="background:#80c4ff"></b>总父体（折线）</span><span><b style="background:#2ecc8e"></b>A品</span><span><b style="background:#e8a020"></b>B品</span><span><b style="background:#e8445a"></b>C品</span></div>
       <div style="position:relative;height:280px"><canvas id="fine-outcome-chart"></canvas></div>
       <div id="fine-outcome-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
       <div id="fine-quarter-rates" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:10px"></div>
@@ -1536,6 +1536,7 @@ function renderFineDevTab(){
 
   // 开发成功率面板
   renderDevSuccessRateInDevTab(wrap);
+  renderAGradeRate(wrap);
 }
 // ════════════════════════════════════════════
 // 月卡片内嵌：5套/日 × 5个月 推算（该月SKU独立计算）
@@ -2150,40 +2151,82 @@ function renderFineActual(){
 
   // ── 开发人员 × 负责人 成功率统计 ──
   renderDevSuccessRate(wrap);
+  // ── A品比例（按 Listing 标签 A）──
+  renderAGradeRate(wrap);
 
   setTimeout(function(){ document.querySelectorAll('#mode-fine table').forEach(injectThInfo); },0);
 }
-function renderDevSuccessRateInDevTab(wrap){
-  // 按开发人员和负责人分别统计成功/失败（以实录verdict为准）
-  var devMap={}, ownerMap={};
+function fineParentKey(s){
+  var p=String(s.parentAsin||'').trim().toUpperCase();
+  if(p) return 'P:'+p;
+  var a=String(s.asin||'').trim().toUpperCase();
+  if(a) return 'A:'+a;
+  var fn=String(s.fnsku||'').trim().toUpperCase();
+  if(fn) return 'F:'+fn;
+  return 'S:'+String(s.id||s.sourceSku||s.name||'');
+}
+function fineSkuDev(m,s){
+  return String(s.developer||'').trim()||String(m.developer||'').trim()||'未指定';
+}
+function fineSkuOwner(s){
+  return String(s.owner||'').trim()||'未指定';
+}
+/** 按人×父体去重聚合。mergeFn(bucket,s,m) 把子体属性合并进同一父体 bucket */
+function aggregateFineByParentPerson(mergeFn,finalizeFn){
+  var devParents={}, ownerParents={};
   fineMonths.forEach(function(m){
-    m.skus.forEach(function(s){
-      var verdict=(s.actual||{}).verdict;
-      if(verdict!=='success'&&verdict!=='fail') return;
-      var isOk=verdict==='success';
-      // 开发人员（优先s.developer，回退m.developer）
-      var dev=(String(s.developer||'').trim()||(String(m.developer||'').trim())||'未指定');
-      if(!devMap[dev]) devMap[dev]={ok:0,fail:0,total:0,skus:[]};
-      devMap[dev].total++; if(isOk) devMap[dev].ok++; else devMap[dev].fail++;
-      devMap[dev].skus.push({name:s.name,month:m.label,owner:s.owner,ok:isOk});
-      // 负责人
-      var owner=(s.owner||'').trim()||'未指定';
-      if(!ownerMap[owner]) ownerMap[owner]={ok:0,fail:0,total:0};
-      ownerMap[owner].total++; if(isOk) ownerMap[owner].ok++; else ownerMap[owner].fail++;
+    (m.skus||[]).forEach(function(s){
+      var key=fineParentKey(s);
+      var dev=fineSkuDev(m,s), owner=fineSkuOwner(s);
+      [[devParents,dev],[ownerParents,owner]].forEach(function(pair){
+        var map=pair[0], person=pair[1];
+        if(!map[person]) map[person]={};
+        if(!map[person][key]) map[person][key]={};
+        mergeFn(map[person][key],s,m);
+      });
     });
   });
+  function collapse(parents){
+    var out={};
+    Object.keys(parents).forEach(function(person){
+      var keys=Object.keys(parents[person]), d={ok:0,fail:0,hit:0,b:0,c:0,total:keys.length};
+      keys.forEach(function(k){ finalizeFn(d, parents[person][k]); });
+      out[person]=d;
+    });
+    return out;
+  }
+  return {devMap:collapse(devParents), ownerMap:collapse(ownerParents)};
+}
+function collectSuccessRateByParent(){
+  return aggregateFineByParentPerson(
+    function(g,s){
+      var v=(s.actual||{}).verdict;
+      if(v==='success') g.ok=true;
+      else if(v==='fail') g.fail=true;
+    },
+    function(d,g){
+      if(g.ok) d.ok++;
+      else if(g.fail) d.fail++;
+    }
+  );
+}
+function renderSuccessRatePanel(wrap,opts){
+  // 成功率 = 成功父体数 ÷ 该人负责的父体总数（按父ASIN去重；任一子体成功则父体算成功）
+  var maps=collectSuccessRateByParent();
+  var devMap=maps.devMap, ownerMap=maps.ownerMap;
   var devKeys=Object.keys(devMap), ownerKeys=Object.keys(ownerMap);
   if(!devKeys.length&&!ownerKeys.length) return;
 
   var panel=document.createElement('div');
   panel.style.cssText='margin-top:16px;padding:16px 18px;background:rgba(196,181,253,.05);border:1px solid rgba(167,139,250,.25);border-radius:12px';
   var title=document.createElement('div');
-  title.style.cssText='font-size:13px;font-weight:700;color:#c4b5fd;font-family:var(--mono);margin-bottom:4px';
-  title.textContent='📊 开发成功率统计（基于实录确认 verdict）';
+  title.style.cssText='font-size:13px;font-weight:700;color:#c4b5fd;font-family:var(--mono);margin-bottom:4px'+(opts.letterSpacing?';letter-spacing:.04em':'');
+  title.textContent=opts.title;
+  panel.appendChild(title);
   var sub=document.createElement('div');
   sub.style.cssText='font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:12px';
-  sub.textContent='算法：成功率 = 实录中标记"✅ 成功"款数 ÷ 已确认总款数（排除未确认）';
-  panel.appendChild(title); panel.appendChild(sub);
+  sub.textContent='算法：成功率 = 成功父体数 ÷ 该人负责的父体总数（按父ASIN去重；无父ASIN时用子ASIN）';
+  panel.appendChild(sub);
 
   var grid=document.createElement('div');
   grid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:16px';
@@ -2191,7 +2234,7 @@ function renderDevSuccessRateInDevTab(wrap){
   var buildCol=function(label,map,keys,color){
     var col=document.createElement('div');
     var h=document.createElement('div');
-    h.style.cssText='font-size:11px;color:'+color+';font-family:var(--mono);font-weight:700;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,.06)';
+    h.style.cssText='font-size:11px;color:'+color+';font-family:var(--mono);font-weight:700;margin-bottom:8px'+(opts.colBorder?';padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,.06)':'');
     h.textContent=label;
     col.appendChild(h);
     keys.sort(function(a,b){
@@ -2203,11 +2246,11 @@ function renderDevSuccessRateInDevTab(wrap){
       var d=map[k];
       var rate=d.total>0?Math.round(d.ok/d.total*100):0;
       var rateColor=rate>=70?'#3dd9a0':rate>=40?'#e8a020':'#f06070';
-      var medal=idx===0&&d.total>0?'🥇 ':idx===1?'🥈 ':idx===2?'🥉 ':'';
+      var medal=opts.medals?(idx===0&&d.total>0?'🥇 ':idx===1?'🥈 ':idx===2?'🥉 ':''):'';
       var row=document.createElement('div');
       row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:4px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-family:var(--mono)';
       var nameEl=document.createElement('span');
-      nameEl.style.cssText='min-width:60px;font-size:11px;color:var(--text);font-weight:600;white-space:nowrap';
+      nameEl.style.cssText='min-width:60px;font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
       nameEl.textContent=medal+k;
       var barWrap=document.createElement('div');
       barWrap.style.cssText='flex:1;height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden';
@@ -2219,109 +2262,33 @@ function renderDevSuccessRateInDevTab(wrap){
       pctEl.textContent=rate+'%';
       var cntEl=document.createElement('span');
       cntEl.style.cssText='font-size:10px;color:var(--text3);white-space:nowrap';
-      cntEl.textContent='✅'+d.ok+' ❌'+d.fail+'/'+d.total;
+      cntEl.textContent='✅'+d.ok+' ❌'+d.fail+' / '+d.total+'父体';
       row.appendChild(nameEl); row.appendChild(barWrap); row.appendChild(pctEl); row.appendChild(cntEl);
       col.appendChild(row);
     });
     return col;
   };
 
-  if(devKeys.length) grid.appendChild(buildCol('🧑‍💻 开发人员维度',devMap,devKeys,'#c4b5fd'));
-  if(ownerKeys.length) grid.appendChild(buildCol('👤 负责人维度',ownerMap,ownerKeys,'#67e8f9'));
+  if(devKeys.length) grid.appendChild(buildCol(opts.devLabel||'开发人员维度',devMap,devKeys,'#c4b5fd'));
+  if(ownerKeys.length) grid.appendChild(buildCol(opts.ownerLabel||'负责人维度',ownerMap,ownerKeys,'#67e8f9'));
   panel.appendChild(grid);
   wrap.appendChild(panel);
 }
-
-function renderDevSuccessRate(wrap){
-  // 收集所有有verdict的SKU
-  var devMap={}, ownerMap={};
-  fineMonths.forEach(function(m){
-    var rate=m.rate||G.rate;
-    m.skus.forEach(function(s){
-      var verdict=s.actual.verdict;
-      var hasVerdict=verdict==='success'||verdict==='fail';
-      if(!hasVerdict) return;
-      var isOk=verdict==='success';
-      // 开发人员：优先用行内s.developer，回退m.developer
-      var dev=(String(s.developer||'').trim()||(String(m.developer||'').trim())||'未指定');
-      if(!devMap[dev]) devMap[dev]={ok:0,fail:0,total:0};
-      devMap[dev].total++;
-      if(isOk) devMap[dev].ok++; else devMap[dev].fail++;
-      // 负责人维度
-      var owner=(s.owner||'').trim()||'未指定';
-      if(!ownerMap[owner]) ownerMap[owner]={ok:0,fail:0,total:0};
-      ownerMap[owner].total++;
-      if(isOk) ownerMap[owner].ok++; else ownerMap[owner].fail++;
-    });
+function renderDevSuccessRateInDevTab(wrap){
+  renderSuccessRatePanel(wrap,{
+    title:'📊 开发成功率统计',
+    medals:true, colBorder:true,
+    devLabel:'🧑‍💻 开发人员维度',
+    ownerLabel:'👤 负责人维度'
   });
-
-  var devKeys=Object.keys(devMap), ownerKeys=Object.keys(ownerMap);
-  if(!devKeys.length && !ownerKeys.length) return; // 无数据不显示
-
-  var panel=document.createElement('div');
-  panel.style.cssText='margin-top:16px;padding:16px 18px;background:rgba(196,181,253,.05);border:1px solid rgba(167,139,250,.25);border-radius:12px';
-
-  var title=document.createElement('div');
-  title.style.cssText='font-size:13px;font-weight:700;color:#c4b5fd;font-family:var(--mono);margin-bottom:12px;letter-spacing:.04em';
-  title.textContent='🧑‍💻 开发人员 & 负责人 成功率统计（基于实录确认）';
-  panel.appendChild(title);
-
-  // 两列布局
-  var grid=document.createElement('div');
-  grid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:16px';
-
-  var buildTable=function(label,map,keys,color){
-    var col=document.createElement('div');
-    var h=document.createElement('div');
-    h.style.cssText='font-size:11px;color:'+color+';font-family:var(--mono);font-weight:700;margin-bottom:8px';
-    h.textContent=label;
-    col.appendChild(h);
-    // sort by rate desc
-    keys.sort(function(a,b){
-      var ra=map[a].total>0?map[a].ok/map[a].total:0;
-      var rb=map[b].total>0?map[b].ok/map[b].total:0;
-      return rb-ra;
-    });
-    keys.forEach(function(k){
-      var d=map[k];
-      var rate=d.total>0?(d.ok/d.total*100).toFixed(0):0;
-      var rateColor=rate>=70?'#3dd9a0':rate>=40?'#e8a020':'#f06070';
-      var row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:4px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-family:var(--mono)';
-      // name
-      var nameEl=document.createElement('span');
-      nameEl.style.cssText='min-width:64px;font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-      nameEl.textContent=k;
-      row.appendChild(nameEl);
-      // bar
-      var barWrap=document.createElement('div');
-      barWrap.style.cssText='flex:1;height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden';
-      var barFill=document.createElement('div');
-      barFill.style.cssText='height:100%;width:'+rate+'%;background:'+rateColor+';border-radius:3px;transition:width .4s ease';
-      barWrap.appendChild(barFill);
-      row.appendChild(barWrap);
-      // stats
-      var statsEl=document.createElement('span');
-      statsEl.style.cssText='font-size:11px;color:'+rateColor+';font-weight:700;min-width:36px;text-align:right';
-      statsEl.textContent=rate+'%';
-      row.appendChild(statsEl);
-      var countEl=document.createElement('span');
-      countEl.style.cssText='font-size:10px;color:var(--text3);white-space:nowrap';
-      countEl.textContent='✅'+d.ok+' ❌'+d.fail+' / '+d.total+'款';
-      row.appendChild(countEl);
-      col.appendChild(row);
-    });
-    return col;
-  };
-
-  if(devKeys.length){
-    grid.appendChild(buildTable('开发人员维度',devMap,devKeys,'#c4b5fd'));
-  }
-  if(ownerKeys.length){
-    grid.appendChild(buildTable('负责人维度',ownerMap,ownerKeys,'#67e8f9'));
-  }
-  panel.appendChild(grid);
-  wrap.appendChild(panel);
+}
+function renderDevSuccessRate(wrap){
+  renderSuccessRatePanel(wrap,{
+    title:'🧑‍💻 开发人员 & 负责人 成功率统计',
+    letterSpacing:true,
+    devLabel:'开发人员维度',
+    ownerLabel:'负责人维度'
+  });
 }
 function refreshFineActRow(mid,sid){
   var m=fineMonths.find(function(m){return m.id===mid;}); if(!m) return;
@@ -2348,21 +2315,127 @@ function refreshFineActRow(mid,sid){
 function listingClassHas(tag,grade){
   return String(tag||'').toUpperCase().split(/[\s,，;；|/]+/).filter(Boolean).indexOf(grade)>=0;
 }
+function renderPersonDualRatePanel(wrap,cfg){
+  // cfg: {title, sub, color, getFlags(s)->{hit,b,c}, countText(d)} — 按父ASIN去重
+  var maps=aggregateFineByParentPerson(
+    function(g,s){
+      var flags=cfg.getFlags(s)||{};
+      if(flags.hit) g.hit=true;
+      if(flags.b) g.b=true;
+      if(flags.c) g.c=true;
+    },
+    function(d,g){
+      if(g.hit) d.hit++;
+      if(g.b) d.b++;
+      if(g.c) d.c++;
+    }
+  );
+  var devMap=maps.devMap, ownerMap=maps.ownerMap;
+  var devKeys=Object.keys(devMap), ownerKeys=Object.keys(ownerMap);
+  if(!devKeys.length&&!ownerKeys.length) return;
+
+  var panel=document.createElement('div');
+  panel.style.cssText='margin-top:16px;padding:16px 18px;background:'+cfg.bg+';border:1px solid '+cfg.border+';border-radius:12px';
+  var title=document.createElement('div');
+  title.style.cssText='font-size:13px;font-weight:700;color:'+cfg.color+';font-family:var(--mono);margin-bottom:4px;letter-spacing:.04em';
+  title.textContent=cfg.title;
+  panel.appendChild(title);
+  var sub=document.createElement('div');
+  sub.style.cssText='font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:12px';
+  sub.textContent=cfg.sub;
+  panel.appendChild(sub);
+
+  var grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:16px';
+
+  var buildTable=function(label,map,keys){
+    var col=document.createElement('div');
+    var h=document.createElement('div');
+    h.style.cssText='font-size:11px;color:'+cfg.color+';font-family:var(--mono);font-weight:700;margin-bottom:8px';
+    h.textContent=label;
+    col.appendChild(h);
+    keys.sort(function(a,b){
+      var ra=map[a].total>0?map[a].hit/map[a].total:0;
+      var rb=map[b].total>0?map[b].hit/map[b].total:0;
+      return rb-ra;
+    });
+    keys.forEach(function(k){
+      var d=map[k];
+      var rate=d.total>0?(d.hit/d.total*100).toFixed(0):0;
+      var rateColor=rate>=70?'#3dd9a0':rate>=40?'#e8a020':'#f06070';
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:4px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-family:var(--mono)';
+      var nameEl=document.createElement('span');
+      nameEl.style.cssText='min-width:64px;font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+      nameEl.textContent=k;
+      row.appendChild(nameEl);
+      var barWrap=document.createElement('div');
+      barWrap.style.cssText='flex:1;height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden';
+      var barFill=document.createElement('div');
+      barFill.style.cssText='height:100%;width:'+rate+'%;background:'+rateColor+';border-radius:3px;transition:width .4s ease';
+      barWrap.appendChild(barFill);
+      row.appendChild(barWrap);
+      var statsEl=document.createElement('span');
+      statsEl.style.cssText='font-size:11px;color:'+rateColor+';font-weight:700;min-width:36px;text-align:right';
+      statsEl.textContent=rate+'%';
+      row.appendChild(statsEl);
+      var countEl=document.createElement('span');
+      countEl.style.cssText='font-size:10px;color:var(--text3);white-space:nowrap';
+      countEl.textContent=cfg.countText(d);
+      row.appendChild(countEl);
+      col.appendChild(row);
+    });
+    return col;
+  };
+
+  if(devKeys.length) grid.appendChild(buildTable('开发人员维度',devMap,devKeys));
+  if(ownerKeys.length) grid.appendChild(buildTable('运营/负责人维度',ownerMap,ownerKeys));
+  panel.appendChild(grid);
+  wrap.appendChild(panel);
+}
+function renderAGradeRate(wrap){
+  renderPersonDualRatePanel(wrap,{
+    title:'🅰️ A品比例统计（按 Listing 标签 · 父ASIN去重）',
+    sub:'算法：A品比例 = 标签含「A」的父体数 ÷ 该人负责的父体总数（按父ASIN去重；任一子体为A则父体算A）',
+    color:'#2ecc8e',
+    bg:'rgba(46,204,142,.05)',
+    border:'rgba(46,204,142,.28)',
+    getFlags:function(s){
+      var tag=s.listingTag||'';
+      return {hit:listingClassHas(tag,'A'), b:listingClassHas(tag,'B'), c:listingClassHas(tag,'C')};
+    },
+    countText:function(d){
+      return 'A'+d.hit+' B'+d.b+' C'+d.c+' / '+d.total+'父体';
+    }
+  });
+}
 function renderFineOutcomeChart(all){
-  var quarters={};
+  // 按季度 × 父ASIN 去重后再计 A/B/C
+  var quarterParents={};
   all.forEach(function(x){
     var mt=String(x.m.label||'').match(/(\d{4})年(\d{1,2})月/);
     if(!mt)return;
-    var year=ni(mt[1]),month=ni(mt[2]),q=Math.ceil(month/3),key=year+' Q'+q;
-    if(!quarters[key])quarters[key]={year:year,q:q,total:0,success:0,b:0,fail:0};
-    var item=quarters[key],tag=x.s.listingTag;
-    item.total++;
-    if(listingClassHas(tag,'A'))item.success++;
-    if(listingClassHas(tag,'B'))item.b++;
-    if(listingClassHas(tag,'C'))item.fail++;
+    var year=ni(mt[1]),month=ni(mt[2]),q=Math.ceil(month/3),qKey=year+' Q'+q;
+    if(!quarterParents[qKey])quarterParents[qKey]={year:year,q:q,parents:{}};
+    var pKey=fineParentKey(x.s);
+    var g=quarterParents[qKey].parents[pKey];
+    if(!g) g=quarterParents[qKey].parents[pKey]={a:false,b:false,c:false};
+    var tag=x.s.listingTag;
+    if(listingClassHas(tag,'A'))g.a=true;
+    if(listingClassHas(tag,'B'))g.b=true;
+    if(listingClassHas(tag,'C'))g.c=true;
   });
-  var items=Object.keys(quarters).map(function(k){return {key:k,data:quarters[k]};})
-    .sort(function(a,b){return a.data.year-b.data.year||a.data.q-b.data.q;});
+  var items=Object.keys(quarterParents).map(function(k){
+    var qp=quarterParents[k], parents=qp.parents, keys=Object.keys(parents);
+    var data={year:qp.year,q:qp.q,total:keys.length,success:0,b:0,fail:0};
+    keys.forEach(function(pk){
+      var g=parents[pk];
+      if(g.a) data.success++;
+      if(g.b) data.b++;
+      if(g.c) data.fail++;
+    });
+    return {key:k,data:data};
+  }).sort(function(a,b){return a.data.year-b.data.year||a.data.q-b.data.q;});
   var total={total:0,success:0,b:0,fail:0};
   items.forEach(function(x){total.total+=x.data.total;total.success+=x.data.success;total.b+=x.data.b;total.fail+=x.data.fail;});
   var labels=items.map(function(x){return x.key;}).concat(['全部']);
@@ -2374,7 +2447,7 @@ function renderFineOutcomeChart(all){
   fineOutcomeChart=new Chart(el('fine-outcome-chart'),{
     type:'bar',
     data:{labels:labels,datasets:[
-      {type:'line',label:'总产品',data:totals,borderColor:'#80c4ff',backgroundColor:'rgba(128,196,255,.12)',borderWidth:3,pointRadius:4,pointBackgroundColor:'#80c4ff',tension:.25,fill:false,order:0},
+      {type:'line',label:'总父体',data:totals,borderColor:'#80c4ff',backgroundColor:'rgba(128,196,255,.12)',borderWidth:3,pointRadius:4,pointBackgroundColor:'#80c4ff',tension:.25,fill:false,order:0},
       {type:'bar',label:'A品',data:successes,backgroundColor:'rgba(46,204,142,.55)',borderColor:'#2ecc8e',borderWidth:1,order:1},
       {type:'bar',label:'B品',data:bProducts,backgroundColor:'rgba(232,160,32,.55)',borderColor:'#e8a020',borderWidth:1,order:1},
       {type:'bar',label:'C品',data:failures,backgroundColor:'rgba(232,68,90,.55)',borderColor:'#e8445a',borderWidth:1,order:1}
@@ -2385,16 +2458,16 @@ function renderFineOutcomeChart(all){
   });
   var successRate=total.total?total.success/total.total*100:0,bRate=total.total?total.b/total.total*100:0,failRate=total.total?total.fail/total.total*100:0;
   el('fine-outcome-summary').innerHTML=
-    '<span class="bg">全部 '+total.total+' 款</span>'
-    +'<span class="bg pos">A品成功 '+total.success+' 款（'+successRate.toFixed(1)+'%）</span>'
-    +'<span class="bg warn">B品 '+total.b+' 款（'+bRate.toFixed(1)+'%）</span>'
-    +'<span class="bg neg">C品失败 '+total.fail+' 款（'+failRate.toFixed(1)+'%）</span>';
+    '<span class="bg">全部 '+total.total+' 父体</span>'
+    +'<span class="bg pos">A品 '+total.success+' 父体（'+successRate.toFixed(1)+'%）</span>'
+    +'<span class="bg warn">B品 '+total.b+' 父体（'+bRate.toFixed(1)+'%）</span>'
+    +'<span class="bg neg">C品 '+total.fail+' 父体（'+failRate.toFixed(1)+'%）</span>';
   el('fine-quarter-rates').innerHTML=items.map(function(x){
     var rate=x.data.total?x.data.success/x.data.total*100:0;
     return '<div style="padding:9px 12px;border:1px solid rgba(46,204,142,.25);border-radius:7px;background:rgba(46,204,142,.06)">'
-      +'<div style="font-size:11px;color:var(--text2);margin-bottom:4px">'+x.key+' A品成功率</div>'
+      +'<div style="font-size:11px;color:var(--text2);margin-bottom:4px">'+x.key+' A品比例</div>'
       +'<div style="font-family:var(--mono);font-size:16px;font-weight:700;color:#3dd9a0">'+rate.toFixed(1)+'%</div>'
-      +'<div style="font-size:10px;color:var(--text3);margin-top:2px">A品 '+x.data.success+' 款 ÷ 总产品 '+x.data.total+' 款</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-top:2px">A品 '+x.data.success+' 父体 ÷ 总父体 '+x.data.total+'</div>'
       +'</div>';
   }).join('');
 }

@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-07-30T02:12:15.055Z",
+  "updatedAt": "2026-07-31T02:40:46.091Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon in the community: Service, community, and commitment at HQ2",
-      "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
-      "pubDate": "Wed, 29 Jul 2026 20:18:00 GMT",
-      "date": "7/29",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
-      "category": "Community"
+      "title": "Q2 Earnings: Andy Jassy on why AWS is booming and what it means for customers",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-ceo-andy-jassy-aws-revenue-growth-q2-2026-earnings?utm_source=rss",
+      "pubDate": "Fri, 31 Jul 2026 00:22:36 GMT",
+      "date": "7/31",
+      "summary": "AWS revenue growth accelerated to 36.7% year over year—the fastest in 18 quarters—with AI and core services driving each other's growth.",
+      "category": "Company news"
     },
     {
-      "title": "'The Thomas Crown Affair': Everything to know about the Michael B. Jordan film, in theaters March 5, 2027",
-      "link": "https://www.aboutamazon.com/news/entertainment/thomas-crown-affair-michael-b-jordan-amazon-mgm-studios?utm_source=rss",
-      "pubDate": "Wed, 29 Jul 2026 13:00:07 GMT",
-      "date": "7/29",
-      "summary": "Jordan directs, produces, and stars in a visually breathtaking heist thriller from Amazon MGM Studios.",
-      "category": "Entertainment"
+      "title": "Q2 Earnings: Andy Jassy on what's driving Amazon Ads growth",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-ceo-andy-jassy-amazon-ads-growth-q2-2026-earnings?utm_source=rss",
+      "pubDate": "Fri, 31 Jul 2026 00:21:07 GMT",
+      "date": "7/31",
+      "summary": "Amazon Ads generated $19.8 billion of revenue in Q2, up 26% year over year, powered by AI tools, conversational shopping, and multi-sport st",
+      "category": "Company news"
     },
     {
-      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
-      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
-      "pubDate": "Mon, 27 Jul 2026 13:56:00 GMT",
-      "date": "7/27",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
-      "category": "Community"
+      "title": "Q2 Earnings: Andy Jassy on Amazon Stores growth, delivery speed, and AI shopping",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-ceo-andy-jassy-stores-growth-ai-shopping-q2-2026-earnings?utm_source=rss",
+      "pubDate": "Fri, 31 Jul 2026 00:20:31 GMT",
+      "date": "7/31",
+      "summary": "Amazon CEO Andy Jassy on how the Stores team is expanding selection, delivering at record speeds, growing Grocery and Pharmacy, and using AI",
+      "category": "Company news"
     }
   ]
 }

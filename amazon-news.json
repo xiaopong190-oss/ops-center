@@ -1,30 +1,30 @@
 {
-  "updatedAt": "2026-07-31T02:40:46.091Z",
+  "updatedAt": "2026-08-01T02:39:23.753Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How Amazon became one of the world’s top chip companies in a decade",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-ai-chips-business-history?utm_source=rss",
+      "pubDate": "Fri, 31 Jul 2026 19:55:28 GMT",
+      "date": "7/31",
+      "summary": "Amazon’s custom silicon business exceeded a $25 billion annual revenue run rate—here’s what that means for customers and the future of AI.",
+      "category": "AWS"
+    },
+    {
+      "title": "What’s new on Prime Video in August 2026, including ‘Reacher,’ ‘Sterling Point,’ and live sports",
+      "link": "https://www.aboutamazon.com/news/entertainment/prime-video-august-movies-shows-music-sports-2026?utm_source=rss",
+      "pubDate": "Fri, 31 Jul 2026 13:00:17 GMT",
+      "date": "7/31",
+      "summary": "Prime Video’s August lineup also features a series with Bear Grylls and a Novak Djokovic documentary.",
+      "category": "Entertainment"
+    },
     {
       "title": "Q2 Earnings: Andy Jassy on why AWS is booming and what it means for customers",
       "link": "https://www.aboutamazon.com/news/company-news/amazon-ceo-andy-jassy-aws-revenue-growth-q2-2026-earnings?utm_source=rss",
       "pubDate": "Fri, 31 Jul 2026 00:22:36 GMT",
       "date": "7/31",
       "summary": "AWS revenue growth accelerated to 36.7% year over year—the fastest in 18 quarters—with AI and core services driving each other's growth.",
-      "category": "Company news"
-    },
-    {
-      "title": "Q2 Earnings: Andy Jassy on what's driving Amazon Ads growth",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-ceo-andy-jassy-amazon-ads-growth-q2-2026-earnings?utm_source=rss",
-      "pubDate": "Fri, 31 Jul 2026 00:21:07 GMT",
-      "date": "7/31",
-      "summary": "Amazon Ads generated $19.8 billion of revenue in Q2, up 26% year over year, powered by AI tools, conversational shopping, and multi-sport st",
-      "category": "Company news"
-    },
-    {
-      "title": "Q2 Earnings: Andy Jassy on Amazon Stores growth, delivery speed, and AI shopping",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-ceo-andy-jassy-stores-growth-ai-shopping-q2-2026-earnings?utm_source=rss",
-      "pubDate": "Fri, 31 Jul 2026 00:20:31 GMT",
-      "date": "7/31",
-      "summary": "Amazon CEO Andy Jassy on how the Stores team is expanding selection, delivering at record speeds, growing Grocery and Pharmacy, and using AI",
       "category": "Company news"
     }
   ]

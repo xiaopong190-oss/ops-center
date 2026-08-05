@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-04T02:23:44.103Z",
+  "updatedAt": "2026-08-05T02:23:23.519Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How Amazon is helping communities impacted by southwest France wildfires",
+      "link": "https://www.aboutamazon.com/news/community/amazon-europe-wildfires-response?utm_source=rss",
+      "pubDate": "Tue, 04 Aug 2026 13:18:37 GMT",
+      "date": "8/4",
+      "summary": "We are donating and delivering emergency supplies to communities impacted by the Gironde wildfires.",
+      "category": "Community"
+    },
     {
       "title": "How Amazon is supporting communities impacted by wildfires in Spokane, Washington",
       "link": "https://www.aboutamazon.com/news/community/spokane-washington-fires-amazon-disaster-relief?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "8/3",
       "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
       "category": "Sustainability"
-    },
-    {
-      "title": "How Amazon became one of the world’s top chip companies in a decade",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-ai-chips-business-history?utm_source=rss",
-      "pubDate": "Fri, 31 Jul 2026 19:55:28 GMT",
-      "date": "7/31",
-      "summary": "Amazon’s custom silicon business exceeded a $25 billion annual revenue run rate—here’s what that means for customers and the future of AI.",
-      "category": "AWS"
     }
   ]
 }

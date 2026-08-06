@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-05T02:23:23.519Z",
+  "updatedAt": "2026-08-06T02:25:55.771Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
+      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
+      "pubDate": "Wed, 05 Aug 2026 20:00:00 GMT",
+      "date": "8/5",
+      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
+      "category": "Community"
+    },
     {
       "title": "How Amazon is helping communities impacted by southwest France wildfires",
       "link": "https://www.aboutamazon.com/news/community/amazon-europe-wildfires-response?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "8/3",
       "summary": "Amazon is working with the American Red Cross, Save the Children, and local nonprofits to support thousands of people in Spokane County who ",
       "category": "Community"
-    },
-    {
-      "title": "Amazon's water conservation and replenishment efforts around the world",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
-      "pubDate": "Mon, 03 Aug 2026 08:16:00 GMT",
-      "date": "8/3",
-      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
-      "category": "Sustainability"
     }
   ]
 }

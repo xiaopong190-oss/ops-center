@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-08-06T02:25:55.771Z",
+  "updatedAt": "2026-08-07T02:34:53.889Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
-      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
-      "pubDate": "Wed, 05 Aug 2026 20:00:00 GMT",
-      "date": "8/5",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
-      "category": "Community"
-    },
-    {
-      "title": "How Amazon is helping communities impacted by southwest France wildfires",
-      "link": "https://www.aboutamazon.com/news/community/amazon-europe-wildfires-response?utm_source=rss",
-      "pubDate": "Tue, 04 Aug 2026 13:18:37 GMT",
-      "date": "8/4",
-      "summary": "We are donating and delivering emergency supplies to communities impacted by the Gironde wildfires.",
-      "category": "Community"
-    },
-    {
       "title": "How Amazon is supporting communities impacted by wildfires in Spokane, Washington",
       "link": "https://www.aboutamazon.com/news/community/spokane-washington-fires-amazon-disaster-relief?utm_source=rss",
-      "pubDate": "Mon, 03 Aug 2026 22:43:40 GMT",
-      "date": "8/3",
+      "pubDate": "Thu, 06 Aug 2026 22:00:00 GMT",
+      "date": "8/6",
       "summary": "Amazon is working with the American Red Cross, Save the Children, and local nonprofits to support thousands of people in Spokane County who ",
       "category": "Community"
+    },
+    {
+      "title": "Everything to know about ‘Madden,’ a new movie coming to Prime Video November 18",
+      "link": "https://www.aboutamazon.com/news/entertainment/madden-movie-nicolas-cage-prime-video?utm_source=rss",
+      "pubDate": "Thu, 06 Aug 2026 15:00:58 GMT",
+      "date": "8/6",
+      "summary": "Nicolas Cage stars as legendary NFL coach John Madden in this film charting his unlikely journey from Super Bowl winner to video game icon.",
+      "category": "Entertainment"
+    },
+    {
+      "title": "Amazon Pharmacy now delivers GLP-1 medications to eligible Medicare patients for $50 a month",
+      "link": "https://www.aboutamazon.com/news/retail/amazon-pharmacy-glp-1-medicare?utm_source=rss",
+      "pubDate": "Thu, 06 Aug 2026 10:01:37 GMT",
+      "date": "8/6",
+      "summary": "Amazon Pharmacy handles the majority of the paperwork and delivers Wegovy, Zepbound, and Foundayo to patients' doors—with Same-Day Delivery ",
+      "category": "Retail"
     }
   ]
 }

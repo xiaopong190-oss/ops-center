@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-07T02:34:53.889Z",
+  "updatedAt": "2026-08-08T01:24:46.147Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Inside Amazon's first-ever drone delivery site in the UK",
+      "link": "https://www.aboutamazon.com/news/transportation/amazon-drone-prime-air-uk?utm_source=rss",
+      "pubDate": "Fri, 07 Aug 2026 05:55:38 GMT",
+      "date": "8/7",
+      "summary": "The Prime Air site in Darlington, England is the first of its kind outside of the U.S.",
+      "category": "Transportation"
+    },
     {
       "title": "How Amazon is supporting communities impacted by wildfires in Spokane, Washington",
       "link": "https://www.aboutamazon.com/news/community/spokane-washington-fires-amazon-disaster-relief?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "8/6",
       "summary": "Nicolas Cage stars as legendary NFL coach John Madden in this film charting his unlikely journey from Super Bowl winner to video game icon.",
       "category": "Entertainment"
-    },
-    {
-      "title": "Amazon Pharmacy now delivers GLP-1 medications to eligible Medicare patients for $50 a month",
-      "link": "https://www.aboutamazon.com/news/retail/amazon-pharmacy-glp-1-medicare?utm_source=rss",
-      "pubDate": "Thu, 06 Aug 2026 10:01:37 GMT",
-      "date": "8/6",
-      "summary": "Amazon Pharmacy handles the majority of the paperwork and delivers Wegovy, Zepbound, and Foundayo to patients' doors—with Same-Day Delivery ",
-      "category": "Retail"
     }
   ]
 }

@@ -179,6 +179,14 @@ tbody tr:hover td.ltag-td-c{background:rgba(232,68,90,.32)!important;box-shadow:
 .ti.ltag-inp.ltag-grade-a{background:rgba(46,204,142,.35)!important;color:#d8ffe9!important;border-color:#3dd9a0!important;font-weight:700}
 .ti.ltag-inp.ltag-grade-b{background:rgba(245,158,11,.45)!important;color:#fff4d6!important;border-color:#ffb020!important;font-weight:700}
 .ti.ltag-inp.ltag-grade-c{background:rgba(232,68,90,.35)!important;color:#ffe0e5!important;border-color:#f06070!important;font-weight:700}
+/* 父ASIN：家族内有 A 品子体时标黄 */
+.ti.parent-has-a{
+  color:#ffe566!important;
+  background:rgba(255,214,64,.22)!important;
+  border-color:rgba(255,214,64,.75)!important;
+  font-weight:700;
+  box-shadow:inset 0 0 0 1px rgba(255,214,64,.35);
+}
 .tm{font-family:var(--mono)}
 /* INLINE INPUT */
 .ti{height:26px;border:1px solid var(--border2);border-radius:5px;padding:0 6px;font-size:11px;background:var(--bg3);color:var(--text);font-family:var(--mono);transition:border-color .15s}
@@ -1872,6 +1880,7 @@ function renderFinePlan(){
     wrap.appendChild(qWrap);
   });
 
+  var parentsWithAPlan=collectParentsWithAGrade();
   fineMonths.forEach(function(m){
     var rate=m.rate||G.rate;
     var tBgt=m.skus.reduce(function(a,s){return a+s.adBudget;},0);
@@ -1892,7 +1901,7 @@ function renderFinePlan(){
         +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'owner\',this.value)">'+personOptions('owner',s.owner)+'</select></td>'
         +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'developer\',this.value)" style="color:#c4b5fd">'+personOptions('developer',s.developer)+'</select></td>'
         +'<td><input class="ti w90" value="'+s.name+'" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'name\',this.value)"/></td>'
-        +'<td><input class="ti w90" value="'+h(s.parentAsin||'')+'" placeholder="父ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'parentAsin\',this.value)" style="font-family:var(--mono);color:#c4a0f0"/></td>'
+        +buildParentAsinCell(m.id,s.id,s.parentAsin,parentsWithAPlan)
         +'<td><input class="ti w90" value="'+h(s.asin||s.sourceAsin||'')+'" placeholder="ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'asin\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td><input class="ti w90" value="'+(s.fnsku||'')+'" placeholder="FNSKU" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'fnsku\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td style="background:rgba(77,166,255,.04)"><div><input class="ti w60" type="number" value="'+(s.costRmb||'')+'" placeholder="¥" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'costRmb\',this.value)"/><div id="fcc-'+s.id+'" class="converted">'+(n(s.costRmb)>0?'→'+G.cur+f2(rmb2fx(s.costRmb,rate)):'')+'</div></div></td>'
@@ -2018,6 +2027,7 @@ function renderFineActual(){
   // 记录季度折叠状态（本地内存，不持久化）
   if(!renderFinePlan._qOpen) renderFinePlan._qOpen={};
   var _qOpen = renderFinePlan._qOpen;
+  var parentsWithA=collectParentsWithAGrade();
 
   fineMonths.forEach(function(m){
     var rate=m.rate||G.rate;
@@ -2126,7 +2136,7 @@ function renderFineActual(){
         +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'developer\',this.value)" style="color:#c4b5fd">'+personOptions('developer',s.developer)+'</select></td>'
         +'<td style="font-weight:600;color:var(--text);min-width:90px">'+s.name+'</td>'
         +buildListingTagCell(m.id,s.id,s.listingTag)
-        +'<td><input class="ti w90" value="'+h(s.parentAsin||'')+'" placeholder="父ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'parentAsin\',this.value)" style="font-family:var(--mono);color:#c4a0f0"/></td>'
+        +buildParentAsinCell(m.id,s.id,s.parentAsin,parentsWithA)
         +'<td><input class="ti w90" value="'+h(s.asin||s.sourceAsin||'')+'" placeholder="ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'asin\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td><input class="ti w90" value="'+(s.fnsku||'')+'" placeholder="FNSKU" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'fnsku\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
         +'<td class="tm" style="color:var(--text2)">'+fc(s.adBudget)+'</td>'
@@ -2396,12 +2406,43 @@ function buildListingTagCell(mid,sid,tag){
     +'<input class="ti w90 ltag-inp'+(tone?' ltag-grade-'+tone:'')+'" id="ltag-inp-'+sid+'" value="'+h(tag||'')+'" placeholder="A / B / C" onchange="onListingTagEdit(\''+mid+'\',\''+sid+'\',this.value)"/>'
     +'</td>';
 }
+function collectParentsWithAGrade(){
+  var set={};
+  fineMonths.forEach(function(m){
+    (m.skus||[]).forEach(function(s){
+      if(!listingClassHas(s.listingTag,'A')) return;
+      var p=String(s.parentAsin||'').trim().toUpperCase();
+      if(p){ set[p]=true; return; }
+      var a=String(s.asin||s.sourceAsin||'').trim().toUpperCase();
+      if(a) set[a]=true;
+    });
+  });
+  return set;
+}
+function parentAsinHasAChild(parentAsin, parentsWithA){
+  var p=String(parentAsin||'').trim().toUpperCase();
+  return !!(p&&parentsWithA&&parentsWithA[p]);
+}
+function buildParentAsinCell(mid,sid,parentAsin,parentsWithA){
+  var yellow=parentAsinHasAChild(parentAsin,parentsWithA);
+  return '<td><input class="ti w90'+(yellow?' parent-has-a':'')+'" data-parent-asin-field="1" value="'+h(parentAsin||'')+'" placeholder="父ASIN" title="'+(yellow?'该父体下存在 A 品子体':'')+'" onchange="setFineSku(\''+mid+'\',\''+sid+'\',\'parentAsin\',this.value);refreshParentAsinAHighlights()" style="font-family:var(--mono);color:#c4a0f0"/></td>';
+}
+function refreshParentAsinAHighlights(){
+  var set=collectParentsWithAGrade();
+  document.querySelectorAll('input[data-parent-asin-field="1"]').forEach(function(inp){
+    var on=parentAsinHasAChild(inp.value,set);
+    if(on) inp.classList.add('parent-has-a');
+    else inp.classList.remove('parent-has-a');
+    inp.title=on?'该父体下存在 A 品子体':'';
+  });
+}
 function onListingTagEdit(mid,sid,val){
   setFineSku(mid,sid,'listingTag',val);
   var tone=listingTagPrimaryTone(val);
   var td=el('ltag-td-'+sid); if(td) td.className='ltag-td'+(tone?' ltag-td-'+tone:'');
   var chips=el('ltag-chips-'+sid); if(chips) chips.innerHTML=listingTagsHtml(val);
   var inp=el('ltag-inp-'+sid); if(inp) inp.className='ti w90 ltag-inp'+(tone?' ltag-grade-'+tone:'');
+  refreshParentAsinAHighlights();
 }
 function renderPersonDualRatePanel(wrap,cfg){
   // cfg: {title, sub, color, getFlags(s)->{hit,b,c}, countText(d)} — 按父ASIN去重

@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-07-31T02:40:46.091Z",
+  "updatedAt": "2026-08-11T01:37:06.865Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Q2 Earnings: Andy Jassy on why AWS is booming and what it means for customers",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-ceo-andy-jassy-aws-revenue-growth-q2-2026-earnings?utm_source=rss",
-      "pubDate": "Fri, 31 Jul 2026 00:22:36 GMT",
-      "date": "7/31",
-      "summary": "AWS revenue growth accelerated to 36.7% year over year—the fastest in 18 quarters—with AI and core services driving each other's growth.",
-      "category": "Company news"
+      "title": "Inside Amazon's first-ever drone delivery site in the UK",
+      "link": "https://www.aboutamazon.com/news/transportation/amazon-drone-prime-air-uk?utm_source=rss",
+      "pubDate": "Fri, 07 Aug 2026 05:55:38 GMT",
+      "date": "8/7",
+      "summary": "The Prime Air site in Darlington, England is the first of its kind outside of the U.S.",
+      "category": "Transportation"
     },
     {
-      "title": "Q2 Earnings: Andy Jassy on what's driving Amazon Ads growth",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-ceo-andy-jassy-amazon-ads-growth-q2-2026-earnings?utm_source=rss",
-      "pubDate": "Fri, 31 Jul 2026 00:21:07 GMT",
-      "date": "7/31",
-      "summary": "Amazon Ads generated $19.8 billion of revenue in Q2, up 26% year over year, powered by AI tools, conversational shopping, and multi-sport st",
-      "category": "Company news"
+      "title": "How Amazon is supporting communities impacted by wildfires in Spokane, Washington",
+      "link": "https://www.aboutamazon.com/news/community/spokane-washington-fires-amazon-disaster-relief?utm_source=rss",
+      "pubDate": "Thu, 06 Aug 2026 22:00:00 GMT",
+      "date": "8/6",
+      "summary": "Amazon is working with the American Red Cross, Save the Children, and local nonprofits to support thousands of people in Spokane County who ",
+      "category": "Community"
     },
     {
-      "title": "Q2 Earnings: Andy Jassy on Amazon Stores growth, delivery speed, and AI shopping",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-ceo-andy-jassy-stores-growth-ai-shopping-q2-2026-earnings?utm_source=rss",
-      "pubDate": "Fri, 31 Jul 2026 00:20:31 GMT",
-      "date": "7/31",
-      "summary": "Amazon CEO Andy Jassy on how the Stores team is expanding selection, delivering at record speeds, growing Grocery and Pharmacy, and using AI",
-      "category": "Company news"
+      "title": "Everything to know about ‘Madden,’ a new movie coming to Prime Video November 18",
+      "link": "https://www.aboutamazon.com/news/entertainment/madden-movie-nicolas-cage-prime-video?utm_source=rss",
+      "pubDate": "Thu, 06 Aug 2026 15:00:58 GMT",
+      "date": "8/6",
+      "summary": "Nicolas Cage stars as legendary NFL coach John Madden in this film charting his unlikely journey from Super Bowl winner to video game icon.",
+      "category": "Entertainment"
     }
   ]
 }

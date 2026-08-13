@@ -1,30 +1,30 @@
 {
-  "updatedAt": "2026-08-12T01:47:59.638Z",
+  "updatedAt": "2026-08-13T01:49:53.636Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How Amazon's AI shopping assistant makes hundreds of millions of products feel personal",
+      "link": "https://www.aboutamazon.com/news/retail/alexa-for-shopping-learn-and-be-curious-podcast?utm_source=rss",
+      "pubDate": "Wed, 12 Aug 2026 16:55:18 GMT",
+      "date": "8/12",
+      "summary": "Doug Herrington, Amazon's CEO of Worldwide Stores, explains why conversational AI is the next format shift in retail—just as the catalog gav",
+      "category": "Retail"
+    },
+    {
+      "title": "Amazon's water conservation and replenishment efforts around the world",
+      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
+      "pubDate": "Wed, 12 Aug 2026 13:00:00 GMT",
+      "date": "8/12",
+      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
+      "category": "Sustainability"
+    },
     {
       "title": "How Amazon is supporting communities impacted by the Colombia earthquake",
       "link": "https://www.aboutamazon.com/news/community/colombia-earthquake-amazon-disaster-relief?utm_source=rss",
       "pubDate": "Tue, 11 Aug 2026 22:21:38 GMT",
       "date": "8/11",
       "summary": "Amazon is working with local nonprofits to help communities recover.",
-      "category": "Community"
-    },
-    {
-      "title": "Inside Amazon's first-ever drone delivery site in the UK",
-      "link": "https://www.aboutamazon.com/news/transportation/amazon-drone-prime-air-uk?utm_source=rss",
-      "pubDate": "Fri, 07 Aug 2026 05:55:38 GMT",
-      "date": "8/7",
-      "summary": "The Prime Air site in Darlington, England is the first of its kind outside of the U.S.",
-      "category": "Transportation"
-    },
-    {
-      "title": "How Amazon is supporting communities impacted by wildfires in Spokane, Washington",
-      "link": "https://www.aboutamazon.com/news/community/spokane-washington-fires-amazon-disaster-relief?utm_source=rss",
-      "pubDate": "Thu, 06 Aug 2026 22:00:00 GMT",
-      "date": "8/6",
-      "summary": "Amazon is working with the American Red Cross, Save the Children, and local nonprofits to support thousands of people in Spokane County who ",
       "category": "Community"
     }
   ]

@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-13T01:49:53.636Z",
+  "updatedAt": "2026-08-14T01:47:39.286Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "5 ways Amazon is investing in Maryland",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-maryland-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Thu, 13 Aug 2026 16:20:49 GMT",
+      "date": "8/13",
+      "summary": "Amazon's investments are boosting the state's economy while creating opportunities for those who call Maryland home.",
+      "category": "Community"
+    },
     {
       "title": "How Amazon's AI shopping assistant makes hundreds of millions of products feel personal",
       "link": "https://www.aboutamazon.com/news/retail/alexa-for-shopping-learn-and-be-curious-podcast?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "8/12",
       "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
       "category": "Sustainability"
-    },
-    {
-      "title": "How Amazon is supporting communities impacted by the Colombia earthquake",
-      "link": "https://www.aboutamazon.com/news/community/colombia-earthquake-amazon-disaster-relief?utm_source=rss",
-      "pubDate": "Tue, 11 Aug 2026 22:21:38 GMT",
-      "date": "8/11",
-      "summary": "Amazon is working with local nonprofits to help communities recover.",
-      "category": "Community"
     }
   ]
 }

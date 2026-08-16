@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-15T01:07:39.468Z",
+  "updatedAt": "2026-08-16T01:11:08.982Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How Amazon is supporting communities impacted by wildfires in Spokane, Washington",
+      "link": "https://www.aboutamazon.com/news/community/spokane-washington-fires-amazon-disaster-relief?utm_source=rss",
+      "pubDate": "Sat, 15 Aug 2026 02:00:00 GMT",
+      "date": "8/15",
+      "summary": "Amazon is working with the American Red Cross, Save the Children, and local nonprofits to support thousands of people in Spokane County who ",
+      "category": "Community"
+    },
     {
       "title": "5 ways Amazon is investing in Maryland",
       "link": "https://www.aboutamazon.com/news/community/amazon-investment-maryland-jobs-infrastructure-small-business?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "8/12",
       "summary": "Doug Herrington, Amazon's CEO of Worldwide Stores, explains why conversational AI is the next format shift in retail—just as the catalog gav",
       "category": "Retail"
-    },
-    {
-      "title": "Amazon's water conservation and replenishment efforts around the world",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
-      "pubDate": "Wed, 12 Aug 2026 13:00:00 GMT",
-      "date": "8/12",
-      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
-      "category": "Sustainability"
     }
   ]
 }

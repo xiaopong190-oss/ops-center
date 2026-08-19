@@ -456,7 +456,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           </div>
         </header>
 
-        <main className="ops-content" style={{ maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" ? 1280 : 960 }}>
+        <main className="ops-content" style={{ maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" ? 1280 : 960 }}>
           <GlobalCloudBar />
           <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>

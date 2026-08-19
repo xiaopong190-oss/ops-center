@@ -1,0 +1,1856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>推品计划 · 泓森拓创科技</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&family=Noto+Sans+SC:wght@400;500;700&family=Zhi+Mang+Xing&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c2438;
+    --ink-2:#2a3450;
+    --parchment:#faf6ec;
+    --parchment-line:#e4dcc6;
+    --paper:#fffdf8;
+    --seal:#a5352b;
+    --seal-dim:#c96b5f;
+    --gold:#b8912f;
+    --gold-soft:#e9d9a8;
+    --muted:#6b7280;
+    --border:#d9d2bd;
+    --shadow: 0 10px 30px rgba(28,36,56,0.12);
+    --plan:#3d5a80;
+    --risk:#a5352b;
+    --fix:#4f7a4f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    background: linear-gradient(180deg,#141b2c 0%, #1c2438 340px, var(--parchment) 340px);
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--ink);
+    padding-bottom:80px;
+  }
+  body.embedded header{padding-top:28px;padding-bottom:16px;}
+  body.embedded h1{font-size:clamp(24px,3.4vw,36px);}
+  body.embedded .lede{margin-bottom:14px;}
+
+  header{
+    max-width:1180px;
+    margin:0 auto;
+    padding:56px 32px 28px;
+    color:#f4efe0;
+    position:relative;
+  }
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:0.32em;
+    color:var(--gold-soft);
+    text-transform:uppercase;
+    margin-bottom:14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:26px; height:1px;
+    background:var(--gold-soft);
+    display:inline-block;
+  }
+  h1{
+    font-family:"Noto Serif SC","Source Han Serif SC","SimSun",serif;
+    font-weight:900;
+    font-size:clamp(30px,4.2vw,46px);
+    margin:0 0 14px;
+    letter-spacing:0.02em;
+    line-height:1.25;
+  }
+  .lede{
+    font-size:15px;
+    line-height:1.8;
+    color:#c9cede;
+    max-width:720px;
+    margin:0 0 22px;
+  }
+  .stamp-row{
+    display:flex; gap:12px; flex-wrap:wrap;
+    align-items:center;
+  }
+  .stamp{
+    border:1.5px solid rgba(232,217,168,0.55);
+    color:var(--gold-soft);
+    font-size:12px;
+    padding:7px 14px;
+    border-radius:2px;
+    letter-spacing:0.08em;
+    font-family:"Noto Serif SC",serif;
+  }
+
+  .casebar{
+    max-width:1180px;
+    margin:0 auto 8px;
+    padding:0 32px 20px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr) auto;
+    gap:10px;
+    align-items:end;
+  }
+  @media (max-width:860px){
+    .casebar{grid-template-columns:1fr 1fr;}
+  }
+  .case-field label{
+    display:block;
+    font-size:11px;
+    letter-spacing:0.12em;
+    color:var(--gold-soft);
+    margin-bottom:6px;
+  }
+  .case-field input{
+    width:100%;
+    background:rgba(255,253,248,0.08);
+    border:1px solid rgba(232,217,168,0.28);
+    color:#f4efe0;
+    font-size:13px;
+    padding:8px 10px;
+    border-radius:3px;
+    outline:none;
+    font-family:inherit;
+  }
+  .case-field input:focus{border-color:var(--gold-soft);}
+  .case-field input::placeholder{color:#8b91a3;}
+  .case-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .ghost-btn{
+    background:rgba(232,217,168,0.08);
+    border:1px solid rgba(232,217,168,0.35);
+    color:var(--gold-soft);
+    font-size:12px;
+    padding:8px 12px;
+    border-radius:3px;
+    cursor:pointer;
+    font-family:inherit;
+    white-space:nowrap;
+  }
+  .ghost-btn:hover{background:rgba(232,217,168,0.16);}
+
+  .navwrap{
+    position:sticky; top:0; z-index:50;
+    background:rgba(28,36,56,0.94);
+    backdrop-filter:blur(6px);
+    border-bottom:1px solid rgba(232,217,168,0.25);
+  }
+  nav.steps{
+    max-width:1180px; margin:0 auto;
+    display:flex; align-items:center;
+    gap:6px;
+    padding:10px 32px;
+    overflow-x:auto;
+  }
+  .nav-group{display:flex; gap:4px;}
+  .nav-divider{
+    width:1px;
+    align-self:stretch;
+    background:rgba(232,217,168,0.25);
+    margin:6px 6px;
+    flex:none;
+  }
+  nav.steps a{
+    flex:none;
+    min-width:96px;
+    text-decoration:none;
+    color:#aab0c4;
+    font-size:12.5px;
+    padding:10px 12px;
+    border-radius:3px;
+    text-align:center;
+    border:1px solid transparent;
+    transition:all .15s ease;
+    white-space:nowrap;
+  }
+  nav.steps a .n{
+    color:var(--gold-soft);
+    font-family:"Noto Serif SC",serif;
+    margin-right:6px;
+  }
+  nav.steps a.done{color:#f4efe0;}
+  nav.steps a.done::after{
+    content:"✓";
+    color:#7fae7f;
+    margin-left:6px;
+  }
+  nav.steps a:hover{background:rgba(232,217,168,0.08); border-color:rgba(232,217,168,0.25);}
+  nav.steps a.is-current{border-color:rgba(232,217,168,0.5); color:#f4efe0;}
+
+  main{
+    max-width:1180px;
+    margin:0 auto;
+    padding:44px 32px 0;
+  }
+
+  .step{
+    background:var(--paper);
+    border:1px solid var(--border);
+    border-radius:6px;
+    box-shadow:var(--shadow);
+    margin-bottom:36px;
+    overflow:hidden;
+    scroll-margin-top:80px;
+  }
+
+  .phase-banner{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin:0 0 20px;
+    padding:0 4px;
+  }
+  .phase-banner:not(:first-child){margin-top:8px;}
+  .phase-banner-num{
+    font-family:"Noto Serif SC",serif;
+    font-weight:900;
+    font-size:13px;
+    color:var(--paper);
+    background:var(--ink);
+    width:26px;height:26px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    flex:none;
+  }
+  .phase-banner-title{
+    font-family:"Noto Serif SC",serif;
+    font-weight:700;
+    font-size:15px;
+    color:var(--ink);
+    letter-spacing:0.02em;
+  }
+  .phase-banner-sub{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  .phase-banner::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background:repeating-linear-gradient(90deg, var(--border) 0 6px, transparent 6px 11px);
+  }
+  .step-head{
+    display:flex;
+    align-items:center;
+    gap:18px;
+    padding:26px 30px;
+    border-bottom:1px solid var(--parchment-line);
+    background:
+      repeating-linear-gradient(135deg, rgba(165,53,43,0.035) 0 2px, transparent 2px 14px);
+  }
+  .badge{
+    width:56px;height:56px;
+    flex:none;
+    border-radius:50%;
+    border:2px solid var(--seal);
+    color:var(--seal);
+    font-family:"Noto Serif SC",serif;
+    font-weight:900;
+    font-size:22px;
+    display:flex;align-items:center;justify-content:center;
+    position:relative;
+  }
+  .badge::before{
+    content:"";
+    position:absolute; inset:-6px;
+    border:1px solid var(--seal-dim);
+    border-radius:50%;
+    opacity:0.5;
+  }
+  .step-head h2{
+    font-family:"Noto Serif SC",serif;
+    font-size:22px;
+    margin:0 0 4px;
+    color:var(--ink);
+  }
+  .step-head .phase-tag{
+    font-size:12px;
+    color:var(--muted);
+    letter-spacing:0.04em;
+  }
+  .handoff{
+    margin-top:6px;
+    font-size:12px;
+    color:var(--seal);
+  }
+
+  .step-body{
+    display:grid;
+    grid-template-columns: 1.02fr 1.12fr;
+  }
+  @media (max-width:980px){
+    .step-body{grid-template-columns:1fr;}
+  }
+
+  .brief{
+    padding:28px 30px 30px;
+    border-right:1px dashed var(--parchment-line);
+    background:var(--parchment);
+  }
+  @media (max-width:980px){ .brief{border-right:none; border-bottom:1px dashed var(--parchment-line);} }
+
+  .block{margin-bottom:22px;}
+  .block:last-child{margin-bottom:0;}
+  .block-label{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.06em;
+    padding:3px 9px;
+    border-radius:2px;
+    margin-bottom:9px;
+  }
+  .label-why{ color:var(--seal); background:rgba(165,53,43,0.08); }
+  .label-how{ color:#3d5a80; background:rgba(61,90,128,0.08); }
+  .label-out{ color:#5b4b8a; background:rgba(91,75,138,0.08); }
+  .label-backup{ color:var(--gold); background:rgba(184,145,47,0.1); }
+
+  .block p, .block li{
+    font-size:13.5px;
+    line-height:1.85;
+    color:#3a4256;
+    margin:0;
+  }
+  .block p + p{margin-top:8px;}
+  .block ul{margin:0; padding-left:18px;}
+  .block li{margin-bottom:5px;}
+  .block li::marker{color:var(--muted);}
+  .deliver{
+    font-size:13px;
+    line-height:1.7;
+    color:var(--ink-2);
+    background:rgba(91,75,138,0.06);
+    border:1px solid rgba(91,75,138,0.15);
+    padding:10px 12px;
+    border-radius:4px;
+  }
+
+  .backup-box{
+    border-left:3px solid var(--gold);
+    padding:10px 14px;
+    background:rgba(184,145,47,0.06);
+    border-radius:0 4px 4px 0;
+  }
+
+  .notes{
+    padding:22px 20px 18px;
+    display:flex;
+    flex-direction:column;
+    min-height:100%;
+    background:
+      repeating-linear-gradient(#fffdf8, #fffdf8 31px, #eee6cf 32px);
+    background-size:100% 32px;
+  }
+  .notes-head{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom:8px;
+    background:#fffdf8;
+    gap:10px;
+  }
+  .notes-title{
+    font-family:"Zhi Mang Xing", "Noto Serif SC", serif;
+    font-size:22px;
+    color:var(--seal);
+    letter-spacing:0.02em;
+  }
+  .save-status{
+    font-size:11px;
+    color:var(--muted);
+    transition:opacity .3s;
+  }
+
+  .mm-root-wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    background:#fffdf8;
+    margin-bottom:4px;
+  }
+  .mm-root{
+    font-family:"Noto Serif SC",serif;
+    font-weight:700;
+    font-size:13px;
+    color:var(--paper);
+    background:var(--ink);
+    padding:7px 16px;
+    border-radius:16px;
+    letter-spacing:0.04em;
+  }
+  .mm-stem{
+    width:1px;
+    height:14px;
+    background:var(--border);
+  }
+  .mm-fork{
+    width:calc(100% - 36px);
+    height:10px;
+    border:1px solid var(--border);
+    border-bottom:none;
+    border-radius:8px 8px 0 0;
+  }
+
+  .mm-cols{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+    align-items:start;
+    background:#fffdf8;
+    padding:0 2px 8px;
+  }
+  .mm-col{
+    border:1px solid var(--border);
+    border-radius:6px;
+    background:rgba(255,253,248,0.92);
+    min-height:220px;
+    display:flex;
+    flex-direction:column;
+  }
+  .mm-col.plan{border-top:3px solid var(--plan);}
+  .mm-col.risk{border-top:3px solid var(--risk);}
+  .mm-col.fix{border-top:3px solid var(--fix);}
+  .mm-col-h{
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.08em;
+    padding:8px 8px 6px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .mm-col.plan .mm-col-h{color:var(--plan);}
+  .mm-col.risk .mm-col-h{color:var(--risk);}
+  .mm-col.fix .mm-col-h{color:var(--fix);}
+  .mm-add{
+    width:20px;height:20px;
+    border:1px solid currentColor;
+    border-radius:50%;
+    background:transparent;
+    color:inherit;
+    cursor:pointer;
+    font-size:14px;
+    line-height:1;
+    padding:0;
+    opacity:0.7;
+  }
+  .mm-add:hover{opacity:1; background:rgba(0,0,0,0.04);}
+  .mm-list{padding:0 6px 8px; flex:1;}
+  .mm-card{
+    margin:0 0 6px;
+  }
+  .mm-card-row{
+    display:flex;
+    align-items:flex-start;
+    gap:4px;
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:6px 6px 6px 8px;
+  }
+  .mm-card.is-sel > .mm-card-row{
+    border-color:var(--ink);
+    box-shadow:0 0 0 2px rgba(28,36,56,0.08);
+  }
+  .mm-text{
+    flex:1;
+    font-size:12.5px;
+    line-height:1.55;
+    color:var(--ink-2);
+    outline:none;
+    min-height:18px;
+    word-break:break-word;
+  }
+  .mm-text:empty:before{
+    content:attr(data-ph);
+    color:#b8ae90;
+  }
+  .mm-x{
+    flex:none;
+    border:none;
+    background:transparent;
+    color:#c4bba3;
+    cursor:pointer;
+    font-size:13px;
+    padding:0 2px;
+    line-height:1;
+  }
+  .mm-x:hover{color:var(--seal);}
+  .mm-kids{
+    margin:4px 0 0 10px;
+    padding-left:8px;
+    border-left:1px dashed var(--parchment-line);
+  }
+  .mm-hint{
+    font-size:11px;
+    color:#b8ae90;
+    background:#fffdf8;
+    padding:4px 2px 0;
+  }
+
+  .notes-foot{
+    display:flex; gap:10px; margin-top:10px;
+    background:#fffdf8;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .notes-pad{
+    margin-top:12px;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-height:360px;
+    background:transparent;
+  }
+  .notes-pad textarea{
+    flex:1;
+    min-height:360px;
+    width:100%;
+    border:none;
+    background:transparent;
+    resize:vertical;
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    font-size:14px;
+    line-height:32px;
+    color:var(--ink-2);
+    outline:none;
+    padding:0;
+  }
+  .notes-pad textarea::placeholder{ color:#b8ae90; }
+  .chip-status{
+    font-size:11.5px;
+    padding:5px 11px;
+    border-radius:12px;
+    border:1px solid var(--border);
+    color:var(--muted);
+    cursor:pointer;
+    background:#fffdf8;
+    user-select:none;
+    transition:all .15s;
+  }
+  .chip-status.active-todo{ border-color:#c9a1a1; color:#a5352b; background:#fbeeee;}
+  .chip-status.active-progress{ border-color:var(--gold); color:var(--gold); background:#fbf3df;}
+  .chip-status.active-done{ border-color:#7fae7f; color:#4f7a4f; background:#eef5ee;}
+  .foot-left{display:flex; gap:8px; flex-wrap:wrap;}
+
+  footer{
+    max-width:1180px; margin:0 auto;
+    padding:20px 32px 50px;
+    text-align:center;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .reset-btn{
+    background:none; border:1px solid var(--border);
+    color:var(--muted); font-size:12px;
+    padding:8px 16px; border-radius:4px;
+    cursor:pointer; margin-top:16px;
+  }
+  .reset-btn:hover{ border-color:var(--seal); color:var(--seal); }
+
+  .modal{
+    position:fixed; inset:0; z-index:80;
+    background:rgba(20,27,44,0.55);
+    display:none;
+    align-items:flex-start;
+    justify-content:center;
+    padding:40px 20px;
+    overflow:auto;
+  }
+  .modal.open{display:flex;}
+  .modal-card{
+    background:var(--paper);
+    border:1px solid var(--border);
+    border-radius:8px;
+    width:min(980px,100%);
+    padding:28px 28px 20px;
+    box-shadow:var(--shadow);
+  }
+  .modal-card h3{
+    font-family:"Noto Serif SC",serif;
+    margin:0 0 6px;
+  }
+  .modal-sub{font-size:12px; color:var(--muted); margin:0 0 18px;}
+  .master-step{margin-bottom:18px;}
+  .master-step h4{
+    font-family:"Noto Serif SC",serif;
+    font-size:15px;
+    margin:0 0 8px;
+    color:var(--ink);
+  }
+  .master-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+  }
+  .master-col{
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:8px 10px;
+    font-size:12.5px;
+    line-height:1.65;
+    background:var(--parchment);
+  }
+  .master-col b{display:block; margin-bottom:4px; font-size:11px; letter-spacing:0.06em;}
+  .master-col.plan b{color:var(--plan);}
+  .master-col.risk b{color:var(--risk);}
+  .master-col.fix b{color:var(--fix);}
+  .master-col ul{margin:0; padding-left:16px;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
+
+  .planbar{
+    max-width:1180px;
+    margin:0 auto;
+    padding:0 32px 12px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+  }
+  .who{
+    font-size:12px;
+    color:var(--gold-soft);
+    letter-spacing:0.04em;
+    margin-right:6px;
+  }
+  .planbar select{
+    background:rgba(255,253,248,0.08);
+    border:1px solid rgba(232,217,168,0.28);
+    color:#f4efe0;
+    font-size:13px;
+    padding:8px 10px;
+    border-radius:3px;
+    font-family:inherit;
+    min-width:220px;
+    max-width:320px;
+  }
+  .planbar select option{color:#1c2438;}
+  .file-input{display:none;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">泓森拓创科技 · 亚马逊推品作战手册</div>
+  <h1>五阶段九步<br>亚马逊推品计划</h1>
+  <p class="lede">左边是这一步为什么做、怎么做、打不通怎么办。右边是这支 ASIN 的思维导图 —— 按「方案 / 可能异常 / 解决方案」把推品计划铺开，内容会自动保存。</p>
+  <div class="stamp-row">
+    <span class="stamp">一 认知</span>
+    <span class="stamp">二 落地准备</span>
+    <span class="stamp">三 星级与节奏</span>
+    <span class="stamp">四 测款 · 放量</span>
+    <span class="stamp">五 预算与预案</span>
+  </div>
+</header>
+
+<div class="planbar">
+  <span class="who" id="whoLabel">运营：—</span>
+  <select id="planSelect" title="我的推品计划"></select>
+  <button class="ghost-btn" id="newPlanBtn" type="button">新建空白计划</button>
+  <button class="ghost-btn" id="copyBlankBtn" type="button">复制空白链接</button>
+  <button class="ghost-btn" id="pdfBtn" type="button">导出 PDF</button>
+  <button class="ghost-btn" id="exportJsonBtn" type="button">导出备份</button>
+  <button class="ghost-btn" id="importBtn" type="button">导入计划</button>
+  <input class="file-input" id="importFile" type="file" accept="application/json,.json" />
+</div>
+
+<div class="casebar">
+  <div class="case-field">
+    <label>站点</label>
+    <input id="caseSite" placeholder="如 US / UK / DE" />
+  </div>
+  <div class="case-field">
+    <label>ASIN</label>
+    <input id="caseAsin" placeholder="B0XXXXXXXX" />
+  </div>
+  <div class="case-field">
+    <label>产品简称</label>
+    <input id="caseName" placeholder="这支要推的品" />
+  </div>
+  <div class="case-field">
+    <label>售价</label>
+    <input id="casePrice" placeholder="$ / € / £" />
+  </div>
+  <div class="case-actions">
+    <button class="ghost-btn" id="masterBtn" type="button">打开总推品图</button>
+    <button class="ghost-btn" id="exportBtn" type="button">导出 Markdown</button>
+  </div>
+</div>
+
+<div class="navwrap">
+  <nav class="steps" id="stepNav">
+    <div class="nav-group">
+      <a href="#step-1" data-step="1"><span class="n">01</span>产品分析</a>
+      <a href="#step-2" data-step="2"><span class="n">02</span>竞品分析</a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-group">
+      <a href="#step-3" data-step="3"><span class="n">03</span>Listing方案</a>
+      <a href="#step-4" data-step="4"><span class="n">04</span>FBA备货</a>
+      <a href="#step-5" data-step="5"><span class="n">05</span>广告与关键词</a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-group">
+      <a href="#step-6" data-step="6"><span class="n">06</span>星级节奏</a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-group">
+      <a href="#step-7" data-step="7"><span class="n">07</span>测款期</a>
+      <a href="#step-8" data-step="8"><span class="n">08</span>放量期</a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-group">
+      <a href="#step-9" data-step="9"><span class="n">09</span>预算与Plan B</a>
+    </div>
+  </nav>
+</div>
+
+<main id="main"></main>
+
+<footer>
+  <div>每位运营的计划互相隔离 · 空白链接可开下一支 ASIN · 可导出 PDF</div>
+  <button class="reset-btn" id="resetBtn" type="button">清空当前这份计划</button>
+</footer>
+
+<div class="modal" id="masterModal">
+  <div class="modal-card">
+    <h3>总推品图</h3>
+    <p class="modal-sub" id="masterMeta">九步方案 / 异常 / 解决汇总，可导出为计划文本。</p>
+    <div id="masterBody"></div>
+    <div class="modal-actions">
+      <button class="ghost-btn" id="masterExport" type="button" style="color:var(--ink);border-color:var(--border);">导出 Markdown</button>
+      <button class="reset-btn" id="masterClose" type="button" style="margin-top:0;">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STEPS = [
+  {
+    id:1, phase:1, phaseName:"第一阶段 · 认知", tag:"认知这支品",
+    title:"产品分析",
+    handoff:"本步输出会流入竞品对比、Listing 卖点和盈亏平衡 ACOS。",
+    deliver:"一句话卖点、目标买家、定价与可承受广告上限、Listing 缺口清单。",
+    why:[
+      "推品不是先开广告。先想清楚这支 ASIN 卖给谁、凭什么赢、利润能不能撑住 PPC，否则测款期花的是信息费，放量期烧的是本金。",
+      "产品分析是后面竞品矩阵、标题五点、关键词架构的共同输入。这里含糊，后面每一步都会返工。"
+    ],
+    how:[
+      "写清一句话卖点：为什么选我而不是同页另外三个 ASIN",
+      "锁定目标买家（使用场景 / 决策动机 / 会搜的词族），不要只写年龄性别",
+      "核对类目节点、变体结构和当前 BSR 现实，避免推一个打不进的大类目头词",
+      "算清售价、头程、FBA、佣金后的毛利，倒推出盈亏平衡 ACOS 和日预算上限",
+      "对照现有 Listing：主图、标题、五点、A+、视频，列出缺口而不是感觉还行"
+    ],
+    backupLabel:"没有调研样本或后台数据时",
+    backup:"先用 3~5 个竞品的公开评论反推 VOC 和短板，用小样本快速定一版卖点与人群；同时用盈亏平衡 ACOS 卡住预算，而不是等完美数据再开推。",
+    plan:["一句话卖点","目标买家（场景/动机）","类目节点与变体","售价 / 毛利 / 盈亏平衡 ACOS","Listing 缺口（主图·标题·A+）"],
+    risk:["卖点不够独特，会打成同质化价格战","利润撑不住核心词 CPC","类目星级/认证门槛高于现状"],
+    fix:["改打细分场景或配件差异化","先砍非必要成本再定价，或换价格带","换细分类目节点，或先补齐合规再推"]
+  },
+  {
+    id:2, phase:1, phaseName:"第一阶段 · 认知", tag:"认知市场",
+    title:"竞品分析",
+    handoff:"差异化点和 VOC 痛点，直接交给 Listing 文案和广告否定/进攻词。",
+    deliver:"3~5 个核心竞品 ASIN、价格带与 Ratings 对照、VOC 痛点、差异化矩阵。",
+    why:[
+      "亚马逊搜索页就是战场坐标系。不看同价格带、同场景的 ASIN，差异化只会写在内部文档里，进不了主图和标题。",
+      "竞品评论是最快的 VOC。他们被骂的点，往往是你可以打的点；他们在吃的词，决定你要避还是要抢。"
+    ],
+    how:[
+      "圈定 3~5 个可打的核心竞品（同场景、同价格带；新品先避开不可撼动的大牌头款）",
+      "逐个拆：价格、Ratings 数量与星级、主图/A+结构、变体、疑似广告布局",
+      "把竞品 1~2 星和 3 星评论扫一遍，抽出可复现的痛点，不要只看 5 星吹点",
+      "做一张差异化矩阵：功能 / 规格 / 场景 / 价格 / 内容，我方 vs 竞品逐项打分",
+      "标出要进攻的缺口词、要回避的品牌词和已经打穿的头词"
+    ],
+    backupLabel:"竞品是新品牌或广告布局看不清时",
+    backup:"用卖家精灵等第三方看流量词与类目对比，再回竞品评论区拿一手感受。广告布局看不清就先当「他们一定在打核心词」，你的第一枪改打场景词和长尾。",
+    plan:["核心竞品 ASIN 清单（3~5）","价格带 / 星级 / Ratings 对照","VOC 痛点（1~3星）","差异化矩阵结论","要抢的缺口 vs 要避的头词"],
+    risk:["头部品牌+Amazon 自营把量吃完","竞品 Vine/广告很猛，CPC 被抬高","和竞品几乎同款，只能拼价"],
+    fix:["打剩余市场：长尾场景、规格、捆绑","先避头词，用自动广告+长尾试转化","上配件/规格/包数差异，或换定位再推"]
+  },
+  {
+    id:3, phase:2, phaseName:"第二阶段 · 落地准备", tag:"准备①",
+    title:"Listing / A+ / 视频方案",
+    handoff:"标题与主图要和关键词架构一一对应，否则广告点进来会对不上。",
+    deliver:"主图策略、标题覆盖词、五点利益点、A+ 模块草稿、视频钩子、合规删除项。",
+    why:[
+      "用户先碰到的是主图和标题，不是你的产品参数。点击率决定广告能不能跑起来，转化率决定 ACOS 能不能活。",
+      "Listing 要把上两步的差异化，翻译成 A9 能匹配、买家能看懂、Rufus 能抽出的句子和画面。"
+    ],
+    how:[
+      "主图先解决「搜索页停得住」：主体清晰、场景可识别、和竞品墙能区分",
+      "标题按核心词 + 关键属性 + 可读性来写，不要堆成词表",
+      "五点承接 VOC：每条一个利益点，对应竞品被骂的痛点或我方独有功能",
+      "A+ 用场景模块讲清「谁用、怎么用、和普通款差在哪」，品牌故事放后面",
+      "准备 1 条短视频：3 秒钩子 → 痛点 → 演示 → 规格信任。主图和标题准备 A/B 各两套"
+    ],
+    backupLabel:"拍摄或设计资源不够时",
+    backup:"先打主图 + 标题 + 五点这三块转化入口，A+ 和视频可以测通出单后再补。合规优先：删绝对化、医疗功效、保证用语和竞品品牌词。",
+    plan:["主图区分点（vs 竞品墙）","标题：核心词 + 属性 + 可读","五点：对应 VOC 痛点","A+ 场景模块草稿","视频 3 秒钩子"],
+    risk:["主图进搜索页停不住","标题堆词，人看不懂、也不转化","宣称踩合规（医疗/保证/绝对化）"],
+    fix:["先 A/B 两套主图，只改一张","核心词保留，其余改成人话","删除风险句，改成可验证的规格和场景"]
+  },
+  {
+    id:4, phase:2, phaseName:"第二阶段 · 落地准备", tag:"准备②",
+    title:"FBA 备货方案",
+    handoff:"测款和放量的日预算，必须能被库存天数接住，否则广告白打。",
+    deliver:"测试期日销假设、首发入仓量、补货点、交期、断货/滞销预案。",
+    why:[
+      "亚马逊排名和广告权重都怕断货。流量起来却没货，等于把刚买到的位置让给竞品。",
+      "备货也是现金流闸门：测款期备太满会压死资金，备太少会在出单时被迫空运或停广告。"
+    ],
+    how:[
+      "用保守日销假设倒推首发 FBA 数量（测款期按能撑 3~4 周，含入仓时效）",
+      "写清生产周期、头程、上架缓冲，算出补货点（库存可撑天数 ≤ 交期+缓冲 就下单）",
+      "分滞销和爆款两套预案：滞销如何停广告/促清理；爆款如何加急补、要不要先收广告",
+      "和财务对齐这支 ASIN 最多能压多少货值，不要用全账户库存思维看单品",
+      "旺季或入仓受限时，把入仓预约和 IPI/仓储费一并写进计划，而不是到仓了再急"
+    ],
+    backupLabel:"交期长或测款预算紧时",
+    backup:"先按保守预估小批量入仓测转化，同时锁一条空运/加急渠道（成本更高也要有）。确认出单模型后再走海运加单，避免测款期断货丢排名。",
+    plan:["测试期日销假设","首发 FBA 数量","生产/头程/上架交期","补货点（可撑天数）","爆款加急 / 滞销清理预案"],
+    risk:["测款期断货，广告和自然位一起掉","备太多，测失败压现金流","旺季舱位或入仓限制"],
+    fix:["小批量 + 预留空运应急","测通再加海运，不赌首批发完","提前一个交期备旺季，广告按库存限速"]
+  },
+  {
+    id:5, phase:2, phaseName:"第二阶段 · 落地准备", tag:"准备③",
+    title:"广告布局与关键词",
+    handoff:"词库和 Listing 对不上就先改 Listing，不要用加价硬打。",
+    deliver:"词库分层、活动架构、日预算与 ACOS 上限、否定规则、词与 Listing 对应表。",
+    why:[
+      "广告决定流量进不进得来，关键词决定进的是不是对的人。这两件事拆开做，会出现有花费无订单、或订单来了 Listing 承接不住。",
+      "推品期不要什么匹配都开。先设计「自动收词 + 核心精确验证 + 预算闸门」，再谈放量。"
+    ],
+    how:[
+      "词库分层：核心转化词 / 场景长尾 / 竞品 ASIN / 要否定的无关词，先少而清",
+      "活动架构先简：自动广告收词，手动精确验证核心词；SB 测款期最多 1 条，SD 放到有订单后再说",
+      "每一组要打的词，在标题或五点里要有对应语言，避免词不对文",
+      "写下日预算上限、盈亏平衡 ACOS、以及连续几天超线就降价/缩词/暂停的条件",
+      "否定规则提前写：无关品类、错误规格、纯浏览大词，避免自动广告把预算洗光"
+    ],
+    backupLabel:"没有搜索词报告或大盘词数据时",
+    backup:"先用竞品分析里的缺口词和场景词打底，开自动广告 7~14 天只为收词。用这批真实搜索词反哺词库，而不是从 0 猜核心词。",
+    plan:["词库分层（核心/长尾/场景/竞品ASIN）","自动 + 手动精确架构","日预算与 ACOS 上限","词 ↔ Listing 对应","否定词规则"],
+    risk:["没有后台搜索词，只能猜大词","核心词 CPC 吃光日预算","词和标题/主图场景不一致"],
+    fix:["先自动广告收词 7~14 天","预算锁在已出单或高意图长尾","先改 Listing 再加价，不硬打头词"]
+  },
+  {
+    id:6, phase:3, phaseName:"第三阶段 · 星级与节奏", tag:"口碑与复盘",
+    title:"星级、评论与复盘节奏",
+    handoff:"测款是否放量，要看转化，也要看星级会不会在放量时被砸穿。",
+    deliver:"目标星级与 Ratings 数量、合规跟评路径、差评 SOP、日/周/月复盘结论格式。",
+    why:[
+      "很多类目星级掉到阈值以下，广告和自然都会变贵。推品要把「评论爬坡」写成计划，而不是出了差评再救。",
+      "增长靠的是投放 → 看搜索词 → 改 Listing/否定/出价的循环。没有固定节奏，好词留不住，差词也停不掉。"
+    ],
+    how:[
+      "写下目标星级和 Ratings 数量门槛，以及低于门槛时是否允许放量",
+      "只走平台合规入口：Vine（如可用）和后台 Request a Review，禁止站外返现、插卡求五星",
+      "差评 SOP：24 小时内客服响应、看是否质量/物流/期望管理问题，该退的退，不争辩刷星",
+      "三级节奏：日看花费异常和断货；周收割搜索词、加否定、改一条 Listing；月看这支品还该不该推",
+      "每次周复盘只输出三个结论：继续做 / 停止做 / 加大做，并写到本步思维导图里"
+    ],
+    backupLabel:"早期没有评论、数据系统也没搭好时",
+    backup:"先用订单量+客服记录+差评截图做定性复盘，同时把 Request a Review 节奏跑起来。没有评论时更要控期望：包装、说明书、主图不要过度承诺。",
+    plan:["目标星级 / Ratings 门槛","Vine 或 Request a Review 节奏","差评 24h SOP","日异常 / 周收词 / 月方向","周复盘三结论格式"],
+    risk:["前 10 个评论里出现差评，星级难翻","出单快但评论跟不上","周会开完没有可执行结论"],
+    fix:["先停放大、修期望管理与客服，不合规不催评","按订单合规请求评价，不走站外","每次只留继续/停止/加大三条"]
+  },
+  {
+    id:7, phase:4, phaseName:"第四阶段 · 流量导入", tag:"导入①",
+    title:"测款期 / 冷启动",
+    handoff:"本步必须给出「哪组词 + 哪张主图值得放量」；给不出就不要加预算。",
+    deliver:"测试组合、样本门槛、止损线、以及明确的放量/切换结论。",
+    why:[
+      "测款期买的是信息：哪组关键词、哪张主图、哪个价格能转化。目标不是这周赚钱，是尽快得到能不能放量的答案。",
+      "没验证就加大预算，会把错误匹配和弱主图一起放大。亚马逊上改一次比多烧一周更便宜。"
+    ],
+    how:[
+      "同时只测 2~3 组：自动收词、核心精确、必要时 1 条 SB。预算要够产生可判断的点击样本",
+      "一次只改一个变量（主图或出价或匹配），不要同一天全改",
+      "提前写止损：日预算、最低点击样本、ACOS 上限、测试天数。到期强制出结论",
+      "看三类结果：有曝光无点击（主图/标题）、有点击无订单（Listing/价格/评价）、有订单但 ACOS 死（词或出价）",
+      "测试结束必须写下：放大哪组、砍哪组、还要不要再测一轮"
+    ],
+    backupLabel:"主组合 ROI 不达标时",
+    backup:"48 小时内切到预案：换场景长尾、换匹配、或改打竞品 ASIN 定位。不要在同一组核心词上反复加价。备选渠道清单本步就要写在「解决方案」里。",
+    plan:["测试组合（自动/精确/SB）","只测一个变量","止损线（预算/ACOS/天数/点击样本）","三类结果判断","放量或切换的结论"],
+    risk:["有点击不转化","有曝光没点击","预算撒太开，哪组都测不透"],
+    fix:["查价格、卖点、星级、五点是否接得住这批词","换主图/标题，不先加预算","砍到 1~2 个活动，凑够样本再判断"]
+  },
+  {
+    id:8, phase:4, phaseName:"第四阶段 · 流量导入", tag:"导入②",
+    title:"放量期 / 规模化",
+    handoff:"放量后的 TACOS、库存可撑天数、差评率，会反过来卡预算盘。",
+    deliver:"放量词表、否定与词组、SB/SD 补位、TACOS 健康线、库存与星级闸门。",
+    why:[
+      "测通之后要在窗口期内把有效组合放大。拖久了，同样的词会被同行把 CPC 抬上去。",
+      "放量不是无限加预算。要开始养自然位，用 TACOS 看这支品是否在减少对广告的依赖，而不是一直烧。"
+    ],
+    how:[
+      "把测款期出单的精确词加大，按词根/场景拆组，同步加否定，避免自动广告继续乱花",
+      "SB 补品牌/场景教育，SD 做关联和再营销——有稳定订单再加，不要测款期就铺满",
+      "每周看自然位和 TACOS：广告在涨、自然不动，说明 Listing 或评价还没接住",
+      "放量闸门：库存可撑天数、星级、差评率。任一亮红灯就限速，不要用广告掩盖断货和口碑问题",
+      "把已验证转化词同步进标题/A+ 覆盖，让广告和自然抢同一批该抢的词"
+    ],
+    backupLabel:"CPC 上涨或政策/库存收紧时",
+    backup:"收缩到已转化精确词，停掉消耗型大词；用 SB 守住品牌和场景；公域变贵时，靠已有评价和 Listing 资产撑自然。不要在成本上升时用更宽匹配硬冲。",
+    plan:["放量词表（已出单精确词）","词组拆分 + 否定","SB/SD 补位时机","TACOS 与自然位观察","库存天数 / 星级闸门"],
+    risk:["CPC 上涨，同样订单更贵","广告涨、自然位不跟","放量后差评率上升"],
+    fix:["只留转化词，砍宽匹配和大词","先补 Listing/评价，再加预算","限速投放，先修产品和客服"]
+  },
+  {
+    id:9, phase:5, phaseName:"第五阶段 · 预算与预案", tag:"总控",
+    title:"成本预算与第二方案",
+    handoff:"触发线一旦达到，按本步预案切换，不要靠周会现场拍板。",
+    deliver:"总预算盘、目标 TACOS、切换触发线、Plan B 路径、Plan C 收缩条件。",
+    why:[
+      "前面每步都有备用方案，但项目还需要一张总账：货值、广告、Vine、工具、头程加在一起，这支 ASIN 到底能撑几周。",
+      "更重要的是全局 Plan B。核心指标持续不达标时按预案切，而不是情绪化加预算或突然停掉。"
+    ],
+    how:[
+      "汇总本 ASIN 预算：首发货值、测款广告、放量广告、Vine/工具、应急空运预留",
+      "写下目标 TACOS 和可接受的回本周期，广告占比允许一个浮动区间",
+      "明确触发线：连续 X 天 ACOS 超线、转化下滑、星级跌破门槛、库存可撑不足 Y 天",
+      "Plan B：主词根整体不赚钱时，转向哪条路径（场景词 / 绑品 / 价格带 / 只打已转化词）",
+      "Plan C 写在触发之前：停投、清理库存、回到产品/竞品分析，而不是把现金流打穿"
+    ],
+    backupLabel:"第二方案也扛不住时（Plan C）",
+    backup:"预留保守收缩：大幅削减预算，只保留已转化精确词和最基本的库存周转，先保住账户健康和现金，再回头重做产品与竞品分析。硬撑头词通常会把测款信息费变成沉没成本。",
+    plan:["总预算盘（货+广告+Vine+工具）","目标 TACOS / 回本周期","触发线（ACOS/转化/星级/库存）","Plan B 备用增长路径","Plan C 收缩条件"],
+    risk:["主词根整体不赚钱","现金撑不到自然位起来","Plan B 切过去仍然不达标"],
+    fix:["切场景词/绑品/价格带，或只打已转化词","按库存和 TACOS 限速，不靠加预算赌","执行 Plan C：停投、清货、回到第 1 步"]
+  }
+];
+
+const BRANCHES = [
+  {key:"plan", label:"方案"},
+  {key:"risk", label:"可能异常"},
+  {key:"fix",  label:"解决方案"}
+];
+const STEP_STATUS = { todo:"方案", progress:"可能异常", done:"备用方案" };
+
+function uid(){ return "n" + Math.random().toString(36).slice(2,9); }
+
+function defaultBranch(key, texts){
+  return {
+    id: uid(),
+    key,
+    children: (texts || []).map(text => ({id: uid(), text, children: []}))
+  };
+}
+function defaultTree(step){
+  return {
+    plan: defaultBranch("plan", step.plan),
+    risk: defaultBranch("risk", step.risk),
+    fix:  defaultBranch("fix",  step.fix)
+  };
+}
+
+const CURRENT_USER_KEY = "ops-center-current-user";
+const USER = (function(){
+  try{
+    const raw = sessionStorage.getItem(CURRENT_USER_KEY);
+    if(raw){
+      const p = JSON.parse(raw);
+      if(p && (p.id || p.name)) return { id: String(p.id || p.name), name: p.name || String(p.id) };
+    }
+  }catch(e){}
+  return { id: "guest", name: "访客" };
+})();
+const userId = USER.id;
+
+let planId = "";
+
+function indexKey(){ return "user:"+userId+":hs-playbook:index"; }
+function lastKey(){ return "user:"+userId+":hs-playbook:last-plan"; }
+function scoped(key){ return "user:"+userId+":hs-playbook:"+planId+":"+key; }
+
+const storeRaw = {
+  async get(full){
+    if(window.storage && typeof window.storage.get === "function"){
+      try{
+        const res = await window.storage.get(full, false);
+        if(res && res.value != null && res.value !== "") return res.value;
+      }catch(e){}
+    }
+    try{ return localStorage.getItem(full); }catch(e){ return null; }
+  },
+  async set(full, value){
+    if(window.storage && typeof window.storage.set === "function"){
+      try{ await window.storage.set(full, value, false); return; }catch(e){}
+    }
+    try{ localStorage.setItem(full, value); }catch(e){}
+  },
+  async del(full){
+    if(window.storage && typeof window.storage.delete === "function"){
+      try{ await window.storage.delete(full, false); }catch(e){}
+    }
+    try{ localStorage.removeItem(full); }catch(e){}
+  }
+};
+
+const store = {
+  get(key){ return storeRaw.get(scoped(key)); },
+  set(key, value){ return storeRaw.set(scoped(key), value); },
+  del(key){ return storeRaw.del(scoped(key)); }
+};
+
+function newPlanId(){
+  return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+function planLabel(p){
+  const asin = (p.asin || "").trim();
+  const name = (p.name || "").trim();
+  if(asin && name) return asin + " · " + name;
+  if(asin) return asin;
+  if(name) return name;
+  return "空白计划";
+}
+
+function readCase(){
+  return {
+    site: document.getElementById("caseSite").value,
+    asin: document.getElementById("caseAsin").value,
+    name: document.getElementById("caseName").value,
+    price: document.getElementById("casePrice").value
+  };
+}
+
+function applyCase(data){
+  document.getElementById("caseSite").value = data && data.site || "";
+  document.getElementById("caseAsin").value = data && data.asin || "";
+  document.getElementById("caseName").value = data && data.name || "";
+  document.getElementById("casePrice").value = data && data.price || "";
+}
+
+function setUrlPlan(id){
+  const u = new URL(location.href);
+  u.searchParams.delete("new");
+  if(id) u.searchParams.set("plan", id);
+  else u.searchParams.delete("plan");
+  history.replaceState({}, "", u.pathname + u.search + u.hash);
+}
+
+function blankLink(){
+  const u = new URL(location.href);
+  u.search = "?new=1";
+  u.hash = "";
+  return u.href;
+}
+
+async function loadIndex(){
+  try{
+    const raw = await storeRaw.get(indexKey());
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+
+async function saveIndex(list){
+  await storeRaw.set(indexKey(), JSON.stringify(list));
+}
+
+async function touchPlanMeta(){
+  if(!planId) return;
+  const data = readCase();
+  const idx = await loadIndex();
+  const i = idx.findIndex(p => p.id === planId);
+  const meta = { id: planId, ...data, updated: Date.now() };
+  if(i >= 0) idx[i] = { ...idx[i], ...meta };
+  else idx.unshift(meta);
+  await saveIndex(idx);
+  await storeRaw.set(lastKey(), planId);
+  await store.set("meta", JSON.stringify(data));
+  refreshPlanSelect(idx);
+}
+
+function refreshPlanSelect(list){
+  const sel = document.getElementById("planSelect");
+  if(!sel) return;
+  const items = list || [];
+  sel.innerHTML = "";
+  if(!items.length){
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "还没有计划";
+    sel.appendChild(opt);
+    return;
+  }
+  items.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = planLabel(p);
+    if(p.id === planId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+async function resetCurrentTrees(){
+  for(const s of STEPS){
+    trees[s.id] = defaultTree(s);
+    renderMap(s.id);
+    const ta = document.getElementById("note-"+s.id);
+    if(ta) ta.value = "";
+    updateChipUI(s.id, "todo");
+    updateNavCheck(s.id, "todo");
+  }
+}
+
+async function createBlankPlan(){
+  planId = newPlanId();
+  applyCase({ site:"", asin:"", name:"", price:"" });
+  await resetCurrentTrees();
+  const meta = { id: planId, site:"", asin:"", name:"", price:"", updated: Date.now() };
+  const idx = await loadIndex();
+  idx.unshift(meta);
+  await saveIndex(idx);
+  await storeRaw.set(lastKey(), planId);
+  setUrlPlan(planId);
+  refreshPlanSelect(idx);
+}
+
+async function openPlan(id){
+  planId = id;
+  setUrlPlan(id);
+  await storeRaw.set(lastKey(), id);
+  try{
+    const raw = await store.get("meta");
+    if(raw) applyCase(JSON.parse(raw));
+    else {
+      const idx = await loadIndex();
+      const hit = idx.find(p => p.id === id);
+      applyCase(hit || {});
+    }
+  }catch(e){ applyCase({}); }
+  await loadStepsData();
+  refreshPlanSelect(await loadIndex());
+}
+
+const trees = {};
+const saveTimers = {};
+let selected = {step:null, branch:null, id:null};
+
+function el(tag, cls, text){
+  const e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+
+function findNode(list, id){
+  for(const n of list){
+    if(n.id === id) return {node:n, list};
+    if(n.children && n.children.length){
+      const hit = findNode(n.children, id);
+      if(hit) return hit;
+    }
+  }
+  return null;
+}
+
+function renderCard(stepId, branchKey, node){
+  const card = el("div","mm-card");
+  card.dataset.id = node.id;
+  card.dataset.branch = branchKey;
+  card.dataset.step = stepId;
+
+  const row = el("div","mm-card-row");
+  const text = el("div","mm-text");
+  text.contentEditable = "true";
+  text.spellcheck = false;
+  text.dataset.ph = "写下这支品的计划…";
+  text.textContent = node.text || "";
+  const x = el("button","mm-x","×");
+  x.type = "button";
+  x.title = "删除";
+  row.appendChild(text);
+  row.appendChild(x);
+  card.appendChild(row);
+
+  const kids = el("div","mm-kids");
+  (node.children || []).forEach(ch => kids.appendChild(renderCard(stepId, branchKey, ch)));
+  card.appendChild(kids);
+  return card;
+}
+
+function renderMap(stepId){
+  const tree = trees[stepId];
+  BRANCHES.forEach(b => {
+    const list = document.getElementById("list-"+stepId+"-"+b.key);
+    list.innerHTML = "";
+    tree[b.key].children.forEach(n => list.appendChild(renderCard(stepId, b.key, n)));
+  });
+}
+
+function renderSteps(){
+  const main = document.getElementById("main");
+  let lastPhase = null;
+  STEPS.forEach(s => {
+    if(s.phase !== lastPhase){
+      const stepsInPhase = STEPS.filter(x => x.phase === s.phase);
+      const banner = el("div","phase-banner");
+      banner.appendChild(el("div","phase-banner-num","0"+s.phase));
+      const bText = el("div");
+      bText.appendChild(el("div","phase-banner-title", s.phaseName));
+      bText.appendChild(el("div","phase-banner-sub", stepsInPhase.map(x=>x.title).join(" · ")));
+      banner.appendChild(bText);
+      main.appendChild(banner);
+      lastPhase = s.phase;
+    }
+
+    const step = el("section","step");
+    step.id = "step-"+s.id;
+
+    const head = el("div","step-head");
+    head.appendChild(el("div","badge","0"+s.id));
+    const headText = el("div");
+    headText.appendChild(el("div","phase-tag", s.phaseName+" · "+s.tag));
+    headText.appendChild(el("h2",null, s.title));
+    const hd = el("div","handoff", s.handoff);
+    headText.appendChild(hd);
+    head.appendChild(headText);
+    step.appendChild(head);
+
+    const body = el("div","step-body");
+    const brief = el("div","brief");
+
+    const whyBlock = el("div","block");
+    whyBlock.appendChild(el("span","block-label label-why","为什么这么做"));
+    const whyP = el("div");
+    s.why.forEach(t => whyP.appendChild(el("p",null,t)));
+    whyBlock.appendChild(whyP);
+    brief.appendChild(whyBlock);
+
+    const howBlock = el("div","block");
+    howBlock.appendChild(el("span","block-label label-how","具体怎么做"));
+    const ul = el("ul");
+    s.how.forEach(t => ul.appendChild(el("li",null,t)));
+    howBlock.appendChild(ul);
+    brief.appendChild(howBlock);
+
+    const outBlock = el("div","block");
+    outBlock.appendChild(el("span","block-label label-out","本步交付物"));
+    outBlock.appendChild(el("div","deliver", s.deliver));
+    brief.appendChild(outBlock);
+
+    const backupBlock = el("div","block");
+    backupBlock.appendChild(el("span","block-label label-backup","备用方案 · "+s.backupLabel));
+    const backupBox = el("div","backup-box");
+    backupBox.appendChild(el("p",null,s.backup));
+    backupBlock.appendChild(backupBox);
+    brief.appendChild(backupBlock);
+
+    body.appendChild(brief);
+
+    const notes = el("div","notes");
+    notes.dataset.step = s.id;
+    const nHead = el("div","notes-head");
+    nHead.appendChild(el("div","notes-title","推品图"));
+    const status = el("div","save-status");
+    status.id = "status-"+s.id;
+    nHead.appendChild(status);
+    notes.appendChild(nHead);
+
+    const rootWrap = el("div","mm-root-wrap");
+    rootWrap.appendChild(el("div","mm-root", s.title));
+    rootWrap.appendChild(el("div","mm-stem"));
+    rootWrap.appendChild(el("div","mm-fork"));
+    notes.appendChild(rootWrap);
+
+    const cols = el("div","mm-cols");
+    BRANCHES.forEach(b => {
+      const col = el("div","mm-col "+b.key);
+      const h = el("div","mm-col-h");
+      h.appendChild(el("span",null,b.label));
+      const add = el("button","mm-add","+");
+      add.type = "button";
+      add.dataset.add = b.key;
+      add.dataset.step = s.id;
+      add.title = "添加节点";
+      h.appendChild(add);
+      col.appendChild(h);
+      const list = el("div","mm-list");
+      list.id = "list-"+s.id+"-"+b.key;
+      col.appendChild(list);
+      cols.appendChild(col);
+    });
+    notes.appendChild(cols);
+    notes.appendChild(el("div","mm-hint","点选节点后：回车加同级 · Tab 加子节点 · 点 + 加在该列"));
+
+    const nFoot = el("div","notes-foot");
+    const left = el("div","foot-left");
+    ["todo","progress","done"].forEach(k => {
+      const chip = el("div","chip-status", STEP_STATUS[k]);
+      chip.dataset.status = k;
+      chip.dataset.step = s.id;
+      left.appendChild(chip);
+    });
+    nFoot.appendChild(left);
+    const resetOne = el("button","chip-status","恢复本步模板");
+    resetOne.dataset.reset = s.id;
+    nFoot.appendChild(resetOne);
+    notes.appendChild(nFoot);
+
+    const pad = el("div","notes-pad");
+    const ta = document.createElement("textarea");
+    ta.id = "note-"+s.id;
+    ta.placeholder = "在这里写本步推品计划：怎么做、可能异常、备用方案……可自由发挥，自动保存。";
+    pad.appendChild(ta);
+    notes.appendChild(pad);
+
+    body.appendChild(notes);
+    step.appendChild(body);
+    main.appendChild(step);
+  });
+}
+
+function flashSaved(stepId, msg){
+  const elStatus = document.getElementById("status-"+stepId);
+  if(!elStatus) return;
+  elStatus.textContent = msg;
+  if(msg === "已保存"){
+    setTimeout(()=>{ if(elStatus.textContent === "已保存") elStatus.textContent = ""; }, 1200);
+  }
+}
+
+function scheduleSave(stepId){
+  flashSaved(stepId, "保存中…");
+  clearTimeout(saveTimers[stepId]);
+  saveTimers[stepId] = setTimeout(()=> saveTree(stepId), 500);
+}
+
+async function saveTree(stepId){
+  try{
+    await store.set("mmap:"+stepId, JSON.stringify(trees[stepId]));
+    flashSaved(stepId, "已保存");
+  }catch(e){
+    flashSaved(stepId, "保存失败");
+    console.error(e);
+  }
+}
+
+async function saveNote(stepId, value){
+  try{
+    await store.set("note:"+stepId, value);
+    flashSaved(stepId, "已保存");
+  }catch(e){
+    flashSaved(stepId, "保存失败");
+    console.error(e);
+  }
+}
+
+function addChild(stepId, branchKey, parentId){
+  const tree = trees[stepId];
+  const node = {id: uid(), text:"", children:[]};
+  if(!parentId){
+    tree[branchKey].children.push(node);
+  }else{
+    const hit = findNode(tree[branchKey].children, parentId);
+    if(!hit) return;
+    hit.node.children = hit.node.children || [];
+    hit.node.children.push(node);
+  }
+  renderMap(stepId);
+  selected = {step:stepId, branch:branchKey, id:node.id};
+  const card = document.querySelector('.mm-card[data-id="'+node.id+'"]');
+  if(card){
+    card.classList.add("is-sel");
+    const t = card.querySelector(".mm-text");
+    t.focus();
+  }
+  scheduleSave(stepId);
+}
+
+function addSibling(stepId, branchKey, nodeId){
+  const tree = trees[stepId];
+  const hit = findNode(tree[branchKey].children, nodeId);
+  if(!hit) return;
+  const node = {id: uid(), text:"", children:[]};
+  const idx = hit.list.indexOf(hit.node);
+  hit.list.splice(idx+1, 0, node);
+  renderMap(stepId);
+  selected = {step:stepId, branch:branchKey, id:node.id};
+  const card = document.querySelector('.mm-card[data-id="'+node.id+'"]');
+  if(card){
+    card.classList.add("is-sel");
+    card.querySelector(".mm-text").focus();
+  }
+  scheduleSave(stepId);
+}
+
+function removeNode(stepId, branchKey, nodeId){
+  const tree = trees[stepId];
+  const hit = findNode(tree[branchKey].children, nodeId);
+  if(!hit) return;
+  const idx = hit.list.indexOf(hit.node);
+  hit.list.splice(idx, 1);
+  selected = {step:null, branch:null, id:null};
+  renderMap(stepId);
+  scheduleSave(stepId);
+}
+
+function updateNavCheck(stepId, status){
+  const link = document.querySelector('nav.steps a[data-step="'+stepId+'"]');
+  if(link) link.classList.toggle("done", status === "done");
+}
+
+function updateChipUI(stepId, status){
+  document.querySelectorAll('.chip-status[data-step="'+stepId+'"]').forEach(c => {
+    c.classList.remove("active-todo","active-progress","active-done");
+    if(c.dataset.status === status) c.classList.add("active-"+status);
+  });
+}
+
+async function saveStatus(stepId, status){
+  try{ await store.set("status:"+stepId, status); }catch(e){ console.error(e); }
+  updateNavCheck(stepId, status);
+}
+
+function nodeListText(nodes, prefix){
+  let lines = [];
+  (nodes || []).forEach(n => {
+    const t = (n.text || "").trim();
+    if(t) lines.push(prefix + t);
+    if(n.children && n.children.length){
+      lines = lines.concat(nodeListText(n.children, prefix + "  "));
+    }
+  });
+  return lines;
+}
+
+function caseLine(){
+  const site = document.getElementById("caseSite").value.trim();
+  const asin = document.getElementById("caseAsin").value.trim();
+  const name = document.getElementById("caseName").value.trim();
+  const price = document.getElementById("casePrice").value.trim();
+  return [site && ("站点 "+site), asin && ("ASIN "+asin), name && name, price && ("售价 "+price)].filter(Boolean).join(" · ");
+}
+
+function buildMarkdown(){
+  const head = caseLine();
+  let md = "# 亚马逊推品计划\n\n";
+  if(head) md += "> "+head+"\n\n";
+  STEPS.forEach(s => {
+    const t = trees[s.id];
+    md += "## 0"+s.id+" "+s.title+"\n\n";
+    BRANCHES.forEach(b => {
+      md += "### "+b.label+"\n";
+      const lines = nodeListText(t[b.key].children, "- ");
+      md += (lines.length ? lines.join("\n") : "- （空）") + "\n\n";
+    });
+    const noteEl = document.getElementById("note-"+s.id);
+    const note = noteEl ? noteEl.value.trim() : "";
+    if(note) md += "### 运营笔记\n\n"+note+"\n\n";
+  });
+  return md;
+}
+
+function openMaster(){
+  const meta = document.getElementById("masterMeta");
+  meta.textContent = caseLine() || "九步方案 / 异常 / 解决汇总，可导出为计划文本。";
+  const body = document.getElementById("masterBody");
+  body.innerHTML = "";
+  STEPS.forEach(s => {
+    const wrap = el("div","master-step");
+    wrap.appendChild(el("h4",null, "0"+s.id+"  "+s.title));
+    const grid = el("div","master-grid");
+    BRANCHES.forEach(b => {
+      const col = el("div","master-col "+b.key);
+      col.appendChild(el("b",null,b.label));
+      const ul = el("ul");
+      const lines = nodeListText(trees[s.id][b.key].children, "");
+      if(!lines.length) ul.appendChild(el("li",null,"（空）"));
+      else lines.forEach(t => ul.appendChild(el("li",null,t.trim())));
+      col.appendChild(ul);
+      grid.appendChild(col);
+    });
+    wrap.appendChild(grid);
+    body.appendChild(wrap);
+  });
+  document.getElementById("masterModal").classList.add("open");
+}
+
+function exportPlan(){
+  const md = buildMarkdown();
+  const blob = new Blob([md], {type:"text/markdown;charset=utf-8"});
+  const a = document.createElement("a");
+  const asin = (document.getElementById("caseAsin").value || "asin").replace(/[^\w-]/g,"");
+  a.href = URL.createObjectURL(blob);
+  a.download = "推品计划-"+asin+".md";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function esc(s){
+  return String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+function exportPdf(){
+  const who = USER.name || USER.id;
+  const head = caseLine() || "空白计划";
+  let body = "";
+  STEPS.forEach(s => {
+    body += "<section><h2>0"+s.id+" "+esc(s.title)+"</h2>";
+    body += "<div class='grid'>";
+    BRANCHES.forEach(b => {
+      const lines = nodeListText(trees[s.id][b.key].children, "");
+      body += "<div class='col "+b.key+"'><h3>"+esc(b.label)+"</h3><ul>";
+      if(!lines.length) body += "<li>（空）</li>";
+      else lines.forEach(t => { body += "<li>"+esc(t.trim())+"</li>"; });
+      body += "</ul></div>";
+    });
+    body += "</div>";
+    const noteEl = document.getElementById("note-"+s.id);
+    const note = noteEl ? noteEl.value.trim() : "";
+    if(note) body += "<div class='note'><h3>运营笔记</h3><pre>"+esc(note)+"</pre></div>";
+    body += "</section>";
+  });
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>推品计划 ${esc(head)}</title>
+<style>
+  @page{ size:A4; margin:16mm 14mm; }
+  body{ font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#1c2438; font-size:12px; line-height:1.65; }
+  h1{ font-size:20px; margin:0 0 6px; }
+  .meta{ color:#6b7280; margin:0 0 18px; }
+  section{ break-inside:avoid; margin:0 0 18px; padding-bottom:12px; border-bottom:1px solid #e4dcc6; }
+  h2{ font-size:15px; margin:0 0 8px; }
+  h3{ font-size:12px; margin:0 0 6px; letter-spacing:.06em; }
+  .grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .col{ background:#faf6ec; padding:8px 10px; border-radius:4px; }
+  .col.plan h3{ color:#3d5a80; } .col.risk h3{ color:#a5352b; } .col.fix h3{ color:#4f7a4f; }
+  ul{ margin:0; padding-left:16px; }
+  .note pre{ white-space:pre-wrap; font-family:inherit; margin:0; background:#fffdf8; padding:8px; border:1px solid #e4dcc6; }
+  .foot{ margin-top:20px; color:#6b7280; font-size:11px; }
+</style></head><body>
+<h1>泓森拓创 · 亚马逊推品计划</h1>
+<p class="meta">运营：${esc(who)} · ${esc(head)}</p>
+${body}
+<p class="foot">导出时间 ${esc(new Date().toLocaleString("zh-CN"))} · 仅该运营可见的计划副本</p>
+</body></html>`;
+  const w = window.open("", "_blank");
+  if(!w){
+    alert("浏览器拦截了弹窗，请允许后重试，或用系统打印保存为 PDF。");
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { try{ w.print(); }catch(e){} }, 250);
+}
+
+function buildBackup(){
+  const steps = {};
+  STEPS.forEach(s => {
+    const ta = document.getElementById("note-"+s.id);
+    steps[s.id] = {
+      mmap: trees[s.id],
+      note: ta ? ta.value : "",
+      status: (document.querySelector('.chip-status[data-step="'+s.id+'"].active-todo') && "todo")
+        || (document.querySelector('.chip-status[data-step="'+s.id+'"].active-progress') && "progress")
+        || (document.querySelector('.chip-status[data-step="'+s.id+'"].active-done') && "done")
+        || "todo"
+    };
+  });
+  return {
+    version: 1,
+    kind: "hongsen-growth-playbook",
+    owner: USER,
+    meta: readCase(),
+    steps
+  };
+}
+
+function exportBackup(){
+  const raw = JSON.stringify(buildBackup(), null, 2);
+  const blob = new Blob([raw], {type:"application/json;charset=utf-8"});
+  const a = document.createElement("a");
+  const asin = (document.getElementById("caseAsin").value || "plan").replace(/[^\w-]/g,"");
+  a.href = URL.createObjectURL(blob);
+  a.download = "推品计划-"+asin+"-"+USER.id+".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function importBackup(data){
+  if(!data || data.kind !== "hongsen-growth-playbook" || !data.steps){
+    alert("不是有效的推品计划备份文件。");
+    return;
+  }
+  await createBlankPlan();
+  applyCase(data.meta || {});
+  for(const s of STEPS){
+    const pack = data.steps[s.id];
+    if(!pack) continue;
+    if(pack.mmap && pack.mmap.plan && pack.mmap.risk && pack.mmap.fix){
+      trees[s.id] = pack.mmap;
+      renderMap(s.id);
+      await store.set("mmap:"+s.id, JSON.stringify(trees[s.id]));
+    }
+    const ta = document.getElementById("note-"+s.id);
+    if(ta){
+      ta.value = pack.note || "";
+      await store.set("note:"+s.id, ta.value);
+    }
+    const st = pack.status || "todo";
+    updateChipUI(s.id, st);
+    updateNavCheck(s.id, st);
+    await store.set("status:"+s.id, st);
+  }
+  await touchPlanMeta();
+}
+
+function attachMapEvents(){
+  document.getElementById("main").addEventListener("click", (e) => {
+    const add = e.target.closest("[data-add]");
+    if(add){
+      const stepId = +add.dataset.step;
+      const branch = add.dataset.add;
+      const parentId = (selected.step === stepId && selected.branch === branch) ? selected.id : null;
+      addChild(stepId, branch, parentId);
+      return;
+    }
+    const reset = e.target.closest("[data-reset]");
+    if(reset){
+      const stepId = +reset.dataset.reset;
+      const step = STEPS.find(s => s.id === stepId);
+      if(!confirm("恢复第 "+stepId+" 步的默认节点？已填写的内容会替换成模板。")) return;
+      trees[stepId] = defaultTree(step);
+      renderMap(stepId);
+      scheduleSave(stepId);
+      return;
+    }
+    const x = e.target.closest(".mm-x");
+    if(x){
+      const card = x.closest(".mm-card");
+      removeNode(+card.dataset.step, card.dataset.branch, card.dataset.id);
+      return;
+    }
+    const card = e.target.closest(".mm-card");
+    document.querySelectorAll(".mm-card.is-sel").forEach(c => c.classList.remove("is-sel"));
+    if(card){
+      card.classList.add("is-sel");
+      selected = {step:+card.dataset.step, branch:card.dataset.branch, id:card.dataset.id};
+    }else{
+      selected = {step:null, branch:null, id:null};
+    }
+  });
+
+  document.getElementById("main").addEventListener("input", (e) => {
+    const text = e.target.closest(".mm-text");
+    if(!text) return;
+    const card = text.closest(".mm-card");
+    const stepId = +card.dataset.step;
+    const hit = findNode(trees[stepId][card.dataset.branch].children, card.dataset.id);
+    if(hit) hit.node.text = text.textContent;
+    scheduleSave(stepId);
+  });
+
+  document.getElementById("main").addEventListener("paste", (e) => {
+    if(!e.target.closest(".mm-text")) return;
+    e.preventDefault();
+    const t = (e.clipboardData || window.clipboardData).getData("text/plain");
+    document.execCommand("insertText", false, t.replace(/\s+/g," ").trim());
+  });
+
+  document.getElementById("main").addEventListener("keydown", (e) => {
+    const text = e.target.closest(".mm-text");
+    if(!text) return;
+    const card = text.closest(".mm-card");
+    const stepId = +card.dataset.step;
+    const branch = card.dataset.branch;
+    const id = card.dataset.id;
+    if(e.key === "Enter" && !e.shiftKey){
+      e.preventDefault();
+      addSibling(stepId, branch, id);
+    }else if(e.key === "Tab"){
+      e.preventDefault();
+      addChild(stepId, branch, id);
+    }else if(e.key === "Backspace" && text.textContent === "" && !e.repeat){
+      const hit = findNode(trees[stepId][branch].children, id);
+      if(hit && hit.list.length > 0){
+        e.preventDefault();
+        removeNode(stepId, branch, id);
+      }
+    }
+  });
+}
+
+function attachHandlers(){
+  attachMapEvents();
+
+  STEPS.forEach(s => {
+    const ta = document.getElementById("note-"+s.id);
+    ta.addEventListener("input", () => {
+      flashSaved(s.id, "保存中…");
+      clearTimeout(saveTimers["note"+s.id]);
+      saveTimers["note"+s.id] = setTimeout(() => saveNote(s.id, ta.value), 600);
+    });
+  });
+
+  document.querySelectorAll(".chip-status[data-status]").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const stepId = chip.dataset.step;
+      const status = chip.dataset.status;
+      updateChipUI(stepId, status);
+      saveStatus(stepId, status);
+    });
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", async () => {
+    const label = planLabel(readCase()) || "当前这份空白计划";
+    if(!confirm("确定清空【"+label+"】？只清这一份，其他计划和同事的数据都不受影响。")) return;
+    for(const s of STEPS){
+      trees[s.id] = defaultTree(s);
+      renderMap(s.id);
+      try{ await store.del("mmap:"+s.id); }catch(e){}
+      try{ await store.del("status:"+s.id); }catch(e){}
+      try{ await store.del("note:"+s.id); }catch(e){}
+      const ta = document.getElementById("note-"+s.id);
+      if(ta) ta.value = "";
+      updateChipUI(s.id, "todo");
+      updateNavCheck(s.id, "todo");
+    }
+  });
+
+  ["caseSite","caseAsin","caseName","casePrice"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+      clearTimeout(saveTimers.meta);
+      saveTimers.meta = setTimeout(() => touchPlanMeta(), 400);
+    });
+  });
+
+  document.getElementById("planSelect").addEventListener("change", async (e) => {
+    const id = e.target.value;
+    if(!id || id === planId) return;
+    await openPlan(id);
+  });
+  document.getElementById("newPlanBtn").addEventListener("click", async () => {
+    await createBlankPlan();
+  });
+  document.getElementById("copyBlankBtn").addEventListener("click", async () => {
+    const link = blankLink();
+    try{
+      await navigator.clipboard.writeText(link);
+      document.getElementById("copyBlankBtn").textContent = "已复制";
+      setTimeout(() => { document.getElementById("copyBlankBtn").textContent = "复制空白链接"; }, 1500);
+    }catch(e){
+      prompt("复制下面的空白链接", link);
+    }
+  });
+  document.getElementById("pdfBtn").addEventListener("click", exportPdf);
+  document.getElementById("exportJsonBtn").addEventListener("click", exportBackup);
+  document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
+  document.getElementById("importFile").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if(!file) return;
+    try{
+      const data = JSON.parse(await file.text());
+      await importBackup(data);
+    }catch(err){
+      alert("导入失败：文件不是 JSON 备份。");
+    }
+  });
+
+  document.getElementById("masterBtn").addEventListener("click", openMaster);
+  document.getElementById("exportBtn").addEventListener("click", exportPlan);
+  document.getElementById("masterExport").addEventListener("click", exportPlan);
+  document.getElementById("masterClose").addEventListener("click", () => {
+    document.getElementById("masterModal").classList.remove("open");
+  });
+  document.getElementById("masterModal").addEventListener("click", (e) => {
+    if(e.target.id === "masterModal") e.target.classList.remove("open");
+  });
+
+  const links = document.querySelectorAll("nav.steps a");
+  const sections = STEPS.map(s => document.getElementById("step-"+s.id));
+  const obs = new IntersectionObserver((entries) => {
+    const vis = entries.filter(en => en.isIntersecting).sort((a,b)=> b.intersectionRatio - a.intersectionRatio)[0];
+    if(!vis) return;
+    links.forEach(l => l.classList.remove("is-current"));
+    const active = document.querySelector('nav.steps a[data-step="'+vis.target.id.split("-")[1]+'"]');
+    if(active) active.classList.add("is-current");
+  }, {rootMargin:"-40% 0px -50% 0px", threshold:[0.1,0.25,0.5]});
+  sections.forEach(sec => sec && obs.observe(sec));
+}
+
+async function loadStepsData(){
+  for(const s of STEPS){
+    trees[s.id] = defaultTree(s);
+    try{
+      const raw = await store.get("mmap:"+s.id);
+      if(raw){
+        const parsed = JSON.parse(raw);
+        if(parsed && parsed.plan && parsed.risk && parsed.fix) trees[s.id] = parsed;
+      }
+    }catch(e){}
+    renderMap(s.id);
+
+    try{
+      const st = await store.get("status:"+s.id);
+      const status = st || "todo";
+      updateChipUI(s.id, status);
+      updateNavCheck(s.id, status);
+    }catch(e){
+      updateChipUI(s.id, "todo");
+    }
+
+    const ta = document.getElementById("note-"+s.id);
+    if(ta) ta.value = "";
+    try{
+      const note = await store.get("note:"+s.id);
+      if(note) ta.value = note;
+    }catch(e){}
+  }
+}
+
+async function loadAll(){
+  const who = document.getElementById("whoLabel");
+  if(who) who.textContent = "运营：" + USER.name;
+
+  const params = new URLSearchParams(location.search);
+  const wantNew = params.get("new") === "1";
+  const wantPlan = params.get("plan");
+  let idx = await loadIndex();
+
+  if(wantNew){
+    await createBlankPlan();
+    return;
+  }
+
+  if(wantPlan && idx.some(p => p.id === wantPlan)){
+    await openPlan(wantPlan);
+    return;
+  }
+
+  const last = await storeRaw.get(lastKey());
+  if(last && idx.some(p => p.id === last)){
+    await openPlan(last);
+    return;
+  }
+  if(idx[0]){
+    await openPlan(idx[0].id);
+    return;
+  }
+  await createBlankPlan();
+}
+
+if(window.parent !== window) document.body.classList.add("embedded");
+renderSteps();
+attachHandlers();
+loadAll();
+</script>
+</body>
+</html>

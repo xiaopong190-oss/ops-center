@@ -616,7 +616,7 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
 }
 
 export function ToolsPanel({ active: tabActive = true }) {
-  const { items: onlineDocs, meta: docsMeta, loading: docsLoading, saving: docsSaving, error: docsError, persist: persistOnlineDocs, reload: reloadDocs } =
+  const { items: onlineDocs, meta: docsMeta, loading: docsLoading, saving: docsSaving, error: docsError, persist: persistOnlineDocs, reload: reloadDocs, dirty: docsDirty } =
     useSharedList("tools-links", DEFAULT_ONLINE_DOCS, { active: tabActive });
   const [customUrls, setCustomUrls] = useState(loadCustomUrls);
   const [customNames, setCustomNames] = useState(loadCustomNames);
@@ -794,14 +794,14 @@ export function ToolsPanel({ active: tabActive = true }) {
 
   useCloudSyncPage(tabActive, {
     label: "工具",
-    save: async () => persistOnlineDocs(onlineDocs),
+    save: async () => persistOnlineDocs(onlineDocs, { share: true }),
     reload: reloadDocs,
     meta: docsMeta,
     loading: docsLoading,
     saving: docsSaving,
     error: docsError,
-    isDirty: editingId !== null,
-    dirtyHint: "在线文档编辑未保存",
+    isDirty: docsDirty || editingId !== null,
+    dirtyHint: editingId !== null ? "在线文档编辑未保存" : "本账号有未分享的修改",
   });
 
   if (inlineTool) {

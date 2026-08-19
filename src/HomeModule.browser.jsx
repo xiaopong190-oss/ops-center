@@ -484,12 +484,15 @@ function getPriorityOwnerId() {
 }
 
 function priorityStorageKey(date) {
-  return `ops-priority:${date}`;
+  const u = getCurrentUser();
+  const id = u?.id && u.id !== "guest" ? u.id : "guest";
+  return `ops-priority:${id}:${date}`;
 }
 
 function readPriorityForToday(date) {
   try {
-    const raw = localStorage.getItem(priorityStorageKey(date));
+    let raw = localStorage.getItem(priorityStorageKey(date));
+    if (!raw) raw = localStorage.getItem(`ops-priority:${date}`);
     if (!raw) return { date: "", text: "" };
     const parsed = JSON.parse(raw);
     if (parsed?.date === date && parsed.text) {

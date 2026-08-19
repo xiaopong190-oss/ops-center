@@ -386,14 +386,16 @@ function normalizeStaffEntry(item) {
       name: name || item.trim(),
       role: role || "",
       loginCode: "",
-      canEdit: true
+      canEdit: true,
+      autoShare: false
     };
   } else {
     entry = {
       name: String(item?.name || "").trim(),
       role: String(item?.role || "").trim(),
       loginCode: String(item?.loginCode || "").trim(),
-      canEdit: item?.canEdit !== false
+      canEdit: item?.canEdit !== false,
+      autoShare: item?.autoShare === true
     };
   }
   if (entry.name && !entry.role && DEFAULT_ROLE_BY_NAME[entry.name]) {
@@ -438,6 +440,7 @@ function normalizeConfigData(data) {
   };
   if (opsPassword) next.opsPassword = opsPassword;
   if (superPassword) next.superPassword = superPassword;
+  next.superAutoShare = data?.superAutoShare === true;
   return next;
 }
 function readSharedStaffCache() {
@@ -534,16 +537,19 @@ async function saveGlobalConfig(config, opts = {}) {
   const prev = loadGlobalConfig();
   const opsPassword = config.opsPassword !== undefined ? String(config.opsPassword || "").trim() : String(prev.opsPassword || "").trim() || DEFAULT_OPS_PASSWORD;
   const superPassword = config.superPassword !== undefined ? String(config.superPassword || "").trim() : String(prev.superPassword || "").trim() || DEFAULT_SUPER_PASSWORD;
+  const superAutoShare = config.superAutoShare !== undefined ? config.superAutoShare === true : prev.superAutoShare === true;
   const next = {
     staff: (config.staff || []).map(normalizeStaffEntry).filter(e => e.name).map(e => ({
       name: e.name,
       role: e.role || "",
       loginCode: String(e.loginCode || "").trim() || opsPassword,
-      canEdit: e.canEdit !== false
+      canEdit: e.canEdit !== false,
+      autoShare: e.autoShare === true
     }))
   };
   if (opsPassword) next.opsPassword = opsPassword;
   if (superPassword) next.superPassword = superPassword;
+  next.superAutoShare = superAutoShare;
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
   } catch {/* ignore */}
@@ -585,10 +591,61 @@ async function updateOwnLoginCode(oldPwd, newPwd) {
   await saveGlobalConfig({
     staff,
     opsPassword: cfg.opsPassword,
-    superPassword: cfg.superPassword
+    superPassword: cfg.superPassword,
+    superAutoShare: cfg.superAutoShare
   }, {
     force: true
   });
+  return true;
+}
+function patchSessionUser(patch) {
+  try {
+    const raw = sessionStorage.getItem("ops-center-current-user");
+    const parsed = raw ? JSON.parse(raw) : {};
+    sessionStorage.setItem("ops-center-current-user", JSON.stringify({
+      ...parsed,
+      ...patch
+    }));
+  } catch {/* ignore */}
+}
+async function updateOwnAutoShare(autoShare) {
+  const user = readSessionUser();
+  if (!user?.name || user.id === "guest") throw new Error("请先登录");
+  const on = !!autoShare;
+  await fetchGlobalConfigFromCloud();
+  const cfg = loadGlobalConfig();
+  if (user.auth === "super" || user.role === "super") {
+    await saveGlobalConfig({
+      staff: cfg.staff,
+      opsPassword: cfg.opsPassword,
+      superPassword: cfg.superPassword,
+      superAutoShare: on
+    }, {
+      force: true
+    });
+  } else {
+    const staff = (cfg.staff || []).map(e => ({
+      ...e
+    }));
+    const idx = staff.findIndex(e => e.name === user.name);
+    if (idx < 0) throw new Error("当前账号不在云端名单中");
+    staff[idx] = {
+      ...staff[idx],
+      autoShare: on
+    };
+    await saveGlobalConfig({
+      staff,
+      opsPassword: cfg.opsPassword,
+      superPassword: cfg.superPassword,
+      superAutoShare: cfg.superAutoShare
+    }, {
+      force: true
+    });
+  }
+  patchSessionUser({
+    autoShare: on
+  });
+  window.dispatchEvent(new CustomEvent("ops-user-prefs-updated"));
   return true;
 }
 function getEmployees() {
@@ -693,7 +750,8 @@ function StaffListEditor({
     name: "",
     role: STAFF_ROLE_OPTIONS[0] || "运营",
     loginCode: defaultLoginCode || DEFAULT_OPS_PASSWORD,
-    canEdit: true
+    canEdit: true,
+    autoShare: false
   }]);
   const inp = {
     flex: 1,
@@ -737,13 +795,21 @@ function StaffListEditor({
     }
   }, "\u89D2\u8272"), /*#__PURE__*/React.createElement("span", {
     style: {
-      width: 64,
+      width: 52,
       flexShrink: 0,
       fontSize: 11,
       color: "var(--tm)",
       fontWeight: 500
     }
   }, "\u53EF\u4FEE\u6539"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 64,
+      flexShrink: 0,
+      fontSize: 11,
+      color: "var(--tm)",
+      fontWeight: 500
+    }
+  }, "\u81EA\u52A8\u5206\u4EAB"), /*#__PURE__*/React.createElement("span", {
     style: {
       width: 28
     }
@@ -792,17 +858,33 @@ function StaffListEditor({
       value: r
     }, r))), /*#__PURE__*/React.createElement("label", {
       style: {
-        width: 64,
+        width: 52,
         flexShrink: 0,
         display: "flex",
         justifyContent: "center",
         cursor: "pointer"
-      }
+      },
+      title: "\u52FE\u9009\u540E\u53EF\u6539\u4EFB\u52A1\u3001\u7269\u6D41\u7B49"
     }, /*#__PURE__*/React.createElement("input", {
       type: "checkbox",
       checked: row.canEdit !== false,
       onChange: e => setRow(i, {
         canEdit: e.target.checked
+      })
+    })), /*#__PURE__*/React.createElement("label", {
+      style: {
+        width: 64,
+        flexShrink: 0,
+        display: "flex",
+        justifyContent: "center",
+        cursor: "pointer"
+      },
+      title: "\u52FE\u9009\u540E\u6539\u5B8C\u7ACB\u523B\u7ED9\u5168\u5458\uFF1B\u4E0D\u52FE\u9009\u5219\u53EA\u4FDD\u5B58\u5728\u8BE5\u8D26\u53F7\uFF0C\u70B9\u4E0A\u4F20\u624D\u5206\u4EAB"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: row.autoShare === true,
+      onChange: e => setRow(i, {
+        autoShare: e.target.checked
       })
     })), /*#__PURE__*/React.createElement("button", {
       type: "button",
@@ -845,6 +927,7 @@ function GlobalSettingsModal({
   })));
   const [opsPassword, setOpsPassword] = useState(() => getOpsPassword());
   const [superPassword, setSuperPassword] = useState(() => getSuperPassword());
+  const [superAutoShare, setSuperAutoShare] = useState(() => loadGlobalConfig().superAutoShare === true);
   const [showOpsPwd, setShowOpsPwd] = useState(false);
   const [showSuperPwd, setShowSuperPwd] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -884,7 +967,8 @@ function GlobalSettingsModal({
         name: r.name.trim(),
         role: r.role || "",
         loginCode: !existing || existing === prevOps ? pwd : existing,
-        canEdit: r.canEdit !== false
+        canEdit: r.canEdit !== false,
+        autoShare: r.autoShare === true
       };
     }).filter(r => r.name);
     setSaving(true);
@@ -893,7 +977,8 @@ function GlobalSettingsModal({
       await saveGlobalConfig({
         staff,
         opsPassword: pwd,
-        superPassword: superPwd
+        superPassword: superPwd,
+        superAutoShare
       });
       onSaved && onSaved();
     } catch (e) {
@@ -935,7 +1020,7 @@ function GlobalSettingsModal({
       borderRadius: 14,
       padding: "1.25rem 1.5rem",
       width: "100%",
-      maxWidth: 520,
+      maxWidth: 620,
       color: "var(--text)"
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -951,7 +1036,7 @@ function GlobalSettingsModal({
       marginBottom: 8,
       lineHeight: 1.5
     }
-  }, "\u540D\u5355\u91CC\u6709\u540D\u5B57\u5C31\u80FD\u767B\u5F55\u3002\u5458\u5DE5\u5728\u53F3\u4E0A\u89D2\u300C\u4FEE\u6539\u5BC6\u7801\u300D\u6539\u81EA\u5DF1\u7684\u4E91\u7AEF M \u7801\u3002\u52FE\u9009\u300C\u53EF\u4FEE\u6539\u300D\u540E\u53EF\u4EE5\u6539\u4EFB\u52A1\u3001\u7269\u6D41\u7B49\u6570\u636E\u3002\u79BB\u804C\u53EA\u5220\u4EBA\u3002"), /*#__PURE__*/React.createElement("div", {
+  }, "\u540D\u5355\u91CC\u6709\u540D\u5B57\u5C31\u80FD\u767B\u5F55\u3002\u9ED8\u8BA4\u4FEE\u6539\u53EA\u4FDD\u5B58\u5728\u81EA\u5DF1\u8D26\u53F7\uFF0C\u70B9\u300C\u4FDD\u5B58\u5E76\u4E0A\u4F20\u300D\u624D\u5206\u4EAB\u3002\u300C\u81EA\u52A8\u5206\u4EAB\u300D\u52FE\u4E0A\u540E\u6539\u5B8C\u7ACB\u523B\u7ED9\u5168\u5458\u3002\u8003\u6838\u3001\u63A8\u54C1\u8BA1\u5212\u3001\u701A\u6D77 SKU \u5E93\u7B49\u5DE5\u5177\u4ECD\u6309\u5404\u81EA\u89C4\u5219\u3002\u79BB\u804C\u53EA\u5220\u4EBA\u3002"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "#065f46",
@@ -1012,7 +1097,25 @@ function GlobalSettingsModal({
       fontFamily: "inherit",
       color: "var(--tm)"
     }
-  }, showSuperPwd ? "隐藏" : "显示")), /*#__PURE__*/React.createElement("div", {
+  }, showSuperPwd ? "隐藏" : "显示")), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 8,
+      fontSize: 12,
+      color: "var(--text)",
+      marginBottom: 12,
+      cursor: "pointer",
+      lineHeight: 1.45
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: superAutoShare,
+    onChange: e => setSuperAutoShare(e.target.checked),
+    style: {
+      marginTop: 2
+    }
+  }), /*#__PURE__*/React.createElement("span", null, "\u8D85\u7EA7\u8D26\u53F7\u4FEE\u6539\u4EFB\u52A1 / \u7269\u6D41\u7B49\u540E\u81EA\u52A8\u5206\u4EAB\u7ED9\u5168\u5458\uFF08\u4E0D\u52FE\u9009\u5219\u53EA\u4FDD\u5B58\u5728\u672C\u8D26\u53F7\uFF0C\u70B9\u4E0A\u4F20\u624D\u5206\u4EAB\uFF09")), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       fontWeight: 600,
@@ -1097,6 +1200,9 @@ function ChangePasswordModal({
   onClose,
   onSaved
 }) {
+  const session = readSessionUser() || {};
+  const isSuper = session.auth === "super" || session.role === "super";
+  const [autoShare, setAutoShare] = useState(() => session.autoShare === true);
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
@@ -1109,19 +1215,23 @@ function ChangePasswordModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, saving]);
+  const changingPwd = !isSuper && (oldPwd || newPwd || confirmPwd);
   const save = async () => {
-    if (newPwd.trim() !== confirmPwd.trim()) {
-      setError("两次新密码不一致");
-      return;
-    }
-    if (newPwd.trim() === oldPwd.trim()) {
-      setError("新密码不能与当前密码相同");
-      return;
+    if (changingPwd) {
+      if (newPwd.trim() !== confirmPwd.trim()) {
+        setError("两次新密码不一致");
+        return;
+      }
+      if (newPwd.trim() === oldPwd.trim()) {
+        setError("新密码不能与当前密码相同");
+        return;
+      }
     }
     setSaving(true);
     setError("");
     try {
-      await updateOwnLoginCode(oldPwd, newPwd);
+      if (autoShare !== (session.autoShare === true)) await updateOwnAutoShare(autoShare);
+      if (changingPwd) await updateOwnLoginCode(oldPwd, newPwd);
       onSaved && onSaved();
       onClose();
     } catch (e) {
@@ -1162,7 +1272,7 @@ function ChangePasswordModal({
       borderRadius: 14,
       padding: "1.25rem 1.5rem",
       width: "100%",
-      maxWidth: 400,
+      maxWidth: 420,
       color: "var(--text)"
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -1171,14 +1281,14 @@ function ChangePasswordModal({
       fontSize: 15,
       marginBottom: 4
     }
-  }, "\u4FEE\u6539\u81EA\u5DF1\u7684\u4E91\u7AEF M \u7801"), /*#__PURE__*/React.createElement("div", {
+  }, "\u4E2A\u4EBA\u8BBE\u7F6E"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "var(--tm)",
       marginBottom: 12,
       lineHeight: 1.5
     }
-  }, "\u53EA\u6539\u4F60\u81EA\u5DF1\u7684\u767B\u5F55\u5BC6\u7801\uFF0C\u4E0D\u5F71\u54CD\u5176\u4ED6\u4EBA\u3002\u6539\u5B8C\u540E\u516C\u53F8\u3001\u5BB6\u91CC\u3001\u4F1A\u8BAE\u5BA4\u90FD\u7528\u65B0\u5BC6\u7801\u3002"), error && /*#__PURE__*/React.createElement("div", {
+  }, "\u4FEE\u6539\u9ED8\u8BA4\u53EA\u4FDD\u5B58\u5728\u4F60\u7684\u8D26\u53F7\u3002\u8003\u6838\u3001\u63A8\u54C1\u8BA1\u5212\u3001\u701A\u6D77 SKU \u5E93\u7B49\u6709\u81EA\u5DF1\u89C4\u5219\u7684\u5DE5\u5177\u9664\u5916\u3002"), error && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "#b91c1c",
@@ -1188,7 +1298,46 @@ function ChangePasswordModal({
       padding: "6px 10px",
       marginBottom: 10
     }
-  }, error), /*#__PURE__*/React.createElement("label", {
+  }, error), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: "var(--tm)",
+      marginBottom: 8
+    }
+  }, "\u6570\u636E\u4FDD\u5B58"), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 8,
+      fontSize: 12,
+      color: "var(--text)",
+      marginBottom: 16,
+      cursor: "pointer",
+      lineHeight: 1.45
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: autoShare,
+    onChange: e => setAutoShare(e.target.checked),
+    style: {
+      marginTop: 2
+    }
+  }), /*#__PURE__*/React.createElement("span", null, "\u6539\u5B8C\u81EA\u52A8\u5206\u4EAB\u7ED9\u5168\u5458\uFF08\u4E0D\u52FE\u9009\u5219\u53EA\u4FDD\u5B58\u5728\u672C\u8D26\u53F7\uFF0C\u70B9\u9876\u90E8\u300C\u4FDD\u5B58\u5E76\u4E0A\u4F20\u300D\u624D\u5206\u4EAB\uFF09")), !isSuper && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: "var(--tm)",
+      marginBottom: 8
+    }
+  }, "\u4FEE\u6539\u81EA\u5DF1\u7684\u4E91\u7AEF M \u7801"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 10,
+      lineHeight: 1.5
+    }
+  }, "\u4E0D\u6539\u5BC6\u7801\u53EF\u4EE5\u7559\u7A7A\u3002\u6539\u5B8C\u540E\u516C\u53F8\u3001\u5BB6\u91CC\u3001\u4F1A\u8BAE\u5BA4\u90FD\u7528\u65B0\u5BC6\u7801\u3002"), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "block",
       fontSize: 11,
@@ -1203,7 +1352,6 @@ function ChangePasswordModal({
       setOldPwd(e.target.value);
       if (error) setError("");
     },
-    autoFocus: true,
     style: {
       ...fieldInp,
       marginBottom: 12
@@ -1223,7 +1371,7 @@ function ChangePasswordModal({
       setNewPwd(e.target.value);
       if (error) setError("");
     },
-    placeholder: "\u81F3\u5C11 4 \u4F4D",
+    placeholder: "\u81F3\u5C11 4 \u4F4D\uFF0C\u4E0D\u6539\u8BF7\u7559\u7A7A",
     style: {
       ...fieldInp,
       marginBottom: 12
@@ -1250,7 +1398,7 @@ function ChangePasswordModal({
     onKeyDown: e => {
       if (e.key === "Enter") save();
     }
-  }), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "flex-end",
@@ -1287,6 +1435,7 @@ function ChangePasswordModal({
     }
   }, saving ? "保存中…" : "保存"))));
 }
+const PersonalSettingsModal = ChangePasswordModal;
 function useGlobalConfig() {
   const [version, setVersion] = useState(0);
   useEffect(() => {
@@ -1328,7 +1477,10 @@ window.RoleBadge = RoleBadge;
 window.OwnerField = OwnerField;
 window.GlobalSettingsModal = GlobalSettingsModal;
 window.ChangePasswordModal = ChangePasswordModal;
+window.PersonalSettingsModal = ChangePasswordModal;
 window.updateOwnLoginCode = updateOwnLoginCode;
+window.updateOwnAutoShare = updateOwnAutoShare;
+window.loadGlobalConfig = loadGlobalConfig;
 window.useGlobalConfig = useGlobalConfig;
 window.fetchGlobalConfigFromCloud = fetchGlobalConfigFromCloud;
 window.getGlobalConfigMeta = getGlobalConfigMeta;
@@ -1359,7 +1511,8 @@ function setCurrentUser(user) {
       name: user.name || "访客",
       role: user.role || "",
       auth: user.auth || user.role || "",
-      canEdit: user.canEdit !== false
+      canEdit: user.canEdit !== false,
+      autoShare: user.autoShare === true
     }));
   } catch {/* ignore */}
 }
@@ -1376,6 +1529,54 @@ function canCurrentUserEdit(user) {
   const u = user || getCurrentUser();
   if (isSuperUser(u)) return true;
   return u?.canEdit !== false;
+}
+
+/** 这些 key 仍立即写云端（系统账号 / 工具自己的规则） */
+const IMMEDIATE_CLOUD_KEYS = ["global-config", "lingxing-sku-db", "kpi-monthly"];
+function userWantsAutoShare(user) {
+  const u = user || getCurrentUser();
+  return u?.autoShare === true;
+}
+function dataEqual(a, b) {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+function draftStorageKey(cloudKey) {
+  return `draft:${cloudKey}`;
+}
+function readUserDraft(cloudKey) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest") return null;
+  try {
+    return privateStorage.get(u.id, draftStorageKey(cloudKey));
+  } catch {
+    return null;
+  }
+}
+function writeUserDraft(cloudKey, data) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest") return;
+  privateStorage.set(u.id, draftStorageKey(cloudKey), {
+    data,
+    updatedAt: Date.now(),
+    updatedBy: u.name
+  });
+}
+function clearUserDraft(cloudKey) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest") return;
+  privateStorage.delete(u.id, draftStorageKey(cloudKey));
+}
+function usesPersonalDraft(storageKey) {
+  return !IMMEDIATE_CLOUD_KEYS.includes(storageKey);
+}
+function shouldShareNow(storageKey, opts = {}) {
+  if (opts.share) return true;
+  if (!usesPersonalDraft(storageKey)) return true;
+  return userWantsAutoShare();
 }
 const privateStorage = {
   get(userId, key) {
@@ -1422,13 +1623,19 @@ async function resolveClientId() {
 function isLocalOpsServer() {
   return false;
 }
-function priorityLocalKey(clientId, date) {
-  return `priority:${clientId}:${date}`;
+function currentUserScope() {
+  const u = getCurrentUser();
+  return u?.id && u.id !== "guest" ? u.id : "guest";
+}
+function priorityLocalKey(clientId, date, userId = currentUserScope()) {
+  return `priority:${userId}:${clientId}:${date}`;
 }
 function loadTodayPriority(clientId, date) {
   const id = clientId || getOrCreateDeviceId();
+  const userId = currentUserScope();
   try {
-    const raw = localStorage.getItem(priorityLocalKey(id, date));
+    let raw = localStorage.getItem(priorityLocalKey(id, date, userId));
+    if (!raw && userId !== "guest") raw = localStorage.getItem(`priority:${id}:${date}`);
     if (!raw) return {
       date: "",
       text: ""
@@ -1480,15 +1687,17 @@ function useSharedList(storageKey, defaultData, {
 } = {}) {
   const defaultRef = useRef(defaultData);
   defaultRef.current = defaultData;
+  const cloudSnapshotRef = useRef(null);
   const [state, setState] = useState({
     data: defaultData,
     meta: null,
     loading: true,
-    error: ""
+    error: "",
+    dirty: false
   });
   const fetchingRef = useRef(false);
   const lastFetchAtRef = useRef(0);
-  const fetchFromCloud = useCallback(async (force = false) => {
+  const fetchFromCloud = useCallback(async (force = false, opts = {}) => {
     if (fetchingRef.current) return;
     const now = Date.now();
     if (!force && now - lastFetchAtRef.current < 3000) return;
@@ -1496,21 +1705,26 @@ function useSharedList(storageKey, defaultData, {
     lastFetchAtRef.current = now;
     try {
       const raw = await sharedStorage.get(storageKey);
-      if (!raw) {
+      const cloudData = Array.isArray(raw?.data) ? raw.data : defaultRef.current;
+      cloudSnapshotRef.current = cloudData;
+      if (opts.discardDraft) clearUserDraft(storageKey);
+      const draft = !opts.discardDraft && usesPersonalDraft(storageKey) ? readUserDraft(storageKey) : null;
+      if (draft && Array.isArray(draft.data)) {
         setState({
-          data: defaultRef.current,
-          meta: null,
+          data: draft.data,
+          meta: raw || null,
           loading: false,
-          error: ""
+          error: "",
+          dirty: !dataEqual(draft.data, cloudData)
         });
         return;
       }
-      const data = Array.isArray(raw.data) ? raw.data : defaultRef.current;
       setState({
-        data,
-        meta: raw,
+        data: cloudData,
+        meta: raw || null,
         loading: false,
-        error: ""
+        error: "",
+        dirty: false
       });
     } catch (e) {
       setState(prev => ({
@@ -1544,7 +1758,7 @@ function useSharedList(storageKey, defaultData, {
     return () => clearInterval(timer);
   }, [fetchFromCloud, active]);
   const [saving, setSaving] = useState(false);
-  const persist = useCallback(async data => {
+  const persist = useCallback(async (data, opts = {}) => {
     setSaving(true);
     setState(prev => ({
       ...prev,
@@ -1552,16 +1766,29 @@ function useSharedList(storageKey, defaultData, {
       error: ""
     }));
     try {
-      const payload = await sharedStorage.set(storageKey, data, getCurrentUser().name);
+      if (shouldShareNow(storageKey, opts)) {
+        const payload = await sharedStorage.set(storageKey, data, getCurrentUser().name);
+        clearUserDraft(storageKey);
+        cloudSnapshotRef.current = data;
+        setState(prev => ({
+          ...prev,
+          data,
+          meta: payload || {
+            ...prev.meta,
+            updatedBy: getCurrentUser().name,
+            updatedAt: Date.now()
+          },
+          error: "",
+          dirty: false
+        }));
+        return true;
+      }
+      writeUserDraft(storageKey, data);
       setState(prev => ({
         ...prev,
         data,
-        meta: payload || {
-          ...prev.meta,
-          updatedBy: getCurrentUser().name,
-          updatedAt: Date.now()
-        },
-        error: ""
+        error: "",
+        dirty: !dataEqual(data, cloudSnapshotRef.current)
       }));
       return true;
     } catch (e) {
@@ -1590,6 +1817,8 @@ function useSharedList(storageKey, defaultData, {
         merged = mergeFn(latest);
         try {
           const payload = await sharedStorage.set(storageKey, merged, getCurrentUser().name);
+          clearUserDraft(storageKey);
+          cloudSnapshotRef.current = merged;
           setState(prev => ({
             ...prev,
             data: merged,
@@ -1598,7 +1827,8 @@ function useSharedList(storageKey, defaultData, {
               updatedBy: getCurrentUser().name,
               updatedAt: Date.now()
             },
-            error: ""
+            error: "",
+            dirty: false
           }));
           return true;
         } catch (saveErr) {
@@ -1617,13 +1847,15 @@ function useSharedList(storageKey, defaultData, {
       setSaving(false);
     }
   }, [storageKey]);
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts = {}) => {
     setState(prev => ({
       ...prev,
       loading: true,
       error: ""
     }));
-    await fetchFromCloud(true);
+    await fetchFromCloud(true, {
+      discardDraft: !!opts.discardDraft
+    });
   }, [fetchFromCloud]);
   return {
     items: state.data,
@@ -1631,6 +1863,7 @@ function useSharedList(storageKey, defaultData, {
     loading: state.loading,
     saving,
     error: state.error,
+    dirty: !!state.dirty,
     persist,
     persistMerge,
     reload
@@ -1648,7 +1881,7 @@ function SharedMetaLine({
   let bg = "#ecfdf5",
     border = "#6ee7b7",
     color = "#065f46";
-  let text = "☁️ GitHub 云端已启用 · 填写后点「保存并上传」同步全员";
+  let text = "☁️ 修改默认只保存在本账号 · 点「保存并上传」才分享给全员";
   if (loading) {
     bg = "#f3f4f6";
     border = "#d1d5db";
@@ -1658,7 +1891,7 @@ function SharedMetaLine({
     bg = "#eef6ff";
     border = "#b8d4f0";
     color = "#1a4e8a";
-    text = "⏳ 正在保存并上传到云端…";
+    text = "⏳ 正在保存…";
   } else if (error) {
     bg = "#fee2e2";
     border = "#fca5a5";
@@ -4540,7 +4773,8 @@ function LogisticsPanel({
     saving,
     error,
     persist,
-    reload
+    reload,
+    dirty
   } = useSharedList("logistics", INIT_LOGISTICS, {
     active
   });
@@ -4747,14 +4981,16 @@ function LogisticsPanel({
   }];
   useCloudSyncPage(active, {
     label: "物流",
-    save: async () => persist(list),
+    save: async () => persist(list, {
+      share: true
+    }),
     reload,
     meta,
     loading,
     saving,
     error,
-    isDirty: !!modal,
-    dirtyHint: "物流批次编辑弹窗未保存"
+    isDirty: dirty || !!modal,
+    dirtyHint: modal ? "物流批次编辑弹窗未保存" : "本账号有未分享的修改"
   });
   return /*#__PURE__*/React.createElement("div", null, products.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4959,7 +5195,7 @@ function LogisticsPanel({
     onSave: save,
     getExistingFbaIds: () => collectFbaIdsFromGroups(list, modal.id),
     onClose: () => {
-      if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+      if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
       setModal(null);
     },
     onDelete: () => {
@@ -7079,7 +7315,8 @@ function ProductionPanel({
     saving,
     error,
     persist,
-    reload
+    reload,
+    dirty
   } = useSharedList("production", INIT_PROD_DEFAULT, {
     active
   });
@@ -7221,14 +7458,16 @@ function ProductionPanel({
   }];
   useCloudSyncPage(active, {
     label: "生产",
-    save: async () => persist(list),
+    save: async () => persist(list, {
+      share: true
+    }),
     reload,
     meta,
     loading,
     saving,
     error,
-    isDirty: !!modal,
-    dirtyHint: "生产批次编辑弹窗未保存"
+    isDirty: dirty || !!modal,
+    dirtyHint: modal ? "生产批次编辑弹窗未保存" : "本账号有未分享的修改"
   });
   return /*#__PURE__*/React.createElement("div", null, products.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -7444,7 +7683,7 @@ function ProductionPanel({
     item: modal,
     onSave: save,
     onClose: () => {
-      if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+      if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
       setModal(null);
     },
     onDelete: () => {
@@ -7973,6 +8212,22 @@ const TOOL_CATALOG = [{
   category: "运营",
   target: "inline",
   openUrl: "tools/jingpu-flow/index.html"
+}, {
+  id: "growth-playbook",
+  name: "推品计划",
+  desc: "五阶段九步作战手册 · 按运营账号分开保存 · 可导出 PDF",
+  icon: "🗺️",
+  category: "运营",
+  target: "inline",
+  openUrl: "tools/growth-playbook/index.html"
+}, {
+  id: "growth-playbook-new",
+  name: "推品计划 · 空白",
+  desc: "新开一份空白计划，写下一支 ASIN，不影响已有计划",
+  icon: "📝",
+  category: "运营",
+  target: "inline",
+  openUrl: "tools/growth-playbook/index.html?new=1"
 }];
 const loadCustomUrls = () => {
   const saved = {};
@@ -8284,7 +8539,8 @@ function ToolsPanel({
     saving: docsSaving,
     error: docsError,
     persist: persistOnlineDocs,
-    reload: reloadDocs
+    reload: reloadDocs,
+    dirty: docsDirty
   } = useSharedList("tools-links", DEFAULT_ONLINE_DOCS, {
     active: tabActive
   });
@@ -8451,14 +8707,16 @@ function ToolsPanel({
   }
   useCloudSyncPage(tabActive, {
     label: "工具",
-    save: async () => persistOnlineDocs(onlineDocs),
+    save: async () => persistOnlineDocs(onlineDocs, {
+      share: true
+    }),
     reload: reloadDocs,
     meta: docsMeta,
     loading: docsLoading,
     saving: docsSaving,
     error: docsError,
-    isDirty: editingId !== null,
-    dirtyHint: "在线文档编辑未保存"
+    isDirty: docsDirty || editingId !== null,
+    dirtyHint: editingId !== null ? "在线文档编辑未保存" : "本账号有未分享的修改"
   });
   if (inlineTool) {
     const url = resolveToolUrl(inlineTool._resolvedUrl || toolUrl(inlineTool, customUrls));
@@ -8655,7 +8913,7 @@ function ToolsPanel({
 // Shared helpers (TODAY, fmtD, Avatar, …) come from LogisticsModule.browser.jsx loaded first.
 
 // ─── AI AGENTS MODULE ──────────────────────────────────────────────────
-// GPTs / Gems 链接列表 → GitHub Gist 全公司共享
+// GPTs / Gems 链接列表 → 默认本账号保存，点上传才分享全员
 
 const AGENTS_LEGACY_KEY = "ops-center-ai-agents";
 const AGENT_CATEGORIES = ["全部", "GPTs", "Gems", "其他"];
@@ -8975,7 +9233,8 @@ function AgentsPanel({
     saving,
     error,
     persist: persistAgents,
-    reload
+    reload,
+    dirty
   } = useSharedList("agents", [], {
     active: tabActive
   });
@@ -9082,14 +9341,16 @@ function AgentsPanel({
   }
   useCloudSyncPage(tabActive, {
     label: "智能体",
-    save: async () => persistAgents(agents),
+    save: async () => persistAgents(agents, {
+      share: true
+    }),
     reload,
     meta,
     loading,
     saving,
     error,
-    isDirty: editingId !== null,
-    dirtyHint: "智能体编辑未保存"
+    isDirty: dirty || editingId !== null,
+    dirtyHint: editingId !== null ? "智能体编辑未保存" : "本账号有未分享的修改"
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9926,11 +10187,14 @@ function getPriorityOwnerId() {
   }
 }
 function priorityStorageKey(date) {
-  return `ops-priority:${date}`;
+  const u = getCurrentUser();
+  const id = u?.id && u.id !== "guest" ? u.id : "guest";
+  return `ops-priority:${id}:${date}`;
 }
 function readPriorityForToday(date) {
   try {
-    const raw = localStorage.getItem(priorityStorageKey(date));
+    let raw = localStorage.getItem(priorityStorageKey(date));
+    if (!raw) raw = localStorage.getItem(`ops-priority:${date}`);
     if (!raw) return {
       date: "",
       text: ""
@@ -14887,7 +15151,8 @@ function KpiPanel({
     saving,
     error,
     isDirty: kpiDirty,
-    dirtyHint: curRole === "dev" && curWeek === 0 ? "开发月目标未上传" : `考核第${curWeek}周数据未上传`
+    dirtyHint: curRole === "dev" && curWeek === 0 ? "开发月目标未上传" : `考核第${curWeek}周数据未上传`,
+    barHint: "考核按人员/周次填写，点「保存并上传」写入云端（考核自己的规则）"
   });
   const clearWeek = () => {
     setDraft(emptyWeekForRole(effectiveRole));
@@ -15145,7 +15410,7 @@ function KpiPanel({
   }, toast));
 }
 const ALL_CLOUD_KEYS = ["logistics", "tasks", "production", "tools-links", "agents", "kpi-monthly", "global-config"];
-const LEAVE_MSG = "当前页有未上传的修改，确定离开吗？";
+const LEAVE_MSG = "当前页有未分享的修改，确定离开吗？";
 const CloudSyncContext = createContext(null);
 function CloudSyncProvider({
   children
@@ -15185,9 +15450,13 @@ function CloudSyncProvider({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
   const reloadAllCloud = useCallback(async () => {
+    const h = handlerRef.current;
+    if (h?.isDirty && !window.confirm("从云端更新会用全员数据覆盖本账号未上传的修改，确定继续？")) return;
     setBusy(true);
     try {
-      await handlerRef.current?.reload?.();
+      await h?.reload?.({
+        discardDraft: true
+      });
       await fetchGlobalConfigFromCloud();
       ALL_CLOUD_KEYS.forEach(key => {
         window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
@@ -15210,13 +15479,13 @@ function CloudSyncProvider({
   const saveToCloud = useCallback(async () => {
     const h = handlerRef.current;
     if (!h?.save) {
-      showToast("当前页无待保存草稿；弹窗内点「保存」会自动上传", 2800);
+      showToast("当前页没有可上传的数据", 2800);
       return;
     }
     setBusy(true);
     try {
       const ok = await h.save();
-      if (ok === false) showToast("上传失败，请检查网络或 Gist 配置", 3200);else if (typeof ok === "string") showToast(ok);else showToast("已保存并上传云端 ✓");
+      if (ok === false) showToast("上传失败，请检查网络或 Gist 配置", 3200);else if (typeof ok === "string") showToast(ok);else showToast("已分享给全员 ✓");
     } catch (e) {
       showToast(e?.message || "上传失败", 3200);
     } finally {
@@ -15283,13 +15552,16 @@ function useCloudSyncPage(active, handlers) {
       },
       get dirtyHint() {
         return ref.current.dirtyHint;
+      },
+      get barHint() {
+        return ref.current.barHint;
       }
     });
     return () => ctx.unregister();
   }, [active, ctx]);
   useEffect(() => {
     if (active && ctx) ctx.bump();
-  }, [active, ctx, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty]);
+  }, [active, ctx, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty, handlers.barHint]);
 }
 function useConfirmLeave() {
   const ctx = useContext(CloudSyncContext);
@@ -15310,12 +15582,12 @@ function GlobalCloudBar() {
   let bg = "#ecfdf5",
     border = "#6ee7b7",
     color = "#065f46";
-  let text = pollMin > 0 ? `☁️ 全站云端同步 · 请点「从云端更新」手动拉取；页面可见时每 ${pollMin} 分钟自动拉一次` : "☁️ 全站云端同步 · 请点「从云端更新」手动拉取；填写后点「保存并上传」";
+  let text = handler?.barHint || (userWantsAutoShare() ? "☁️ 已开启自动分享：改完会立刻给全员" : pollMin > 0 ? `☁️ 修改默认只保存在本账号，点「保存并上传」才分享给全员 · 可见时每 ${pollMin} 分钟拉取全员数据` : "☁️ 修改默认只保存在本账号，点「保存并上传」才分享给全员");
   if (handler?.isDirty) {
     bg = "#fffbeb";
     border = "#fcd34d";
     color = "#92400e";
-    text = `⚠️ ${handler.dirtyHint || "有未上传的修改"} · 离开前请先「保存并上传」`;
+    text = `⚠️ ${handler.dirtyHint || "本账号有未分享的修改"} · 点「保存并上传」后全员可见`;
   } else if (loading && !saving) {
     bg = "#f3f4f6";
     border = "#d1d5db";
@@ -15325,17 +15597,19 @@ function GlobalCloudBar() {
     bg = "#eef6ff";
     border = "#b8d4f0";
     color = "#1a4e8a";
-    text = "⏳ 正在保存并上传到云端…";
+    text = "⏳ 正在保存…";
   } else if (error) {
     bg = "#fee2e2";
     border = "#fca5a5";
     color = "#991b1b";
     text = `❌ ${error} · 已暂存本机，请重试上传`;
+  } else if (handler?.barHint) {
+    text = handler.barHint;
   } else if (handler?.meta?.updatedBy) {
     const who = handler.meta.updatedBy;
     const when = formatSharedTime(handler.meta.updatedAt);
     const page = handler.label ? `（${handler.label}）` : "";
-    text = pollMin > 0 ? `☁️ 最后由 ${who} 更新于 ${when}${page} · 手动更新；可见时每 ${pollMin} 分钟自动拉取` : `☁️ 最后由 ${who} 更新于 ${when}${page} · 请手动点「从云端更新」`;
+    text = pollMin > 0 ? `☁️ 全员数据最后由 ${who} 更新于 ${when}${page} · ${userWantsAutoShare() ? "已开启自动分享" : "本账号修改需点上传才分享"}` : `☁️ 全员数据最后由 ${who} 更新于 ${when}${page} · ${userWantsAutoShare() ? "已开启自动分享" : "本账号修改需点上传才分享"}`;
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "ops-cloud-bar",
@@ -15984,7 +16258,8 @@ function TasksPanel({
     saving,
     error,
     persist,
-    reload
+    reload,
+    dirty
   } = useSharedList("tasks", INIT_TASKS, {
     active
   });
@@ -16040,14 +16315,16 @@ function TasksPanel({
   }];
   useCloudSyncPage(active, {
     label: "任务",
-    save: async () => persist(tasks),
+    save: async () => persist(tasks, {
+      share: true
+    }),
     reload,
     meta,
     loading,
     saving,
     error,
-    isDirty: !!modal,
-    dirtyHint: "任务编辑弹窗未保存"
+    isDirty: dirty || !!modal,
+    dirtyHint: modal ? "任务编辑弹窗未保存" : "本账号有未分享的修改"
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -16125,7 +16402,7 @@ function TasksPanel({
     tasks: tasks,
     onSave: save,
     onClose: () => {
-      if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+      if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
       setModal(null);
     },
     onDelete: () => {
@@ -16386,7 +16663,7 @@ function SettingsMenu({
   }, item.label))));
 }
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_BUILD = "cloud-43-pwd";
+const APP_BUILD = "cloud-44-local";
 const AUTH_SESSION_KEY = "ops-center-auth-v6";
 const AUTH_ROLE_SUPER = "super";
 const AUTH_ROLE_STAFF = "staff";
@@ -16439,7 +16716,8 @@ function LoginScreen({
           name: APP_ORG_NAME,
           role: AUTH_ROLE_SUPER,
           auth: AUTH_ROLE_SUPER,
-          canEdit: true
+          canEdit: true,
+          autoShare: loadGlobalConfig().superAutoShare === true
         });
         onSuccess();
         return;
@@ -16459,7 +16737,8 @@ function LoginScreen({
           name: picked.name,
           role: picked.role || "",
           auth: AUTH_ROLE_STAFF,
-          canEdit: picked.canEdit !== false
+          canEdit: picked.canEdit !== false,
+          autoShare: picked.autoShare === true
         });
         onSuccess();
         return;
@@ -16513,7 +16792,7 @@ function LoginScreen({
       marginBottom: 18,
       lineHeight: 1.55
     }
-  }, "\u540D\u5355\u91CC\u6709\u540D\u5B57\u5373\u53EF\u8FDB\u5165\uFF08\u8FD0\u8425\u3001\u7F8E\u5DE5\u3001\u5F00\u53D1\u7B49\uFF09\u3002\u767B\u5F55\u540E\u53EF\u5728\u53F3\u4E0A\u89D2\u300C\u4FEE\u6539\u5BC6\u7801\u300D\u6539\u81EA\u5DF1\u7684\u4E91\u7AEF M \u7801\u3002"), /*#__PURE__*/React.createElement("label", {
+  }, "\u540D\u5355\u91CC\u6709\u540D\u5B57\u5373\u53EF\u8FDB\u5165\u3002\u767B\u5F55\u540E\u53F3\u4E0A\u89D2\u300C\u4E2A\u4EBA\u8BBE\u7F6E\u300D\u53EF\u6539\u5BC6\u7801\uFF1B\u4FEE\u6539\u9ED8\u8BA4\u53EA\u4FDD\u5B58\u5728\u81EA\u5DF1\u8D26\u53F7\uFF0C\u70B9\u300C\u4FDD\u5B58\u5E76\u4E0A\u4F20\u300D\u624D\u5206\u4EAB\u3002"), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "block",
       fontSize: 11,
@@ -16652,15 +16931,15 @@ function AppShell({
       fontWeight: 600,
       padding: "0 4px"
     }
-  }, isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}${canEdit ? " · 可修改" : " · 只读"}`), isSuper && /*#__PURE__*/React.createElement(SettingsMenu, {
+  }, isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}${canEdit ? " · 可修改" : " · 只读"}`, currentUser?.autoShare ? " · 自动分享" : " · 仅本账号"), isSuper && /*#__PURE__*/React.createElement(SettingsMenu, {
     onSelect: key => {
       if (key === "staff") setSettingsPanel("staff");
     }
-  }), !isSuper && /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ops-btn",
     onClick: () => setPwdOpen(true)
-  }, "\u4FEE\u6539\u5BC6\u7801"), /*#__PURE__*/React.createElement("button", {
+  }, "\u4E2A\u4EBA\u8BBE\u7F6E"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ops-btn",
     onClick: () => setDark(!dark)
@@ -16671,7 +16950,7 @@ function AppShell({
   }, "\u9000\u51FA"))), /*#__PURE__*/React.createElement("main", {
     className: "ops-content",
     style: {
-      maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" ? 1280 : 960
+      maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" ? 1280 : 960
     }
   }, /*#__PURE__*/React.createElement(GlobalCloudBar, null), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -16729,7 +17008,8 @@ function AppShell({
     onClose: () => setSettingsPanel(null),
     onSaved: () => setSettingsPanel(null)
   }), pwdOpen && /*#__PURE__*/React.createElement(ChangePasswordModal, {
-    onClose: () => setPwdOpen(false)
+    onClose: () => setPwdOpen(false),
+    onSaved: () => window.dispatchEvent(new CustomEvent("ops-user-prefs-updated"))
   }));
 }
 function App() {
@@ -16738,6 +17018,11 @@ function App() {
   const [tab, setTab] = useState("home");
   const [dark, setDark] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState(null);
+  useEffect(() => {
+    const syncUser = () => setCurrentUserState(getCurrentUser());
+    window.addEventListener("ops-user-prefs-updated", syncUser);
+    return () => window.removeEventListener("ops-user-prefs-updated", syncUser);
+  }, []);
   useEffect(() => {
     fetchGlobalConfigFromCloud().then(() => {
       if (sessionStorage.getItem(AUTH_SESSION_KEY) !== AUTH_ROLE_STAFF && sessionStorage.getItem(AUTH_SESSION_KEY) !== "ops") return;

@@ -6,7 +6,7 @@ import { AgentsPanel } from "./AgentsModule.jsx";
 import { KnowledgePanel, KeywordPanel } from "./KnowledgeModule.jsx";
 import { HomePanel } from "./HomeModule.jsx";
 import { KpiPanel } from "./KpiModule.jsx";
-import { GlobalSettingsModal, ChangePasswordModal, OwnerField, getStaffRole, RoleBadge, getStaffNames, STAFF_ROLE_OPTIONS, ROLE_COLORS, getSuperPassword, getPersonLoginCode, getLoginStaff, fetchGlobalConfigFromCloud } from "./GlobalConfig.jsx";
+import { GlobalSettingsModal, ChangePasswordModal, OwnerField, getStaffRole, RoleBadge, getStaffNames, STAFF_ROLE_OPTIONS, ROLE_COLORS, getSuperPassword, getPersonLoginCode, getLoginStaff, fetchGlobalConfigFromCloud, loadGlobalConfig } from "./GlobalConfig.jsx";
 import { UserContext, useCurrentUser } from "./context/UserContext.jsx";
 import { getCurrentUser, setCurrentUser, clearCurrentUser, useSharedList } from "./utils/storage.js";
 import { CloudSyncProvider, useCloudSyncPage, GlobalCloudBar, useConfirmLeave } from "./GlobalCloudSync.jsx";
@@ -160,7 +160,7 @@ function TaskCard({ task, onClick }) {
 }
 
 function TasksPanel({ active = true }) {
-  const { items: tasks, meta, loading, saving, error, persist, reload } = useSharedList("tasks", INIT_TASKS, { active });
+  const { items: tasks, meta, loading, saving, error, persist, reload, dirty } = useSharedList("tasks", INIT_TASKS, { active });
   const [filter, setFilter] = useState("all");
   const [modal, setModal] = useState(null);
   const nextId = () => Math.max(0, ...tasks.map(t => t.id || 0)) + 1;
@@ -177,14 +177,14 @@ function TasksPanel({ active = true }) {
   const tabs = [{ key: "all", label: "全部", nc: "var(--text)" }, { key: "over", label: "逾期", nc: "#e55" }, { key: "blocked", label: "受阻", nc: "#c07000" }, { key: "inprog", label: "进行中", nc: "#2d7dd2" }, { key: "done", label: "已完成", nc: "#2d9e52" }];
   useCloudSyncPage(active, {
     label: "任务",
-    save: async () => persist(tasks),
+    save: async () => persist(tasks, { share: true }),
     reload,
     meta,
     loading,
     saving,
     error,
-    isDirty: !!modal,
-    dirtyHint: "任务编辑弹窗未保存",
+    isDirty: dirty || !!modal,
+    dirtyHint: modal ? "任务编辑弹窗未保存" : "本账号有未分享的修改",
   });
   return (
     <div>
@@ -201,7 +201,7 @@ function TasksPanel({ active = true }) {
         {vis.length ? vis.map(t => <TaskCard key={t.id} task={t} onClick={() => setModal({ ...t, nodes: t.nodes ? t.nodes.map(n => ({ ...n })) : [] })} />) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无任务</div>}
       </div>
       {modal && <TaskModal task={modal} tasks={tasks} onSave={save} onClose={() => {
-        if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+        if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
         setModal(null);
       }} onDelete={() => { persist(tasks.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>
@@ -278,7 +278,7 @@ function SettingsMenu({ onSelect }) {
 }
 
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_BUILD = "cloud-43-pwd";
+const APP_BUILD = "cloud-44-local";
 const AUTH_SESSION_KEY = "ops-center-auth-v6";
 const AUTH_ROLE_SUPER = "super";
 const AUTH_ROLE_STAFF = "staff";
@@ -326,7 +326,7 @@ function LoginScreen({ onSuccess }) {
       const staff = getLoginStaff();
       setLoginStaff(staff);
       if (pwd && pwd === getSuperPassword()) {
-        persistAuth({ id: "super", name: APP_ORG_NAME, role: AUTH_ROLE_SUPER, auth: AUTH_ROLE_SUPER, canEdit: true });
+        persistAuth({ id: "super", name: APP_ORG_NAME, role: AUTH_ROLE_SUPER, auth: AUTH_ROLE_SUPER, canEdit: true, autoShare: loadGlobalConfig().superAutoShare === true });
         onSuccess();
         return;
       }
@@ -346,6 +346,7 @@ function LoginScreen({ onSuccess }) {
           role: picked.role || "",
           auth: AUTH_ROLE_STAFF,
           canEdit: picked.canEdit !== false,
+          autoShare: picked.autoShare === true,
         });
         onSuccess();
         return;
@@ -370,7 +371,7 @@ function LoginScreen({ onSuccess }) {
             <div style={{ fontSize: 12, color: "var(--tm)", marginTop: 2 }}>运营中心</div>
           </div>
         </div>
-        <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 18, lineHeight: 1.55 }}>名单里有名字即可进入（运营、美工、开发等）。登录后可在右上角「修改密码」改自己的云端 M 码。</div>
+        <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 18, lineHeight: 1.55 }}>名单里有名字即可进入。登录后右上角「个人设置」可改密码；修改默认只保存在自己账号，点「保存并上传」才分享。</div>
         <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>姓名</label>
         <select
           value={opsName}
@@ -448,9 +449,10 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           <div className="ops-topbar-actions">
             <span style={{ fontSize: 12, color: "var(--tm)", fontWeight: 600, padding: "0 4px" }}>
               {isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}${canEdit ? " · 可修改" : " · 只读"}`}
+              {currentUser?.autoShare ? " · 自动分享" : " · 仅本账号"}
             </span>
             {isSuper && <SettingsMenu onSelect={key => { if (key === "staff") setSettingsPanel("staff"); }} />}
-            {!isSuper && <button type="button" className="ops-btn" onClick={() => setPwdOpen(true)}>修改密码</button>}
+            <button type="button" className="ops-btn" onClick={() => setPwdOpen(true)}>个人设置</button>
             <button type="button" className="ops-btn" onClick={() => setDark(!dark)}>{dark ? "☀ 日间" : "☾ 夜间"}</button>
             <button type="button" className="ops-btn" onClick={onLogout}>退出</button>
           </div>
@@ -471,7 +473,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
       </div>
 
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
-      {pwdOpen && <ChangePasswordModal onClose={() => setPwdOpen(false)} />}
+      {pwdOpen && <ChangePasswordModal onClose={() => setPwdOpen(false)} onSaved={() => window.dispatchEvent(new CustomEvent("ops-user-prefs-updated"))} />}
     </div>
   );
 }
@@ -482,6 +484,11 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [dark, setDark] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState(null);
+  useEffect(() => {
+    const syncUser = () => setCurrentUserState(getCurrentUser());
+    window.addEventListener("ops-user-prefs-updated", syncUser);
+    return () => window.removeEventListener("ops-user-prefs-updated", syncUser);
+  }, []);
   useEffect(() => {
     fetchGlobalConfigFromCloud().then(() => {
       if (sessionStorage.getItem(AUTH_SESSION_KEY) !== AUTH_ROLE_STAFF && sessionStorage.getItem(AUTH_SESSION_KEY) !== "ops") return;

@@ -2263,6 +2263,7 @@ function KpiPanel({ active = true }) {
     error,
     isDirty: kpiDirty,
     dirtyHint: curRole === "dev" && curWeek === 0 ? "开发月目标未上传" : `考核第${curWeek}周数据未上传`,
+    barHint: "考核按人员/周次填写，点「保存并上传」写入云端（考核自己的规则）",
   });
 
   const clearWeek = () => {

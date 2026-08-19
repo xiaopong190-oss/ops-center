@@ -9,7 +9,7 @@ const badge = (bg, color, extra = {}) => ({ fontSize: 10, padding: "2px 8px", bo
 const lblSm = { display: "block", fontSize: 10, color: "var(--tm)", marginBottom: 3 };
 
 // ─── AI AGENTS MODULE ──────────────────────────────────────────────────
-// GPTs / Gems 链接列表 → GitHub Gist 全公司共享
+// GPTs / Gems 链接列表 → 默认本账号保存，点上传才分享全员
 
 const AGENTS_LEGACY_KEY = "ops-center-ai-agents";
 const AGENT_CATEGORIES = ["全部", "GPTs", "Gems", "其他"];
@@ -162,7 +162,7 @@ function AgentCard({ agent, isEditing, editName, editUrl, editDesc, onOpen, onSt
 }
 
 export function AgentsPanel({ active: tabActive = true }) {
-  const { items: agents, meta, loading, saving, error, persist: persistAgents, reload } =
+  const { items: agents, meta, loading, saving, error, persist: persistAgents, reload, dirty } =
     useSharedList("agents", [], { active: tabActive });
   const [cat, setCat] = useState("全部");
   const [q, setQ] = useState("");
@@ -280,14 +280,14 @@ export function AgentsPanel({ active: tabActive = true }) {
 
   useCloudSyncPage(tabActive, {
     label: "智能体",
-    save: async () => persistAgents(agents),
+    save: async () => persistAgents(agents, { share: true }),
     reload,
     meta,
     loading,
     saving,
     error,
-    isDirty: editingId !== null,
-    dirtyHint: "智能体编辑未保存",
+    isDirty: dirty || editingId !== null,
+    dirtyHint: editingId !== null ? "智能体编辑未保存" : "本账号有未分享的修改",
   });
 
   return (

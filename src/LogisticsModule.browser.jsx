@@ -275,13 +275,14 @@ function normalizeStaffEntry(item) {
   let entry;
   if (typeof item === "string") {
     const [name, role] = item.split("|").map(s => s.trim());
-    entry = { name: name || item.trim(), role: role || "", loginCode: "", canEdit: true };
+    entry = { name: name || item.trim(), role: role || "", loginCode: "", canEdit: true, autoShare: false };
   } else {
     entry = {
       name: String(item?.name || "").trim(),
       role: String(item?.role || "").trim(),
       loginCode: String(item?.loginCode || "").trim(),
       canEdit: item?.canEdit !== false,
+      autoShare: item?.autoShare === true,
     };
   }
   if (entry.name && !entry.role && DEFAULT_ROLE_BY_NAME[entry.name]) {
@@ -327,6 +328,7 @@ function normalizeConfigData(data) {
   const next = { staff };
   if (opsPassword) next.opsPassword = opsPassword;
   if (superPassword) next.superPassword = superPassword;
+  next.superAutoShare = data?.superAutoShare === true;
   return next;
 }
 
@@ -431,16 +433,21 @@ async function saveGlobalConfig(config, opts = {}) {
   const superPassword = config.superPassword !== undefined
     ? String(config.superPassword || "").trim()
     : String(prev.superPassword || "").trim() || DEFAULT_SUPER_PASSWORD;
+  const superAutoShare = config.superAutoShare !== undefined
+    ? config.superAutoShare === true
+    : prev.superAutoShare === true;
   const next = {
     staff: (config.staff || []).map(normalizeStaffEntry).filter(e => e.name).map(e => ({
       name: e.name,
       role: e.role || "",
       loginCode: String(e.loginCode || "").trim() || opsPassword,
       canEdit: e.canEdit !== false,
+      autoShare: e.autoShare === true,
     })),
   };
   if (opsPassword) next.opsPassword = opsPassword;
   if (superPassword) next.superPassword = superPassword;
+  next.superAutoShare = superAutoShare;
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
   } catch { /* ignore */ }
@@ -479,7 +486,46 @@ async function updateOwnLoginCode(oldPwd, newPwd) {
     staff,
     opsPassword: cfg.opsPassword,
     superPassword: cfg.superPassword,
+    superAutoShare: cfg.superAutoShare,
   }, { force: true });
+  return true;
+}
+
+function patchSessionUser(patch) {
+  try {
+    const raw = sessionStorage.getItem("ops-center-current-user");
+    const parsed = raw ? JSON.parse(raw) : {};
+    sessionStorage.setItem("ops-center-current-user", JSON.stringify({ ...parsed, ...patch }));
+  } catch { /* ignore */ }
+}
+
+async function updateOwnAutoShare(autoShare) {
+  const user = readSessionUser();
+  if (!user?.name || user.id === "guest") throw new Error("请先登录");
+  const on = !!autoShare;
+  await fetchGlobalConfigFromCloud();
+  const cfg = loadGlobalConfig();
+  if (user.auth === "super" || user.role === "super") {
+    await saveGlobalConfig({
+      staff: cfg.staff,
+      opsPassword: cfg.opsPassword,
+      superPassword: cfg.superPassword,
+      superAutoShare: on,
+    }, { force: true });
+  } else {
+    const staff = (cfg.staff || []).map(e => ({ ...e }));
+    const idx = staff.findIndex(e => e.name === user.name);
+    if (idx < 0) throw new Error("当前账号不在云端名单中");
+    staff[idx] = { ...staff[idx], autoShare: on };
+    await saveGlobalConfig({
+      staff,
+      opsPassword: cfg.opsPassword,
+      superPassword: cfg.superPassword,
+      superAutoShare: cfg.superAutoShare,
+    }, { force: true });
+  }
+  patchSessionUser({ autoShare: on });
+  window.dispatchEvent(new CustomEvent("ops-user-prefs-updated"));
   return true;
 }
 
@@ -549,7 +595,7 @@ function OwnerField({ value, onChange, placeholder = "选择负责人…", style
 function StaffListEditor({ rows, onChange, defaultLoginCode }) {
   const setRow = (i, patch) => onChange(rows.map((r, j) => j === i ? { ...r, ...patch } : r));
   const removeRow = (i) => onChange(rows.filter((_, j) => j !== i));
-  const addRow = () => onChange([...rows, { name: "", role: STAFF_ROLE_OPTIONS[0] || "运营", loginCode: defaultLoginCode || DEFAULT_OPS_PASSWORD, canEdit: true }]);
+  const addRow = () => onChange([...rows, { name: "", role: STAFF_ROLE_OPTIONS[0] || "运营", loginCode: defaultLoginCode || DEFAULT_OPS_PASSWORD, canEdit: true, autoShare: false }]);
   const inp = { flex: 1, minWidth: 0, fontSize: 13, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", background: "transparent", color: "inherit" };
   const sel = { ...inp, width: 80, flex: "0 0 80px", background: "var(--card)", cursor: "pointer" };
   return (
@@ -557,7 +603,8 @@ function StaffListEditor({ rows, onChange, defaultLoginCode }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 6, padding: "0 2px" }}>
         <span style={{ flex: 1, fontSize: 11, color: "var(--tm)", fontWeight: 500 }}>姓名</span>
         <span style={{ width: 80, flexShrink: 0, fontSize: 11, color: "var(--tm)", fontWeight: 500 }}>角色</span>
-        <span style={{ width: 64, flexShrink: 0, fontSize: 11, color: "var(--tm)", fontWeight: 500 }}>可修改</span>
+        <span style={{ width: 52, flexShrink: 0, fontSize: 11, color: "var(--tm)", fontWeight: 500 }}>可修改</span>
+        <span style={{ width: 64, flexShrink: 0, fontSize: 11, color: "var(--tm)", fontWeight: 500 }}>自动分享</span>
         <span style={{ width: 28 }} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 300, overflowY: "auto", marginBottom: 10, paddingRight: 2 }}>
@@ -570,8 +617,11 @@ function StaffListEditor({ rows, onChange, defaultLoginCode }) {
               <select value={row.role || STAFF_ROLE_OPTIONS[0]} onChange={e => setRow(i, { role: e.target.value, loginCode: row.loginCode || defaultLoginCode || DEFAULT_OPS_PASSWORD })} style={sel}>
                 {roles.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
-              <label style={{ width: 64, flexShrink: 0, display: "flex", justifyContent: "center", cursor: "pointer" }}>
+              <label style={{ width: 52, flexShrink: 0, display: "flex", justifyContent: "center", cursor: "pointer" }} title="勾选后可改任务、物流等">
                 <input type="checkbox" checked={row.canEdit !== false} onChange={e => setRow(i, { canEdit: e.target.checked })} />
+              </label>
+              <label style={{ width: 64, flexShrink: 0, display: "flex", justifyContent: "center", cursor: "pointer" }} title="勾选后改完立刻给全员；不勾选则只保存在该账号，点上传才分享">
+                <input type="checkbox" checked={row.autoShare === true} onChange={e => setRow(i, { autoShare: e.target.checked })} />
               </label>
               <button type="button" onClick={() => removeRow(i)} style={{ width: 28, height: 28, border: "none", background: "transparent", color: "#bbb", cursor: "pointer", fontSize: 20, lineHeight: 1, flexShrink: 0, fontFamily: "inherit" }}>×</button>
             </div>
@@ -587,6 +637,7 @@ function GlobalSettingsModal({ onClose, onSaved }) {
   const [rows, setRows] = useState(() => getEmployees().map(e => ({ ...e })));
   const [opsPassword, setOpsPassword] = useState(() => getOpsPassword());
   const [superPassword, setSuperPassword] = useState(() => getSuperPassword());
+  const [superAutoShare, setSuperAutoShare] = useState(() => loadGlobalConfig().superAutoShare === true);
   const [showOpsPwd, setShowOpsPwd] = useState(false);
   const [showSuperPwd, setShowSuperPwd] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -616,12 +667,13 @@ function GlobalSettingsModal({ onClose, onSaved }) {
         role: r.role || "",
         loginCode: !existing || existing === prevOps ? pwd : existing,
         canEdit: r.canEdit !== false,
+        autoShare: r.autoShare === true,
       };
     }).filter(r => r.name);
     setSaving(true);
     setError("");
     try {
-      await saveGlobalConfig({ staff, opsPassword: pwd, superPassword: superPwd });
+      await saveGlobalConfig({ staff, opsPassword: pwd, superPassword: superPwd, superAutoShare });
       onSaved && onSaved();
     } catch (e) {
       setError(e?.message || "保存失败，请检查网络或 Gist 配置");
@@ -635,9 +687,9 @@ function GlobalSettingsModal({ onClose, onSaved }) {
   const fieldInp = { flex: 1, minWidth: 0, fontSize: 13, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", background: "transparent", color: "inherit" };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 520, color: "var(--text)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 620, color: "var(--text)" }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>员工与云端 M 码</div>
-        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>名单里有名字就能登录。员工在右上角「修改密码」改自己的云端 M 码。勾选「可修改」后可以改任务、物流等数据。离职只删人。</div>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>名单里有名字就能登录。默认修改只保存在自己账号，点「保存并上传」才分享。「自动分享」勾上后改完立刻给全员。考核、推品计划、瀚海 SKU 库等工具仍按各自规则。离职只删人。</div>
         <div style={{ fontSize: 11, color: "#065f46", background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 8, padding: "6px 10px", marginBottom: 12 }}>{metaLine}</div>
         {error && <div style={{ fontSize: 11, color: "#b91c1c", background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 8, padding: "6px 10px", marginBottom: 10 }}>{error}</div>}
         <StaffListEditor rows={rows} onChange={setRows} defaultLoginCode={opsPassword.trim() || DEFAULT_OPS_PASSWORD} />
@@ -646,6 +698,10 @@ function GlobalSettingsModal({ onClose, onSaved }) {
           <input type={showSuperPwd ? "text" : "password"} value={superPassword} onChange={e => setSuperPassword(e.target.value)} placeholder="仅你和授权的人" style={fieldInp} />
           <button type="button" onClick={() => setShowSuperPwd(v => !v)} style={{ flexShrink: 0, background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>{showSuperPwd ? "隐藏" : "显示"}</button>
         </div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--text)", marginBottom: 12, cursor: "pointer", lineHeight: 1.45 }}>
+          <input type="checkbox" checked={superAutoShare} onChange={e => setSuperAutoShare(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>超级账号修改任务 / 物流等后自动分享给全员（不勾选则只保存在本账号，点上传才分享）</span>
+        </label>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", marginBottom: 8 }}>全员 M 码（云端）</div>
         <div style={{ fontSize: 11, color: rows.filter(r => r.name.trim()).length ? "#065f46" : "#92400e", background: rows.filter(r => r.name.trim()).length ? "#ecfdf5" : "#fffbeb", border: `1px solid ${rows.filter(r => r.name.trim()).length ? "#6ee7b7" : "#fcd34d"}`, borderRadius: 8, padding: "6px 10px", marginBottom: 10, lineHeight: 1.5 }}>
           {rows.filter(r => r.name.trim()).length ? `名单 ${rows.filter(r => r.name.trim()).length} 人。新员工默认用全员 M 码；员工自己改过的密码不会被覆盖。` : "尚未录入员工，无法登录。"}
@@ -664,6 +720,9 @@ function GlobalSettingsModal({ onClose, onSaved }) {
 }
 
 function ChangePasswordModal({ onClose, onSaved }) {
+  const session = readSessionUser() || {};
+  const isSuper = session.auth === "super" || session.role === "super";
+  const [autoShare, setAutoShare] = useState(() => session.autoShare === true);
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
@@ -674,13 +733,17 @@ function ChangePasswordModal({ onClose, onSaved }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, saving]);
+  const changingPwd = !isSuper && (oldPwd || newPwd || confirmPwd);
   const save = async () => {
-    if (newPwd.trim() !== confirmPwd.trim()) { setError("两次新密码不一致"); return; }
-    if (newPwd.trim() === oldPwd.trim()) { setError("新密码不能与当前密码相同"); return; }
+    if (changingPwd) {
+      if (newPwd.trim() !== confirmPwd.trim()) { setError("两次新密码不一致"); return; }
+      if (newPwd.trim() === oldPwd.trim()) { setError("新密码不能与当前密码相同"); return; }
+    }
     setSaving(true);
     setError("");
     try {
-      await updateOwnLoginCode(oldPwd, newPwd);
+      if (autoShare !== (session.autoShare === true)) await updateOwnAutoShare(autoShare);
+      if (changingPwd) await updateOwnLoginCode(oldPwd, newPwd);
       onSaved && onSaved();
       onClose();
     } catch (e) {
@@ -692,16 +755,27 @@ function ChangePasswordModal({ onClose, onSaved }) {
   const fieldInp = { width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", background: "transparent", color: "inherit", boxSizing: "border-box" };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 400, color: "var(--text)" }}>
-        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>修改自己的云端 M 码</div>
-        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 12, lineHeight: 1.5 }}>只改你自己的登录密码，不影响其他人。改完后公司、家里、会议室都用新密码。</div>
+      <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 420, color: "var(--text)" }}>
+        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>个人设置</div>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 12, lineHeight: 1.5 }}>修改默认只保存在你的账号。考核、推品计划、瀚海 SKU 库等有自己规则的工具除外。</div>
         {error && <div style={{ fontSize: 11, color: "#b91c1c", background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 8, padding: "6px 10px", marginBottom: 10 }}>{error}</div>}
-        <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>当前密码</label>
-        <input type="password" value={oldPwd} onChange={e => { setOldPwd(e.target.value); if (error) setError(""); }} autoFocus style={{ ...fieldInp, marginBottom: 12 }} />
-        <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>新密码</label>
-        <input type="password" value={newPwd} onChange={e => { setNewPwd(e.target.value); if (error) setError(""); }} placeholder="至少 4 位" style={{ ...fieldInp, marginBottom: 12 }} />
-        <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>确认新密码</label>
-        <input type="password" value={confirmPwd} onChange={e => { setConfirmPwd(e.target.value); if (error) setError(""); }} style={{ ...fieldInp, marginBottom: 4 }} onKeyDown={e => { if (e.key === "Enter") save(); }} />
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", marginBottom: 8 }}>数据保存</div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--text)", marginBottom: 16, cursor: "pointer", lineHeight: 1.45 }}>
+          <input type="checkbox" checked={autoShare} onChange={e => setAutoShare(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>改完自动分享给全员（不勾选则只保存在本账号，点顶部「保存并上传」才分享）</span>
+        </label>
+        {!isSuper && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", marginBottom: 8 }}>修改自己的云端 M 码</div>
+            <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 10, lineHeight: 1.5 }}>不改密码可以留空。改完后公司、家里、会议室都用新密码。</div>
+            <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>当前密码</label>
+            <input type="password" value={oldPwd} onChange={e => { setOldPwd(e.target.value); if (error) setError(""); }} style={{ ...fieldInp, marginBottom: 12 }} />
+            <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>新密码</label>
+            <input type="password" value={newPwd} onChange={e => { setNewPwd(e.target.value); if (error) setError(""); }} placeholder="至少 4 位，不改请留空" style={{ ...fieldInp, marginBottom: 12 }} />
+            <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>确认新密码</label>
+            <input type="password" value={confirmPwd} onChange={e => { setConfirmPwd(e.target.value); if (error) setError(""); }} style={{ ...fieldInp, marginBottom: 4 }} onKeyDown={e => { if (e.key === "Enter") save(); }} />
+          </>
+        )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
           <button type="button" disabled={saving} onClick={onClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
           <button type="button" disabled={saving} onClick={save} style={{ background: saving ? "#b8d4f0" : "#2d7dd2", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "#fff" }}>{saving ? "保存中…" : "保存"}</button>
@@ -710,6 +784,8 @@ function ChangePasswordModal({ onClose, onSaved }) {
     </div>
   );
 }
+
+export const PersonalSettingsModal = ChangePasswordModal;
 
 function useGlobalConfig() {
   const [version, setVersion] = useState(0);
@@ -747,7 +823,10 @@ window.RoleBadge = RoleBadge;
 window.OwnerField = OwnerField;
 window.GlobalSettingsModal = GlobalSettingsModal;
 window.ChangePasswordModal = ChangePasswordModal;
+window.PersonalSettingsModal = ChangePasswordModal;
 window.updateOwnLoginCode = updateOwnLoginCode;
+window.updateOwnAutoShare = updateOwnAutoShare;
+window.loadGlobalConfig = loadGlobalConfig;
 window.useGlobalConfig = useGlobalConfig;
 window.fetchGlobalConfigFromCloud = fetchGlobalConfigFromCloud;
 window.getGlobalConfigMeta = getGlobalConfigMeta;
@@ -777,6 +856,7 @@ function setCurrentUser(user) {
       role: user.role || "",
       auth: user.auth || user.role || "",
       canEdit: user.canEdit !== false,
+      autoShare: user.autoShare === true,
     }));
   } catch { /* ignore */ }
 }
@@ -794,6 +874,58 @@ function canCurrentUserEdit(user) {
   const u = user || getCurrentUser();
   if (isSuperUser(u)) return true;
   return u?.canEdit !== false;
+}
+
+/** 这些 key 仍立即写云端（系统账号 / 工具自己的规则） */
+const IMMEDIATE_CLOUD_KEYS = ["global-config", "lingxing-sku-db", "kpi-monthly"];
+
+function userWantsAutoShare(user) {
+  const u = user || getCurrentUser();
+  return u?.autoShare === true;
+}
+
+function dataEqual(a, b) {
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+}
+
+function draftStorageKey(cloudKey) {
+  return `draft:${cloudKey}`;
+}
+
+function readUserDraft(cloudKey) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest") return null;
+  try {
+    return privateStorage.get(u.id, draftStorageKey(cloudKey));
+  } catch {
+    return null;
+  }
+}
+
+function writeUserDraft(cloudKey, data) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest") return;
+  privateStorage.set(u.id, draftStorageKey(cloudKey), {
+    data,
+    updatedAt: Date.now(),
+    updatedBy: u.name,
+  });
+}
+
+function clearUserDraft(cloudKey) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest") return;
+  privateStorage.delete(u.id, draftStorageKey(cloudKey));
+}
+
+function usesPersonalDraft(storageKey) {
+  return !IMMEDIATE_CLOUD_KEYS.includes(storageKey);
+}
+
+function shouldShareNow(storageKey, opts = {}) {
+  if (opts.share) return true;
+  if (!usesPersonalDraft(storageKey)) return true;
+  return userWantsAutoShare();
 }
 
 const privateStorage = {
@@ -845,14 +977,21 @@ function isLocalOpsServer() {
   return false;
 }
 
-function priorityLocalKey(clientId, date) {
-  return `priority:${clientId}:${date}`;
+function currentUserScope() {
+  const u = getCurrentUser();
+  return u?.id && u.id !== "guest" ? u.id : "guest";
+}
+
+function priorityLocalKey(clientId, date, userId = currentUserScope()) {
+  return `priority:${userId}:${clientId}:${date}`;
 }
 
 function loadTodayPriority(clientId, date) {
   const id = clientId || getOrCreateDeviceId();
+  const userId = currentUserScope();
   try {
-    const raw = localStorage.getItem(priorityLocalKey(id, date));
+    let raw = localStorage.getItem(priorityLocalKey(id, date, userId));
+    if (!raw && userId !== "guest") raw = localStorage.getItem(`priority:${id}:${date}`);
     if (!raw) return { date: "", text: "" };
     const parsed = JSON.parse(raw);
     if (parsed?.date === date) return { date: parsed.date, text: parsed.text || "" };
@@ -893,18 +1032,20 @@ async function fetchLatestSharedArray(storageKey, fallback) {
 function useSharedList(storageKey, defaultData, { active = true } = {}) {
   const defaultRef = useRef(defaultData);
   defaultRef.current = defaultData;
+  const cloudSnapshotRef = useRef(null);
 
   const [state, setState] = useState({
     data: defaultData,
     meta: null,
     loading: true,
     error: "",
+    dirty: false,
   });
 
   const fetchingRef = useRef(false);
   const lastFetchAtRef = useRef(0);
 
-  const fetchFromCloud = useCallback(async (force = false) => {
+  const fetchFromCloud = useCallback(async (force = false, opts = {}) => {
     if (fetchingRef.current) return;
     const now = Date.now();
     if (!force && now - lastFetchAtRef.current < 3000) return;
@@ -912,12 +1053,21 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
     lastFetchAtRef.current = now;
     try {
       const raw = await sharedStorage.get(storageKey);
-      if (!raw) {
-        setState({ data: defaultRef.current, meta: null, loading: false, error: "" });
+      const cloudData = Array.isArray(raw?.data) ? raw.data : defaultRef.current;
+      cloudSnapshotRef.current = cloudData;
+      if (opts.discardDraft) clearUserDraft(storageKey);
+      const draft = (!opts.discardDraft && usesPersonalDraft(storageKey)) ? readUserDraft(storageKey) : null;
+      if (draft && Array.isArray(draft.data)) {
+        setState({
+          data: draft.data,
+          meta: raw || null,
+          loading: false,
+          error: "",
+          dirty: !dataEqual(draft.data, cloudData),
+        });
         return;
       }
-      const data = Array.isArray(raw.data) ? raw.data : defaultRef.current;
-      setState({ data, meta: raw, loading: false, error: "" });
+      setState({ data: cloudData, meta: raw || null, loading: false, error: "", dirty: false });
     } catch (e) {
       setState(prev => ({
         ...prev,
@@ -951,16 +1101,29 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
 
   const [saving, setSaving] = useState(false);
 
-  const persist = useCallback(async (data) => {
+  const persist = useCallback(async (data, opts = {}) => {
     setSaving(true);
     setState(prev => ({ ...prev, data, error: "" }));
     try {
-      const payload = await sharedStorage.set(storageKey, data, getCurrentUser().name);
+      if (shouldShareNow(storageKey, opts)) {
+        const payload = await sharedStorage.set(storageKey, data, getCurrentUser().name);
+        clearUserDraft(storageKey);
+        cloudSnapshotRef.current = data;
+        setState(prev => ({
+          ...prev,
+          data,
+          meta: payload || { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
+          error: "",
+          dirty: false,
+        }));
+        return true;
+      }
+      writeUserDraft(storageKey, data);
       setState(prev => ({
         ...prev,
         data,
-        meta: payload || { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
         error: "",
+        dirty: !dataEqual(data, cloudSnapshotRef.current),
       }));
       return true;
     } catch (e) {
@@ -983,11 +1146,14 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
         merged = mergeFn(latest);
         try {
           const payload = await sharedStorage.set(storageKey, merged, getCurrentUser().name);
+          clearUserDraft(storageKey);
+          cloudSnapshotRef.current = merged;
           setState(prev => ({
             ...prev,
             data: merged,
             meta: payload || { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
             error: "",
+            dirty: false,
           }));
           return true;
         } catch (saveErr) {
@@ -1004,9 +1170,9 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
     }
   }, [storageKey]);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts = {}) => {
     setState(prev => ({ ...prev, loading: true, error: "" }));
-    await fetchFromCloud(true);
+    await fetchFromCloud(true, { discardDraft: !!opts.discardDraft });
   }, [fetchFromCloud]);
 
   return {
@@ -1015,6 +1181,7 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
     loading: state.loading,
     saving,
     error: state.error,
+    dirty: !!state.dirty,
     persist,
     persistMerge,
     reload,
@@ -1023,14 +1190,14 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
 
 function SharedMetaLine({ meta, style, onReload, onSaveCloud, loading, saving, error }) {
   let bg = "#ecfdf5", border = "#6ee7b7", color = "#065f46";
-  let text = "☁️ GitHub 云端已启用 · 填写后点「保存并上传」同步全员";
+  let text = "☁️ 修改默认只保存在本账号 · 点「保存并上传」才分享给全员";
 
   if (loading) {
     bg = "#f3f4f6"; border = "#d1d5db"; color = "#4b5563";
     text = "⏳ 正在从云端加载…";
   } else if (saving) {
     bg = "#eef6ff"; border = "#b8d4f0"; color = "#1a4e8a";
-    text = "⏳ 正在保存并上传到云端…";
+    text = "⏳ 正在保存…";
   } else if (error) {
     bg = "#fee2e2"; border = "#fca5a5"; color = "#991b1b";
     text = `❌ ${error} · 数据已暂存本机，请重试上传`;
@@ -2408,7 +2575,7 @@ function ShipmentModal({ item, onSave, onClose, onDelete, getExistingFbaIds }) {
   );
 }
 function LogisticsPanel({ active = true }) {
-  const { items, meta, loading, saving, error, persist, reload } = useSharedList("logistics", INIT_LOGISTICS, { active });
+  const { items, meta, loading, saving, error, persist, reload, dirty } = useSharedList("logistics", INIT_LOGISTICS, { active });
   const list = Array.isArray(items) ? items : [];
   const savedFilters = loadLogisticsFilters();
   const [modal, setModal] = useState(null);
@@ -2537,14 +2704,14 @@ function LogisticsPanel({ active = true }) {
   ];
   useCloudSyncPage(active, {
     label: "物流",
-    save: async () => persist(list),
+    save: async () => persist(list, { share: true }),
     reload,
     meta,
     loading,
     saving,
     error,
-    isDirty: !!modal,
-    dirtyHint: "物流批次编辑弹窗未保存",
+    isDirty: dirty || !!modal,
+    dirtyHint: modal ? "物流批次编辑弹窗未保存" : "本账号有未分享的修改",
   });
   return (
     <div>
@@ -2610,7 +2777,7 @@ function LogisticsPanel({ active = true }) {
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>{currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次"}</div>}
       </div>
       {modal && <ShipmentModal item={modal} onSave={save} getExistingFbaIds={() => collectFbaIdsFromGroups(list, modal.id)} onClose={() => {
-        if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+        if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
         setModal(null);
       }} onDelete={() => { persist(list.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>

@@ -127,7 +127,10 @@ function globalConfigBrowserBlock() {
     "window.OwnerField = OwnerField;\n" +
     "window.GlobalSettingsModal = GlobalSettingsModal;\n" +
     "window.ChangePasswordModal = ChangePasswordModal;\n" +
+    "window.PersonalSettingsModal = ChangePasswordModal;\n" +
     "window.updateOwnLoginCode = updateOwnLoginCode;\n" +
+    "window.updateOwnAutoShare = updateOwnAutoShare;\n" +
+    "window.loadGlobalConfig = loadGlobalConfig;\n" +
     "window.useGlobalConfig = useGlobalConfig;\n" +
     "window.fetchGlobalConfigFromCloud = fetchGlobalConfigFromCloud;\n" +
     "window.getGlobalConfigMeta = getGlobalConfigMeta;\n" +

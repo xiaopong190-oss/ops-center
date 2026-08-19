@@ -1,10 +1,10 @@
 import { createContext, useContext, useRef, useState, useCallback, useEffect } from "react";
-import { formatSharedTime, CLOUD_POLL_MS } from "./utils/storage.js";
+import { formatSharedTime, CLOUD_POLL_MS, userWantsAutoShare } from "./utils/storage.js";
 import { fetchGlobalConfigFromCloud } from "./GlobalConfig.jsx";
 
 export const ALL_CLOUD_KEYS = ["logistics", "tasks", "production", "tools-links", "agents", "kpi-monthly", "global-config"];
 
-const LEAVE_MSG = "当前页有未上传的修改，确定离开吗？";
+const LEAVE_MSG = "当前页有未分享的修改，确定离开吗？";
 
 const CloudSyncContext = createContext(null);
 
@@ -52,9 +52,11 @@ export function CloudSyncProvider({ children }) {
   }, []);
 
   const reloadAllCloud = useCallback(async () => {
+    const h = handlerRef.current;
+    if (h?.isDirty && !window.confirm("从云端更新会用全员数据覆盖本账号未上传的修改，确定继续？")) return;
     setBusy(true);
     try {
-      await handlerRef.current?.reload?.();
+      await h?.reload?.({ discardDraft: true });
       await fetchGlobalConfigFromCloud();
       ALL_CLOUD_KEYS.forEach(key => {
         window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
@@ -79,7 +81,7 @@ export function CloudSyncProvider({ children }) {
   const saveToCloud = useCallback(async () => {
     const h = handlerRef.current;
     if (!h?.save) {
-      showToast("当前页无待保存草稿；弹窗内点「保存」会自动上传", 2800);
+      showToast("当前页没有可上传的数据", 2800);
       return;
     }
     setBusy(true);
@@ -87,7 +89,7 @@ export function CloudSyncProvider({ children }) {
       const ok = await h.save();
       if (ok === false) showToast("上传失败，请检查网络或 Gist 配置", 3200);
       else if (typeof ok === "string") showToast(ok);
-      else showToast("已保存并上传云端 ✓");
+      else showToast("已分享给全员 ✓");
     } catch (e) {
       showToast(e?.message || "上传失败", 3200);
     } finally {
@@ -128,13 +130,14 @@ export function useCloudSyncPage(active, handlers) {
       get error() { return ref.current.error; },
       get isDirty() { return !!ref.current.isDirty; },
       get dirtyHint() { return ref.current.dirtyHint; },
+      get barHint() { return ref.current.barHint; },
     });
     return () => ctx.unregister();
   }, [active, ctx]);
 
   useEffect(() => {
     if (active && ctx) ctx.bump();
-  }, [active, ctx, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty]);
+  }, [active, ctx, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty, handlers.barHint]);
 }
 
 export function useConfirmLeave() {
@@ -158,29 +161,34 @@ export function GlobalCloudBar() {
   const pollMin = CLOUD_POLL_MS > 0 ? Math.round(CLOUD_POLL_MS / 60000) : 0;
 
   let bg = "#ecfdf5", border = "#6ee7b7", color = "#065f46";
-  let text = pollMin > 0
-    ? `☁️ 全站云端同步 · 请点「从云端更新」手动拉取；页面可见时每 ${pollMin} 分钟自动拉一次`
-    : "☁️ 全站云端同步 · 请点「从云端更新」手动拉取；填写后点「保存并上传」";
+  let text = handler?.barHint
+    || (userWantsAutoShare()
+      ? "☁️ 已开启自动分享：改完会立刻给全员"
+      : (pollMin > 0
+        ? `☁️ 修改默认只保存在本账号，点「保存并上传」才分享给全员 · 可见时每 ${pollMin} 分钟拉取全员数据`
+        : "☁️ 修改默认只保存在本账号，点「保存并上传」才分享给全员"));
 
   if (handler?.isDirty) {
     bg = "#fffbeb"; border = "#fcd34d"; color = "#92400e";
-    text = `⚠️ ${handler.dirtyHint || "有未上传的修改"} · 离开前请先「保存并上传」`;
+    text = `⚠️ ${handler.dirtyHint || "本账号有未分享的修改"} · 点「保存并上传」后全员可见`;
   } else if (loading && !saving) {
     bg = "#f3f4f6"; border = "#d1d5db"; color = "#4b5563";
     text = "⏳ 正在从云端加载…";
   } else if (saving) {
     bg = "#eef6ff"; border = "#b8d4f0"; color = "#1a4e8a";
-    text = "⏳ 正在保存并上传到云端…";
+    text = "⏳ 正在保存…";
   } else if (error) {
     bg = "#fee2e2"; border = "#fca5a5"; color = "#991b1b";
     text = `❌ ${error} · 已暂存本机，请重试上传`;
+  } else if (handler?.barHint) {
+    text = handler.barHint;
   } else if (handler?.meta?.updatedBy) {
     const who = handler.meta.updatedBy;
     const when = formatSharedTime(handler.meta.updatedAt);
     const page = handler.label ? `（${handler.label}）` : "";
     text = pollMin > 0
-      ? `☁️ 最后由 ${who} 更新于 ${when}${page} · 手动更新；可见时每 ${pollMin} 分钟自动拉取`
-      : `☁️ 最后由 ${who} 更新于 ${when}${page} · 请手动点「从云端更新」`;
+      ? `☁️ 全员数据最后由 ${who} 更新于 ${when}${page} · ${userWantsAutoShare() ? "已开启自动分享" : "本账号修改需点上传才分享"}`
+      : `☁️ 全员数据最后由 ${who} 更新于 ${when}${page} · ${userWantsAutoShare() ? "已开启自动分享" : "本账号修改需点上传才分享"}`;
   }
 
   return (

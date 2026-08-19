@@ -958,7 +958,7 @@ function ProductGroup({ product, name, batches, onEdit }) {
 }
 
 function ProductionPanel({ active = true }) {
-  const { items, meta, loading, saving, error, persist, reload } = useSharedList("production", INIT_PROD_DEFAULT, { active });
+  const { items, meta, loading, saving, error, persist, reload, dirty } = useSharedList("production", INIT_PROD_DEFAULT, { active });
   const list = Array.isArray(items) ? items : [];
   const savedFilters = loadProdFilters();
   const [modal, setModal] = useState(null);
@@ -1049,14 +1049,14 @@ function ProductionPanel({ active = true }) {
 
   useCloudSyncPage(active, {
     label: "生产",
-    save: async () => persist(list),
+    save: async () => persist(list, { share: true }),
     reload,
     meta,
     loading,
     saving,
     error,
-    isDirty: !!modal,
-    dirtyHint: "生产批次编辑弹窗未保存",
+    isDirty: dirty || !!modal,
+    dirtyHint: modal ? "生产批次编辑弹窗未保存" : "本账号有未分享的修改",
   });
 
   return (
@@ -1122,7 +1122,7 @@ function ProductionPanel({ active = true }) {
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>{currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次"}</div>}
       </div>
       {modal && <ProdModal item={modal} onSave={save} onClose={() => {
-        if (!window.confirm("弹窗未点「保存」，修改不会上传。确定关闭？")) return;
+        if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
         setModal(null);
       }} onDelete={() => { persist(list.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>

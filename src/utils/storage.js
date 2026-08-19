@@ -27,6 +27,7 @@ export function setCurrentUser(user) {
       role: user.role || "",
       auth: user.auth || user.role || "",
       canEdit: user.canEdit !== false,
+      autoShare: user.autoShare === true,
     }));
   } catch { /* ignore */ }
 }
@@ -44,6 +45,58 @@ export function canCurrentUserEdit(user) {
   const u = user || getCurrentUser();
   if (isSuperUser(u)) return true;
   return u?.canEdit !== false;
+}
+
+/** 这些 key 仍立即写云端（系统账号 / 工具自己的规则） */
+export const IMMEDIATE_CLOUD_KEYS = ["global-config", "lingxing-sku-db", "kpi-monthly"];
+
+export function userWantsAutoShare(user) {
+  const u = user || getCurrentUser();
+  return u?.autoShare === true;
+}
+
+function dataEqual(a, b) {
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+}
+
+function draftStorageKey(cloudKey) {
+  return `draft:${cloudKey}`;
+}
+
+export function readUserDraft(cloudKey) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest") return null;
+  try {
+    return privateStorage.get(u.id, draftStorageKey(cloudKey));
+  } catch {
+    return null;
+  }
+}
+
+export function writeUserDraft(cloudKey, data) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest") return;
+  privateStorage.set(u.id, draftStorageKey(cloudKey), {
+    data,
+    updatedAt: Date.now(),
+    updatedBy: u.name,
+  });
+}
+
+export function clearUserDraft(cloudKey) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest") return;
+  privateStorage.delete(u.id, draftStorageKey(cloudKey));
+}
+
+function usesPersonalDraft(storageKey) {
+  return !IMMEDIATE_CLOUD_KEYS.includes(storageKey);
+}
+
+function shouldShareNow(storageKey, opts = {}) {
+  if (opts.share) return true;
+  if (!usesPersonalDraft(storageKey)) return true;
+  return userWantsAutoShare();
 }
 
 export const privateStorage = {
@@ -95,14 +148,21 @@ export function isLocalOpsServer() {
   return false;
 }
 
-function priorityLocalKey(clientId, date) {
-  return `priority:${clientId}:${date}`;
+function currentUserScope() {
+  const u = getCurrentUser();
+  return u?.id && u.id !== "guest" ? u.id : "guest";
+}
+
+function priorityLocalKey(clientId, date, userId = currentUserScope()) {
+  return `priority:${userId}:${clientId}:${date}`;
 }
 
 export function loadTodayPriority(clientId, date) {
   const id = clientId || getOrCreateDeviceId();
+  const userId = currentUserScope();
   try {
-    const raw = localStorage.getItem(priorityLocalKey(id, date));
+    let raw = localStorage.getItem(priorityLocalKey(id, date, userId));
+    if (!raw && userId !== "guest") raw = localStorage.getItem(`priority:${id}:${date}`);
     if (!raw) return { date: "", text: "" };
     const parsed = JSON.parse(raw);
     if (parsed?.date === date) return { date: parsed.date, text: parsed.text || "" };
@@ -143,18 +203,20 @@ async function fetchLatestSharedArray(storageKey, fallback) {
 export function useSharedList(storageKey, defaultData, { active = true } = {}) {
   const defaultRef = useRef(defaultData);
   defaultRef.current = defaultData;
+  const cloudSnapshotRef = useRef(null);
 
   const [state, setState] = useState({
     data: defaultData,
     meta: null,
     loading: true,
     error: "",
+    dirty: false,
   });
 
   const fetchingRef = useRef(false);
   const lastFetchAtRef = useRef(0);
 
-  const fetchFromCloud = useCallback(async (force = false) => {
+  const fetchFromCloud = useCallback(async (force = false, opts = {}) => {
     if (fetchingRef.current) return;
     const now = Date.now();
     if (!force && now - lastFetchAtRef.current < 3000) return;
@@ -162,12 +224,21 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
     lastFetchAtRef.current = now;
     try {
       const raw = await sharedStorage.get(storageKey);
-      if (!raw) {
-        setState({ data: defaultRef.current, meta: null, loading: false, error: "" });
+      const cloudData = Array.isArray(raw?.data) ? raw.data : defaultRef.current;
+      cloudSnapshotRef.current = cloudData;
+      if (opts.discardDraft) clearUserDraft(storageKey);
+      const draft = (!opts.discardDraft && usesPersonalDraft(storageKey)) ? readUserDraft(storageKey) : null;
+      if (draft && Array.isArray(draft.data)) {
+        setState({
+          data: draft.data,
+          meta: raw || null,
+          loading: false,
+          error: "",
+          dirty: !dataEqual(draft.data, cloudData),
+        });
         return;
       }
-      const data = Array.isArray(raw.data) ? raw.data : defaultRef.current;
-      setState({ data, meta: raw, loading: false, error: "" });
+      setState({ data: cloudData, meta: raw || null, loading: false, error: "", dirty: false });
     } catch (e) {
       setState(prev => ({
         ...prev,
@@ -201,16 +272,29 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
 
   const [saving, setSaving] = useState(false);
 
-  const persist = useCallback(async (data) => {
+  const persist = useCallback(async (data, opts = {}) => {
     setSaving(true);
     setState(prev => ({ ...prev, data, error: "" }));
     try {
-      const payload = await sharedStorage.set(storageKey, data, getCurrentUser().name);
+      if (shouldShareNow(storageKey, opts)) {
+        const payload = await sharedStorage.set(storageKey, data, getCurrentUser().name);
+        clearUserDraft(storageKey);
+        cloudSnapshotRef.current = data;
+        setState(prev => ({
+          ...prev,
+          data,
+          meta: payload || { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
+          error: "",
+          dirty: false,
+        }));
+        return true;
+      }
+      writeUserDraft(storageKey, data);
       setState(prev => ({
         ...prev,
         data,
-        meta: payload || { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
         error: "",
+        dirty: !dataEqual(data, cloudSnapshotRef.current),
       }));
       return true;
     } catch (e) {
@@ -233,11 +317,14 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
         merged = mergeFn(latest);
         try {
           const payload = await sharedStorage.set(storageKey, merged, getCurrentUser().name);
+          clearUserDraft(storageKey);
+          cloudSnapshotRef.current = merged;
           setState(prev => ({
             ...prev,
             data: merged,
             meta: payload || { ...prev.meta, updatedBy: getCurrentUser().name, updatedAt: Date.now() },
             error: "",
+            dirty: false,
           }));
           return true;
         } catch (saveErr) {
@@ -254,9 +341,9 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
     }
   }, [storageKey]);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts = {}) => {
     setState(prev => ({ ...prev, loading: true, error: "" }));
-    await fetchFromCloud(true);
+    await fetchFromCloud(true, { discardDraft: !!opts.discardDraft });
   }, [fetchFromCloud]);
 
   return {
@@ -265,6 +352,7 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
     loading: state.loading,
     saving,
     error: state.error,
+    dirty: !!state.dirty,
     persist,
     persistMerge,
     reload,
@@ -273,14 +361,14 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
 
 export function SharedMetaLine({ meta, style, onReload, onSaveCloud, loading, saving, error }) {
   let bg = "#ecfdf5", border = "#6ee7b7", color = "#065f46";
-  let text = "☁️ GitHub 云端已启用 · 填写后点「保存并上传」同步全员";
+  let text = "☁️ 修改默认只保存在本账号 · 点「保存并上传」才分享给全员";
 
   if (loading) {
     bg = "#f3f4f6"; border = "#d1d5db"; color = "#4b5563";
     text = "⏳ 正在从云端加载…";
   } else if (saving) {
     bg = "#eef6ff"; border = "#b8d4f0"; color = "#1a4e8a";
-    text = "⏳ 正在保存并上传到云端…";
+    text = "⏳ 正在保存…";
   } else if (error) {
     bg = "#fee2e2"; border = "#fca5a5"; color = "#991b1b";
     text = `❌ ${error} · 数据已暂存本机，请重试上传`;

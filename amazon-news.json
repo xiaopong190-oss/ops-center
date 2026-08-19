@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-08-11T01:37:06.865Z",
+  "updatedAt": "2026-08-19T01:07:59.888Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Inside Amazon's first-ever drone delivery site in the UK",
-      "link": "https://www.aboutamazon.com/news/transportation/amazon-drone-prime-air-uk?utm_source=rss",
-      "pubDate": "Fri, 07 Aug 2026 05:55:38 GMT",
-      "date": "8/7",
-      "summary": "The Prime Air site in Darlington, England is the first of its kind outside of the U.S.",
-      "category": "Transportation"
-    },
-    {
-      "title": "How Amazon is supporting communities impacted by wildfires in Spokane, Washington",
-      "link": "https://www.aboutamazon.com/news/community/spokane-washington-fires-amazon-disaster-relief?utm_source=rss",
-      "pubDate": "Thu, 06 Aug 2026 22:00:00 GMT",
-      "date": "8/6",
-      "summary": "Amazon is working with the American Red Cross, Save the Children, and local nonprofits to support thousands of people in Spokane County who ",
+      "title": "5 ways Amazon is investing in Arizona",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-arizona-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Tue, 18 Aug 2026 15:51:40 GMT",
+      "date": "8/18",
+      "summary": "Amazon's investments are boosting the Grand Canyon State's economy while creating opportunities for those who call Arizona home.",
       "category": "Community"
     },
     {
-      "title": "Everything to know about ‘Madden,’ a new movie coming to Prime Video November 18",
-      "link": "https://www.aboutamazon.com/news/entertainment/madden-movie-nicolas-cage-prime-video?utm_source=rss",
-      "pubDate": "Thu, 06 Aug 2026 15:00:58 GMT",
-      "date": "8/6",
-      "summary": "Nicolas Cage stars as legendary NFL coach John Madden in this film charting his unlikely journey from Super Bowl winner to video game icon.",
-      "category": "Entertainment"
+      "title": "5 ways Amazon is investing in Nevada",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-nevada-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Mon, 17 Aug 2026 19:30:36 GMT",
+      "date": "8/17",
+      "summary": "Amazon's investments are boosting the Silver State's economy while creating opportunities for those who call Nevada home.",
+      "category": "Community"
+    },
+    {
+      "title": "5 ways Amazon is investing in Colorado",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-colorado-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Mon, 17 Aug 2026 19:20:01 GMT",
+      "date": "8/17",
+      "summary": "Amazon's investments are boosting the Centennial State's economy while creating opportunities for those who call Colorado home.",
+      "category": "Community"
     }
   ]
 }

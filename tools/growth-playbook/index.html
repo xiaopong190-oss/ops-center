@@ -399,7 +399,7 @@
 
   .mm-cols{
     display:grid;
-    grid-template-columns:1fr 1fr 1fr;
+    grid-template-columns:1fr;
     gap:8px;
     align-items:start;
     background:#fffdf8;
@@ -409,7 +409,7 @@
     border:1px solid var(--border);
     border-radius:6px;
     background:rgba(255,253,248,0.92);
-    min-height:220px;
+    min-height:180px;
     display:flex;
     flex-direction:column;
   }
@@ -502,16 +502,16 @@
     justify-content:space-between;
   }
   .notes-pad{
-    margin-top:12px;
+    margin-top:8px;
     flex:1;
     display:flex;
     flex-direction:column;
-    min-height:360px;
+    min-height:280px;
     background:transparent;
   }
   .notes-pad textarea{
     flex:1;
-    min-height:360px;
+    min-height:280px;
     width:100%;
     border:none;
     background:transparent;
@@ -524,6 +524,44 @@
     padding:0;
   }
   .notes-pad textarea::placeholder{ color:#b8ae90; }
+  .page-tabs{
+    display:flex;
+    gap:4px;
+    background:#fffdf8;
+    margin:8px 0 0;
+  }
+  .page-tab{
+    flex:1;
+    text-align:center;
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:0.04em;
+    padding:10px 8px;
+    border:1px solid var(--border);
+    border-bottom:none;
+    background:#f3eee0;
+    color:var(--muted);
+    cursor:pointer;
+    border-radius:6px 6px 0 0;
+    font-family:inherit;
+    position:relative;
+  }
+  .page-tab.is-on{ background:#fffdf8; color:var(--ink); }
+  .page-tab.plan.is-on{ color:var(--plan); box-shadow:inset 0 3px 0 var(--plan); }
+  .page-tab.risk.is-on{ color:var(--risk); box-shadow:inset 0 3px 0 var(--risk); }
+  .page-tab.fix.is-on{ color:var(--fix); box-shadow:inset 0 3px 0 var(--fix); }
+  .page-tab.has-text::after{
+    content:"";
+    width:6px;height:6px;
+    border-radius:50%;
+    background:currentColor;
+    display:inline-block;
+    margin-left:6px;
+    vertical-align:middle;
+    opacity:0.7;
+  }
+  .page-panel{ display:none; flex:1; flex-direction:column; min-height:0; }
+  .page-panel.is-on{ display:flex; }
   .chip-status{
     font-size:11.5px;
     padding:5px 11px;
@@ -535,9 +573,6 @@
     user-select:none;
     transition:all .15s;
   }
-  .chip-status.active-todo{ border-color:#c9a1a1; color:#a5352b; background:#fbeeee;}
-  .chip-status.active-progress{ border-color:var(--gold); color:var(--gold); background:#fbf3df;}
-  .chip-status.active-done{ border-color:#7fae7f; color:#4f7a4f; background:#eef5ee;}
   .foot-left{display:flex; gap:8px; flex-wrap:wrap;}
 
   footer{
@@ -934,11 +969,10 @@ const STEPS = [
 ];
 
 const BRANCHES = [
-  {key:"plan", label:"方案"},
-  {key:"risk", label:"可能异常"},
-  {key:"fix",  label:"解决方案"}
+  {key:"plan", label:"方案", ph:"本页只写「方案」：准备怎么推、词怎么打、货怎么备。切到其他页不会丢掉这里。"},
+  {key:"risk", label:"可能异常", ph:"本页只写「可能异常」：CPC、断货、差评、转化掉等。与方案页互不影响。"},
+  {key:"fix",  label:"备用方案", ph:"本页只写「备用方案」：主方案不行时切哪条路。与前两页互不影响。"}
 ];
-const STEP_STATUS = { todo:"方案", progress:"可能异常", done:"备用方案" };
 
 function uid(){ return "n" + Math.random().toString(36).slice(2,9); }
 
@@ -1101,10 +1135,8 @@ async function resetCurrentTrees(){
   for(const s of STEPS){
     trees[s.id] = defaultTree(s);
     renderMap(s.id);
-    const ta = document.getElementById("note-"+s.id);
-    if(ta) ta.value = "";
-    updateChipUI(s.id, "todo");
-    updateNavCheck(s.id, "todo");
+    showPage(s.id, "plan");
+    await clearStepNotes(s.id);
   }
 }
 
@@ -1265,15 +1297,27 @@ function renderSteps(){
 
     const rootWrap = el("div","mm-root-wrap");
     rootWrap.appendChild(el("div","mm-root", s.title));
-    rootWrap.appendChild(el("div","mm-stem"));
-    rootWrap.appendChild(el("div","mm-fork"));
     notes.appendChild(rootWrap);
 
-    const cols = el("div","mm-cols");
-    BRANCHES.forEach(b => {
+    const tabs = el("div","page-tabs");
+    BRANCHES.forEach((b, i) => {
+      const tab = el("button","page-tab "+b.key+(i===0?" is-on":""), b.label);
+      tab.type = "button";
+      tab.dataset.page = b.key;
+      tab.dataset.step = s.id;
+      tabs.appendChild(tab);
+    });
+    notes.appendChild(tabs);
+
+    BRANCHES.forEach((b, i) => {
+      const panel = el("div","page-panel"+(i===0?" is-on":""));
+      panel.dataset.page = b.key;
+      panel.dataset.step = s.id;
+
+      const cols = el("div","mm-cols");
       const col = el("div","mm-col "+b.key);
       const h = el("div","mm-col-h");
-      h.appendChild(el("span",null,b.label));
+      h.appendChild(el("span",null,b.label+"节点"));
       const add = el("button","mm-add","+");
       add.type = "button";
       add.dataset.add = b.key;
@@ -1285,30 +1329,23 @@ function renderSteps(){
       list.id = "list-"+s.id+"-"+b.key;
       col.appendChild(list);
       cols.appendChild(col);
+      panel.appendChild(cols);
+      panel.appendChild(el("div","mm-hint","本页只改「"+b.label+"」· 回车加同级 · Tab 加子节点"));
+
+      const pad = el("div","notes-pad");
+      const ta = document.createElement("textarea");
+      ta.id = "note-"+s.id+"-"+b.key;
+      ta.placeholder = b.ph;
+      pad.appendChild(ta);
+      panel.appendChild(pad);
+      notes.appendChild(panel);
     });
-    notes.appendChild(cols);
-    notes.appendChild(el("div","mm-hint","点选节点后：回车加同级 · Tab 加子节点 · 点 + 加在该列"));
 
     const nFoot = el("div","notes-foot");
-    const left = el("div","foot-left");
-    ["todo","progress","done"].forEach(k => {
-      const chip = el("div","chip-status", STEP_STATUS[k]);
-      chip.dataset.status = k;
-      chip.dataset.step = s.id;
-      left.appendChild(chip);
-    });
-    nFoot.appendChild(left);
     const resetOne = el("button","chip-status","恢复本步模板");
     resetOne.dataset.reset = s.id;
     nFoot.appendChild(resetOne);
     notes.appendChild(nFoot);
-
-    const pad = el("div","notes-pad");
-    const ta = document.createElement("textarea");
-    ta.id = "note-"+s.id;
-    ta.placeholder = "在这里写本步推品计划：怎么做、可能异常、备用方案……可自由发挥，自动保存。";
-    pad.appendChild(ta);
-    notes.appendChild(pad);
 
     body.appendChild(notes);
     step.appendChild(body);
@@ -1341,14 +1378,62 @@ async function saveTree(stepId){
   }
 }
 
-async function saveNote(stepId, value){
+async function saveNote(stepId, branchKey, value){
   try{
-    await store.set("note:"+stepId, value);
+    await store.set("note:"+stepId+":"+branchKey, value);
     flashSaved(stepId, "已保存");
+    refreshPageDots(stepId);
   }catch(e){
     flashSaved(stepId, "保存失败");
     console.error(e);
   }
+}
+
+function noteValue(stepId, key){
+  const ta = document.getElementById("note-"+stepId+"-"+key);
+  return ta ? ta.value : "";
+}
+
+function setNoteValue(stepId, key, value){
+  const ta = document.getElementById("note-"+stepId+"-"+key);
+  if(ta) ta.value = value || "";
+}
+
+function showPage(stepId, key){
+  const notes = document.querySelector('.notes[data-step="'+stepId+'"]');
+  if(!notes) return;
+  notes.querySelectorAll(".page-tab").forEach(t => t.classList.toggle("is-on", t.dataset.page === key));
+  notes.querySelectorAll(".page-panel").forEach(p => p.classList.toggle("is-on", p.dataset.page === key));
+}
+
+function refreshPageDots(stepId){
+  BRANCHES.forEach(b => {
+    const tab = document.querySelector('.page-tab[data-step="'+stepId+'"][data-page="'+b.key+'"]');
+    if(tab) tab.classList.toggle("has-text", !!(noteValue(stepId, b.key).trim()));
+  });
+  const filled = BRANCHES.some(b => noteValue(stepId, b.key).trim());
+  updateNavCheck(stepId, filled ? "done" : "todo");
+}
+
+async function clearStepNotes(stepId){
+  for(const b of BRANCHES){
+    setNoteValue(stepId, b.key, "");
+    try{ await store.del("note:"+stepId+":"+b.key); }catch(e){}
+  }
+  try{ await store.del("note:"+stepId); }catch(e){}
+  refreshPageDots(stepId);
+}
+
+async function loadStepNotes(stepId){
+  let legacy = "";
+  try{ legacy = (await store.get("note:"+stepId)) || ""; }catch(e){}
+  for(const b of BRANCHES){
+    let val = "";
+    try{ val = (await store.get("note:"+stepId+":"+b.key)) || ""; }catch(e){}
+    if(!val && b.key === "plan" && legacy) val = legacy;
+    setNoteValue(stepId, b.key, val);
+  }
+  refreshPageDots(stepId);
 }
 
 function addChild(stepId, branchKey, parentId){
@@ -1406,18 +1491,6 @@ function updateNavCheck(stepId, status){
   if(link) link.classList.toggle("done", status === "done");
 }
 
-function updateChipUI(stepId, status){
-  document.querySelectorAll('.chip-status[data-step="'+stepId+'"]').forEach(c => {
-    c.classList.remove("active-todo","active-progress","active-done");
-    if(c.dataset.status === status) c.classList.add("active-"+status);
-  });
-}
-
-async function saveStatus(stepId, status){
-  try{ await store.set("status:"+stepId, status); }catch(e){ console.error(e); }
-  updateNavCheck(stepId, status);
-}
-
 function nodeListText(nodes, prefix){
   let lines = [];
   (nodes || []).forEach(n => {
@@ -1449,17 +1522,16 @@ function buildMarkdown(){
       md += "### "+b.label+"\n";
       const lines = nodeListText(t[b.key].children, "- ");
       md += (lines.length ? lines.join("\n") : "- （空）") + "\n\n";
+      const note = noteValue(s.id, b.key).trim();
+      if(note) md += note.split("\n").map(line => "  "+line).join("\n") + "\n\n";
     });
-    const noteEl = document.getElementById("note-"+s.id);
-    const note = noteEl ? noteEl.value.trim() : "";
-    if(note) md += "### 运营笔记\n\n"+note+"\n\n";
   });
   return md;
 }
 
 function openMaster(){
   const meta = document.getElementById("masterMeta");
-  meta.textContent = caseLine() || "九步方案 / 异常 / 解决汇总，可导出为计划文本。";
+  meta.textContent = caseLine() || "九步方案 / 可能异常 / 备用方案，三页互不覆盖。";
   const body = document.getElementById("masterBody");
   body.innerHTML = "";
   STEPS.forEach(s => {
@@ -1474,6 +1546,13 @@ function openMaster(){
       if(!lines.length) ul.appendChild(el("li",null,"（空）"));
       else lines.forEach(t => ul.appendChild(el("li",null,t.trim())));
       col.appendChild(ul);
+      const note = noteValue(s.id, b.key).trim();
+      if(note){
+        const p = el("p",null,note);
+        p.style.margin = "8px 0 0";
+        p.style.whiteSpace = "pre-wrap";
+        col.appendChild(p);
+      }
       grid.appendChild(col);
     });
     wrap.appendChild(grid);
@@ -1512,9 +1591,10 @@ function exportPdf(){
       body += "</ul></div>";
     });
     body += "</div>";
-    const noteEl = document.getElementById("note-"+s.id);
-    const note = noteEl ? noteEl.value.trim() : "";
-    if(note) body += "<div class='note'><h3>运营笔记</h3><pre>"+esc(note)+"</pre></div>";
+    BRANCHES.forEach(b => {
+      const note = noteValue(s.id, b.key).trim();
+      if(note) body += "<div class='note'><h3>"+esc(b.label)+" · 手写</h3><pre>"+esc(note)+"</pre></div>";
+    });
     body += "</section>";
   });
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>推品计划 ${esc(head)}</title>
@@ -1553,18 +1633,12 @@ ${body}
 function buildBackup(){
   const steps = {};
   STEPS.forEach(s => {
-    const ta = document.getElementById("note-"+s.id);
-    steps[s.id] = {
-      mmap: trees[s.id],
-      note: ta ? ta.value : "",
-      status: (document.querySelector('.chip-status[data-step="'+s.id+'"].active-todo') && "todo")
-        || (document.querySelector('.chip-status[data-step="'+s.id+'"].active-progress') && "progress")
-        || (document.querySelector('.chip-status[data-step="'+s.id+'"].active-done') && "done")
-        || "todo"
-    };
+    const notes = {};
+    BRANCHES.forEach(b => { notes[b.key] = noteValue(s.id, b.key); });
+    steps[s.id] = { mmap: trees[s.id], notes };
   });
   return {
-    version: 1,
+    version: 2,
     kind: "hongsen-growth-playbook",
     owner: USER,
     meta: readCase(),
@@ -1598,21 +1672,26 @@ async function importBackup(data){
       renderMap(s.id);
       await store.set("mmap:"+s.id, JSON.stringify(trees[s.id]));
     }
-    const ta = document.getElementById("note-"+s.id);
-    if(ta){
-      ta.value = pack.note || "";
-      await store.set("note:"+s.id, ta.value);
+    const notes = pack.notes || {};
+    if(!pack.notes && pack.note) notes.plan = pack.note;
+    for(const b of BRANCHES){
+      const val = notes[b.key] || "";
+      setNoteValue(s.id, b.key, val);
+      await store.set("note:"+s.id+":"+b.key, val);
     }
-    const st = pack.status || "todo";
-    updateChipUI(s.id, st);
-    updateNavCheck(s.id, st);
-    await store.set("status:"+s.id, st);
+    showPage(s.id, "plan");
+    refreshPageDots(s.id);
   }
   await touchPlanMeta();
 }
 
 function attachMapEvents(){
   document.getElementById("main").addEventListener("click", (e) => {
+    const tab = e.target.closest(".page-tab");
+    if(tab){
+      showPage(+tab.dataset.step, tab.dataset.page);
+      return;
+    }
     const add = e.target.closest("[data-add]");
     if(add){
       const stepId = +add.dataset.step;
@@ -1691,20 +1770,14 @@ function attachHandlers(){
   attachMapEvents();
 
   STEPS.forEach(s => {
-    const ta = document.getElementById("note-"+s.id);
-    ta.addEventListener("input", () => {
-      flashSaved(s.id, "保存中…");
-      clearTimeout(saveTimers["note"+s.id]);
-      saveTimers["note"+s.id] = setTimeout(() => saveNote(s.id, ta.value), 600);
-    });
-  });
-
-  document.querySelectorAll(".chip-status[data-status]").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const stepId = chip.dataset.step;
-      const status = chip.dataset.status;
-      updateChipUI(stepId, status);
-      saveStatus(stepId, status);
+    BRANCHES.forEach(b => {
+      const ta = document.getElementById("note-"+s.id+"-"+b.key);
+      if(!ta) return;
+      ta.addEventListener("input", () => {
+        flashSaved(s.id, "保存中…");
+        clearTimeout(saveTimers["note"+s.id+b.key]);
+        saveTimers["note"+s.id+b.key] = setTimeout(() => saveNote(s.id, b.key, ta.value), 600);
+      });
     });
   });
 
@@ -1715,12 +1788,8 @@ function attachHandlers(){
       trees[s.id] = defaultTree(s);
       renderMap(s.id);
       try{ await store.del("mmap:"+s.id); }catch(e){}
-      try{ await store.del("status:"+s.id); }catch(e){}
-      try{ await store.del("note:"+s.id); }catch(e){}
-      const ta = document.getElementById("note-"+s.id);
-      if(ta) ta.value = "";
-      updateChipUI(s.id, "todo");
-      updateNavCheck(s.id, "todo");
+      await clearStepNotes(s.id);
+      showPage(s.id, "plan");
     }
   });
 
@@ -1797,22 +1866,8 @@ async function loadStepsData(){
       }
     }catch(e){}
     renderMap(s.id);
-
-    try{
-      const st = await store.get("status:"+s.id);
-      const status = st || "todo";
-      updateChipUI(s.id, status);
-      updateNavCheck(s.id, status);
-    }catch(e){
-      updateChipUI(s.id, "todo");
-    }
-
-    const ta = document.getElementById("note-"+s.id);
-    if(ta) ta.value = "";
-    try{
-      const note = await store.get("note:"+s.id);
-      if(note) ta.value = note;
-    }catch(e){}
+    await loadStepNotes(s.id);
+    showPage(s.id, "plan");
   }
 }
 

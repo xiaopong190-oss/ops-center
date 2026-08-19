@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-18T01:06:36.471Z",
+  "updatedAt": "2026-08-19T01:07:59.888Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "5 ways Amazon is investing in Arizona",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-arizona-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Tue, 18 Aug 2026 15:51:40 GMT",
+      "date": "8/18",
+      "summary": "Amazon's investments are boosting the Grand Canyon State's economy while creating opportunities for those who call Arizona home.",
+      "category": "Community"
+    },
     {
       "title": "5 ways Amazon is investing in Nevada",
       "link": "https://www.aboutamazon.com/news/community/amazon-investment-nevada-jobs-infrastructure-small-business?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "8/17",
       "summary": "Amazon's investments are boosting the Centennial State's economy while creating opportunities for those who call Colorado home.",
       "category": "Community"
-    },
-    {
-      "title": "A first look at 'The Terminal List' Season 2 starring Chris Pratt, coming to Prime Video October 21",
-      "link": "https://www.aboutamazon.com/news/entertainment/terminal-list-prime-video-chris-pratt?utm_source=rss",
-      "pubDate": "Mon, 17 Aug 2026 13:00:09 GMT",
-      "date": "8/17",
-      "summary": "Based on author Jack Carr's novel 'True Believer,' this season takes James Reece across the world.",
-      "category": "Entertainment"
     }
   ]
 }

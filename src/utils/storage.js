@@ -16,7 +16,7 @@ export function getCurrentUser() {
       if (parsed?.id && parsed?.name) return parsed;
     }
   } catch { /* ignore */ }
-  return { id: "guest", name: "访客" };
+  return { id: "guest", name: "访客", role: "" };
 }
 
 export function setCurrentUser(user) {
@@ -24,8 +24,26 @@ export function setCurrentUser(user) {
     sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify({
       id: user.id || user.name || "guest",
       name: user.name || "访客",
+      role: user.role || "",
+      auth: user.auth || user.role || "",
+      canEdit: user.canEdit !== false,
     }));
   } catch { /* ignore */ }
+}
+
+export function clearCurrentUser() {
+  try { sessionStorage.removeItem(CURRENT_USER_KEY); } catch { /* ignore */ }
+}
+
+export function isSuperUser(user) {
+  const u = user || getCurrentUser();
+  return u?.auth === "super" || u?.role === "super";
+}
+
+export function canCurrentUserEdit(user) {
+  const u = user || getCurrentUser();
+  if (isSuperUser(u)) return true;
+  return u?.canEdit !== false;
 }
 
 export const privateStorage = {

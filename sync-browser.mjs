@@ -92,6 +92,9 @@ function globalConfigBrowserBlock() {
     .replace(/^function getGistId\(\) \{[\s\S]*?^}\r?\n+/m, "")
     .replace(/^import \{[^}]+\} from "react";\r?\n+/m, "")
     .replace(/^export const CONFIG_STORAGE_KEY/m, "const CONFIG_STORAGE_KEY")
+    .replace(/^export const DEFAULT_SUPER_PASSWORD/m, "const DEFAULT_SUPER_PASSWORD")
+    .replace(/^export const SUPER_PASSWORD/m, "const SUPER_PASSWORD")
+    .replace(/^export const DEFAULT_OPS_PASSWORD/m, "const DEFAULT_OPS_PASSWORD")
     .replace(/^export const sharedStorage/m, "const sharedStorage")
     .replace(/^export const ROLE_COLORS/m, "const ROLE_COLORS")
     .replace(/^export const STAFF_ROLE_OPTIONS/m, "const STAFF_ROLE_OPTIONS")
@@ -107,6 +110,15 @@ function globalConfigBrowserBlock() {
     "window.getEmployees = getEmployees;\n" +
     "window.getStaffNames = getStaffNames;\n" +
     "window.getStaffRole = getStaffRole;\n" +
+    "window.SUPER_PASSWORD = SUPER_PASSWORD;\n" +
+    "window.DEFAULT_SUPER_PASSWORD = DEFAULT_SUPER_PASSWORD;\n" +
+    "window.DEFAULT_OPS_PASSWORD = DEFAULT_OPS_PASSWORD;\n" +
+    "window.getSuperPassword = getSuperPassword;\n" +
+    "window.getOpsPassword = getOpsPassword;\n" +
+    "window.getPersonLoginCode = getPersonLoginCode;\n" +
+    "window.hasOpsStaff = hasOpsStaff;\n" +
+    "window.getOpsStaff = getOpsStaff;\n" +
+    "window.getLoginStaff = getLoginStaff;\n" +
     "window.ownerOptions = ownerOptions;\n" +
     "window.ownerFilterOptions = ownerFilterOptions;\n" +
     "window.ownerFilterEntries = ownerFilterEntries;\n" +
@@ -114,6 +126,8 @@ function globalConfigBrowserBlock() {
     "window.RoleBadge = RoleBadge;\n" +
     "window.OwnerField = OwnerField;\n" +
     "window.GlobalSettingsModal = GlobalSettingsModal;\n" +
+    "window.ChangePasswordModal = ChangePasswordModal;\n" +
+    "window.updateOwnLoginCode = updateOwnLoginCode;\n" +
     "window.useGlobalConfig = useGlobalConfig;\n" +
     "window.fetchGlobalConfigFromCloud = fetchGlobalConfigFromCloud;\n" +
     "window.getGlobalConfigMeta = getGlobalConfigMeta;\n" +

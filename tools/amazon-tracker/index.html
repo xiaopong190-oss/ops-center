@@ -5,11 +5,43 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <script>
 (function(){
-  var PWD = 'X888888';
-  var KEY = 'amz_auth_v1';
+  var DEFAULT_SUPER_PWD = '!X888888';
+  var DEFAULT_OPS_PWD = '888888';
+  var LEGACY_OPS_PWD = { YY8800: 1, HST8800: 1, X888888: 1 };
+  var DEFAULT_OPS_NAMES = ['杨彬', 'stella'];
+  var KEY = 'amz_auth_v6';
+  function readOpsAuth(){
+    try {
+      var raw = localStorage.getItem('shared:global-config');
+      if (!raw) return { superPassword: DEFAULT_SUPER_PWD, opsPassword: DEFAULT_OPS_PWD, accounts: DEFAULT_OPS_NAMES.map(function(n){ return { name: n, loginCode: DEFAULT_OPS_PWD }; }) };
+      var parsed = JSON.parse(raw);
+      var data = parsed && parsed.data ? parsed.data : {};
+      var staff = Array.isArray(data.staff) ? data.staff : [];
+      var accounts = [];
+      for (var i = 0; i < staff.length; i++) {
+        var e = staff[i];
+        if (e && String(e.name || '').trim()) {
+          accounts.push({ name: String(e.name).trim(), loginCode: String(e.loginCode || '').trim() || DEFAULT_OPS_PWD });
+        }
+      }
+      if (!staff.length) accounts = DEFAULT_OPS_NAMES.map(function(n){ return { name: n, loginCode: DEFAULT_OPS_PWD }; });
+      var opsPwd = String(data.opsPassword || '').trim();
+      if (!opsPwd || LEGACY_OPS_PWD[opsPwd]) opsPwd = DEFAULT_OPS_PWD;
+      var superPwd = String(data.superPassword || '').trim() || DEFAULT_SUPER_PWD;
+      return { superPassword: superPwd, opsPassword: opsPwd, accounts: accounts };
+    } catch (e) {
+      return { superPassword: DEFAULT_SUPER_PWD, opsPassword: DEFAULT_OPS_PWD, accounts: DEFAULT_OPS_NAMES.map(function(n){ return { name: n, loginCode: DEFAULT_OPS_PWD }; }) };
+    }
+  }
   if(sessionStorage.getItem(KEY) === '1') return;
   document.addEventListener('DOMContentLoaded', function(){
     document.body.style.display='none';
+    var auth = readOpsAuth();
+    var opts = '<option value="">请选择自己的账号</option>';
+    for (var i = 0; i < auth.accounts.length; i++) {
+      var nm = auth.accounts[i].name.replace(/"/g,'&quot;');
+      opts += '<option value="'+nm+'">'+nm+'</option>';
+    }
     var ov = document.createElement('div');
     ov.id = 'pwd-overlay';
     ov.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#0f1117;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif';
@@ -17,25 +49,47 @@
       '<div style="background:#1a1d2e;border:1px solid rgba(77,166,255,.3);border-radius:16px;padding:36px 32px;width:320px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.6)">'
       +'<div style="font-size:32px;margin-bottom:12px">🔐</div>'
       +'<div style="font-size:16px;font-weight:700;color:#e2e8f0;margin-bottom:6px">亚马逊推广追踪</div>'
-      +'<div style="font-size:12px;color:#64748b;margin-bottom:24px">请输入访问密码</div>'
-      +'<input id="pwd-inp" type="password" placeholder="请输入密码" style="width:100%;box-sizing:border-box;height:42px;border:1px solid rgba(77,166,255,.3);border-radius:8px;padding:0 14px;font-size:15px;background:#0f1117;color:#e2e8f0;outline:none;margin-bottom:12px;letter-spacing:2px"/>'
+      +'<div style="font-size:12px;color:#64748b;margin-bottom:16px">名单里有名字即可进入，M码 888888</div>'
+      +'<select id="ops-name" style="width:100%;box-sizing:border-box;height:42px;border:1px solid rgba(77,166,255,.3);border-radius:8px;padding:0 12px;font-size:14px;background:#0f1117;color:#e2e8f0;outline:none;margin-bottom:12px">'+opts+'</select>'
+      +'<input id="pwd-inp" type="password" placeholder="请输入云端M码" style="width:100%;box-sizing:border-box;height:42px;border:1px solid rgba(77,166,255,.3);border-radius:8px;padding:0 14px;font-size:15px;background:#0f1117;color:#e2e8f0;outline:none;margin-bottom:12px;letter-spacing:2px"/>'
       +'<div id="pwd-err" style="font-size:11px;color:#f06070;min-height:16px;margin-bottom:10px"></div>'
       +'<button id="pwd-btn" style="width:100%;height:42px;border-radius:8px;border:none;background:#4da6ff;color:#fff;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:1px">进入</button>'
       +'</div>';
     document.body.parentNode.insertBefore(ov, document.body);
     function tryLogin(){
-      var val = document.getElementById('pwd-inp').value;
-      if(val === PWD){
+      var val = document.getElementById('pwd-inp').value.trim();
+      var name = document.getElementById('ops-name').value;
+      var err = document.getElementById('pwd-err');
+      var latest = readOpsAuth();
+      if(val && val === latest.superPassword){
         sessionStorage.setItem(KEY,'1');
         document.getElementById('pwd-overlay').remove();
         document.body.style.display='';
-      } else {
-        var err = document.getElementById('pwd-err');
-        err.textContent = '密码错误，请重试';
-        document.getElementById('pwd-inp').value='';
-        document.getElementById('pwd-inp').focus();
-        setTimeout(function(){ err.textContent=''; }, 2000);
+        return;
       }
+      if(!latest.accounts.length){
+        err.textContent = '尚未录入员工，无法登录';
+        return;
+      }
+      var picked = null;
+      for (var i = 0; i < latest.accounts.length; i++) {
+        if (latest.accounts[i].name === name) { picked = latest.accounts[i]; break; }
+      }
+      if(!picked){
+        err.textContent = '请选择自己的姓名';
+        return;
+      }
+      var code = picked.loginCode || latest.opsPassword;
+      if(val && val === code){
+        sessionStorage.setItem(KEY,'1');
+        document.getElementById('pwd-overlay').remove();
+        document.body.style.display='';
+        return;
+      }
+      err.textContent = '密码错误，请重试';
+      document.getElementById('pwd-inp').value='';
+      document.getElementById('pwd-inp').focus();
+      setTimeout(function(){ err.textContent=''; }, 2000);
     }
     document.getElementById('pwd-btn').onclick = tryLogin;
     document.getElementById('pwd-inp').addEventListener('keydown', function(e){ if(e.key==='Enter') tryLogin(); });
@@ -431,6 +485,13 @@ tbody tr:hover td.ltag-td-c{background:rgba(232,68,90,.32)!important;box-shadow:
 
   <div class="pane" id="fp-actual">
     <div class="info">录入每款 SKU 的实际数据，与规划实时对比。</div>
+    <div id="fine-actual-viewbar" style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <span class="gb-label">展示</span>
+      <div class="gb-seg">
+        <button type="button" class="gb-btn on" id="fav-month" onclick="setFineActualView('month')">按月份</button>
+        <button type="button" class="gb-btn" id="fav-parent" onclick="setFineActualView('parent')">按父体</button>
+      </div>
+    </div>
     <div id="fine-actual"></div>
   </div>
 
@@ -2022,12 +2083,178 @@ function successTag(gm){
   if(gm>=0)    return '<span style="padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:var(--mono);background:rgba(232,160,32,.12);color:#e8a020;border:1px solid rgba(232,160,32,.3)">△ 一般</span>';
   return '<span style="padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:var(--mono);background:rgba(232,68,90,.12);color:#f06070;border:1px solid rgba(232,68,90,.3)">✗ 亏损</span>';
 }
+function getFineActualView(){
+  try{ return localStorage.getItem('fine_actual_view_v1')==='parent'?'parent':'month'; }catch(e){ return 'month'; }
+}
+function setFineActualView(view){
+  try{ localStorage.setItem('fine_actual_view_v1', view==='parent'?'parent':'month'); }catch(e){}
+  var m=el('fav-month'), p=el('fav-parent');
+  if(m) m.classList.toggle('on', view!=='parent');
+  if(p) p.classList.toggle('on', view==='parent');
+  renderFineActual();
+}
+function syncFineActualViewBar(){
+  var view=getFineActualView();
+  var m=el('fav-month'), p=el('fav-parent');
+  if(m) m.classList.toggle('on', view!=='parent');
+  if(p) p.classList.toggle('on', view==='parent');
+}
+function fineActualMonthSortKey(label){
+  var mx=String(label||'').match(/(\d{4})年(\d{1,2})月/);
+  if(mx) return ni(mx[1])*100+ni(mx[2]);
+  var mx2=String(label||'').match(/(\d{1,2})月/);
+  return mx2?ni(mx2[1]):0;
+}
+function buildFineActualRowHtml(m,s,parentsWithA,showMonth){
+  var rate=m.rate||G.rate, a=s.actual||{};
+  var aRev=n(a.revenue),aOrders=ni(a.orders),aSpend=n(a.adSpend);
+  var uc=fUnitCost(s,rate);
+  var gross=netRev(aRev)-aOrders*uc;
+  var actRet=ni(a.returnOrders||0)*(uc*n(s.scrapRate)+n(s.fbaFx)*2);
+  var grossAfterRet=gross-actRet;
+  var gm=aRev>0?grossAfterRet/netRev(aRev):0;
+  var net=grossAfterRet-aSpend-n(s.misc);
+  if(!a.verdictManual)a.verdict=(grossAfterRet>0&&gm>0.15&&aOrders>30)?'success':'';
+  var planRev=fPlanRev(s);
+  var achieve=planRev>0?(aRev/planRev*100).toFixed(1)+'%':'—';
+  var nc=net>=0?'#3dd9a0':'#f06070';
+  return '<tr>'
+    +(showMonth?'<td class="tm" style="color:var(--text2);white-space:nowrap">'+h(m.label||'')+'</td>':'')
+    +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'owner\',this.value)">'+personOptions('owner',s.owner)+'</select></td>'
+    +'<td><select class="ti w90" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'developer\',this.value)" style="color:#c4b5fd">'+personOptions('developer',s.developer)+'</select></td>'
+    +'<td style="font-weight:600;color:var(--text);min-width:90px">'+h(s.name)+'</td>'
+    +buildListingTagCell(m.id,s.id,s.listingTag)
+    +buildParentAsinCell(m.id,s.id,s.parentAsin,parentsWithA)
+    +'<td><input class="ti w90" value="'+h(s.asin||s.sourceAsin||'')+'" placeholder="ASIN" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'asin\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
+    +'<td><input class="ti w90" value="'+(s.fnsku||'')+'" placeholder="FNSKU" onchange="setFineSku(\''+m.id+'\',\''+s.id+'\',\'fnsku\',this.value)" style="font-family:var(--mono);color:#80c4ff"/></td>'
+    +'<td class="tm" style="color:var(--text2)">'+fc(s.adBudget)+'</td>'
+    +'<td><input class="ti w75" type="number" value="'+(a.adSpend==null?'':a.adSpend)+'" placeholder="近30天" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'adSpend\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
+    +'<td class="tm" style="color:var(--text2)">'+s.targetOrders+'单</td>'
+    +'<td><input class="ti w60" type="number" value="'+(a.orders==null?'':a.orders)+'" placeholder="近30天" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'orders\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
+    +'<td class="tm" style="color:var(--text2)">'+fc(planRev)+'</td>'
+    +'<td><input class="ti w75" type="number" value="'+(a.revenue==null?'':a.revenue)+'" placeholder="近30天" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'revenue\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
+    +'<td id="fra-'+s.id+'" class="tm" style="color:#a8c0d8">'+achieve+'</td>'
+    +'<td><input class="ti w55" type="number" value="'+(a.returnOrders||'')+'" placeholder="退货" onchange="setFineActual(\''+m.id+'\',\''+s.id+'\',\'returnOrders\',this.value);refreshFineActRow(\''+m.id+'\',\''+s.id+'\')"/></td>'
+    +'<td id="fga-'+s.id+'" class="tm" style="color:'+(grossAfterRet>=0?'#3dd9a0':'#f06070')+';font-weight:600">'+fc(grossAfterRet)+'</td>'
+    +'<td id="fgm-'+s.id+'" class="tm" style="color:'+(gm>=0.20?'#3dd9a0':gm>=0?'#e8a020':'#f06070')+';font-weight:700">'+(aRev>0?(gm*100).toFixed(1)+'%':'—')+'</td>'
+    +'<td id="fan-'+s.id+'" class="tm" style="color:'+nc+';font-weight:700">'+fc(net)+'</td>'
+    +'<td id="fok-'+s.id+'">'+buildVerdictCell(m.id,s,aOrders,gm,net,rate)+'</td>'
+    +'</tr>';
+}
+function summarizeFineActualItems(items){
+  var invest=0, rev=0, orders=0, gross=0, net=0, ok=0, fail=0, aCount=0;
+  (items||[]).forEach(function(x){
+    var rate=x.m.rate||G.rate, s=x.s, a=s.actual||{};
+    var uc=fUnitCost(s,rate);
+    var g=netRev(n(a.revenue))-ni(a.orders)*uc-ni(a.returnOrders||0)*(uc*n(s.scrapRate)+n(s.fbaFx)*2);
+    var nt=g-n(a.adSpend)-n(s.misc);
+    invest+=fPreCpu(s,rate)*(n(s.batch1)+n(s.batch2))+n(a.adSpend)+n(s.misc);
+    rev+=n(a.revenue);
+    orders+=ni(a.orders);
+    gross+=g;
+    net+=nt;
+    if(a.verdict==='success') ok++;
+    else if(a.verdict==='fail') fail++;
+    if(listingClassHas(s.listingTag,'A')) aCount++;
+  });
+  var gm=rev>0?gross/netRev(rev):0;
+  return {
+    invest:invest, rev:rev, orders:orders, gross:gross, net:net,
+    gm:gm, gmTxt:rev>0?(gm*100).toFixed(1)+'%':'—',
+    ok:ok, fail:fail, aCount:aCount, count:(items||[]).length
+  };
+}
+function renderFineActualParentView(wrap, parentsWithA){
+  // 与「按月份」同一套卡片 UI，只是一张卡 = 一个父体（子体业绩合并）
+  var groups={};
+  fineMonths.forEach(function(m){
+    (m.skus||[]).forEach(function(s){
+      var key=fineParentKey(s);
+      var label=String(s.parentAsin||'').trim().toUpperCase()
+        || String(s.asin||s.sourceAsin||'').trim().toUpperCase()
+        || '未填父ASIN';
+      if(!groups[key]) groups[key]={key:key,label:label,items:[],hasA:false};
+      groups[key].items.push({m:m,s:s});
+      if(listingClassHas(s.listingTag,'A')) groups[key].hasA=true;
+    });
+  });
+  var list=Object.keys(groups).map(function(k){return groups[k];})
+    .sort(function(a,b){
+      // 按该父体最早首单月份排序，其次父ASIN
+      var ak=1e9, bk=1e9;
+      a.items.forEach(function(x){ var v=fineActualMonthSortKey(x.m.label); if(v&&v<ak)ak=v; });
+      b.items.forEach(function(x){ var v=fineActualMonthSortKey(x.m.label); if(v&&v<bk)bk=v; });
+      return ak-bk || String(a.label).localeCompare(String(b.label),'zh');
+    });
+  if(!list.length){
+    var empty=document.createElement('div');
+    empty.className='info';
+    empty.textContent='暂无数据';
+    wrap.appendChild(empty);
+    return;
+  }
+  list.forEach(function(g,idx){
+    g.items.sort(function(a,b){
+      return fineActualMonthSortKey(a.m.label)-fineActualMonthSortKey(b.m.label)
+        || String(a.s.name||'').localeCompare(String(b.s.name||''),'zh');
+    });
+    var st=summarizeFineActualItems(g.items);
+    var monthSet={};
+    g.items.forEach(function(x){ if(x.m.label) monthSet[x.m.label]=1; });
+    var monthLabels=Object.keys(monthSet).sort(function(a,b){return fineActualMonthSortKey(a)-fineActualMonthSortKey(b);});
+    var firstMonth=monthLabels[0]||'—';
+    var survivalRate=st.count>0?(st.ok+'/'+st.count+' ('+Math.round(st.ok/st.count*100)+'%)'):'—';
+    var rows=g.items.map(function(x){ return buildFineActualRowHtml(x.m,x.s,parentsWithA,true); }).join('');
+    var bodyId='fab-par-'+idx, hevId='fahev-par-'+idx;
+    var titleColor=g.hasA?'#ffe566':'var(--text)';
+    var div=document.createElement('div');
+    div.className='card';
+    div.innerHTML=
+      '<div class="card-hdr" onclick="toggleCard(\''+bodyId+'\',\''+hevId+'\')">'
+        +'<div class="card-hdr-l">'
+          +'<span class="card-title" style="color:'+titleColor+'">'+h(g.label)+'</span>'
+          +'<span class="bg neu" title="最早首单月份">'+h(firstMonth)+'</span>'
+          +'<span class="bg pur">'+st.count+'子体</span>'
+          +(g.hasA?'<span class="bg pos">A</span>':'')
+        +'</div>'
+        +'<div class="card-stats" style="font-size:11px">'
+          +'<span>总投入 <strong style="color:#4da6ff">'+fc(st.invest)+'</strong></span>'
+          +'<span>销售 <strong>'+st.orders+'单</strong></span>'
+          +'<span>收入 <strong>'+fc(st.rev)+'</strong></span>'
+          +'<span>综合毛利率 <strong style="color:#e8a020">'+st.gmTxt+'</strong></span>'
+          +'<span>成活率 <strong style="color:#a8c0d8">'+survivalRate+'</strong></span>'
+          +'<span>✅ <strong style="color:#3dd9a0">'+st.ok+'</strong></span>'
+          +'<span>❌ <strong style="color:#f06070">'+st.fail+'</strong></span>'
+          +'<span id="'+hevId+'" class="chev">▼</span>'
+        +'</div>'
+      +'</div>'
+      +'<div class="card-body" id="'+bodyId+'">'
+        +'<div class="tw" style="border:none;border-radius:0"><table><thead><tr>'
+          +'<th>首单月份</th><th>负责人</th><th>开发人员</th><th>SKU 名称（中文产品名）</th><th>Listing 标签</th><th>父ASIN</th><th>ASIN</th><th>FNSKU</th>'
+          +'<th>推广预算</th><th>近30天广告费</th>'
+          +'<th>目标单</th><th>近30天销量</th>'
+          +'<th>目标收入</th><th>近30天销售额</th><th>达成率</th>'
+          +'<th>退货单</th>'
+          +'<th>毛利</th><th>毛利率</th><th>净利润</th><th style="min-width:180px">系统评估 / 运营确认</th>'
+        +'</tr></thead><tbody>'+rows+'</tbody></table></div>'
+      +'</div>';
+    wrap.appendChild(div);
+  });
+}
 function renderFineActual(){
   var wrap=el('fine-actual'); if(!wrap) return; wrap.innerHTML='';
+  syncFineActualViewBar();
   // 记录季度折叠状态（本地内存，不持久化）
   if(!renderFinePlan._qOpen) renderFinePlan._qOpen={};
   var _qOpen = renderFinePlan._qOpen;
   var parentsWithA=collectParentsWithAGrade();
+  if(getFineActualView()==='parent'){
+    renderFineActualParentView(wrap, parentsWithA);
+    renderDevSuccessRate(wrap);
+    renderAGradeRate(wrap);
+    setTimeout(function(){ document.querySelectorAll('#mode-fine table').forEach(injectThInfo); },0);
+    return;
+  }
 
   fineMonths.forEach(function(m){
     var rate=m.rate||G.rate;

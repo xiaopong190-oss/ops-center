@@ -173,6 +173,11 @@ function getGistId() {
 
 // ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────
 const CONFIG_STORAGE_KEY = "ops-center-global-config";
+/** 超级 / 运营 M 码默认值；正式以云端 global-config 为准，家里和会议室都能登 */
+const DEFAULT_SUPER_PASSWORD = "!X888888";
+const SUPER_PASSWORD = DEFAULT_SUPER_PASSWORD;
+const DEFAULT_OPS_PASSWORD = "888888";
+const LEGACY_OPS_PASSWORDS = ["YY8800", "HST8800", "X888888"];
 
 // ─── GitHub Gist 共享（一个 Gist 里多个 json 文件）────────────────────
 const GIST_API = "https://api.github.com/gists";
@@ -239,6 +244,21 @@ async function gistWriteRecord(key, payload) {
 // ─── sharedStorage ───────────────────────────────────────────────────
 // 已配置 Gist → 全公司共享；未配置 → 仅 localStorage
 
+function readSessionUser() {
+  try {
+    const raw = sessionStorage.getItem("ops-center-current-user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function sessionCanWrite(key) {
+  const u = readSessionUser();
+  if (!u || u.id === "guest") return true;
+  if (u.auth === "super" || u.role === "super") return true;
+  if (key === "global-config") return false;
+  return u.canEdit !== false;
+}
 const sharedStorage = {
   async get(key) {
     if (!GIST_SHARED_FILES[key]) return localGet(key);
@@ -252,7 +272,10 @@ const sharedStorage = {
       return localGet(key);
     }
   },
-  async set(key, value, updatedBy) {
+  async set(key, value, updatedBy, opts = {}) {
+    if (!sessionCanWrite(key) && !opts.force) {
+      throw new Error("当前账号没有修改权限");
+    }
     const payload = {
       data: value,
       updatedBy: updatedBy || "未知",
@@ -329,19 +352,29 @@ const STAFF_ROLE_OPTIONS = Object.keys(ROLE_COLORS);
 const DEFAULT_GLOBAL_CONFIG = {
   staff: [{
     name: "杨彬",
-    role: "运营"
+    role: "运营",
+    loginCode: "888888",
+    canEdit: true
   }, {
     name: "stella",
-    role: "运营"
+    role: "运营",
+    loginCode: "888888",
+    canEdit: true
   }, {
     name: "张玉堂",
-    role: "美工"
+    role: "美工",
+    loginCode: "888888",
+    canEdit: true
   }, {
     name: "张工",
-    role: "设计"
+    role: "设计",
+    loginCode: "888888",
+    canEdit: true
   }, {
     name: "王律师",
-    role: "管理"
+    role: "管理",
+    loginCode: "888888",
+    canEdit: true
   }]
 };
 const DEFAULT_ROLE_BY_NAME = Object.fromEntries(DEFAULT_GLOBAL_CONFIG.staff.map(e => [e.name, e.role]));
@@ -351,12 +384,16 @@ function normalizeStaffEntry(item) {
     const [name, role] = item.split("|").map(s => s.trim());
     entry = {
       name: name || item.trim(),
-      role: role || ""
+      role: role || "",
+      loginCode: "",
+      canEdit: true
     };
   } else {
     entry = {
       name: String(item?.name || "").trim(),
-      role: String(item?.role || "").trim()
+      role: String(item?.role || "").trim(),
+      loginCode: String(item?.loginCode || "").trim(),
+      canEdit: item?.canEdit !== false
     };
   }
   if (entry.name && !entry.role && DEFAULT_ROLE_BY_NAME[entry.name]) {
@@ -386,17 +423,30 @@ function getCurrentUserName() {
   } catch {/* ignore */}
   return "未知";
 }
+function extractOpsPassword(data) {
+  return String(data?.opsPassword || "").trim();
+}
+function extractSuperPassword(data) {
+  return String(data?.superPassword || "").trim();
+}
+function normalizeConfigData(data) {
+  const staff = Array.isArray(data?.staff) ? data.staff.map(normalizeStaffEntry).filter(e => e.name) : [];
+  const opsPassword = extractOpsPassword(data);
+  const superPassword = extractSuperPassword(data);
+  const next = {
+    staff
+  };
+  if (opsPassword) next.opsPassword = opsPassword;
+  if (superPassword) next.superPassword = superPassword;
+  return next;
+}
 function readSharedStaffCache() {
   try {
     const raw = localStorage.getItem("shared:global-config");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    const staff = parsed?.data?.staff;
-    if (Array.isArray(staff) && staff.length) {
-      return {
-        staff: staff.map(normalizeStaffEntry).filter(e => e.name)
-      };
-    }
+    if (!parsed?.data || !Array.isArray(parsed.data.staff)) return null;
+    return normalizeConfigData(parsed.data);
   } catch {/* ignore */}
   return null;
 }
@@ -405,10 +455,8 @@ function loadLegacyLocalConfig() {
     const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed.staff) || !parsed.staff.length) return null;
-    return {
-      staff: parsed.staff.map(normalizeStaffEntry).filter(e => e.name)
-    };
+    if (!Array.isArray(parsed.staff)) return null;
+    return normalizeConfigData(parsed);
   } catch {
     return null;
   }
@@ -424,19 +472,43 @@ function loadGlobalConfig() {
     }))
   };
 }
+function getLoginStaff(staff = getEmployees()) {
+  return (staff || []).filter(e => String(e.name || "").trim());
+}
+function getOpsStaff(staff = getEmployees()) {
+  return (staff || []).filter(e => e.role === "运营" && String(e.name || "").trim());
+}
+function hasOpsStaff(staff = getEmployees()) {
+  return getOpsStaff(staff).length > 0;
+}
+function getOpsPassword(config = loadGlobalConfig()) {
+  const fromCfg = String(config?.opsPassword || "").trim();
+  if (!fromCfg || LEGACY_OPS_PASSWORDS.includes(fromCfg)) return DEFAULT_OPS_PASSWORD;
+  return fromCfg;
+}
+function getSuperPassword(config = loadGlobalConfig()) {
+  const fromCfg = String(config?.superPassword || "").trim();
+  return fromCfg || DEFAULT_SUPER_PASSWORD;
+}
+function getPersonLoginCode(person, config = loadGlobalConfig()) {
+  const personal = String(person?.loginCode || "").trim();
+  return personal || getOpsPassword(config);
+}
 
 /** 从 Gist 拉取员工名单（与其它共享页相同逻辑，结果写入本地缓存） */
 async function fetchGlobalConfigFromCloud() {
   if (!gistConfigured()) return loadGlobalConfig();
   try {
     const record = await sharedStorage.get("global-config");
-    if (record?.data?.staff?.length) {
+    if (record?.data && Array.isArray(record.data.staff)) {
       window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
-      return record.data;
+      return normalizeConfigData(record.data);
     }
     const legacy = loadLegacyLocalConfig();
-    if (legacy?.staff?.length) {
-      await sharedStorage.set("global-config", legacy, getCurrentUserName());
+    if (legacy?.staff?.length || legacy?.opsPassword || legacy?.superPassword) {
+      try {
+        await sharedStorage.set("global-config", legacy, getCurrentUserName());
+      } catch {/* 非超管不能回写名单 */}
       window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
       return legacy;
     }
@@ -458,15 +530,25 @@ function getGlobalConfigMeta() {
     return null;
   }
 }
-async function saveGlobalConfig(config) {
+async function saveGlobalConfig(config, opts = {}) {
+  const prev = loadGlobalConfig();
+  const opsPassword = config.opsPassword !== undefined ? String(config.opsPassword || "").trim() : String(prev.opsPassword || "").trim() || DEFAULT_OPS_PASSWORD;
+  const superPassword = config.superPassword !== undefined ? String(config.superPassword || "").trim() : String(prev.superPassword || "").trim() || DEFAULT_SUPER_PASSWORD;
   const next = {
-    staff: (config.staff || []).map(normalizeStaffEntry).filter(e => e.name)
+    staff: (config.staff || []).map(normalizeStaffEntry).filter(e => e.name).map(e => ({
+      name: e.name,
+      role: e.role || "",
+      loginCode: String(e.loginCode || "").trim() || opsPassword,
+      canEdit: e.canEdit !== false
+    }))
   };
+  if (opsPassword) next.opsPassword = opsPassword;
+  if (superPassword) next.superPassword = superPassword;
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
   } catch {/* ignore */}
   if (gistConfigured()) {
-    await sharedStorage.set("global-config", next, getCurrentUserName());
+    await sharedStorage.set("global-config", next, getCurrentUserName(), opts);
   } else {
     localSet("global-config", {
       data: next,
@@ -477,6 +559,37 @@ async function saveGlobalConfig(config) {
   }
   window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
   return next;
+}
+async function updateOwnLoginCode(oldPwd, newPwd) {
+  const user = readSessionUser();
+  const name = String(user?.name || "").trim();
+  if (!name || user?.auth === "super" || user?.role === "super") {
+    throw new Error("请用自己的员工账号登录后再改密码");
+  }
+  const nextPwd = String(newPwd || "").trim();
+  const prevPwd = String(oldPwd || "").trim();
+  if (nextPwd.length < 4) throw new Error("新密码至少 4 位");
+  await fetchGlobalConfigFromCloud();
+  const cfg = loadGlobalConfig();
+  if (nextPwd === getSuperPassword(cfg)) throw new Error("不能与超级 M 码相同");
+  const staff = (cfg.staff || []).map(e => ({
+    ...e
+  }));
+  const idx = staff.findIndex(e => e.name === name);
+  if (idx < 0) throw new Error("当前账号不在云端名单中");
+  if (prevPwd !== getPersonLoginCode(staff[idx], cfg)) throw new Error("当前密码不正确");
+  staff[idx] = {
+    ...staff[idx],
+    loginCode: nextPwd
+  };
+  await saveGlobalConfig({
+    staff,
+    opsPassword: cfg.opsPassword,
+    superPassword: cfg.superPassword
+  }, {
+    force: true
+  });
+  return true;
 }
 function getEmployees() {
   return loadGlobalConfig().staff;
@@ -568,7 +681,8 @@ function OwnerField({
 }
 function StaffListEditor({
   rows,
-  onChange
+  onChange,
+  defaultLoginCode
 }) {
   const setRow = (i, patch) => onChange(rows.map((r, j) => j === i ? {
     ...r,
@@ -577,7 +691,9 @@ function StaffListEditor({
   const removeRow = i => onChange(rows.filter((_, j) => j !== i));
   const addRow = () => onChange([...rows, {
     name: "",
-    role: STAFF_ROLE_OPTIONS[0] || "运营"
+    role: STAFF_ROLE_OPTIONS[0] || "运营",
+    loginCode: defaultLoginCode || DEFAULT_OPS_PASSWORD,
+    canEdit: true
   }]);
   const inp = {
     flex: 1,
@@ -592,8 +708,8 @@ function StaffListEditor({
   };
   const sel = {
     ...inp,
-    width: 92,
-    flex: "0 0 92px",
+    width: 80,
+    flex: "0 0 80px",
     background: "var(--card)",
     cursor: "pointer"
   };
@@ -613,13 +729,21 @@ function StaffListEditor({
     }
   }, "\u59D3\u540D"), /*#__PURE__*/React.createElement("span", {
     style: {
-      width: 92,
+      width: 80,
       flexShrink: 0,
       fontSize: 11,
       color: "var(--tm)",
       fontWeight: 500
     }
   }, "\u89D2\u8272"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 64,
+      flexShrink: 0,
+      fontSize: 11,
+      color: "var(--tm)",
+      fontWeight: 500
+    }
+  }, "\u53EF\u4FEE\u6539"), /*#__PURE__*/React.createElement("span", {
     style: {
       width: 28
     }
@@ -659,13 +783,28 @@ function StaffListEditor({
     }), /*#__PURE__*/React.createElement("select", {
       value: row.role || STAFF_ROLE_OPTIONS[0],
       onChange: e => setRow(i, {
-        role: e.target.value
+        role: e.target.value,
+        loginCode: row.loginCode || defaultLoginCode || DEFAULT_OPS_PASSWORD
       }),
       style: sel
     }, roles.map(r => /*#__PURE__*/React.createElement("option", {
       key: r,
       value: r
-    }, r))), /*#__PURE__*/React.createElement("button", {
+    }, r))), /*#__PURE__*/React.createElement("label", {
+      style: {
+        width: 64,
+        flexShrink: 0,
+        display: "flex",
+        justifyContent: "center",
+        cursor: "pointer"
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: row.canEdit !== false,
+      onChange: e => setRow(i, {
+        canEdit: e.target.checked
+      })
+    })), /*#__PURE__*/React.createElement("button", {
       type: "button",
       onClick: () => removeRow(i),
       style: {
@@ -704,6 +843,10 @@ function GlobalSettingsModal({
   const [rows, setRows] = useState(() => getEmployees().map(e => ({
     ...e
   })));
+  const [opsPassword, setOpsPassword] = useState(() => getOpsPassword());
+  const [superPassword, setSuperPassword] = useState(() => getSuperPassword());
+  const [showOpsPwd, setShowOpsPwd] = useState(false);
+  const [showSuperPwd, setShowSuperPwd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [meta, setMeta] = useState(() => getGlobalConfigMeta());
@@ -720,15 +863,37 @@ function GlobalSettingsModal({
     };
   }, [onClose, saving]);
   const save = async () => {
-    const staff = rows.map(r => ({
-      name: r.name.trim(),
-      role: r.role || ""
-    })).filter(r => r.name);
+    const pwd = opsPassword.trim();
+    const superPwd = superPassword.trim();
+    if (!superPwd) {
+      setError("请设置超级 M 码");
+      return;
+    }
+    if (!pwd) {
+      setError("请设置全员 M 码");
+      return;
+    }
+    if (pwd === superPwd) {
+      setError("全员 M 码不能与超级 M 码相同");
+      return;
+    }
+    const prevOps = getOpsPassword();
+    const staff = rows.map(r => {
+      const existing = String(r.loginCode || "").trim();
+      return {
+        name: r.name.trim(),
+        role: r.role || "",
+        loginCode: !existing || existing === prevOps ? pwd : existing,
+        canEdit: r.canEdit !== false
+      };
+    }).filter(r => r.name);
     setSaving(true);
     setError("");
     try {
       await saveGlobalConfig({
-        staff
+        staff,
+        opsPassword: pwd,
+        superPassword: superPwd
       });
       onSaved && onSaved();
     } catch (e) {
@@ -738,6 +903,17 @@ function GlobalSettingsModal({
     }
   };
   const metaLine = meta?.updatedBy ? `☁️ 最后由 ${meta.updatedBy} 更新 · 保存后全公司同步` : "☁️ 保存后上传云端，全员实时同步";
+  const fieldInp = {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    padding: "7px 10px",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    fontFamily: "inherit",
+    background: "transparent",
+    color: "inherit"
+  };
   return /*#__PURE__*/React.createElement("div", {
     onClick: onClose,
     style: {
@@ -759,7 +935,7 @@ function GlobalSettingsModal({
       borderRadius: 14,
       padding: "1.25rem 1.5rem",
       width: "100%",
-      maxWidth: 440,
+      maxWidth: 520,
       color: "var(--text)"
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -768,14 +944,14 @@ function GlobalSettingsModal({
       fontSize: 15,
       marginBottom: 4
     }
-  }, "\u5168\u5C40\u5458\u5DE5\u540D\u5355"), /*#__PURE__*/React.createElement("div", {
+  }, "\u5458\u5DE5\u4E0E\u4E91\u7AEF M \u7801"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "var(--tm)",
       marginBottom: 8,
       lineHeight: 1.5
     }
-  }, "\u6B64\u5904\u4E3A\u5168\u5458\u552F\u4E00\u6765\u6E90\uFF1A\u5404\u9875\u300C\u8D1F\u8D23\u4EBA / \u8DDF\u8FDB\u4EBA\u300D\u53EA\u80FD\u4ECE\u6B64\u540D\u5355\u9009\u62E9\uFF0C\u4E0D\u80FD\u5728\u5176\u4ED6\u5730\u65B9\u968F\u610F\u6DFB\u52A0\u59D3\u540D\u3002"), /*#__PURE__*/React.createElement("div", {
+  }, "\u540D\u5355\u91CC\u6709\u540D\u5B57\u5C31\u80FD\u767B\u5F55\u3002\u5458\u5DE5\u5728\u53F3\u4E0A\u89D2\u300C\u4FEE\u6539\u5BC6\u7801\u300D\u6539\u81EA\u5DF1\u7684\u4E91\u7AEF M \u7801\u3002\u52FE\u9009\u300C\u53EF\u4FEE\u6539\u300D\u540E\u53EF\u4EE5\u6539\u4EFB\u52A1\u3001\u7269\u6D41\u7B49\u6570\u636E\u3002\u79BB\u804C\u53EA\u5220\u4EBA\u3002"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "#065f46",
@@ -797,8 +973,90 @@ function GlobalSettingsModal({
     }
   }, error), /*#__PURE__*/React.createElement(StaffListEditor, {
     rows: rows,
-    onChange: setRows
+    onChange: setRows,
+    defaultLoginCode: opsPassword.trim() || DEFAULT_OPS_PASSWORD
   }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: "var(--tm)",
+      borderTop: "1px solid var(--border)",
+      paddingTop: 12,
+      marginTop: 14,
+      marginBottom: 8
+    }
+  }, "\u8D85\u7EA7 M \u7801\uFF08\u4E91\u7AEF\uFF09"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: showSuperPwd ? "text" : "password",
+    value: superPassword,
+    onChange: e => setSuperPassword(e.target.value),
+    placeholder: "\u4EC5\u4F60\u548C\u6388\u6743\u7684\u4EBA",
+    style: fieldInp
+  }), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setShowSuperPwd(v => !v),
+    style: {
+      flexShrink: 0,
+      background: "transparent",
+      border: "1px solid var(--border)",
+      borderRadius: 8,
+      padding: "7px 10px",
+      fontSize: 12,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      color: "var(--tm)"
+    }
+  }, showSuperPwd ? "隐藏" : "显示")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: "var(--tm)",
+      marginBottom: 8
+    }
+  }, "\u5168\u5458 M \u7801\uFF08\u4E91\u7AEF\uFF09"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: rows.filter(r => r.name.trim()).length ? "#065f46" : "#92400e",
+      background: rows.filter(r => r.name.trim()).length ? "#ecfdf5" : "#fffbeb",
+      border: `1px solid ${rows.filter(r => r.name.trim()).length ? "#6ee7b7" : "#fcd34d"}`,
+      borderRadius: 8,
+      padding: "6px 10px",
+      marginBottom: 10,
+      lineHeight: 1.5
+    }
+  }, rows.filter(r => r.name.trim()).length ? `名单 ${rows.filter(r => r.name.trim()).length} 人。新员工默认用全员 M 码；员工自己改过的密码不会被覆盖。` : "尚未录入员工，无法登录。"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: showOpsPwd ? "text" : "password",
+    value: opsPassword,
+    onChange: e => setOpsPassword(e.target.value),
+    placeholder: "\u5168\u5458\u4E91\u7AEF M \u7801",
+    style: fieldInp
+  }), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setShowOpsPwd(v => !v),
+    style: {
+      flexShrink: 0,
+      background: "transparent",
+      border: "1px solid var(--border)",
+      borderRadius: 8,
+      padding: "7px 10px",
+      fontSize: 12,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      color: "var(--tm)"
+    }
+  }, showOpsPwd ? "隐藏" : "显示")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "flex-end",
@@ -835,6 +1093,200 @@ function GlobalSettingsModal({
     }
   }, saving ? "上传中…" : "☁️ 保存并同步"))));
 }
+function ChangePasswordModal({
+  onClose,
+  onSaved
+}) {
+  const [oldPwd, setOldPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key === "Escape" && !saving) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, saving]);
+  const save = async () => {
+    if (newPwd.trim() !== confirmPwd.trim()) {
+      setError("两次新密码不一致");
+      return;
+    }
+    if (newPwd.trim() === oldPwd.trim()) {
+      setError("新密码不能与当前密码相同");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await updateOwnLoginCode(oldPwd, newPwd);
+      onSaved && onSaved();
+      onClose();
+    } catch (e) {
+      setError(e?.message || "修改失败，请检查网络");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const fieldInp = {
+    width: "100%",
+    fontSize: 13,
+    padding: "7px 10px",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    fontFamily: "inherit",
+    background: "transparent",
+    color: "inherit",
+    boxSizing: "border-box"
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    onClick: onClose,
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.4)",
+      zIndex: 300,
+      display: "flex",
+      alignItems: "flex-start",
+      justifyContent: "center",
+      padding: "2rem 1rem",
+      overflowY: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: {
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: 14,
+      padding: "1.25rem 1.5rem",
+      width: "100%",
+      maxWidth: 400,
+      color: "var(--text)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 600,
+      fontSize: 15,
+      marginBottom: 4
+    }
+  }, "\u4FEE\u6539\u81EA\u5DF1\u7684\u4E91\u7AEF M \u7801"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 12,
+      lineHeight: 1.5
+    }
+  }, "\u53EA\u6539\u4F60\u81EA\u5DF1\u7684\u767B\u5F55\u5BC6\u7801\uFF0C\u4E0D\u5F71\u54CD\u5176\u4ED6\u4EBA\u3002\u6539\u5B8C\u540E\u516C\u53F8\u3001\u5BB6\u91CC\u3001\u4F1A\u8BAE\u5BA4\u90FD\u7528\u65B0\u5BC6\u7801\u3002"), error && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#b91c1c",
+      background: "#fee2e2",
+      border: "1px solid #fecaca",
+      borderRadius: 8,
+      padding: "6px 10px",
+      marginBottom: 10
+    }
+  }, error), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "block",
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 6,
+      fontWeight: 500
+    }
+  }, "\u5F53\u524D\u5BC6\u7801"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    value: oldPwd,
+    onChange: e => {
+      setOldPwd(e.target.value);
+      if (error) setError("");
+    },
+    autoFocus: true,
+    style: {
+      ...fieldInp,
+      marginBottom: 12
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "block",
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 6,
+      fontWeight: 500
+    }
+  }, "\u65B0\u5BC6\u7801"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    value: newPwd,
+    onChange: e => {
+      setNewPwd(e.target.value);
+      if (error) setError("");
+    },
+    placeholder: "\u81F3\u5C11 4 \u4F4D",
+    style: {
+      ...fieldInp,
+      marginBottom: 12
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "block",
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 6,
+      fontWeight: 500
+    }
+  }, "\u786E\u8BA4\u65B0\u5BC6\u7801"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    value: confirmPwd,
+    onChange: e => {
+      setConfirmPwd(e.target.value);
+      if (error) setError("");
+    },
+    style: {
+      ...fieldInp,
+      marginBottom: 4
+    },
+    onKeyDown: e => {
+      if (e.key === "Enter") save();
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 8,
+      marginTop: 14
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    disabled: saving,
+    onClick: onClose,
+    style: {
+      background: "var(--bg)",
+      border: "1px solid var(--border)",
+      borderRadius: 8,
+      padding: "6px 14px",
+      fontSize: 12,
+      cursor: saving ? "wait" : "pointer",
+      fontFamily: "inherit",
+      color: "var(--tm)"
+    }
+  }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    disabled: saving,
+    onClick: save,
+    style: {
+      background: saving ? "#b8d4f0" : "#2d7dd2",
+      border: "none",
+      borderRadius: 8,
+      padding: "6px 14px",
+      fontSize: 12,
+      cursor: saving ? "wait" : "pointer",
+      fontFamily: "inherit",
+      color: "#fff"
+    }
+  }, saving ? "保存中…" : "保存"))));
+}
 function useGlobalConfig() {
   const [version, setVersion] = useState(0);
   useEffect(() => {
@@ -859,6 +1311,15 @@ window.ROLE_COLORS = ROLE_COLORS;
 window.getEmployees = getEmployees;
 window.getStaffNames = getStaffNames;
 window.getStaffRole = getStaffRole;
+window.SUPER_PASSWORD = SUPER_PASSWORD;
+window.DEFAULT_SUPER_PASSWORD = DEFAULT_SUPER_PASSWORD;
+window.DEFAULT_OPS_PASSWORD = DEFAULT_OPS_PASSWORD;
+window.getSuperPassword = getSuperPassword;
+window.getOpsPassword = getOpsPassword;
+window.getPersonLoginCode = getPersonLoginCode;
+window.hasOpsStaff = hasOpsStaff;
+window.getOpsStaff = getOpsStaff;
+window.getLoginStaff = getLoginStaff;
 window.ownerOptions = ownerOptions;
 window.ownerFilterOptions = ownerFilterOptions;
 window.ownerFilterEntries = ownerFilterEntries;
@@ -866,6 +1327,8 @@ window.formatOwnerLabel = formatOwnerLabel;
 window.RoleBadge = RoleBadge;
 window.OwnerField = OwnerField;
 window.GlobalSettingsModal = GlobalSettingsModal;
+window.ChangePasswordModal = ChangePasswordModal;
+window.updateOwnLoginCode = updateOwnLoginCode;
 window.useGlobalConfig = useGlobalConfig;
 window.fetchGlobalConfigFromCloud = fetchGlobalConfigFromCloud;
 window.getGlobalConfigMeta = getGlobalConfigMeta;
@@ -885,16 +1348,34 @@ function getCurrentUser() {
   } catch {/* ignore */}
   return {
     id: "guest",
-    name: "访客"
+    name: "访客",
+    role: ""
   };
 }
 function setCurrentUser(user) {
   try {
     sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify({
       id: user.id || user.name || "guest",
-      name: user.name || "访客"
+      name: user.name || "访客",
+      role: user.role || "",
+      auth: user.auth || user.role || "",
+      canEdit: user.canEdit !== false
     }));
   } catch {/* ignore */}
+}
+function clearCurrentUser() {
+  try {
+    sessionStorage.removeItem(CURRENT_USER_KEY);
+  } catch {/* ignore */}
+}
+function isSuperUser(user) {
+  const u = user || getCurrentUser();
+  return u?.auth === "super" || u?.role === "super";
+}
+function canCurrentUserEdit(user) {
+  const u = user || getCurrentUser();
+  if (isSuperUser(u)) return true;
+  return u?.canEdit !== false;
 }
 const privateStorage = {
   get(userId, key) {
@@ -15828,7 +16309,7 @@ function BrandLogo({
 }
 const SETTINGS_MENU_ITEMS = [{
   key: "staff",
-  label: "全局员工名单"
+  label: "员工与 M 码"
 }];
 function SettingsMenu({
   onSelect
@@ -15905,36 +16386,101 @@ function SettingsMenu({
   }, item.label))));
 }
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-37-depth";
-const AUTH_SESSION_KEY = "ops-center-auth";
+const APP_BUILD = "cloud-43-pwd";
+const AUTH_SESSION_KEY = "ops-center-auth-v6";
+const AUTH_ROLE_SUPER = "super";
+const AUTH_ROLE_STAFF = "staff";
+function persistAuth(user) {
+  setCurrentUser(user);
+  try {
+    sessionStorage.setItem(AUTH_SESSION_KEY, user.auth || user.role);
+  } catch {/* ignore */}
+}
 function readAuthSession() {
   try {
-    return sessionStorage.getItem(AUTH_SESSION_KEY) === "1";
+    const role = sessionStorage.getItem(AUTH_SESSION_KEY);
+    if (role === AUTH_ROLE_SUPER) return true;
+    if (role !== AUTH_ROLE_STAFF && role !== "ops") return false;
+    const user = getCurrentUser();
+    return getLoginStaff().some(e => e.name === user?.name);
   } catch {
     return false;
   }
+}
+function clearAuthSession() {
+  try {
+    sessionStorage.removeItem(AUTH_SESSION_KEY);
+  } catch {/* ignore */}
+  clearCurrentUser();
 }
 function LoginScreen({
   onSuccess
 }) {
   const [password, setPassword] = useState("");
+  const [opsName, setOpsName] = useState("");
   const [error, setError] = useState("");
-  const submit = e => {
+  const [busy, setBusy] = useState(false);
+  const [loginStaff, setLoginStaff] = useState(() => getLoginStaff());
+  useEffect(() => {
+    fetchGlobalConfigFromCloud().then(() => setLoginStaff(getLoginStaff()));
+  }, []);
+  const submit = async e => {
     e.preventDefault();
-    if (password === APP_PASSWORD) {
-      setCurrentUser({
-        id: APP_ORG_NAME,
-        name: APP_ORG_NAME
-      });
-      try {
-        sessionStorage.setItem(AUTH_SESSION_KEY, "1");
-      } catch {/* ignore */}
-      onSuccess();
-      return;
+    const pwd = password.trim();
+    setBusy(true);
+    setError("");
+    try {
+      await fetchGlobalConfigFromCloud();
+      const staff = getLoginStaff();
+      setLoginStaff(staff);
+      if (pwd && pwd === getSuperPassword()) {
+        persistAuth({
+          id: "super",
+          name: APP_ORG_NAME,
+          role: AUTH_ROLE_SUPER,
+          auth: AUTH_ROLE_SUPER,
+          canEdit: true
+        });
+        onSuccess();
+        return;
+      }
+      if (!staff.length) {
+        setError("尚未录入员工，无法登录。请使用超级 M 码进入后添加人员。");
+        return;
+      }
+      const picked = staff.find(e => e.name === opsName);
+      if (!picked) {
+        setError("请选择自己的姓名。只有云端名单里的人可以登录。");
+        return;
+      }
+      if (pwd && pwd === getPersonLoginCode(picked)) {
+        persistAuth({
+          id: picked.name,
+          name: picked.name,
+          role: picked.role || "",
+          auth: AUTH_ROLE_STAFF,
+          canEdit: picked.canEdit !== false
+        });
+        onSuccess();
+        return;
+      }
+      setError("密码错误，请重试");
+    } catch (err) {
+      setError(err?.message || "云端验证失败，请检查网络后重试");
+    } finally {
+      setBusy(false);
     }
-    setError("密码错误，请重试");
   };
+  const fieldStyle = bad => ({
+    width: "100%",
+    fontSize: 14,
+    padding: "10px 12px",
+    border: `1px solid ${bad ? "#F53F3F" : "var(--border)"}`,
+    borderRadius: 10,
+    fontFamily: "inherit",
+    background: "var(--bg)",
+    color: "inherit"
+  });
   return /*#__PURE__*/React.createElement("div", {
     className: "ops-login-wrap"
   }, /*#__PURE__*/React.createElement("form", {
@@ -15967,7 +16513,7 @@ function LoginScreen({
       marginBottom: 18,
       lineHeight: 1.55
     }
-  }, "\u8BF7\u8F93\u5165\u56E2\u961F\u8BBF\u95EE\u5BC6\u7801\u540E\u8FDB\u5165"), /*#__PURE__*/React.createElement("label", {
+  }, "\u540D\u5355\u91CC\u6709\u540D\u5B57\u5373\u53EF\u8FDB\u5165\uFF08\u8FD0\u8425\u3001\u7F8E\u5DE5\u3001\u5F00\u53D1\u7B49\uFF09\u3002\u767B\u5F55\u540E\u53EF\u5728\u53F3\u4E0A\u89D2\u300C\u4FEE\u6539\u5BC6\u7801\u300D\u6539\u81EA\u5DF1\u7684\u4E91\u7AEF M \u7801\u3002"), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "block",
       fontSize: 11,
@@ -15975,7 +16521,30 @@ function LoginScreen({
       marginBottom: 6,
       fontWeight: 500
     }
-  }, "\u8BBF\u95EE\u5BC6\u7801"), /*#__PURE__*/React.createElement("input", {
+  }, "\u59D3\u540D"), /*#__PURE__*/React.createElement("select", {
+    value: opsName,
+    onChange: e => {
+      setOpsName(e.target.value);
+      if (error) setError("");
+    },
+    style: {
+      ...fieldStyle(false),
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, loginStaff.length ? "请选择自己的姓名" : "暂无员工名单"), loginStaff.map(e => /*#__PURE__*/React.createElement("option", {
+    key: e.name,
+    value: e.name
+  }, e.name, e.role ? ` · ${e.role}` : ""))), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "block",
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 6,
+      fontWeight: 500
+    }
+  }, "M \u7801"), /*#__PURE__*/React.createElement("input", {
     type: "password",
     value: password,
     onChange: e => {
@@ -15985,14 +16554,8 @@ function LoginScreen({
     placeholder: "\u8BF7\u8F93\u5165\u5BC6\u7801",
     autoFocus: true,
     style: {
-      width: "100%",
-      fontSize: 14,
-      padding: "10px 12px",
-      border: `1px solid ${error ? "#F53F3F" : "var(--border)"}`,
-      borderRadius: 10,
-      fontFamily: "inherit",
-      marginBottom: error ? 8 : 16,
-      background: "var(--bg)"
+      ...fieldStyle(!!error),
+      marginBottom: error ? 8 : 16
     }
   }), error && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -16002,6 +16565,7 @@ function LoginScreen({
     }
   }, error), /*#__PURE__*/React.createElement("button", {
     type: "submit",
+    disabled: busy,
     className: "ops-btn ops-btn-primary",
     style: {
       width: "100%",
@@ -16009,7 +16573,7 @@ function LoginScreen({
       fontSize: 14,
       justifyContent: "center"
     }
-  }, "\u8FDB\u5165\u8FD0\u8425\u4E2D\u5FC3")));
+  }, busy ? "正在验证云端…" : "进入运营中心")));
 }
 function AppShell({
   tab,
@@ -16017,8 +16581,13 @@ function AppShell({
   dark,
   setDark,
   settingsPanel,
-  setSettingsPanel
+  setSettingsPanel,
+  onLogout
 }) {
+  const currentUser = useCurrentUser();
+  const isSuper = currentUser?.auth === AUTH_ROLE_SUPER || currentUser?.role === AUTH_ROLE_SUPER;
+  const canEdit = isSuper || currentUser?.canEdit !== false;
+  const [pwdOpen, setPwdOpen] = useState(false);
   const confirmLeave = useConfirmLeave();
   const trySetTab = key => {
     if (key === tab) return;
@@ -16076,15 +16645,30 @@ function AppShell({
     className: "ops-topbar-title"
   }, TAB_TITLES[tab] || "运营中心"), /*#__PURE__*/React.createElement("div", {
     className: "ops-topbar-actions"
-  }, /*#__PURE__*/React.createElement(SettingsMenu, {
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "var(--tm)",
+      fontWeight: 600,
+      padding: "0 4px"
+    }
+  }, isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}${canEdit ? " · 可修改" : " · 只读"}`), isSuper && /*#__PURE__*/React.createElement(SettingsMenu, {
     onSelect: key => {
       if (key === "staff") setSettingsPanel("staff");
     }
-  }), /*#__PURE__*/React.createElement("button", {
+  }), !isSuper && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ops-btn",
+    onClick: () => setPwdOpen(true)
+  }, "\u4FEE\u6539\u5BC6\u7801"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ops-btn",
     onClick: () => setDark(!dark)
-  }, dark ? "☀ 日间" : "☾ 夜间"))), /*#__PURE__*/React.createElement("main", {
+  }, dark ? "☀ 日间" : "☾ 夜间"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ops-btn",
+    onClick: onLogout
+  }, "\u9000\u51FA"))), /*#__PURE__*/React.createElement("main", {
     className: "ops-content",
     style: {
       maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" ? 1280 : 960
@@ -16144,6 +16728,8 @@ function AppShell({
   })))), settingsPanel === "staff" && /*#__PURE__*/React.createElement(GlobalSettingsModal, {
     onClose: () => setSettingsPanel(null),
     onSaved: () => setSettingsPanel(null)
+  }), pwdOpen && /*#__PURE__*/React.createElement(ChangePasswordModal, {
+    onClose: () => setPwdOpen(false)
   }));
 }
 function App() {
@@ -16152,6 +16738,21 @@ function App() {
   const [tab, setTab] = useState("home");
   const [dark, setDark] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState(null);
+  useEffect(() => {
+    fetchGlobalConfigFromCloud().then(() => {
+      if (sessionStorage.getItem(AUTH_SESSION_KEY) !== AUTH_ROLE_STAFF && sessionStorage.getItem(AUTH_SESSION_KEY) !== "ops") return;
+      const user = getCurrentUser();
+      if (!getLoginStaff().some(e => e.name === user?.name)) {
+        clearAuthSession();
+        setCurrentUserState({
+          id: "guest",
+          name: "访客",
+          role: ""
+        });
+        setAuthed(false);
+      }
+    });
+  }, []);
   if (!authed) {
     return /*#__PURE__*/React.createElement(LoginScreen, {
       onSuccess: () => {
@@ -16168,7 +16769,16 @@ function App() {
     dark: dark,
     setDark: setDark,
     settingsPanel: settingsPanel,
-    setSettingsPanel: setSettingsPanel
+    setSettingsPanel: setSettingsPanel,
+    onLogout: () => {
+      clearAuthSession();
+      setCurrentUserState({
+        id: "guest",
+        name: "访客",
+        role: ""
+      });
+      setAuthed(false);
+    }
   })));
 }
 if (!window.__OPS_CENTER_MOUNTED__) {

@@ -6,9 +6,9 @@ import { AgentsPanel } from "./AgentsModule.jsx";
 import { KnowledgePanel, KeywordPanel } from "./KnowledgeModule.jsx";
 import { HomePanel } from "./HomeModule.jsx";
 import { KpiPanel } from "./KpiModule.jsx";
-import { GlobalSettingsModal, OwnerField, getStaffRole, RoleBadge, getStaffNames, STAFF_ROLE_OPTIONS, ROLE_COLORS } from "./GlobalConfig.jsx";
-import { UserContext } from "./context/UserContext.jsx";
-import { getCurrentUser, setCurrentUser, useSharedList } from "./utils/storage.js";
+import { GlobalSettingsModal, ChangePasswordModal, OwnerField, getStaffRole, RoleBadge, getStaffNames, STAFF_ROLE_OPTIONS, ROLE_COLORS, getSuperPassword, getPersonLoginCode, getLoginStaff, fetchGlobalConfigFromCloud } from "./GlobalConfig.jsx";
+import { UserContext, useCurrentUser } from "./context/UserContext.jsx";
+import { getCurrentUser, setCurrentUser, clearCurrentUser, useSharedList } from "./utils/storage.js";
 import { CloudSyncProvider, useCloudSyncPage, GlobalCloudBar, useConfirmLeave } from "./GlobalCloudSync.jsx";
 
 const TODAY = new Date();
@@ -245,7 +245,7 @@ function BrandLogo({ size = 28 }) {
   );
 }
 
-const SETTINGS_MENU_ITEMS = [{ key: "staff", label: "全局员工名单" }];
+const SETTINGS_MENU_ITEMS = [{ key: "staff", label: "员工与 M 码" }];
 
 function SettingsMenu({ onSelect }) {
   const [open, setOpen] = useState(false);
@@ -278,32 +278,87 @@ function SettingsMenu({ onSelect }) {
 }
 
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_PASSWORD = "X888888";
-const APP_BUILD = "cloud-37-depth";
-const AUTH_SESSION_KEY = "ops-center-auth";
+const APP_BUILD = "cloud-43-pwd";
+const AUTH_SESSION_KEY = "ops-center-auth-v6";
+const AUTH_ROLE_SUPER = "super";
+const AUTH_ROLE_STAFF = "staff";
+
+function persistAuth(user) {
+  setCurrentUser(user);
+  try { sessionStorage.setItem(AUTH_SESSION_KEY, user.auth || user.role); } catch { /* ignore */ }
+}
 
 function readAuthSession() {
   try {
-    return sessionStorage.getItem(AUTH_SESSION_KEY) === "1";
+    const role = sessionStorage.getItem(AUTH_SESSION_KEY);
+    if (role === AUTH_ROLE_SUPER) return true;
+    if (role !== AUTH_ROLE_STAFF && role !== "ops") return false;
+    const user = getCurrentUser();
+    return getLoginStaff().some(e => e.name === user?.name);
   } catch {
     return false;
   }
 }
 
+function clearAuthSession() {
+  try { sessionStorage.removeItem(AUTH_SESSION_KEY); } catch { /* ignore */ }
+  clearCurrentUser();
+}
+
 function LoginScreen({ onSuccess }) {
   const [password, setPassword] = useState("");
+  const [opsName, setOpsName] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loginStaff, setLoginStaff] = useState(() => getLoginStaff());
 
-  const submit = (e) => {
+  useEffect(() => {
+    fetchGlobalConfigFromCloud().then(() => setLoginStaff(getLoginStaff()));
+  }, []);
+
+  const submit = async (e) => {
     e.preventDefault();
-    if (password === APP_PASSWORD) {
-      setCurrentUser({ id: APP_ORG_NAME, name: APP_ORG_NAME });
-      try { sessionStorage.setItem(AUTH_SESSION_KEY, "1"); } catch { /* ignore */ }
-      onSuccess();
-      return;
+    const pwd = password.trim();
+    setBusy(true);
+    setError("");
+    try {
+      await fetchGlobalConfigFromCloud();
+      const staff = getLoginStaff();
+      setLoginStaff(staff);
+      if (pwd && pwd === getSuperPassword()) {
+        persistAuth({ id: "super", name: APP_ORG_NAME, role: AUTH_ROLE_SUPER, auth: AUTH_ROLE_SUPER, canEdit: true });
+        onSuccess();
+        return;
+      }
+      if (!staff.length) {
+        setError("尚未录入员工，无法登录。请使用超级 M 码进入后添加人员。");
+        return;
+      }
+      const picked = staff.find(e => e.name === opsName);
+      if (!picked) {
+        setError("请选择自己的姓名。只有云端名单里的人可以登录。");
+        return;
+      }
+      if (pwd && pwd === getPersonLoginCode(picked)) {
+        persistAuth({
+          id: picked.name,
+          name: picked.name,
+          role: picked.role || "",
+          auth: AUTH_ROLE_STAFF,
+          canEdit: picked.canEdit !== false,
+        });
+        onSuccess();
+        return;
+      }
+      setError("密码错误，请重试");
+    } catch (err) {
+      setError(err?.message || "云端验证失败，请检查网络后重试");
+    } finally {
+      setBusy(false);
     }
-    setError("密码错误，请重试");
   };
+
+  const fieldStyle = (bad) => ({ width: "100%", fontSize: 14, padding: "10px 12px", border: `1px solid ${bad ? "#F53F3F" : "var(--border)"}`, borderRadius: 10, fontFamily: "inherit", background: "var(--bg)", color: "inherit" });
 
   return (
     <div className="ops-login-wrap">
@@ -315,24 +370,37 @@ function LoginScreen({ onSuccess }) {
             <div style={{ fontSize: 12, color: "var(--tm)", marginTop: 2 }}>运营中心</div>
           </div>
         </div>
-        <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 18, lineHeight: 1.55 }}>请输入团队访问密码后进入</div>
-        <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>访问密码</label>
+        <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 18, lineHeight: 1.55 }}>名单里有名字即可进入（运营、美工、开发等）。登录后可在右上角「修改密码」改自己的云端 M 码。</div>
+        <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>姓名</label>
+        <select
+          value={opsName}
+          onChange={e => { setOpsName(e.target.value); if (error) setError(""); }}
+          style={{ ...fieldStyle(false), marginBottom: 14 }}
+        >
+          <option value="">{loginStaff.length ? "请选择自己的姓名" : "暂无员工名单"}</option>
+          {loginStaff.map(e => <option key={e.name} value={e.name}>{e.name}{e.role ? ` · ${e.role}` : ""}</option>)}
+        </select>
+        <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>M 码</label>
         <input
           type="password"
           value={password}
           onChange={e => { setPassword(e.target.value); if (error) setError(""); }}
           placeholder="请输入密码"
           autoFocus
-          style={{ width: "100%", fontSize: 14, padding: "10px 12px", border: `1px solid ${error ? "#F53F3F" : "var(--border)"}`, borderRadius: 10, fontFamily: "inherit", marginBottom: error ? 8 : 16, background: "var(--bg)" }}
+          style={{ ...fieldStyle(!!error), marginBottom: error ? 8 : 16 }}
         />
         {error && <div style={{ fontSize: 12, color: "#F53F3F", marginBottom: 12 }}>{error}</div>}
-        <button type="submit" className="ops-btn ops-btn-primary" style={{ width: "100%", padding: "10px 14px", fontSize: 14, justifyContent: "center" }}>进入运营中心</button>
+        <button type="submit" disabled={busy} className="ops-btn ops-btn-primary" style={{ width: "100%", padding: "10px 14px", fontSize: 14, justifyContent: "center" }}>{busy ? "正在验证云端…" : "进入运营中心"}</button>
       </form>
     </div>
   );
 }
 
-function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel }) {
+function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel, onLogout }) {
+  const currentUser = useCurrentUser();
+  const isSuper = currentUser?.auth === AUTH_ROLE_SUPER || currentUser?.role === AUTH_ROLE_SUPER;
+  const canEdit = isSuper || currentUser?.canEdit !== false;
+  const [pwdOpen, setPwdOpen] = useState(false);
   const confirmLeave = useConfirmLeave();
   const trySetTab = (key) => {
     if (key === tab) return;
@@ -378,8 +446,13 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel 
         <header className="ops-topbar">
           <div className="ops-topbar-title">{TAB_TITLES[tab] || "运营中心"}</div>
           <div className="ops-topbar-actions">
-            <SettingsMenu onSelect={key => { if (key === "staff") setSettingsPanel("staff"); }} />
+            <span style={{ fontSize: 12, color: "var(--tm)", fontWeight: 600, padding: "0 4px" }}>
+              {isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}${canEdit ? " · 可修改" : " · 只读"}`}
+            </span>
+            {isSuper && <SettingsMenu onSelect={key => { if (key === "staff") setSettingsPanel("staff"); }} />}
+            {!isSuper && <button type="button" className="ops-btn" onClick={() => setPwdOpen(true)}>修改密码</button>}
             <button type="button" className="ops-btn" onClick={() => setDark(!dark)}>{dark ? "☀ 日间" : "☾ 夜间"}</button>
+            <button type="button" className="ops-btn" onClick={onLogout}>退出</button>
           </div>
         </header>
 
@@ -398,6 +471,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel 
       </div>
 
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
+      {pwdOpen && <ChangePasswordModal onClose={() => setPwdOpen(false)} />}
     </div>
   );
 }
@@ -408,13 +482,24 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [dark, setDark] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState(null);
+  useEffect(() => {
+    fetchGlobalConfigFromCloud().then(() => {
+      if (sessionStorage.getItem(AUTH_SESSION_KEY) !== AUTH_ROLE_STAFF && sessionStorage.getItem(AUTH_SESSION_KEY) !== "ops") return;
+      const user = getCurrentUser();
+      if (!getLoginStaff().some(e => e.name === user?.name)) {
+        clearAuthSession();
+        setCurrentUserState({ id: "guest", name: "访客", role: "" });
+        setAuthed(false);
+      }
+    });
+  }, []);
   if (!authed) {
     return <LoginScreen onSuccess={() => { setCurrentUserState(getCurrentUser()); setAuthed(true); }} />;
   }
   return (
     <UserContext.Provider value={currentUser}>
     <CloudSyncProvider>
-      <AppShell tab={tab} setTab={setTab} dark={dark} setDark={setDark} settingsPanel={settingsPanel} setSettingsPanel={setSettingsPanel} />
+      <AppShell tab={tab} setTab={setTab} dark={dark} setDark={setDark} settingsPanel={settingsPanel} setSettingsPanel={setSettingsPanel} onLogout={() => { clearAuthSession(); setCurrentUserState({ id: "guest", name: "访客", role: "" }); setAuthed(false); }} />
     </CloudSyncProvider>
     </UserContext.Provider>
   );

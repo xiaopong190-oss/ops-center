@@ -189,7 +189,7 @@ function UnitPicker({ cat, selected, onSelect, onClose }) {
                   style={{
                     textAlign: "left",
                     background: selected === u.id ? "rgba(45,125,210,0.12)" : "transparent",
-                    color: selected === u.id ? "#2d7dd2" : "var(--text)",
+                    color: selected === u.id ? "var(--accent)" : "var(--text)",
                     border: "none",
                     borderRadius: 6,
                     padding: "7px 10px",
@@ -285,9 +285,9 @@ function UnitConverterTool() {
             onClick={() => switchCat(key)}
             style={{
               background: cat === key ? "var(--card)" : "transparent",
-              color: cat === key ? "#2d7dd2" : "var(--tm)",
+              color: cat === key ? "var(--accent)" : "var(--tm)",
               border: "none",
-              borderBottom: cat === key ? "2px solid #2d7dd2" : "2px solid transparent",
+              borderBottom: cat === key ? "2px solid var(--accent)" : "2px solid transparent",
               padding: "10px 20px",
               fontSize: 14,
               fontWeight: cat === key ? 600 : 400,
@@ -337,7 +337,7 @@ function UnitConverterTool() {
               background: picker === "left" ? "rgba(45,125,210,0.08)" : "var(--card)",
               padding: "10px 14px",
               fontSize: 13,
-              color: picker === "left" ? "#2d7dd2" : "var(--text)",
+              color: picker === "left" ? "var(--accent)" : "var(--text)",
               cursor: "pointer",
               fontFamily: "inherit",
               textAlign: "left",
@@ -364,7 +364,7 @@ function UnitConverterTool() {
             height: 44,
             fontSize: 20,
             cursor: "pointer",
-            color: "#2d7dd2",
+            color: "var(--accent)",
             fontFamily: "inherit",
             flexShrink: 0,
           }}
@@ -401,7 +401,7 @@ function UnitConverterTool() {
               background: picker === "right" ? "rgba(45,125,210,0.08)" : "var(--card)",
               padding: "10px 14px",
               fontSize: 13,
-              color: picker === "right" ? "#2d7dd2" : "var(--text)",
+              color: picker === "right" ? "var(--accent)" : "var(--text)",
               cursor: "pointer",
               fontFamily: "inherit",
               textAlign: "left",
@@ -486,7 +486,7 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
       onClick={() => { if (!isEditing) onOpen(tool); }}
       style={{
         background: isEditing ? "rgba(45,125,210,0.06)" : "var(--card)",
-        border: isEditing ? "2px solid #2d7dd2" : "1px solid var(--border)",
+        border: isEditing ? "2px solid var(--accent)" : "1px solid var(--border)",
         borderRadius: 12,
         padding: "14px 16px",
         cursor: isEditing ? "default" : "pointer",
@@ -508,14 +508,11 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
             {displayName}
           </span>
           <span style={badge("#f3f4f6", "#666")}>{tool.category}</span>
-          {tool.runtime === "local" && <span style={badge("#fce4ec", "#c62828")}>本机工具</span>}
-          {tool.intranetOnly && <span style={badge("#fff3e0", "#e65100")}>仅内网</span>}
-          {tool.downloadUrl && !isLocalOpsServer() && <span style={badge("#e8eaf6", "#3949ab")}>下载</span>}
-          {configurable && <span style={badge("#fff3e0", "#e65100")}>可编辑</span>}
-          {href && inline && <span style={badge("#e8f5e9", "#2e7d32")}>内嵌</span>}
-          {href && !inline && !configurable && <span style={badge("#dceeff", "#1a4e8a")}>新窗口</span>}
-          {configurable && !isEditing && <span style={badge("#dceeff", "#1a4e8a")}>新窗口</span>}
           {isEditing && <span style={badge("#dceeff", "#1a4e8a")}>编辑中</span>}
+          {!isEditing && tool.runtime === "local" && <span style={badge("#fce4ec", "#c62828")}>本机工具</span>}
+          {!isEditing && tool.intranetOnly && <span style={badge("#fff3e0", "#e65100")}>仅内网</span>}
+          {!isEditing && !tool.runtime && href && inline && <span style={badge("#e8f5e9", "#2e7d32")}>内嵌</span>}
+          {!isEditing && !tool.runtime && !tool.intranetOnly && href && !inline && <span style={badge("#dceeff", "#1a4e8a")}>新窗口</span>}
         </div>
         <div style={{ fontSize: 12, color: "var(--tm)", lineHeight: 1.5 }}>{tool.desc}</div>
 
@@ -541,10 +538,10 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
               }}
             />
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <button type="button" onClick={onEditSave} style={{ background: "#2d7dd2", border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#fff" }}>保存</button>
-              <button type="button" onClick={onEditCancel} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "5px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
+              <button type="button" onClick={onEditSave} className="ops-btn ops-btn-primary ops-btn-sm">保存</button>
+              <button type="button" onClick={onEditCancel} className="ops-btn ops-btn-sm">取消</button>
               {editUrl.trim() && (
-                <button type="button" onClick={e => { stop(e); onEditSaveAndOpen(); }} style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "5px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>保存并打开 ↗</button>
+                <button type="button" onClick={e => { stop(e); onEditSaveAndOpen(); }} className="ops-btn ops-btn-sm" style={{ marginLeft: "auto" }}>保存并打开</button>
               )}
             </div>
           </div>
@@ -559,7 +556,7 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
             onKeyDown={e => { if (e.key === "Enter") openHref(e); }}
             style={{
               fontSize: 10,
-              color: "#2d7dd2",
+              color: "var(--accent)",
               marginTop: 6,
               padding: "4px 8px",
               borderRadius: 6,
@@ -583,7 +580,7 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
               type="button"
               title="编辑名称与链接"
               onClick={e => { stop(e); onStartEdit(tool); }}
-              style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, fontSize: 13, cursor: "pointer", color: "#2d7dd2", fontFamily: "inherit", lineHeight: 1 }}
+              className="ops-btn ops-btn-sm"
             >
               ✎
             </button>
@@ -772,12 +769,12 @@ export function ToolsPanel({ active: tabActive = true }) {
     startEdit(onlineDocToTool(doc));
   };
 
-  const deleteOnlineDoc = (tool) => {
+  const deleteOnlineDoc = async (tool) => {
     if (onlineDocs.length <= 1) {
       window.alert("至少保留一个在线文档");
       return;
     }
-    if (!confirmDeleteWarning(tool.name, "在线文档")) return;
+    if (!(await confirmDeleteWarning(tool.name, "在线文档"))) return;
     if (editingId === tool.id) cancelEdit();
     setOnlineDocs(prev => prev.filter(d => d.id !== tool.id));
   };
@@ -809,7 +806,7 @@ export function ToolsPanel({ active: tabActive = true }) {
     return (
       <div style={{ position: "relative", height: "calc(100vh - 120px)", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
-          <button type="button" onClick={() => setInlineTool(null)} style={{ background: "transparent", border: "none", color: "#2d7dd2", fontSize: 13, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>← 返回工具列表</button>
+          <button type="button" onClick={() => setInlineTool(null)} className="ops-link">← 返回工具列表</button>
           <span style={{ fontSize: 14, fontWeight: 600 }}>{inlineTool.icon} {inlineTool.name}</span>
           {inlineTool.intranetOnly && <span style={badge("#fff3e0", "#e65100")}>仅内网</span>}
         </div>
@@ -826,7 +823,7 @@ export function ToolsPanel({ active: tabActive = true }) {
   if (tool && ActiveComponent) {
     return (
       <div>
-        <button type="button" onClick={() => setActive(null)} style={{ background: "transparent", border: "none", color: "#2d7dd2", fontSize: 13, cursor: "pointer", fontFamily: "inherit", marginBottom: "1rem", padding: 0 }}>← 返回工具列表</button>
+        <button type="button" onClick={() => setActive(null)} className="ops-link" style={{ marginBottom: "1rem" }}>← 返回工具列表</button>
         <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem", paddingBottom: 12, borderBottom: "1px solid var(--border)" }}>
             <span style={{ fontSize: 26 }}>{tool.icon}</span>
@@ -845,9 +842,9 @@ export function ToolsPanel({ active: tabActive = true }) {
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索工具…" style={{ ...inpSm, flex: 1, minWidth: 140, maxWidth: 220 }} />
-        <button type="button" onClick={addOnlineDoc} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>+ 添加在线文档</button>
+        <button type="button" onClick={addOnlineDoc} className="ops-chip">+ 添加在线文档</button>
         {TOOL_CATEGORIES.map(c => (
-          <button key={c} type="button" onClick={() => setCat(c)} style={{ background: cat === c ? "#2d7dd2" : "var(--card)", color: cat === c ? "#fff" : "var(--tm)", border: `1px solid ${cat === c ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
+          <button key={c} type="button" onClick={() => setCat(c)} className={`ops-chip${cat === c ? " active" : ""}`}>{c}</button>
         ))}
       </div>
       {list.length ? (

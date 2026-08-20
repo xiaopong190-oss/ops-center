@@ -282,16 +282,20 @@ function PremiumSkuForm({ week, data, skuList, onChange, onSkuListChange }) {
     onChange({ ...data, skuData: { ...skuData, [String(skuIdx)]: row } });
   };
 
-  const addSku = () => {
-    const name = window.prompt("输入SKU名称（如 A001 或 蓝色托特包）");
-    if (!name?.trim()) return;
-    const phase = window.confirm("新品期点确定，成熟期点取消") ? "new" : "mature";
-    const next = [...skuList, { name: name.trim(), phase }];
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  const commitSku = (phase) => {
+    const name = newName.trim();
+    if (!name) return;
+    const next = [...skuList, { name, phase }];
     const idx = next.length - 1;
     const row = {};
     PREMIUM_SKU_DIMS.forEach(d => { row[d] = "g"; });
     onSkuListChange(next);
     onChange({ ...data, skuData: { ...skuData, [String(idx)]: row } });
+    setAdding(false);
+    setNewName("");
   };
 
   const updateSku = (i, patch) => {
@@ -370,10 +374,26 @@ function PremiumSkuForm({ week, data, skuList, onChange, onSkuListChange }) {
           </table>
         </div>
         <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button type="button" onClick={addSku} style={{
-            fontSize: 12, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
-            border: "1px solid var(--border)", background: "var(--card)",
-          }}>+ 添加SKU</button>
+          {adding ? (
+            <>
+              <input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="SKU 名称，如 A001"
+                autoFocus
+                style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: "1px solid var(--border)", fontFamily: "inherit", minWidth: 140 }}
+                onKeyDown={e => { if (e.key === "Escape") { setAdding(false); setNewName(""); } }}
+              />
+              <button type="button" onClick={() => commitSku("new")} className="ops-btn ops-btn-primary ops-btn-sm">新品期</button>
+              <button type="button" onClick={() => commitSku("mature")} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", border: "none", background: "#2d9e52", color: "#fff" }}>成熟期</button>
+              <button type="button" onClick={() => { setAdding(false); setNewName(""); }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--border)", background: "var(--card)", color: "var(--tm)" }}>取消</button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setAdding(true)} style={{
+              fontSize: 12, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+              border: "1px solid var(--border)", background: "var(--card)",
+            }}>+ 添加SKU</button>
+          )}
           <span style={{ fontSize: 11, color: "var(--tm)" }}>红色异常项需在考核备注中说明处理方案</span>
         </div>
       </div>
@@ -491,6 +511,32 @@ function OpsPremiumPanel({ page, week, data, skuList, onChange, onSkuListChange,
 
 const WEEKS = [1, 2, 3, 4];
 const KPI_STORAGE_KEY = "kpi-monthly";
+
+function kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek) {
+  return `kpi-draft:${year}|${month}|${curRole}|${curOpsSub}|${person}|${curWeek}`;
+}
+
+function readKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest" || !person) return null;
+  try {
+    return privateStorage.get(u.id, kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek));
+  } catch {
+    return null;
+  }
+}
+
+function writeKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek, payload) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest" || !person) return;
+  privateStorage.set(u.id, kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek), payload);
+}
+
+function clearKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest" || !person) return;
+  privateStorage.delete(u.id, kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek));
+}
 
 const emptyOpsWeek = () => ({
   wstyle: "", nsku: "", lsku: "", selfsku: "", aadd: "", aout: "", atot: "", sales: "", prate: "",
@@ -2140,6 +2186,8 @@ function KpiPanel({ active = true }) {
     return weekDirty;
   }, [person, curRole, curWeek, year, month, effectiveRole]);
 
+  const skipLocalWriteRef = useRef(false);
+
   useEffect(() => {
     const loadKey = `${year}|${month}|${curRole}|${curOpsSub}|${person}|${curWeek}`;
     const contextChanged = draftLoadKeyRef.current !== loadKey;
@@ -2151,6 +2199,19 @@ function KpiPanel({ active = true }) {
       setMonthTargetsDraft(emptyDevMonthTargets());
       return;
     }
+
+    if (contextChanged) {
+      const local = readKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek);
+      if (local?.draft || local?.monthTargetsDraft || local?.skuListDraft) {
+        skipLocalWriteRef.current = true;
+        if (local.draft) setDraft(local.draft);
+        if (local.skuListDraft) setSkuListDraft(local.skuListDraft);
+        if (local.monthTargetsDraft) setMonthTargetsDraft(local.monthTargetsDraft);
+        queueMicrotask(() => { skipLocalWriteRef.current = false; });
+        return;
+      }
+    }
+
     if (curRole === "dev" && curWeek === 0) {
       if (contextChanged || !isDraftDirtyFor(items)) {
         setMonthTargetsDraft(getDevMonthTargets(items, year, month, person));
@@ -2170,6 +2231,19 @@ function KpiPanel({ active = true }) {
       setSkuListDraft(getPremiumSkuList(items, year, month, person));
     }
   }, [items, year, month, curRole, curOpsSub, effectiveRole, person, curWeek, isDraftDirtyFor]);
+
+  useEffect(() => {
+    if (skipLocalWriteRef.current || !person) return;
+    const timer = setTimeout(() => {
+      writeKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek, {
+        draft,
+        skuListDraft,
+        monthTargetsDraft,
+        savedAt: Date.now(),
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [draft, skuListDraft, monthTargetsDraft, year, month, curRole, curOpsSub, person, curWeek]);
 
   const weekDone = useMemo(() => {
     if (!person) return {};
@@ -2212,19 +2286,25 @@ function KpiPanel({ active = true }) {
       }
       return next;
     });
-    if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);
-    else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    if (ok) {
+      clearKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek);
+      showToast(`第${curWeek}周已保存并上传 ✓`);
+    }
+    else showToast("上传失败，请检查网络后重试", false);
     return ok;
-  }, [person, year, month, effectiveRole, curWeek, persistMerge]);
+  }, [person, year, month, effectiveRole, curRole, curOpsSub, curWeek, persistMerge]);
 
   const upsertMonthTargets = useCallback(async (targets) => {
     if (!person || curRole !== "dev") return false;
     const patch = { year, month, role: "dev", person, monthTargets: targets };
     const ok = await persistMerge((latest) => upsertKpiRecord(latest, patch));
-    if (ok) showToast("月目标已保存并上传云端 ✓");
-    else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    if (ok) {
+      clearKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek);
+      showToast("月目标已保存并上传 ✓");
+    }
+    else showToast("上传失败，请检查网络后重试", false);
     return ok;
-  }, [person, year, month, curRole, persistMerge]);
+  }, [person, year, month, curRole, curOpsSub, curWeek, persistMerge]);
 
   const saveCurrentToCloud = useCallback(async () => {
     if (!person) return "请先选择人员";
@@ -2262,8 +2342,8 @@ function KpiPanel({ active = true }) {
     saving,
     error,
     isDirty: kpiDirty,
-    dirtyHint: curRole === "dev" && curWeek === 0 ? "开发月目标未上传" : `考核第${curWeek}周数据未上传`,
-    barHint: "考核按人员/周次填写，点「保存并上传」写入云端（考核自己的规则）",
+    dirtyHint: "考核已暂存在本账号，尚未给全员",
+    barHint: "考核填写会先记在本账号，点「保存并上传」后全员可见",
   });
 
   const clearWeek = () => {
@@ -2320,7 +2400,7 @@ function KpiPanel({ active = true }) {
             {staffList.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
           </select>
         ) : (
-          <span style={{ fontSize: 12, color: "#e09000" }}>暂无{roleLabel}人员 · 请在 ⚙ 设置 → 全局员工名单 中添加（角色选「{roleLabel}」）</span>
+          <span style={{ fontSize: 12, color: "#e09000" }}>暂无{roleLabel}人员 · 请在 ⚙ 设置 → 员工与 M 码 中添加（角色选「{roleLabel}」）</span>
         )}
         {person && <RoleBadge role={roleLabel} />}
         {person && (

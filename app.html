@@ -7,7 +7,7 @@
     <meta http-equiv="Expires" content="0" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>泓森拓创科技</title>
-    <link rel="stylesheet" href="src/index.css?v=20260702depth" />
+    <link rel="stylesheet" href="src/index.css?v=20260820ui" />
     <style>
       #loading { font-family: "Microsoft YaHei", sans-serif; text-align: center; padding: 3rem; color: #666; }
       #boot-error:empty { display: none; }
@@ -95,9 +95,9 @@
           }
           var confirmDeleteHelper =
             "function confirmDeleteWarning(name, typeLabel) {\n" +
-            "  return window.confirm(\n" +
-            "    `⚠️ 警告\\n\\n确定删除${typeLabel}「${name}」吗？\\n\\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`\n" +
-            "  );\n" +
+            "  var msg = \"确定删除\" + typeLabel + \"「\" + name + \"」吗？\\n\\n删除后无法恢复，全员列表里也会去掉。\";\n" +
+            "  if (typeof opsConfirm === \"function\") return opsConfirm(msg);\n" +
+            "  return Promise.resolve(window.confirm(msg));\n" +
             "}\n\n";
           var chunks = [];
           for (var i = 0; i < files.length; i++) {

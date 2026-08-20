@@ -361,7 +361,7 @@ export function useSharedList(storageKey, defaultData, { active = true } = {}) {
 
 export function SharedMetaLine({ meta, style, onReload, onSaveCloud, loading, saving, error }) {
   let bg = "#ecfdf5", border = "#6ee7b7", color = "#065f46";
-  let text = "☁️ 修改默认只保存在本账号 · 点「保存并上传」才分享给全员";
+  let text = "改完只保存在你的账号，点「保存并上传」才给同事看";
 
   if (loading) {
     bg = "#f3f4f6"; border = "#d1d5db"; color = "#4b5563";

@@ -67,7 +67,7 @@ function AgentCard({ agent, isEditing, editName, editUrl, editDesc, onOpen, onSt
       onClick={() => { if (!isEditing) onOpen(agent); }}
       style={{
         background: isEditing ? "rgba(45,125,210,0.06)" : "var(--card)",
-        border: isEditing ? "2px solid #2d7dd2" : "1px solid var(--border)",
+        border: isEditing ? "2px solid var(--accent)" : "1px solid var(--border)",
         borderRadius: 12,
         padding: "14px 16px",
         cursor: isEditing ? "default" : "pointer",
@@ -112,10 +112,10 @@ function AgentCard({ agent, isEditing, editName, editUrl, editDesc, onOpen, onSt
             <label style={lblSm}>说明（可选）</label>
             <input value={editDesc} onChange={e => onEditDescChange(e.target.value)} placeholder="简短描述用途…" style={{ ...inp, fontSize: 12, marginBottom: 8 }} />
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <button type="button" onClick={onEditSave} style={{ background: "#2d7dd2", border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#fff" }}>保存</button>
-              <button type="button" onClick={onEditCancel} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "5px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
+              <button type="button" onClick={onEditSave} className="ops-btn ops-btn-primary ops-btn-sm">保存</button>
+              <button type="button" onClick={onEditCancel} className="ops-btn ops-btn-sm">取消</button>
               {editUrl.trim() && (
-                <button type="button" onClick={e => { stop(e); onEditSaveAndOpen(); }} style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "5px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>保存并打开 ↗</button>
+                <button type="button" onClick={e => { stop(e); onEditSaveAndOpen(); }} className="ops-btn ops-btn-sm" style={{ marginLeft: "auto" }}>保存并打开</button>
               )}
             </div>
           </div>
@@ -130,7 +130,7 @@ function AgentCard({ agent, isEditing, editName, editUrl, editDesc, onOpen, onSt
             onKeyDown={e => { if (e.key === "Enter") openHref(e); }}
             style={{
               fontSize: 10,
-              color: "#2d7dd2",
+              color: "var(--accent)",
               marginTop: 6,
               padding: "4px 8px",
               borderRadius: 6,
@@ -150,7 +150,7 @@ function AgentCard({ agent, isEditing, editName, editUrl, editDesc, onOpen, onSt
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
         {!isEditing && (
           <>
-            <button type="button" title="编辑" onClick={e => { stop(e); onStartEdit(agent); }} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, fontSize: 13, cursor: "pointer", color: "#2d7dd2", fontFamily: "inherit", lineHeight: 1 }}>✎</button>
+            <button type="button" title="编辑" onClick={e => { stop(e); onStartEdit(agent); }} className="ops-btn ops-btn-sm">✎</button>
             <button type="button" title="复制一份" onClick={e => { stop(e); onDuplicate(agent); }} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, fontSize: 12, cursor: "pointer", color: "#2e7d32", fontFamily: "inherit", lineHeight: 1 }}>⧉</button>
             <button type="button" title="删除" onClick={e => { stop(e); onDelete(agent); }} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, width: 28, height: 28, fontSize: 12, cursor: "pointer", color: "#c62828", fontFamily: "inherit", lineHeight: 1 }}>×</button>
             <span style={{ fontSize: 12, color: "var(--tm)" }}>↗</span>
@@ -261,8 +261,8 @@ export function AgentsPanel({ active: tabActive = true }) {
     setAgents(prev => [...prev, copy]);
   };
 
-  const deleteAgent = (agent) => {
-    if (!confirmDeleteWarning(agent.name, "智能体")) return;
+  const deleteAgent = async (agent) => {
+    if (!(await confirmDeleteWarning(agent.name, "智能体"))) return;
     if (editingId === agent.id) cancelEdit();
     setAgents(prev => prev.filter(a => a.id !== agent.id));
   };
@@ -292,11 +292,12 @@ export function AgentsPanel({ active: tabActive = true }) {
 
   return (
     <div>
+      <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 10 }}>这里只放 ChatGPT GPTs 和 Gemini Gems 链接。</div>
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索智能体…" style={{ ...inpSm, flex: 1, minWidth: 140, maxWidth: 220 }} />
-        <button type="button" onClick={addAgent} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 20, padding: "4px 14px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>+ 添加智能体</button>
+        <button type="button" onClick={addAgent} className="ops-btn ops-btn-primary ops-btn-sm">+ 添加智能体</button>
         {AGENT_CATEGORIES.map(c => (
-          <button key={c} type="button" onClick={() => setCat(c)} style={{ background: cat === c ? "#2d7dd2" : "var(--card)", color: cat === c ? "#fff" : "var(--tm)", border: `1px solid ${cat === c ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
+          <button key={c} type="button" onClick={() => setCat(c)} className={`ops-chip${cat === c ? " active" : ""}`}>{c}</button>
         ))}
       </div>
 

@@ -127,7 +127,7 @@ function gistHeaders(json = false) {
 
 async function gistFetchAll() {
   const res = await fetch(`${GIST_API}/${getGistId()}`, { headers: gistHeaders() });
-  if (!res.ok) throw new Error(`Gist 读取失败 HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`云端读取失败，请检查网络后重试`);
   return res.json();
 }
 
@@ -156,7 +156,7 @@ async function gistWriteRecord(key, payload) {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Gist 保存失败 HTTP ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`);
+    throw new Error(`云端保存失败，请检查网络后重试`);
   }
   return payload;
 }
@@ -212,7 +212,7 @@ const sharedStorage = {
     if (!gistConfigured()) {
       localSet(key, payload);
       window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
-      throw new Error("未配置 GitHub Gist，已暂存本机（请填写 cloud-sync-config.js）");
+      throw new Error("云端未配置，已暂存在本机");
     }
     try {
       await gistWriteRecord(key, payload);
@@ -222,7 +222,7 @@ const sharedStorage = {
     } catch (e) {
       localSet(key, payload);
       window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
-      throw new Error(`云端保存失败（已暂存本机）：${e?.message || "网络错误"}`);
+      throw new Error(`云端保存失败（已暂存本机），请检查网络后重试`);
     }
   },
 
@@ -469,18 +469,18 @@ async function updateOwnLoginCode(oldPwd, newPwd) {
   const user = readSessionUser();
   const name = String(user?.name || "").trim();
   if (!name || user?.auth === "super" || user?.role === "super") {
-    throw new Error("请用自己的员工账号登录后再改密码");
+    throw new Error("请用自己的员工账号登录后再改 M 码");
   }
   const nextPwd = String(newPwd || "").trim();
   const prevPwd = String(oldPwd || "").trim();
-  if (nextPwd.length < 4) throw new Error("新密码至少 4 位");
+  if (nextPwd.length < 4) throw new Error("新 M 码至少 4 位");
   await fetchGlobalConfigFromCloud();
   const cfg = loadGlobalConfig();
   if (nextPwd === getSuperPassword(cfg)) throw new Error("不能与超级 M 码相同");
   const staff = (cfg.staff || []).map(e => ({ ...e }));
   const idx = staff.findIndex(e => e.name === name);
   if (idx < 0) throw new Error("当前账号不在云端名单中");
-  if (prevPwd !== getPersonLoginCode(staff[idx], cfg)) throw new Error("当前密码不正确");
+  if (prevPwd !== getPersonLoginCode(staff[idx], cfg)) throw new Error("当前 M 码不正确");
   staff[idx] = { ...staff[idx], loginCode: nextPwd };
   await saveGlobalConfig({
     staff,
@@ -573,7 +573,7 @@ function OwnerField({ value, onChange, placeholder = "选择负责人…", style
   if (!employees.length) {
     return (
       <div style={{ fontSize: 11, color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "7px 10px", lineHeight: 1.45 }}>
-        请先在 ⚙ 设置 → 全局员工名单 中添加人员
+        请先在 ⚙ 设置 → 员工与 M 码 中添加人员
       </div>
     );
   }
@@ -676,7 +676,7 @@ function GlobalSettingsModal({ onClose, onSaved }) {
       await saveGlobalConfig({ staff, opsPassword: pwd, superPassword: superPwd, superAutoShare });
       onSaved && onSaved();
     } catch (e) {
-      setError(e?.message || "保存失败，请检查网络或 Gist 配置");
+      setError(e?.message || "保存失败，请检查网络后重试");
     } finally {
       setSaving(false);
     }
@@ -691,7 +691,7 @@ function GlobalSettingsModal({ onClose, onSaved }) {
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>员工与云端 M 码</div>
         <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>名单里有名字就能登录。默认修改只保存在自己账号，点「保存并上传」才分享。「自动分享」勾上后改完立刻给全员。考核、推品计划、瀚海 SKU 库等工具仍按各自规则。离职只删人。</div>
         <div style={{ fontSize: 11, color: "#065f46", background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 8, padding: "6px 10px", marginBottom: 12 }}>{metaLine}</div>
-        {error && <div style={{ fontSize: 11, color: "#b91c1c", background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 8, padding: "6px 10px", marginBottom: 10 }}>{error}</div>}
+        {error && <div className="ops-note ops-note-danger" style={{ marginBottom: 10 }}>{error}</div>}
         <StaffListEditor rows={rows} onChange={setRows} defaultLoginCode={opsPassword.trim() || DEFAULT_OPS_PASSWORD} />
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", borderTop: "1px solid var(--border)", paddingTop: 12, marginTop: 14, marginBottom: 8 }}>超级 M 码（云端）</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
@@ -703,23 +703,23 @@ function GlobalSettingsModal({ onClose, onSaved }) {
           <span>超级账号修改任务 / 物流等后自动分享给全员（不勾选则只保存在本账号，点上传才分享）</span>
         </label>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", marginBottom: 8 }}>全员 M 码（云端）</div>
-        <div style={{ fontSize: 11, color: rows.filter(r => r.name.trim()).length ? "#065f46" : "#92400e", background: rows.filter(r => r.name.trim()).length ? "#ecfdf5" : "#fffbeb", border: `1px solid ${rows.filter(r => r.name.trim()).length ? "#6ee7b7" : "#fcd34d"}`, borderRadius: 8, padding: "6px 10px", marginBottom: 10, lineHeight: 1.5 }}>
-          {rows.filter(r => r.name.trim()).length ? `名单 ${rows.filter(r => r.name.trim()).length} 人。新员工默认用全员 M 码；员工自己改过的密码不会被覆盖。` : "尚未录入员工，无法登录。"}
+        <div className={`ops-note${rows.filter(r => r.name.trim()).length ? " ops-note-ok" : " ops-note-warn"}`} style={{ marginBottom: 10 }}>
+          {rows.filter(r => r.name.trim()).length ? `名单 ${rows.filter(r => r.name.trim()).length} 人。新员工默认用全员 M 码；员工自己改过的 M 码不会被覆盖。` : "尚未录入员工，无法登录。"}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input type={showOpsPwd ? "text" : "password"} value={opsPassword} onChange={e => setOpsPassword(e.target.value)} placeholder="全员云端 M 码" style={fieldInp} />
           <button type="button" onClick={() => setShowOpsPwd(v => !v)} style={{ flexShrink: 0, background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>{showOpsPwd ? "隐藏" : "显示"}</button>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-          <button type="button" disabled={saving} onClick={onClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
-          <button type="button" disabled={saving} onClick={save} style={{ background: saving ? "#b8d4f0" : "#2d7dd2", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "#fff" }}>{saving ? "上传中…" : "☁️ 保存并同步"}</button>
+          <button type="button" disabled={saving} onClick={onClose} className="ops-btn">取消</button>
+          <button type="button" disabled={saving} onClick={save} className="ops-btn ops-btn-primary">{saving ? "上传中…" : "保存并上传"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-function ChangePasswordModal({ onClose, onSaved }) {
+function ChangePasswordModal({ onClose, onSaved, dark, setDark }) {
   const session = readSessionUser() || {};
   const isSuper = session.auth === "super" || session.role === "super";
   const [autoShare, setAutoShare] = useState(() => session.autoShare === true);
@@ -736,8 +736,8 @@ function ChangePasswordModal({ onClose, onSaved }) {
   const changingPwd = !isSuper && (oldPwd || newPwd || confirmPwd);
   const save = async () => {
     if (changingPwd) {
-      if (newPwd.trim() !== confirmPwd.trim()) { setError("两次新密码不一致"); return; }
-      if (newPwd.trim() === oldPwd.trim()) { setError("新密码不能与当前密码相同"); return; }
+      if (newPwd.trim() !== confirmPwd.trim()) { setError("两次新 M 码不一致"); return; }
+      if (newPwd.trim() === oldPwd.trim()) { setError("新 M 码不能与当前 M 码相同"); return; }
     }
     setSaving(true);
     setError("");
@@ -757,28 +757,33 @@ function ChangePasswordModal({ onClose, onSaved }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 420, color: "var(--text)" }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>个人设置</div>
-        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 12, lineHeight: 1.5 }}>修改默认只保存在你的账号。考核、推品计划、瀚海 SKU 库等有自己规则的工具除外。</div>
-        {error && <div style={{ fontSize: 11, color: "#b91c1c", background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 8, padding: "6px 10px", marginBottom: 10 }}>{error}</div>}
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 12, lineHeight: 1.5 }}>改完默认只保存在你的账号，点上传才给同事看。</div>
+        {error && <div className="ops-note ops-note-danger" style={{ marginBottom: 10 }}>{error}</div>}
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", marginBottom: 8 }}>外观</div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--text)", marginBottom: 16, cursor: "pointer", lineHeight: 1.45 }}>
+          <input type="checkbox" checked={!!dark} onChange={e => setDark?.(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>夜间模式</span>
+        </label>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", marginBottom: 8 }}>数据保存</div>
         <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--text)", marginBottom: 16, cursor: "pointer", lineHeight: 1.45 }}>
           <input type="checkbox" checked={autoShare} onChange={e => setAutoShare(e.target.checked)} style={{ marginTop: 2 }} />
-          <span>改完自动分享给全员（不勾选则只保存在本账号，点顶部「保存并上传」才分享）</span>
+          <span>改完自动给同事看（不勾选则只保存在本账号，点「保存并上传」才分享）</span>
         </label>
         {!isSuper && (
           <>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", marginBottom: 8 }}>修改自己的云端 M 码</div>
-            <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 10, lineHeight: 1.5 }}>不改密码可以留空。改完后公司、家里、会议室都用新密码。</div>
-            <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>当前密码</label>
+            <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 10, lineHeight: 1.5 }}>不改可以留空。改完后公司、家里、会议室都用新 M 码。</div>
+            <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>当前 M 码</label>
             <input type="password" value={oldPwd} onChange={e => { setOldPwd(e.target.value); if (error) setError(""); }} style={{ ...fieldInp, marginBottom: 12 }} />
-            <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>新密码</label>
+            <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>新 M 码</label>
             <input type="password" value={newPwd} onChange={e => { setNewPwd(e.target.value); if (error) setError(""); }} placeholder="至少 4 位，不改请留空" style={{ ...fieldInp, marginBottom: 12 }} />
-            <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>确认新密码</label>
+            <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>确认新 M 码</label>
             <input type="password" value={confirmPwd} onChange={e => { setConfirmPwd(e.target.value); if (error) setError(""); }} style={{ ...fieldInp, marginBottom: 4 }} onKeyDown={e => { if (e.key === "Enter") save(); }} />
           </>
         )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-          <button type="button" disabled={saving} onClick={onClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
-          <button type="button" disabled={saving} onClick={save} style={{ background: saving ? "#b8d4f0" : "#2d7dd2", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: saving ? "wait" : "pointer", fontFamily: "inherit", color: "#fff" }}>{saving ? "保存中…" : "保存"}</button>
+          <button type="button" disabled={saving} onClick={onClose} className="ops-btn">取消</button>
+          <button type="button" disabled={saving} onClick={save} className="ops-btn ops-btn-primary">{saving ? "保存中…" : "保存"}</button>
         </div>
       </div>
     </div>
@@ -1190,7 +1195,7 @@ function useSharedList(storageKey, defaultData, { active = true } = {}) {
 
 function SharedMetaLine({ meta, style, onReload, onSaveCloud, loading, saving, error }) {
   let bg = "#ecfdf5", border = "#6ee7b7", color = "#065f46";
-  let text = "☁️ 修改默认只保存在本账号 · 点「保存并上传」才分享给全员";
+  let text = "改完只保存在你的账号，点「保存并上传」才给同事看";
 
   if (loading) {
     bg = "#f3f4f6"; border = "#d1d5db"; color = "#4b5563";
@@ -1287,31 +1292,6 @@ const SORT_OPTIONS = [
 
 const GANTT_FILTER_KEY = "ops-gantt-filters";
 const GANTT_EXPAND_KEY = "ops-gantt-expanded";
-
-const BTN_PRIMARY = {
-  background: "#2d7dd2",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  padding: "8px 14px",
-  fontSize: 13,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontWeight: 600,
-  flexShrink: 0,
-};
-
-const filterChip = (active) => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--tm)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 20,
-  padding: "4px 12px",
-  fontSize: 11,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap",
-});
 
 function loadGanttFilters() {
   try {
@@ -1908,7 +1888,7 @@ function FBAGanttCard({ groups = [], today: todayProp, productFilter: controlled
             )}
           </div>
         </div>
-        <button type="button" onClick={() => captureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试"))} style={BTN_PRIMARY}>📷 截图</button>
+        <button type="button" onClick={() => captureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试"))} className="ops-btn ops-btn-primary">截图</button>
       </div>
 
       {allProducts.length > 0 && (
@@ -1916,9 +1896,9 @@ function FBAGanttCard({ groups = [], today: todayProp, productFilter: controlled
           {!isProductControlled && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>产品</span>
-              <button type="button" onClick={() => setProduct("all")} style={filterChip(productFilter === "all")}>全部</button>
+              <button type="button" onClick={() => setProduct("all")} className={`ops-chip${productFilter === "all" ? " active" : ""}`}>全部</button>
               {allProducts.map(p => (
-                <button key={p.id} type="button" onClick={() => setProduct(p.id)} style={filterChip(productFilter === p.id)} title={p.name}>
+                <button key={p.id} type="button" onClick={() => setProduct(p.id)} className={`ops-chip${productFilter === p.id ? " active" : ""}`} title={p.name}>
                   {p.sku || p.name}{p.batches?.length > 1 ? ` (${p.batches.length})` : ""}
                 </button>
               ))}
@@ -1926,18 +1906,18 @@ function FBAGanttCard({ groups = [], today: todayProp, productFilter: controlled
           )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>状态</span>
-            <button type="button" onClick={() => setStatus("all")} style={filterChip(statusFilter === "all")}>全部</button>
+            <button type="button" onClick={() => setStatus("all")} className={`ops-chip${statusFilter === "all" ? " active" : ""}`}>全部</button>
             {Object.entries(STATUS).map(([k, v]) => (
-              <button key={k} type="button" onClick={() => setStatus(k)} style={filterChip(statusFilter === k)}>{v.label}</button>
+              <button key={k} type="button" onClick={() => setStatus(k)} className={`ops-chip${statusFilter === k ? " active" : ""}`}>{v.label}</button>
             ))}
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>排序</span>
             {SORT_OPTIONS.map(o => (
-              <button key={o.key} type="button" onClick={() => setSortBy(o.key)} style={filterChip(sortBy === o.key)}>{o.label}</button>
+              <button key={o.key} type="button" onClick={() => setSortBy(o.key)} className={`ops-chip${sortBy === o.key ? " active" : ""}`}>{o.label}</button>
             ))}
             {hasFilters && (
-              <button type="button" onClick={resetFilters} style={{ ...filterChip(false), marginLeft: 4, color: "#2d7dd2", borderColor: "#b8d4f0" }}>清除筛选</button>
+              <button type="button" onClick={resetFilters} className="ops-link" style={{ marginLeft: 4 }}>清除筛选</button>
             )}
           </div>
         </div>
@@ -1960,7 +1940,7 @@ function FBAGanttCard({ groups = [], today: todayProp, productFilter: controlled
         ) : !viewProducts.length ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>
             没有符合筛选条件的产品
-            <button type="button" onClick={resetFilters} style={{ display: "block", margin: "8px auto 0", background: "none", border: "none", color: "#2d7dd2", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>清除筛选</button>
+            <button type="button" onClick={resetFilters} className="ops-link" style={{ display: "block", margin: "8px auto 0" }}>清除筛选</button>
           </div>
         ) : datedBatchCount === 0 ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>当前产品暂无日期数据，请在下方的批次中填写出货日或预计到港</div>
@@ -2169,18 +2149,6 @@ const formatDuplicateFbaMsg = (dupes, action) => {
 };
 const groupProductKey = (g) => (g.sku || g.name || `id-${g.id}`).trim();
 const groupMatchesProduct = (g, productFilter) => productFilter === "all" || groupProductKey(g) === productFilter;
-const productTabChip = (active) => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--text)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 10,
-  padding: "8px 14px",
-  fontSize: 13,
-  fontWeight: active ? 600 : 500,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap",
-});
 
 const INIT_LOGISTICS = [
   {
@@ -2344,7 +2312,7 @@ function FbaRow({ fba, onEditTracking }) {
         {editing ? (
           <>
             <input value={trackVal} onChange={e => setTrackVal(e.target.value)} placeholder="输入追踪编码" style={{ ...inpSm, flex: 1, minWidth: 140 }} autoFocus onKeyDown={e => { if (e.key === "Enter") saveTrack(); if (e.key === "Escape") setEditing(false); }} />
-            <button type="button" onClick={saveTrack} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>保存</button>
+            <button type="button" onClick={saveTrack} className="ops-btn ops-btn-primary ops-btn-sm">保存</button>
           </>
         ) : missing ? (
           <button type="button" onClick={e => { e.stopPropagation(); setTrackVal(fba.tracking || ""); setEditing(true); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#E24B4A", fontSize: 11, fontWeight: 600, fontFamily: "inherit" }}>缺少追踪编码 · 点击填写</button>
@@ -2553,7 +2521,7 @@ function ShipmentModal({ item, onSave, onClose, onDelete, getExistingFbaIds }) {
           <span>FBA 货件 ({fbas.length})</span>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <input ref={fileInputRef} type="file" accept=".csv" multiple style={{ display: "none" }} onChange={onCsvPick} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>📥 导入 STA CSV</button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="ops-btn ops-btn-sm">导入 STA CSV</button>
           </div>
         </div>
         {importMsg && <div style={{ fontSize: 11, color: importMsg.includes("失败") || importMsg.includes("不是") ? "#E24B4A" : "#1a6b35", marginBottom: 8, padding: "6px 10px", background: importMsg.includes("失败") || importMsg.includes("不是") ? "#fee2e2" : "#f0faf4", borderRadius: 8 }}>{importMsg}</div>}
@@ -2565,8 +2533,8 @@ function ShipmentModal({ item, onSave, onClose, onDelete, getExistingFbaIds }) {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             {item.id ? <button type="button" onClick={onDelete} style={{ background: "none", border: "none", color: "#e55", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>删除批次</button> : <div />}
             <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-              <button type="button" onClick={onClose} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
-              <button type="button" onClick={handleSave} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>保存</button>
+              <button type="button" onClick={onClose} className="ops-btn">取消</button>
+              <button type="button" onClick={handleSave} className="ops-btn ops-btn-primary">保存</button>
             </div>
           </div>
         </div>
@@ -2645,8 +2613,8 @@ function LogisticsPanel({ active = true }) {
     else persist([...list, { ...withTime, id: nextId() }]);
     setModal(null);
   };
-  const deleteGroup = (g) => {
-    if (!window.confirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`)) return;
+  const deleteGroup = async (g) => {
+    if (!(await opsConfirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`))) return;
     persist(list.filter(x => x.id !== g.id), { replace: true });
     if (modal?.id === g.id) setModal(null);
   };
@@ -2719,11 +2687,11 @@ function LogisticsPanel({ active = true }) {
         <div style={{ marginBottom: "1rem" }}>
           <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8 }}>产品分页 · 切换查看各产品头程</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" onClick={() => setProductFilterPersist("all")} style={productTabChip(productFilter === "all")}>
+            <button type="button" onClick={() => setProductFilterPersist("all")} className={`ops-chip ops-chip-tab${productFilter === "all" ? " active" : ""}`}>
               全部产品<span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({list.length})</span>
             </button>
             {products.map(p => (
-              <button key={p.id} type="button" onClick={() => setProductFilterPersist(p.id)} style={productTabChip(productFilter === p.id)} title={p.name}>
+              <button key={p.id} type="button" onClick={() => setProductFilterPersist(p.id)} className={`ops-chip ops-chip-tab${productFilter === p.id ? " active" : ""}`} title={p.name}>
                 {p.sku || p.name}
                 <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({p.batches.length})</span>
               </button>
@@ -2732,7 +2700,7 @@ function LogisticsPanel({ active = true }) {
         </div>
       )}
       {currentProduct && (
-        <div style={{ background: "var(--card)", border: "1px solid #2d7dd2", borderRadius: 12, padding: "12px 16px", marginBottom: "1rem" }}>
+        <div style={{ background: "var(--card)", border: "1px solid var(--accent)", borderRadius: 12, padding: "12px 16px", marginBottom: "1rem" }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{currentProduct.name}</div>
           <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 4 }}>
             {currentProduct.batches.length} 个发货批次 · 仅显示本产品相关头程
@@ -2743,7 +2711,7 @@ function LogisticsPanel({ active = true }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>
           {tabs.map(f => (
-            <div key={f.key} onClick={() => setFilterPersist(f.key)} style={{ background: "var(--card)", border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer" }}>
+            <div key={f.key} onClick={() => setFilterPersist(f.key)} className={`ops-filter-card${filter === f.key ? " active" : ""}`}>
               <div style={{ fontSize: 18, fontWeight: 700, color: f.nc }}>{counts[f.key]}</div>
               <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 1 }}>{f.label}</div>
             </div>
@@ -2751,14 +2719,14 @@ function LogisticsPanel({ active = true }) {
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
         <input ref={panelCsvRef} type="file" accept=".csv" multiple style={{ display: "none" }} onChange={onPanelCsvImport} />
-        <button type="button" onClick={() => panelCsvRef.current?.click()} style={{ background: "var(--card)", color: "#2d7dd2", border: "1px solid #2d7dd2", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>📥 导入 CSV</button>
-        <button onClick={() => setModal(emptyGroupForProduct())} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>+ 新建批次</button>
+        <button type="button" onClick={() => panelCsvRef.current?.click()} className="ops-btn">导入 CSV</button>
+        <button onClick={() => setModal(emptyGroupForProduct())} className="ops-btn ops-btn-primary">+ 新建批次</button>
         </div>
       </div>
       <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 11, color: "var(--tm)" }}>跟进人</span>
         {owners.map(o => (
-          <button key={o.name} onClick={() => setOwnerFilterPersist(o.name)} style={{ background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)", color: ownerFilter === o.name ? "#fff" : "var(--tm)", border: `1px solid ${ownerFilter === o.name ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <button key={o.name} onClick={() => setOwnerFilterPersist(o.name)} className={`ops-chip${ownerFilter === o.name ? " active" : ""}`}>
             {o.name === "all" ? "全部" : (<>{o.name}{o.role && <RoleBadge role={o.role} style={{ padding: "0 5px", fontSize: 9 }} />}</>)}
           </button>
         ))}
@@ -2776,8 +2744,8 @@ function LogisticsPanel({ active = true }) {
           />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>{currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次"}</div>}
       </div>
-      {modal && <ShipmentModal item={modal} onSave={save} getExistingFbaIds={() => collectFbaIdsFromGroups(list, modal.id)} onClose={() => {
-        if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
+      {modal && <ShipmentModal item={modal} onSave={save} getExistingFbaIds={() => collectFbaIdsFromGroups(list, modal.id)} onClose={async () => {
+        if (!(await opsConfirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？"))) return;
         setModal(null);
       }} onDelete={() => { persist(list.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>

@@ -214,13 +214,15 @@ const cloudSyncRaw = fs.readFileSync(path.join(dir, "GlobalCloudSync.jsx"), "utf
 let cloudSyncBrowser = toBrowser(cloudSyncRaw, { exportName: null })
   .replace(/^export const ALL_CLOUD_KEYS/m, "const ALL_CLOUD_KEYS")
   .replace(/^export function useConfirmLeave/m, "function useConfirmLeave")
+  .replace(/^export function opsConfirm/m, "function opsConfirm")
   .replace(/^export function CloudSyncProvider/m, "function CloudSyncProvider")
   .replace(/^export function useCloudSyncPage/m, "function useCloudSyncPage")
   .replace(/^export function GlobalCloudBar/m, "function GlobalCloudBar");
 cloudSyncBrowser +=
   "\nwindow.CloudSyncProvider = CloudSyncProvider;\n" +
   "window.useCloudSyncPage = useCloudSyncPage;\n" +
-  "window.GlobalCloudBar = GlobalCloudBar;\n";
+  "window.GlobalCloudBar = GlobalCloudBar;\n" +
+  "window.opsConfirm = opsConfirm;\n";
 fs.writeFileSync(path.join(dir, "GlobalCloudSync.browser.jsx"), cloudSyncBrowser);
 
 const app = fs.readFileSync(path.join(dir, "App.jsx"), "utf8");

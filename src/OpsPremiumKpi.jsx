@@ -283,16 +283,20 @@ function PremiumSkuForm({ week, data, skuList, onChange, onSkuListChange }) {
     onChange({ ...data, skuData: { ...skuData, [String(skuIdx)]: row } });
   };
 
-  const addSku = () => {
-    const name = window.prompt("输入SKU名称（如 A001 或 蓝色托特包）");
-    if (!name?.trim()) return;
-    const phase = window.confirm("新品期点确定，成熟期点取消") ? "new" : "mature";
-    const next = [...skuList, { name: name.trim(), phase }];
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  const commitSku = (phase) => {
+    const name = newName.trim();
+    if (!name) return;
+    const next = [...skuList, { name, phase }];
     const idx = next.length - 1;
     const row = {};
     PREMIUM_SKU_DIMS.forEach(d => { row[d] = "g"; });
     onSkuListChange(next);
     onChange({ ...data, skuData: { ...skuData, [String(idx)]: row } });
+    setAdding(false);
+    setNewName("");
   };
 
   const updateSku = (i, patch) => {
@@ -371,10 +375,26 @@ function PremiumSkuForm({ week, data, skuList, onChange, onSkuListChange }) {
           </table>
         </div>
         <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button type="button" onClick={addSku} style={{
-            fontSize: 12, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
-            border: "1px solid var(--border)", background: "var(--card)",
-          }}>+ 添加SKU</button>
+          {adding ? (
+            <>
+              <input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="SKU 名称，如 A001"
+                autoFocus
+                style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: "1px solid var(--border)", fontFamily: "inherit", minWidth: 140 }}
+                onKeyDown={e => { if (e.key === "Escape") { setAdding(false); setNewName(""); } }}
+              />
+              <button type="button" onClick={() => commitSku("new")} className="ops-btn ops-btn-primary ops-btn-sm">新品期</button>
+              <button type="button" onClick={() => commitSku("mature")} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", border: "none", background: "#2d9e52", color: "#fff" }}>成熟期</button>
+              <button type="button" onClick={() => { setAdding(false); setNewName(""); }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--border)", background: "var(--card)", color: "var(--tm)" }}>取消</button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setAdding(true)} style={{
+              fontSize: 12, padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+              border: "1px solid var(--border)", background: "var(--card)",
+            }}>+ 添加SKU</button>
+          )}
           <span style={{ fontSize: 11, color: "var(--tm)" }}>红色异常项需在考核备注中说明处理方案</span>
         </div>
       </div>

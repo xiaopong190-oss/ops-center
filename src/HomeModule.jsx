@@ -528,7 +528,7 @@ function PriorityModal({ initialText, onSave, onClose, requiredHint, required })
 
   const handleSave = () => {
     if (!text.trim()) {
-      setWarn("请先填写今日最优先工作，保存后才能关闭。");
+      setWarn("请先填写内容，或点「稍后再说」。");
       return;
     }
     try {
@@ -559,9 +559,9 @@ function PriorityModal({ initialText, onSave, onClose, requiredHint, required })
         )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
           {canClose && (
-            <button type="button" onClick={tryClose} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
+            <button type="button" onClick={tryClose} className="ops-btn">稍后再说</button>
           )}
-          <button type="button" onClick={handleSave} style={{ background: "#2d7dd2", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "#fff", fontWeight: 600 }}>保存</button>
+          <button type="button" onClick={handleSave} className="ops-btn ops-btn-primary">保存</button>
         </div>
       </div>
     </div>
@@ -586,7 +586,7 @@ export function HomePanel() {
     let cancelled = false;
     const saved = readPriorityForToday(today);
     setPriority(saved);
-    setShowModal(!saved.text.trim());
+    setShowModal(false);
     setPriorityReady(true);
     resolveClientId().then((id) => {
       if (!cancelled && id) setClientId(id);
@@ -659,8 +659,8 @@ export function HomePanel() {
       {priorityReady && showModal && (
         <PriorityModal
           initialText={todayPriority}
-          required={!todayPriority}
-          requiredHint={!todayPriority ? "新的一天，请先写下今天最重要的一件事。填写并保存后才能关闭。" : undefined}
+          required={false}
+          requiredHint="写下今天必须完成的第一件事，也可稍后再填。"
           onSave={handleSavePriority}
           onClose={() => setShowModal(false)}
         />

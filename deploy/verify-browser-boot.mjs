@@ -34,9 +34,9 @@ function stripModuleSyntax(code, index) {
 
 const confirmDeleteHelper =
   "function confirmDeleteWarning(name, typeLabel) {\n" +
-  "  return window.confirm(\n" +
-  "    `⚠️ 警告\\n\\n确定删除${typeLabel}「${name}」吗？\\n\\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`\n" +
-  "  );\n" +
+  "  var msg = \"确定删除\" + typeLabel + \"「\" + name + \"」吗？\\n\\n删除后无法恢复，全员列表里也会去掉。\";\n" +
+  "  if (typeof opsConfirm === \"function\") return opsConfirm(msg);\n" +
+  "  return Promise.resolve(window.confirm(msg));\n" +
   "}\n\n";
 
 let failed = false;

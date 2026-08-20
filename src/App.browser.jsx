@@ -85,8 +85,8 @@ function TaskModal({ task, tasks, onSave, onClose, onDelete }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--border)", paddingTop: 12 }}>
           {task.id ? <button onClick={onDelete} style={{ background: "none", border: "none", color: "#e55", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>删除</button> : <div />}
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={onClose} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
-            <button onClick={() => { if (!form.task.trim()) return; onSave({ ...form, nodes: nodes.filter(n => n.name.trim()) }); }} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>保存</button>
+            <button onClick={onClose} className="ops-btn">取消</button>
+            <button onClick={() => { if (!form.task.trim()) return; onSave({ ...form, nodes: nodes.filter(n => n.name.trim()) }); }} className="ops-btn ops-btn-primary">保存</button>
           </div>
         </div>
       </div>
@@ -126,7 +126,7 @@ function TaskCard({ task, onClick }) {
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
         <span style={badge(cc.bg, cc.c)}>{catLabel}</span>{due}{prog > 0 && prog < 100 && <span style={badge("#f3f4f6", "#666")}>{prog}%</span>}
       </div>
-      {task.block && <div style={{ marginTop: 8, padding: "6px 10px", background: "#fff8e6", color: "#7a4a00", borderRadius: 7, fontSize: 11, lineHeight: 1.5, borderLeft: "3px solid #e09000" }}>⚡ {task.block}</div>}
+      {task.block && <div className="ops-note ops-note-warn" style={{ marginTop: 8 }}>卡点：{task.block}</div>}
     </div>
   );
 }
@@ -162,7 +162,7 @@ function TasksPanel({ active = true }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, flex: 1, marginRight: 12 }}>
-          {tabs.map(f => <div key={f.key} onClick={() => setFilter(f.key)} className={`ops-metric-card ops-card-hover${filter === f.key ? "" : ""}`} style={{ borderColor: filter === f.key ? "#4080FF" : "var(--border)", boxShadow: filter === f.key ? "0 0 0 1px #4080FF" : undefined }}>
+          {tabs.map(f => <div key={f.key} onClick={() => setFilter(f.key)} className={`ops-metric-card ops-card-hover${filter === f.key ? " is-selected" : ""}`}>
             <div className="ops-metric-value" style={{ fontSize: 20, color: f.nc }}>{counts[f.key]}</div>
             <div className="ops-metric-label" style={{ marginTop: 2, marginBottom: 0 }}>{f.label}</div>
           </div>)}
@@ -172,8 +172,8 @@ function TasksPanel({ active = true }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {vis.length ? vis.map(t => <TaskCard key={t.id} task={t} onClick={() => setModal({ ...t, nodes: t.nodes ? t.nodes.map(n => ({ ...n })) : [] })} />) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>暂无任务</div>}
       </div>
-      {modal && <TaskModal task={modal} tasks={tasks} onSave={save} onClose={() => {
-        if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
+      {modal && <TaskModal task={modal} tasks={tasks} onSave={save} onClose={async () => {
+        if (!(await opsConfirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？"))) return;
         setModal(null);
       }} onDelete={() => { persist(tasks.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>
@@ -217,40 +217,9 @@ function BrandLogo({ size = 28 }) {
   );
 }
 
-const SETTINGS_MENU_ITEMS = [{ key: "staff", label: "员工与 M 码" }];
-
-function SettingsMenu({ onSelect }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    window.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); window.removeEventListener("keydown", onKey); };
-  }, [open]);
-  const pick = (key) => { setOpen(false); onSelect(key); };
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" className="ops-btn" onClick={() => setOpen(o => !o)} aria-expanded={open} title="设置">
-        ⚙ 设置 <span style={{ fontSize: 9, opacity: 0.7 }}>▾</span>
-      </button>
-      {open && (
-        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", minWidth: 148, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: 4, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50 }}>
-          {SETTINGS_MENU_ITEMS.map(item => (
-            <button key={item.key} type="button" onClick={() => pick(item.key)} style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", borderRadius: 7, padding: "8px 12px", fontSize: 12, cursor: "pointer", color: "var(--text)", fontFamily: "inherit" }} onMouseEnter={e => e.currentTarget.style.background = "var(--bg)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_BUILD = "cloud-44-local";
+const APP_BUILD = "cloud-46-ui";
+const THEME_KEY = "ops-center-theme";
 const AUTH_SESSION_KEY = "ops-center-auth-v6";
 const AUTH_ROLE_SUPER = "super";
 const AUTH_ROLE_STAFF = "staff";
@@ -277,7 +246,14 @@ function clearAuthSession() {
   clearCurrentUser();
 }
 
-function LoginScreen({ onSuccess }) {
+function readDarkPref() {
+  try { return localStorage.getItem(THEME_KEY) === "dark"; } catch { return false; }
+}
+function writeDarkPref(dark) {
+  try { localStorage.setItem(THEME_KEY, dark ? "dark" : "light"); } catch { /* ignore */ }
+}
+
+function LoginScreen({ onSuccess, dark }) {
   const [password, setPassword] = useState("");
   const [opsName, setOpsName] = useState("");
   const [error, setError] = useState("");
@@ -323,7 +299,7 @@ function LoginScreen({ onSuccess }) {
         onSuccess();
         return;
       }
-      setError("密码错误，请重试");
+      setError("M 码不正确，请重试");
     } catch (err) {
       setError(err?.message || "云端验证失败，请检查网络后重试");
     } finally {
@@ -334,7 +310,7 @@ function LoginScreen({ onSuccess }) {
   const fieldStyle = (bad) => ({ width: "100%", fontSize: 14, padding: "10px 12px", border: `1px solid ${bad ? "#F53F3F" : "var(--border)"}`, borderRadius: 10, fontFamily: "inherit", background: "var(--bg)", color: "inherit" });
 
   return (
-    <div className="ops-login-wrap">
+    <div className={`ops-login-wrap${dark ? " ops-theme-dark" : ""}`}>
       <form onSubmit={submit} className="ops-login-card">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
           <BrandLogo size={36} />
@@ -343,22 +319,23 @@ function LoginScreen({ onSuccess }) {
             <div style={{ fontSize: 12, color: "var(--tm)", marginTop: 2 }}>运营中心</div>
           </div>
         </div>
-        <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 18, lineHeight: 1.55 }}>名单里有名字即可进入。登录后右上角「个人设置」可改密码；修改默认只保存在自己账号，点「保存并上传」才分享。</div>
+        <div style={{ fontSize: 12, color: "var(--tm)", marginBottom: 18, lineHeight: 1.55 }}>选择自己的姓名，输入 M 码。建议用电脑浏览器打开。</div>
         <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>姓名</label>
         <select
           value={opsName}
           onChange={e => { setOpsName(e.target.value); if (error) setError(""); }}
-          style={{ ...fieldStyle(false), marginBottom: 14 }}
+          style={{ ...fieldStyle(false), marginBottom: 6 }}
         >
           <option value="">{loginStaff.length ? "请选择自己的姓名" : "暂无员工名单"}</option>
           {loginStaff.map(e => <option key={e.name} value={e.name}>{e.name}{e.role ? ` · ${e.role}` : ""}</option>)}
         </select>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 14, lineHeight: 1.45 }}>管理员不必选姓名，直接输入超级 M 码即可。</div>
         <label style={{ display: "block", fontSize: 11, color: "var(--tm)", marginBottom: 6, fontWeight: 500 }}>M 码</label>
         <input
           type="password"
           value={password}
           onChange={e => { setPassword(e.target.value); if (error) setError(""); }}
-          placeholder="请输入密码"
+          placeholder="请输入 M 码"
           autoFocus
           style={{ ...fieldStyle(!!error), marginBottom: error ? 8 : 16 }}
         />
@@ -372,14 +349,16 @@ function LoginScreen({ onSuccess }) {
 function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel, onLogout }) {
   const currentUser = useCurrentUser();
   const isSuper = currentUser?.auth === AUTH_ROLE_SUPER || currentUser?.role === AUTH_ROLE_SUPER;
-  const canEdit = isSuper || currentUser?.canEdit !== false;
   const [pwdOpen, setPwdOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const confirmLeave = useConfirmLeave();
-  const trySetTab = (key) => {
+  const trySetTab = async (key) => {
     if (key === tab) return;
-    if (!confirmLeave()) return;
+    if (!(await confirmLeave())) return;
     setTab(key);
+    setNavOpen(false);
   };
+  const showCloudBar = tab !== "home" && tab !== "knowledge" && tab !== "keywords";
   const css = {
     "--bg": dark ? "#0d0d0d" : "#F4F7FE",
     "--card": dark ? "#1a1a1a" : "#FFFFFF",
@@ -388,18 +367,20 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
     "--text": dark ? "#e8e8e8" : "#1B2559",
     "--tm": dark ? "#888" : "#A3AED0",
     "--primary": "#4318FF",
+    "--accent": "#4080FF",
     "--primary-light": dark ? "#1a2a4a" : "#E9E3FF",
     "--shadow-card": dark ? "0 4px 18px rgba(0,0,0,0.35)" : "0 4px 18px rgba(112,144,176,0.12), 0 1px 3px rgba(112,144,176,0.06)",
     "--shadow-md": dark ? "0 8px 24px rgba(0,0,0,0.45)" : "0 8px 24px rgba(112,144,176,0.14)",
   };
   return (
     <div className={`ops-app${dark ? " ops-theme-dark" : " ops-theme-light"}`} style={css}>
-      <aside className="ops-sidebar">
+      {navOpen && <div className="ops-sidebar-backdrop" onClick={() => setNavOpen(false)} />}
+      <aside className={`ops-sidebar${navOpen ? " ops-sidebar-open" : ""}`}>
         <div className="ops-sidebar-brand">
           <BrandLogo size={32} />
           <div>
             <div className="ops-sidebar-brand-text">泓森拓创科技</div>
-            <span className="ops-badge ops-badge-sidebar" style={{ marginTop: 4 }}>{APP_BUILD}</span>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 4 }}>运营中心</div>
           </div>
         </div>
         <nav className="ops-sidebar-nav">
@@ -412,26 +393,29 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
             </div>
           ))}
         </nav>
-        <div className="ops-sidebar-footer">运营中心 · 云端同步</div>
+        <div className="ops-sidebar-footer">
+          <button type="button" className="ops-sidebar-foot-btn" onClick={() => { setPwdOpen(true); setNavOpen(false); }}>个人设置</button>
+          {isSuper && <button type="button" className="ops-sidebar-foot-btn" onClick={() => { setSettingsPanel("staff"); setNavOpen(false); }}>员工与 M 码</button>}
+          {isSuper && <span className="ops-badge ops-badge-sidebar ops-sidebar-build">{APP_BUILD}</span>}
+        </div>
       </aside>
 
       <div className="ops-main">
         <header className="ops-topbar">
-          <div className="ops-topbar-title">{TAB_TITLES[tab] || "运营中心"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <button type="button" className="ops-nav-toggle ops-btn" onClick={() => setNavOpen(v => !v)} aria-label="打开菜单">菜单</button>
+            <div className="ops-topbar-title">{TAB_TITLES[tab] || "运营中心"}</div>
+          </div>
           <div className="ops-topbar-actions">
-            <span style={{ fontSize: 12, color: "var(--tm)", fontWeight: 600, padding: "0 4px" }}>
-              {isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}${canEdit ? " · 可修改" : " · 只读"}`}
-              {currentUser?.autoShare ? " · 自动分享" : " · 仅本账号"}
+            <span className="ops-topbar-user" style={{ fontSize: 12, color: "var(--tm)", fontWeight: 600, padding: "0 4px" }}>
+              {isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}`}
             </span>
-            {isSuper && <SettingsMenu onSelect={key => { if (key === "staff") setSettingsPanel("staff"); }} />}
-            <button type="button" className="ops-btn" onClick={() => setPwdOpen(true)}>个人设置</button>
-            <button type="button" className="ops-btn" onClick={() => setDark(!dark)}>{dark ? "☀ 日间" : "☾ 夜间"}</button>
             <button type="button" className="ops-btn" onClick={onLogout}>退出</button>
           </div>
         </header>
 
         <main className="ops-content" style={{ maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" ? 1280 : 960 }}>
-          <GlobalCloudBar />
+          {showCloudBar && <GlobalCloudBar />}
           <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
           <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
@@ -445,7 +429,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
       </div>
 
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
-      {pwdOpen && <ChangePasswordModal onClose={() => setPwdOpen(false)} onSaved={() => window.dispatchEvent(new CustomEvent("ops-user-prefs-updated"))} />}
+      {pwdOpen && <ChangePasswordModal dark={dark} setDark={setDark} onClose={() => setPwdOpen(false)} onSaved={() => window.dispatchEvent(new CustomEvent("ops-user-prefs-updated"))} />}
     </div>
   );
 }
@@ -454,7 +438,12 @@ function App() {
   const [authed, setAuthed] = useState(readAuthSession);
   const [currentUser, setCurrentUserState] = useState(() => getCurrentUser());
   const [tab, setTab] = useState("home");
-  const [dark, setDark] = useState(false);
+  const [dark, setDarkState] = useState(readDarkPref);
+  const setDark = (next) => {
+    const value = typeof next === "function" ? next(dark) : next;
+    setDarkState(value);
+    writeDarkPref(value);
+  };
   const [settingsPanel, setSettingsPanel] = useState(null);
   useEffect(() => {
     const syncUser = () => setCurrentUserState(getCurrentUser());
@@ -473,7 +462,7 @@ function App() {
     });
   }, []);
   if (!authed) {
-    return <LoginScreen onSuccess={() => { setCurrentUserState(getCurrentUser()); setAuthed(true); }} />;
+    return <LoginScreen dark={dark} onSuccess={() => { setCurrentUserState(getCurrentUser()); setAuthed(true); }} />;
   }
   return (
     <UserContext.Provider value={currentUser}>

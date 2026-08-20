@@ -20,31 +20,6 @@ const PROD_GANTT_SORT_OPTIONS = [
 const PROD_GANTT_FILTER_KEY = "ops-prod-gantt-filters";
 const PROD_GANTT_EXPAND_KEY = "ops-prod-gantt-expanded";
 
-const PROD_GANTT_BTN_PRIMARY = {
-  background: "#2d7dd2",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  padding: "8px 14px",
-  fontSize: 13,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontWeight: 600,
-  flexShrink: 0,
-};
-
-const prodGanttFilterChip = (active) => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--tm)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 20,
-  padding: "4px 12px",
-  fontSize: 11,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap",
-});
-
 function loadProdGanttFilters() {
   try {
     const raw = sessionStorage.getItem(PROD_GANTT_FILTER_KEY);
@@ -601,7 +576,7 @@ export default function ProdGanttCard({ items = [], today: todayProp, productFil
             )}
           </div>
         </div>
-        <button type="button" onClick={() => prodGanttCaptureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试"))} style={PROD_GANTT_BTN_PRIMARY}>📷 截图</button>
+        <button type="button" onClick={() => prodGanttCaptureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试"))} className="ops-btn ops-btn-primary">截图</button>
       </div>
 
       {allProducts.length > 0 && (
@@ -609,9 +584,9 @@ export default function ProdGanttCard({ items = [], today: todayProp, productFil
           {!isProductControlled && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>产品</span>
-              <button type="button" onClick={() => setProduct("all")} style={prodGanttFilterChip(productFilter === "all")}>全部</button>
+              <button type="button" onClick={() => setProduct("all")} className={`ops-chip${productFilter === "all" ? " active" : ""}`}>全部</button>
               {allProducts.map(p => (
-                <button key={p.id} type="button" onClick={() => setProduct(p.id)} style={prodGanttFilterChip(productFilter === p.id)} title={p.name}>
+                <button key={p.id} type="button" onClick={() => setProduct(p.id)} className={`ops-chip${productFilter === p.id ? " active" : ""}`} title={p.name}>
                   {p.sku || p.name}{p.batches?.length > 1 ? ` (${p.batches.length})` : ""}
                 </button>
               ))}
@@ -619,18 +594,18 @@ export default function ProdGanttCard({ items = [], today: todayProp, productFil
           )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>状态</span>
-            <button type="button" onClick={() => setStatus("all")} style={prodGanttFilterChip(statusFilter === "all")}>全部</button>
+            <button type="button" onClick={() => setStatus("all")} className={`ops-chip${statusFilter === "all" ? " active" : ""}`}>全部</button>
             {Object.entries(PROD_GANTT_STATUS).map(([k, v]) => (
-              <button key={k} type="button" onClick={() => setStatus(k)} style={prodGanttFilterChip(statusFilter === k)}>{v.label}</button>
+              <button key={k} type="button" onClick={() => setStatus(k)} className={`ops-chip${statusFilter === k ? " active" : ""}`}>{v.label}</button>
             ))}
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>排序</span>
             {PROD_GANTT_SORT_OPTIONS.map(o => (
-              <button key={o.key} type="button" onClick={() => setSortBy(o.key)} style={prodGanttFilterChip(sortBy === o.key)}>{o.label}</button>
+              <button key={o.key} type="button" onClick={() => setSortBy(o.key)} className={`ops-chip${sortBy === o.key ? " active" : ""}`}>{o.label}</button>
             ))}
             {hasFilters && (
-              <button type="button" onClick={resetFilters} style={{ ...prodGanttFilterChip(false), marginLeft: 4, color: "#2d7dd2", borderColor: "#b8d4f0" }}>清除筛选</button>
+              <button type="button" onClick={resetFilters} className="ops-link" style={{ marginLeft: 4 }}>清除筛选</button>
             )}
           </div>
         </div>
@@ -652,7 +627,7 @@ export default function ProdGanttCard({ items = [], today: todayProp, productFil
         ) : !viewProducts.length ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>
             没有符合筛选条件的产品
-            <button type="button" onClick={resetFilters} style={{ display: "block", margin: "8px auto 0", background: "none", border: "none", color: "#2d7dd2", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>清除筛选</button>
+            <button type="button" onClick={resetFilters} className="ops-link" style={{ display: "block", margin: "8px auto 0" }}>清除筛选</button>
           </div>
         ) : datedBatchCount === 0 ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>当前产品暂无日期数据，请在下方的批次中填写下单日期或预计交期</div>

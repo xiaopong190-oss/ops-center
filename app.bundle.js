@@ -1,6 +1,8 @@
 /* ops-center prebuilt bundle */
 function confirmDeleteWarning(name, typeLabel) {
-  return window.confirm(`⚠️ 警告\n\n确定删除${typeLabel}「${name}」吗？\n\n删除后无法恢复，链接与配置将从本机浏览器中永久移除。`);
+  var msg = "确定删除" + typeLabel + "「" + name + "」吗？\n\n删除后无法恢复，全员列表里也会去掉。";
+  if (typeof opsConfirm === "function") return opsConfirm(msg);
+  return Promise.resolve(window.confirm(msg));
 }
 const {
   useState,
@@ -207,7 +209,7 @@ async function gistFetchAll() {
   const res = await fetch(`${GIST_API}/${getGistId()}`, {
     headers: gistHeaders()
   });
-  if (!res.ok) throw new Error(`Gist 读取失败 HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`云端读取失败，请检查网络后重试`);
   return res.json();
 }
 async function gistReadRecord(key) {
@@ -236,7 +238,7 @@ async function gistWriteRecord(key, payload) {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Gist 保存失败 HTTP ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`);
+    throw new Error(`云端保存失败，请检查网络后重试`);
   }
   return payload;
 }
@@ -289,7 +291,7 @@ const sharedStorage = {
     if (!gistConfigured()) {
       localSet(key, payload);
       window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
-      throw new Error("未配置 GitHub Gist，已暂存本机（请填写 cloud-sync-config.js）");
+      throw new Error("云端未配置，已暂存在本机");
     }
     try {
       await gistWriteRecord(key, payload);
@@ -299,7 +301,7 @@ const sharedStorage = {
     } catch (e) {
       localSet(key, payload);
       window.dispatchEvent(new CustomEvent(`ops-shared-updated:${key}`));
-      throw new Error(`云端保存失败（已暂存本机）：${e?.message || "网络错误"}`);
+      throw new Error(`云端保存失败（已暂存本机），请检查网络后重试`);
     }
   },
   async delete(key) {
@@ -570,11 +572,11 @@ async function updateOwnLoginCode(oldPwd, newPwd) {
   const user = readSessionUser();
   const name = String(user?.name || "").trim();
   if (!name || user?.auth === "super" || user?.role === "super") {
-    throw new Error("请用自己的员工账号登录后再改密码");
+    throw new Error("请用自己的员工账号登录后再改 M 码");
   }
   const nextPwd = String(newPwd || "").trim();
   const prevPwd = String(oldPwd || "").trim();
-  if (nextPwd.length < 4) throw new Error("新密码至少 4 位");
+  if (nextPwd.length < 4) throw new Error("新 M 码至少 4 位");
   await fetchGlobalConfigFromCloud();
   const cfg = loadGlobalConfig();
   if (nextPwd === getSuperPassword(cfg)) throw new Error("不能与超级 M 码相同");
@@ -583,7 +585,7 @@ async function updateOwnLoginCode(oldPwd, newPwd) {
   }));
   const idx = staff.findIndex(e => e.name === name);
   if (idx < 0) throw new Error("当前账号不在云端名单中");
-  if (prevPwd !== getPersonLoginCode(staff[idx], cfg)) throw new Error("当前密码不正确");
+  if (prevPwd !== getPersonLoginCode(staff[idx], cfg)) throw new Error("当前 M 码不正确");
   staff[idx] = {
     ...staff[idx],
     loginCode: nextPwd
@@ -723,7 +725,7 @@ function OwnerField({
         padding: "7px 10px",
         lineHeight: 1.45
       }
-    }, "\u8BF7\u5148\u5728 \u2699 \u8BBE\u7F6E \u2192 \u5168\u5C40\u5458\u5DE5\u540D\u5355 \u4E2D\u6DFB\u52A0\u4EBA\u5458");
+    }, "\u8BF7\u5148\u5728 \u2699 \u8BBE\u7F6E \u2192 \u5458\u5DE5\u4E0E M \u7801 \u4E2D\u6DFB\u52A0\u4EBA\u5458");
   }
   return /*#__PURE__*/React.createElement("select", {
     value: known.has(value) ? value : "",
@@ -982,7 +984,7 @@ function GlobalSettingsModal({
       });
       onSaved && onSaved();
     } catch (e) {
-      setError(e?.message || "保存失败，请检查网络或 Gist 配置");
+      setError(e?.message || "保存失败，请检查网络后重试");
     } finally {
       setSaving(false);
     }
@@ -1047,13 +1049,8 @@ function GlobalSettingsModal({
       marginBottom: 12
     }
   }, metaLine), error && /*#__PURE__*/React.createElement("div", {
+    className: "ops-note ops-note-danger",
     style: {
-      fontSize: 11,
-      color: "#b91c1c",
-      background: "#fee2e2",
-      border: "1px solid #fecaca",
-      borderRadius: 8,
-      padding: "6px 10px",
       marginBottom: 10
     }
   }, error), /*#__PURE__*/React.createElement(StaffListEditor, {
@@ -1123,17 +1120,11 @@ function GlobalSettingsModal({
       marginBottom: 8
     }
   }, "\u5168\u5458 M \u7801\uFF08\u4E91\u7AEF\uFF09"), /*#__PURE__*/React.createElement("div", {
+    className: `ops-note${rows.filter(r => r.name.trim()).length ? " ops-note-ok" : " ops-note-warn"}`,
     style: {
-      fontSize: 11,
-      color: rows.filter(r => r.name.trim()).length ? "#065f46" : "#92400e",
-      background: rows.filter(r => r.name.trim()).length ? "#ecfdf5" : "#fffbeb",
-      border: `1px solid ${rows.filter(r => r.name.trim()).length ? "#6ee7b7" : "#fcd34d"}`,
-      borderRadius: 8,
-      padding: "6px 10px",
-      marginBottom: 10,
-      lineHeight: 1.5
+      marginBottom: 10
     }
-  }, rows.filter(r => r.name.trim()).length ? `名单 ${rows.filter(r => r.name.trim()).length} 人。新员工默认用全员 M 码；员工自己改过的密码不会被覆盖。` : "尚未录入员工，无法登录。"), /*#__PURE__*/React.createElement("div", {
+  }, rows.filter(r => r.name.trim()).length ? `名单 ${rows.filter(r => r.name.trim()).length} 人。新员工默认用全员 M 码；员工自己改过的 M 码不会被覆盖。` : "尚未录入员工，无法登录。"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -1170,35 +1161,19 @@ function GlobalSettingsModal({
     type: "button",
     disabled: saving,
     onClick: onClose,
-    style: {
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "6px 14px",
-      fontSize: 12,
-      cursor: saving ? "wait" : "pointer",
-      fontFamily: "inherit",
-      color: "var(--tm)"
-    }
+    className: "ops-btn"
   }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     disabled: saving,
     onClick: save,
-    style: {
-      background: saving ? "#b8d4f0" : "#2d7dd2",
-      border: "none",
-      borderRadius: 8,
-      padding: "6px 14px",
-      fontSize: 12,
-      cursor: saving ? "wait" : "pointer",
-      fontFamily: "inherit",
-      color: "#fff"
-    }
-  }, saving ? "上传中…" : "☁️ 保存并同步"))));
+    className: "ops-btn ops-btn-primary"
+  }, saving ? "上传中…" : "保存并上传"))));
 }
 function ChangePasswordModal({
   onClose,
-  onSaved
+  onSaved,
+  dark,
+  setDark
 }) {
   const session = readSessionUser() || {};
   const isSuper = session.auth === "super" || session.role === "super";
@@ -1219,11 +1194,11 @@ function ChangePasswordModal({
   const save = async () => {
     if (changingPwd) {
       if (newPwd.trim() !== confirmPwd.trim()) {
-        setError("两次新密码不一致");
+        setError("两次新 M 码不一致");
         return;
       }
       if (newPwd.trim() === oldPwd.trim()) {
-        setError("新密码不能与当前密码相同");
+        setError("新 M 码不能与当前 M 码相同");
         return;
       }
     }
@@ -1288,17 +1263,37 @@ function ChangePasswordModal({
       marginBottom: 12,
       lineHeight: 1.5
     }
-  }, "\u4FEE\u6539\u9ED8\u8BA4\u53EA\u4FDD\u5B58\u5728\u4F60\u7684\u8D26\u53F7\u3002\u8003\u6838\u3001\u63A8\u54C1\u8BA1\u5212\u3001\u701A\u6D77 SKU \u5E93\u7B49\u6709\u81EA\u5DF1\u89C4\u5219\u7684\u5DE5\u5177\u9664\u5916\u3002"), error && /*#__PURE__*/React.createElement("div", {
+  }, "\u6539\u5B8C\u9ED8\u8BA4\u53EA\u4FDD\u5B58\u5728\u4F60\u7684\u8D26\u53F7\uFF0C\u70B9\u4E0A\u4F20\u624D\u7ED9\u540C\u4E8B\u770B\u3002"), error && /*#__PURE__*/React.createElement("div", {
+    className: "ops-note ops-note-danger",
     style: {
-      fontSize: 11,
-      color: "#b91c1c",
-      background: "#fee2e2",
-      border: "1px solid #fecaca",
-      borderRadius: 8,
-      padding: "6px 10px",
       marginBottom: 10
     }
   }, error), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: "var(--tm)",
+      marginBottom: 8
+    }
+  }, "\u5916\u89C2"), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 8,
+      fontSize: 12,
+      color: "var(--text)",
+      marginBottom: 16,
+      cursor: "pointer",
+      lineHeight: 1.45
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!dark,
+    onChange: e => setDark?.(e.target.checked),
+    style: {
+      marginTop: 2
+    }
+  }), /*#__PURE__*/React.createElement("span", null, "\u591C\u95F4\u6A21\u5F0F")), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       fontWeight: 600,
@@ -1323,7 +1318,7 @@ function ChangePasswordModal({
     style: {
       marginTop: 2
     }
-  }), /*#__PURE__*/React.createElement("span", null, "\u6539\u5B8C\u81EA\u52A8\u5206\u4EAB\u7ED9\u5168\u5458\uFF08\u4E0D\u52FE\u9009\u5219\u53EA\u4FDD\u5B58\u5728\u672C\u8D26\u53F7\uFF0C\u70B9\u9876\u90E8\u300C\u4FDD\u5B58\u5E76\u4E0A\u4F20\u300D\u624D\u5206\u4EAB\uFF09")), !isSuper && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("span", null, "\u6539\u5B8C\u81EA\u52A8\u7ED9\u540C\u4E8B\u770B\uFF08\u4E0D\u52FE\u9009\u5219\u53EA\u4FDD\u5B58\u5728\u672C\u8D26\u53F7\uFF0C\u70B9\u300C\u4FDD\u5B58\u5E76\u4E0A\u4F20\u300D\u624D\u5206\u4EAB\uFF09")), !isSuper && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       fontWeight: 600,
@@ -1337,7 +1332,7 @@ function ChangePasswordModal({
       marginBottom: 10,
       lineHeight: 1.5
     }
-  }, "\u4E0D\u6539\u5BC6\u7801\u53EF\u4EE5\u7559\u7A7A\u3002\u6539\u5B8C\u540E\u516C\u53F8\u3001\u5BB6\u91CC\u3001\u4F1A\u8BAE\u5BA4\u90FD\u7528\u65B0\u5BC6\u7801\u3002"), /*#__PURE__*/React.createElement("label", {
+  }, "\u4E0D\u6539\u53EF\u4EE5\u7559\u7A7A\u3002\u6539\u5B8C\u540E\u516C\u53F8\u3001\u5BB6\u91CC\u3001\u4F1A\u8BAE\u5BA4\u90FD\u7528\u65B0 M \u7801\u3002"), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "block",
       fontSize: 11,
@@ -1345,7 +1340,7 @@ function ChangePasswordModal({
       marginBottom: 6,
       fontWeight: 500
     }
-  }, "\u5F53\u524D\u5BC6\u7801"), /*#__PURE__*/React.createElement("input", {
+  }, "\u5F53\u524D M \u7801"), /*#__PURE__*/React.createElement("input", {
     type: "password",
     value: oldPwd,
     onChange: e => {
@@ -1364,7 +1359,7 @@ function ChangePasswordModal({
       marginBottom: 6,
       fontWeight: 500
     }
-  }, "\u65B0\u5BC6\u7801"), /*#__PURE__*/React.createElement("input", {
+  }, "\u65B0 M \u7801"), /*#__PURE__*/React.createElement("input", {
     type: "password",
     value: newPwd,
     onChange: e => {
@@ -1384,7 +1379,7 @@ function ChangePasswordModal({
       marginBottom: 6,
       fontWeight: 500
     }
-  }, "\u786E\u8BA4\u65B0\u5BC6\u7801"), /*#__PURE__*/React.createElement("input", {
+  }, "\u786E\u8BA4\u65B0 M \u7801"), /*#__PURE__*/React.createElement("input", {
     type: "password",
     value: confirmPwd,
     onChange: e => {
@@ -1409,30 +1404,12 @@ function ChangePasswordModal({
     type: "button",
     disabled: saving,
     onClick: onClose,
-    style: {
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "6px 14px",
-      fontSize: 12,
-      cursor: saving ? "wait" : "pointer",
-      fontFamily: "inherit",
-      color: "var(--tm)"
-    }
+    className: "ops-btn"
   }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     disabled: saving,
     onClick: save,
-    style: {
-      background: saving ? "#b8d4f0" : "#2d7dd2",
-      border: "none",
-      borderRadius: 8,
-      padding: "6px 14px",
-      fontSize: 12,
-      cursor: saving ? "wait" : "pointer",
-      fontFamily: "inherit",
-      color: "#fff"
-    }
+    className: "ops-btn ops-btn-primary"
   }, saving ? "保存中…" : "保存"))));
 }
 const PersonalSettingsModal = ChangePasswordModal;
@@ -1881,7 +1858,7 @@ function SharedMetaLine({
   let bg = "#ecfdf5",
     border = "#6ee7b7",
     color = "#065f46";
-  let text = "☁️ 修改默认只保存在本账号 · 点「保存并上传」才分享给全员";
+  let text = "改完只保存在你的账号，点「保存并上传」才给同事看";
   if (loading) {
     bg = "#f3f4f6";
     border = "#d1d5db";
@@ -2032,29 +2009,6 @@ const SORT_OPTIONS = [{
 }];
 const GANTT_FILTER_KEY = "ops-gantt-filters";
 const GANTT_EXPAND_KEY = "ops-gantt-expanded";
-const BTN_PRIMARY = {
-  background: "#2d7dd2",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  padding: "8px 14px",
-  fontSize: 13,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontWeight: 600,
-  flexShrink: 0
-};
-const filterChip = active => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--tm)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 20,
-  padding: "4px 12px",
-  fontSize: 11,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap"
-});
 function loadGanttFilters() {
   try {
     const raw = sessionStorage.getItem(GANTT_FILTER_KEY);
@@ -2907,8 +2861,8 @@ function FBAGanttCard({
   }, "\u7518\u7279\u65F6\u95F4\u8F74 \xB7 \u81EA\u52A8\u540C\u6B65\u4E0B\u65B9\u53D1\u8D27\u6279\u6B21", allProducts.length > 0 && /*#__PURE__*/React.createElement("span", null, " \xB7 ", viewProducts.length, "/", allProducts.length, " \u4E2A\u4EA7\u54C1 \xB7 \u6BCF\u6279\u6B21\u72EC\u7ACB\u4E00\u884C"))), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => captureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试")),
-    style: BTN_PRIMARY
-  }, "\uD83D\uDCF7 \u622A\u56FE")), allProducts.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ops-btn ops-btn-primary"
+  }, "\u622A\u56FE")), allProducts.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -2931,12 +2885,12 @@ function FBAGanttCard({
   }, "\u4EA7\u54C1"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => setProduct("all"),
-    style: filterChip(productFilter === "all")
+    className: `ops-chip${productFilter === "all" ? " active" : ""}`
   }, "\u5168\u90E8"), allProducts.map(p => /*#__PURE__*/React.createElement("button", {
     key: p.id,
     type: "button",
     onClick: () => setProduct(p.id),
-    style: filterChip(productFilter === p.id),
+    className: `ops-chip${productFilter === p.id ? " active" : ""}`,
     title: p.name
   }, p.sku || p.name, p.batches?.length > 1 ? ` (${p.batches.length})` : ""))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2954,12 +2908,12 @@ function FBAGanttCard({
   }, "\u72B6\u6001"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => setStatus("all"),
-    style: filterChip(statusFilter === "all")
+    className: `ops-chip${statusFilter === "all" ? " active" : ""}`
   }, "\u5168\u90E8"), Object.entries(STATUS).map(([k, v]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     type: "button",
     onClick: () => setStatus(k),
-    style: filterChip(statusFilter === k)
+    className: `ops-chip${statusFilter === k ? " active" : ""}`
   }, v.label))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2977,15 +2931,13 @@ function FBAGanttCard({
     key: o.key,
     type: "button",
     onClick: () => setSortBy(o.key),
-    style: filterChip(sortBy === o.key)
+    className: `ops-chip${sortBy === o.key ? " active" : ""}`
   }, o.label)), hasFilters && /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: resetFilters,
+    className: "ops-link",
     style: {
-      ...filterChip(false),
-      marginLeft: 4,
-      color: "#2d7dd2",
-      borderColor: "#b8d4f0"
+      marginLeft: 4
     }
   }, "\u6E05\u9664\u7B5B\u9009"))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3050,15 +3002,10 @@ function FBAGanttCard({
   }, "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u4EA7\u54C1", /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: resetFilters,
+    className: "ops-link",
     style: {
       display: "block",
-      margin: "8px auto 0",
-      background: "none",
-      border: "none",
-      color: "#2d7dd2",
-      fontSize: 12,
-      cursor: "pointer",
-      fontFamily: "inherit"
+      margin: "8px auto 0"
     }
   }, "\u6E05\u9664\u7B5B\u9009")) : datedBatchCount === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3358,18 +3305,6 @@ const formatDuplicateFbaMsg = (dupes, action) => {
 };
 const groupProductKey = g => (g.sku || g.name || `id-${g.id}`).trim();
 const groupMatchesProduct = (g, productFilter) => productFilter === "all" || groupProductKey(g) === productFilter;
-const productTabChip = active => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--text)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 10,
-  padding: "8px 14px",
-  fontSize: 13,
-  fontWeight: active ? 600 : 500,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap"
-});
 const INIT_LOGISTICS = [{
   id: 1,
   name: "FB100绿色第三批",
@@ -3959,16 +3894,7 @@ function FbaRow({
   }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: saveTrack,
-    style: {
-      background: "#2d7dd2",
-      color: "#fff",
-      border: "none",
-      borderRadius: 6,
-      padding: "4px 10px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
+    className: "ops-btn ops-btn-primary ops-btn-sm"
   }, "\u4FDD\u5B58")) : missing ? /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: e => {
@@ -4651,17 +4577,8 @@ function ShipmentModal({
   }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => fileInputRef.current?.click(),
-    style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "4px 10px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#2d7dd2"
-    }
-  }, "\uD83D\uDCE5 \u5BFC\u5165 STA CSV"))), importMsg && /*#__PURE__*/React.createElement("div", {
+    className: "ops-btn ops-btn-sm"
+  }, "\u5BFC\u5165 STA CSV"))), importMsg && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: importMsg.includes("失败") || importMsg.includes("不是") ? "#E24B4A" : "#1a6b35",
@@ -4737,30 +4654,11 @@ function ShipmentModal({
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onClose,
-    style: {
-      background: "transparent",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "8px 16px",
-      fontSize: 12,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "var(--tm)"
-    }
+    className: "ops-btn"
   }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: handleSave,
-    style: {
-      background: "#2d7dd2",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      padding: "8px 20px",
-      fontSize: 13,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600
-    }
+    className: "ops-btn ops-btn-primary"
   }, "\u4FDD\u5B58"))))));
 }
 function LogisticsPanel({
@@ -4863,8 +4761,8 @@ function LogisticsPanel({
     }]);
     setModal(null);
   };
-  const deleteGroup = g => {
-    if (!window.confirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`)) return;
+  const deleteGroup = async g => {
+    if (!(await opsConfirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`))) return;
     persist(list.filter(x => x.id !== g.id), {
       replace: true
     });
@@ -5011,7 +4909,7 @@ function LogisticsPanel({
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => setProductFilterPersist("all"),
-    style: productTabChip(productFilter === "all")
+    className: `ops-chip ops-chip-tab${productFilter === "all" ? " active" : ""}`
   }, "\u5168\u90E8\u4EA7\u54C1", /*#__PURE__*/React.createElement("span", {
     style: {
       marginLeft: 6,
@@ -5022,7 +4920,7 @@ function LogisticsPanel({
     key: p.id,
     type: "button",
     onClick: () => setProductFilterPersist(p.id),
-    style: productTabChip(productFilter === p.id),
+    className: `ops-chip ops-chip-tab${productFilter === p.id ? " active" : ""}`,
     title: p.name
   }, p.sku || p.name, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -5033,7 +4931,7 @@ function LogisticsPanel({
   }, "(", p.batches.length, ")"))))), currentProduct && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--card)",
-      border: "1px solid #2d7dd2",
+      border: "1px solid var(--accent)",
       borderRadius: 12,
       padding: "12px 16px",
       marginBottom: "1rem"
@@ -5073,13 +4971,7 @@ function LogisticsPanel({
   }, tabs.map(f => /*#__PURE__*/React.createElement("div", {
     key: f.key,
     onClick: () => setFilterPersist(f.key),
-    style: {
-      background: "var(--card)",
-      border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`,
-      borderRadius: 10,
-      padding: "9px 10px",
-      cursor: "pointer"
-    }
+    className: `ops-filter-card${filter === f.key ? " active" : ""}`
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 18,
@@ -5110,30 +5002,10 @@ function LogisticsPanel({
   }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => panelCsvRef.current?.click(),
-    style: {
-      background: "var(--card)",
-      color: "#2d7dd2",
-      border: "1px solid #2d7dd2",
-      borderRadius: 8,
-      padding: "8px 14px",
-      fontSize: 13,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600
-    }
-  }, "\uD83D\uDCE5 \u5BFC\u5165 CSV"), /*#__PURE__*/React.createElement("button", {
+    className: "ops-btn"
+  }, "\u5BFC\u5165 CSV"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setModal(emptyGroupForProduct()),
-    style: {
-      background: "#2d7dd2",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      padding: "8px 16px",
-      fontSize: 13,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600
-    }
+    className: "ops-btn ops-btn-primary"
   }, "+ \u65B0\u5EFA\u6279\u6B21"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -5150,19 +5022,7 @@ function LogisticsPanel({
   }, "\u8DDF\u8FDB\u4EBA"), owners.map(o => /*#__PURE__*/React.createElement("button", {
     key: o.name,
     onClick: () => setOwnerFilterPersist(o.name),
-    style: {
-      background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)",
-      color: ownerFilter === o.name ? "#fff" : "var(--tm)",
-      border: `1px solid ${ownerFilter === o.name ? "#2d7dd2" : "var(--border)"}`,
-      borderRadius: 20,
-      padding: "4px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 4
-    }
+    className: `ops-chip${ownerFilter === o.name ? " active" : ""}`
   }, o.name === "all" ? "全部" : /*#__PURE__*/React.createElement(React.Fragment, null, o.name, o.role && /*#__PURE__*/React.createElement(RoleBadge, {
     role: o.role,
     style: {
@@ -5194,8 +5054,8 @@ function LogisticsPanel({
     item: modal,
     onSave: save,
     getExistingFbaIds: () => collectFbaIdsFromGroups(list, modal.id),
-    onClose: () => {
-      if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
+    onClose: async () => {
+      if (!(await opsConfirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？"))) return;
       setModal(null);
     },
     onDelete: () => {
@@ -5275,29 +5135,6 @@ const PROD_GANTT_SORT_OPTIONS = [{
 }];
 const PROD_GANTT_FILTER_KEY = "ops-prod-gantt-filters";
 const PROD_GANTT_EXPAND_KEY = "ops-prod-gantt-expanded";
-const PROD_GANTT_BTN_PRIMARY = {
-  background: "#2d7dd2",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  padding: "8px 14px",
-  fontSize: 13,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontWeight: 600,
-  flexShrink: 0
-};
-const prodGanttFilterChip = active => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--tm)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 20,
-  padding: "4px 12px",
-  fontSize: 11,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap"
-});
 function loadProdGanttFilters() {
   try {
     const raw = sessionStorage.getItem(PROD_GANTT_FILTER_KEY);
@@ -6096,8 +5933,8 @@ function ProdGanttCard({
   }, "\u7518\u7279\u65F6\u95F4\u8F74 \xB7 \u81EA\u52A8\u540C\u6B65\u4E0B\u65B9\u751F\u4EA7\u6279\u6B21", allProducts.length > 0 && /*#__PURE__*/React.createElement("span", null, " \xB7 ", viewProducts.length, "/", allProducts.length, " \u4E2A\u4EA7\u54C1 \xB7 \u6BCF\u6279\u6B21\u72EC\u7ACB\u4E00\u884C"))), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => prodGanttCaptureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试")),
-    style: PROD_GANTT_BTN_PRIMARY
-  }, "\uD83D\uDCF7 \u622A\u56FE")), allProducts.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ops-btn ops-btn-primary"
+  }, "\u622A\u56FE")), allProducts.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -6120,12 +5957,12 @@ function ProdGanttCard({
   }, "\u4EA7\u54C1"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => setProduct("all"),
-    style: prodGanttFilterChip(productFilter === "all")
+    className: `ops-chip${productFilter === "all" ? " active" : ""}`
   }, "\u5168\u90E8"), allProducts.map(p => /*#__PURE__*/React.createElement("button", {
     key: p.id,
     type: "button",
     onClick: () => setProduct(p.id),
-    style: prodGanttFilterChip(productFilter === p.id),
+    className: `ops-chip${productFilter === p.id ? " active" : ""}`,
     title: p.name
   }, p.sku || p.name, p.batches?.length > 1 ? ` (${p.batches.length})` : ""))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6143,12 +5980,12 @@ function ProdGanttCard({
   }, "\u72B6\u6001"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => setStatus("all"),
-    style: prodGanttFilterChip(statusFilter === "all")
+    className: `ops-chip${statusFilter === "all" ? " active" : ""}`
   }, "\u5168\u90E8"), Object.entries(PROD_GANTT_STATUS).map(([k, v]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     type: "button",
     onClick: () => setStatus(k),
-    style: prodGanttFilterChip(statusFilter === k)
+    className: `ops-chip${statusFilter === k ? " active" : ""}`
   }, v.label))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -6166,15 +6003,13 @@ function ProdGanttCard({
     key: o.key,
     type: "button",
     onClick: () => setSortBy(o.key),
-    style: prodGanttFilterChip(sortBy === o.key)
+    className: `ops-chip${sortBy === o.key ? " active" : ""}`
   }, o.label)), hasFilters && /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: resetFilters,
+    className: "ops-link",
     style: {
-      ...prodGanttFilterChip(false),
-      marginLeft: 4,
-      color: "#2d7dd2",
-      borderColor: "#b8d4f0"
+      marginLeft: 4
     }
   }, "\u6E05\u9664\u7B5B\u9009"))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6233,15 +6068,10 @@ function ProdGanttCard({
   }, "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u4EA7\u54C1", /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: resetFilters,
+    className: "ops-link",
     style: {
       display: "block",
-      margin: "8px auto 0",
-      background: "none",
-      border: "none",
-      color: "#2d7dd2",
-      fontSize: 12,
-      cursor: "pointer",
-      fontFamily: "inherit"
+      margin: "8px auto 0"
     }
   }, "\u6E05\u9664\u7B5B\u9009")) : datedBatchCount === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6356,18 +6186,6 @@ function saveProdFilters(filters) {
     sessionStorage.setItem(PROD_FILTER_KEY, JSON.stringify(filters));
   } catch {/* ignore */}
 }
-const prodProductTabChip = active => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--text)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 10,
-  padding: "8px 14px",
-  fontSize: 13,
-  fontWeight: active ? 600 : 500,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap"
-});
 const INIT_PROD = [{
   id: 1,
   product: "FB102",
@@ -6519,11 +6337,8 @@ function ProdExceptionEditor({
     }
   }, "\u5F02\u5E38\u8BB0\u5F55"), excs.map((ex, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
+    className: `ops-note${ex.resolved ? " ops-note-ok" : " ops-note-warn"}`,
     style: {
-      background: ex.resolved ? "#f0faf4" : "#fff8e6",
-      border: `1px solid ${ex.resolved ? "#b7e4c7" : "#ffe0a0"}`,
-      borderRadius: 8,
-      padding: "10px 12px",
       marginBottom: 8
     }
   }, /*#__PURE__*/React.createElement("input", {
@@ -7008,16 +6823,7 @@ function ProdModal({
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onClose,
-    style: {
-      background: "transparent",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "6px 14px",
-      fontSize: 12,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "var(--tm)"
-    }
+    className: "ops-btn"
   }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => {
@@ -7027,17 +6833,7 @@ function ProdModal({
         exceptions: excs
       });
     },
-    style: {
-      background: "#2d7dd2",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      padding: "6px 16px",
-      fontSize: 12,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600
-    }
+    className: "ops-btn ops-btn-primary"
   }, "\u4FDD\u5B58")))));
 }
 function ProdBatchCard({
@@ -7329,6 +7125,7 @@ function ProductionPanel({
   const [supplierFilter, setSupplierFilter] = useState(savedFilters.supplierFilter || "all");
   const [productFilter, setProductFilter] = useState(savedFilters.productFilter || "all");
   const [excOnly, setExcOnly] = useState(!!savedFilters.excOnly);
+  const [showMoreFilters, setShowMoreFilters] = useState(savedFilters.stageFilter && savedFilters.stageFilter !== "all" || savedFilters.ownerFilter && savedFilters.ownerFilter !== "all" || savedFilters.supplierFilter && savedFilters.supplierFilter !== "all" || !!savedFilters.excOnly);
   const products = useMemo(() => productionItemsToGanttProducts(list), [list]);
   const currentProduct = productFilter === "all" ? null : products.find(p => p.id === productFilter) || null;
   useEffect(() => {
@@ -7469,6 +7266,7 @@ function ProductionPanel({
     isDirty: dirty || !!modal,
     dirtyHint: modal ? "生产批次编辑弹窗未保存" : "本账号有未分享的修改"
   });
+  const extraFiltersOn = stageFilter !== "all" || ownerFilter !== "all" || supplierFilter !== "all" || excOnly;
   return /*#__PURE__*/React.createElement("div", null, products.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: "1rem"
@@ -7488,7 +7286,7 @@ function ProductionPanel({
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => setProductFilter("all"),
-    style: prodProductTabChip(productFilter === "all")
+    className: `ops-chip ops-chip-tab${productFilter === "all" ? " active" : ""}`
   }, "\u5168\u90E8\u4EA7\u54C1", /*#__PURE__*/React.createElement("span", {
     style: {
       marginLeft: 6,
@@ -7499,7 +7297,7 @@ function ProductionPanel({
     key: p.id,
     type: "button",
     onClick: () => setProductFilter(p.id),
-    style: prodProductTabChip(productFilter === p.id),
+    className: `ops-chip ops-chip-tab${productFilter === p.id ? " active" : ""}`,
     title: p.name
   }, p.sku || p.name, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -7510,7 +7308,7 @@ function ProductionPanel({
   }, "(", p.batches.length, ")"))))), currentProduct && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--card)",
-      border: "1px solid #2d7dd2",
+      border: "1px solid var(--accent)",
       borderRadius: 12,
       padding: "12px 16px",
       marginBottom: "1rem"
@@ -7550,13 +7348,7 @@ function ProductionPanel({
   }, tabs.map(f => /*#__PURE__*/React.createElement("div", {
     key: f.key,
     onClick: () => setTabFilter(f.key),
-    style: {
-      background: "var(--card)",
-      border: `1px solid ${tabFilter === f.key ? "#2d7dd2" : "var(--border)"}`,
-      borderRadius: 10,
-      padding: "9px 8px",
-      cursor: "pointer"
-    }
+    className: `ops-filter-card${tabFilter === f.key ? " active" : ""}`
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 18,
@@ -7571,19 +7363,19 @@ function ProductionPanel({
     }
   }, f.label)))), /*#__PURE__*/React.createElement("button", {
     onClick: () => setModal(emptyBatchForProduct()),
+    className: "ops-btn ops-btn-primary",
     style: {
-      background: "#2d7dd2",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      padding: "8px 16px",
-      fontSize: 13,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600,
       flexShrink: 0
     }
   }, "+ \u65B0\u5EFA\u6279\u6B21")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: "1rem"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: `ops-chip${showMoreFilters || extraFiltersOn ? " active" : ""}`,
+    onClick: () => setShowMoreFilters(v => !v)
+  }, showMoreFilters ? "收起筛选" : extraFiltersOn ? "更多筛选 · 已筛选" : "更多筛选")), showMoreFilters && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -7613,19 +7405,7 @@ function ProductionPanel({
     key: o.name,
     type: "button",
     onClick: () => setOwnerFilter(o.name),
-    style: {
-      background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)",
-      color: ownerFilter === o.name ? "#fff" : "var(--tm)",
-      border: `1px solid ${ownerFilter === o.name ? "#2d7dd2" : "var(--border)"}`,
-      borderRadius: 20,
-      padding: "4px 10px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 4
-    }
+    className: `ops-chip${ownerFilter === o.name ? " active" : ""}`
   }, o.name === "all" ? "全部" : /*#__PURE__*/React.createElement(React.Fragment, null, o.name, o.role && /*#__PURE__*/React.createElement(RoleBadge, {
     role: o.role,
     style: {
@@ -7642,16 +7422,7 @@ function ProductionPanel({
     key: s,
     type: "button",
     onClick: () => setSupplierFilter(s),
-    style: {
-      background: supplierFilter === s ? "#7a6dd2" : "var(--card)",
-      color: supplierFilter === s ? "#fff" : "var(--tm)",
-      border: `1px solid ${supplierFilter === s ? "#7a6dd2" : "var(--border)"}`,
-      borderRadius: 20,
-      padding: "4px 10px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
+    className: `ops-chip${supplierFilter === s ? " active" : ""}`
   }, s === "all" ? "全部" : s)), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "flex",
@@ -7682,8 +7453,8 @@ function ProductionPanel({
   }, currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次")), modal && /*#__PURE__*/React.createElement(ProdModal, {
     item: modal,
     onSave: save,
-    onClose: () => {
-      if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
+    onClose: async () => {
+      if (!(await opsConfirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？"))) return;
       setModal(null);
     },
     onDelete: () => {
@@ -7959,7 +7730,7 @@ function UnitPicker({
     style: {
       textAlign: "left",
       background: selected === u.id ? "rgba(45,125,210,0.12)" : "transparent",
-      color: selected === u.id ? "#2d7dd2" : "var(--text)",
+      color: selected === u.id ? "var(--accent)" : "var(--text)",
       border: "none",
       borderRadius: 6,
       padding: "7px 10px",
@@ -8036,9 +7807,9 @@ function UnitConverterTool() {
     onClick: () => switchCat(key),
     style: {
       background: cat === key ? "var(--card)" : "transparent",
-      color: cat === key ? "#2d7dd2" : "var(--tm)",
+      color: cat === key ? "var(--accent)" : "var(--tm)",
       border: "none",
-      borderBottom: cat === key ? "2px solid #2d7dd2" : "2px solid transparent",
+      borderBottom: cat === key ? "2px solid var(--accent)" : "2px solid transparent",
       padding: "10px 20px",
       fontSize: 14,
       fontWeight: cat === key ? 600 : 400,
@@ -8089,7 +7860,7 @@ function UnitConverterTool() {
       background: picker === "left" ? "rgba(45,125,210,0.08)" : "var(--card)",
       padding: "10px 14px",
       fontSize: 13,
-      color: picker === "left" ? "#2d7dd2" : "var(--text)",
+      color: picker === "left" ? "var(--accent)" : "var(--text)",
       cursor: "pointer",
       fontFamily: "inherit",
       textAlign: "left",
@@ -8115,7 +7886,7 @@ function UnitConverterTool() {
       height: 44,
       fontSize: 20,
       cursor: "pointer",
-      color: "#2d7dd2",
+      color: "var(--accent)",
       fontFamily: "inherit",
       flexShrink: 0
     }
@@ -8148,7 +7919,7 @@ function UnitConverterTool() {
       background: picker === "right" ? "rgba(45,125,210,0.08)" : "var(--card)",
       padding: "10px 14px",
       fontSize: 13,
-      color: picker === "right" ? "#2d7dd2" : "var(--text)",
+      color: picker === "right" ? "var(--accent)" : "var(--text)",
       cursor: "pointer",
       fontFamily: "inherit",
       textAlign: "left",
@@ -8290,7 +8061,7 @@ function ToolCard({
     },
     style: {
       background: isEditing ? "rgba(45,125,210,0.06)" : "var(--card)",
-      border: isEditing ? "2px solid #2d7dd2" : "1px solid var(--border)",
+      border: isEditing ? "2px solid var(--accent)" : "1px solid var(--border)",
       borderRadius: 12,
       padding: "14px 16px",
       cursor: isEditing ? "default" : "pointer",
@@ -8333,23 +8104,17 @@ function ToolCard({
     }
   }, displayName), /*#__PURE__*/React.createElement("span", {
     style: badge("#f3f4f6", "#666")
-  }, tool.category), tool.runtime === "local" && /*#__PURE__*/React.createElement("span", {
+  }, tool.category), isEditing && /*#__PURE__*/React.createElement("span", {
+    style: badge("#dceeff", "#1a4e8a")
+  }, "\u7F16\u8F91\u4E2D"), !isEditing && tool.runtime === "local" && /*#__PURE__*/React.createElement("span", {
     style: badge("#fce4ec", "#c62828")
-  }, "\u672C\u673A\u5DE5\u5177"), tool.intranetOnly && /*#__PURE__*/React.createElement("span", {
+  }, "\u672C\u673A\u5DE5\u5177"), !isEditing && tool.intranetOnly && /*#__PURE__*/React.createElement("span", {
     style: badge("#fff3e0", "#e65100")
-  }, "\u4EC5\u5185\u7F51"), tool.downloadUrl && !isLocalOpsServer() && /*#__PURE__*/React.createElement("span", {
-    style: badge("#e8eaf6", "#3949ab")
-  }, "\u4E0B\u8F7D"), configurable && /*#__PURE__*/React.createElement("span", {
-    style: badge("#fff3e0", "#e65100")
-  }, "\u53EF\u7F16\u8F91"), href && inline && /*#__PURE__*/React.createElement("span", {
+  }, "\u4EC5\u5185\u7F51"), !isEditing && !tool.runtime && href && inline && /*#__PURE__*/React.createElement("span", {
     style: badge("#e8f5e9", "#2e7d32")
-  }, "\u5185\u5D4C"), href && !inline && !configurable && /*#__PURE__*/React.createElement("span", {
+  }, "\u5185\u5D4C"), !isEditing && !tool.runtime && !tool.intranetOnly && href && !inline && /*#__PURE__*/React.createElement("span", {
     style: badge("#dceeff", "#1a4e8a")
-  }, "\u65B0\u7A97\u53E3"), configurable && !isEditing && /*#__PURE__*/React.createElement("span", {
-    style: badge("#dceeff", "#1a4e8a")
-  }, "\u65B0\u7A97\u53E3"), isEditing && /*#__PURE__*/React.createElement("span", {
-    style: badge("#dceeff", "#1a4e8a")
-  }, "\u7F16\u8F91\u4E2D")), /*#__PURE__*/React.createElement("div", {
+  }, "\u65B0\u7A97\u53E3")), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: "var(--tm)",
@@ -8396,47 +8161,22 @@ function ToolCard({
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onEditSave,
-    style: {
-      background: "#2d7dd2",
-      border: "none",
-      borderRadius: 6,
-      padding: "5px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#fff"
-    }
+    className: "ops-btn ops-btn-primary ops-btn-sm"
   }, "\u4FDD\u5B58"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onEditCancel,
-    style: {
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: 6,
-      padding: "5px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "var(--tm)"
-    }
+    className: "ops-btn ops-btn-sm"
   }, "\u53D6\u6D88"), editUrl.trim() && /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: e => {
       stop(e);
       onEditSaveAndOpen();
     },
+    className: "ops-btn ops-btn-sm",
     style: {
-      marginLeft: "auto",
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: 6,
-      padding: "5px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#2d7dd2"
+      marginLeft: "auto"
     }
-  }, "\u4FDD\u5B58\u5E76\u6253\u5F00 \u2197"))), configurable && !isEditing && /*#__PURE__*/React.createElement("div", {
+  }, "\u4FDD\u5B58\u5E76\u6253\u5F00"))), configurable && !isEditing && /*#__PURE__*/React.createElement("div", {
     role: "button",
     tabIndex: 0,
     title: href ? "点击打开链接" : "点击设置链接",
@@ -8446,7 +8186,7 @@ function ToolCard({
     },
     style: {
       fontSize: 10,
-      color: "#2d7dd2",
+      color: "var(--accent)",
       marginTop: 6,
       padding: "4px 8px",
       borderRadius: 6,
@@ -8472,18 +8212,7 @@ function ToolCard({
       stop(e);
       onStartEdit(tool);
     },
-    style: {
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: 6,
-      width: 28,
-      height: 28,
-      fontSize: 13,
-      cursor: "pointer",
-      color: "#2d7dd2",
-      fontFamily: "inherit",
-      lineHeight: 1
-    }
+    className: "ops-btn ops-btn-sm"
   }, "\u270E"), isOnlineDoc && onDuplicate && /*#__PURE__*/React.createElement("button", {
     type: "button",
     title: "\u590D\u5236\u4E00\u4EFD",
@@ -8687,12 +8416,12 @@ function ToolsPanel({
     setOnlineDocs(prev => [...prev, doc]);
     startEdit(onlineDocToTool(doc));
   };
-  const deleteOnlineDoc = tool => {
+  const deleteOnlineDoc = async tool => {
     if (onlineDocs.length <= 1) {
       window.alert("至少保留一个在线文档");
       return;
     }
-    if (!confirmDeleteWarning(tool.name, "在线文档")) return;
+    if (!(await confirmDeleteWarning(tool.name, "在线文档"))) return;
     if (editingId === tool.id) cancelEdit();
     setOnlineDocs(prev => prev.filter(d => d.id !== tool.id));
   };
@@ -8738,15 +8467,7 @@ function ToolsPanel({
     }, /*#__PURE__*/React.createElement("button", {
       type: "button",
       onClick: () => setInlineTool(null),
-      style: {
-        background: "transparent",
-        border: "none",
-        color: "#2d7dd2",
-        fontSize: 13,
-        cursor: "pointer",
-        fontFamily: "inherit",
-        padding: 0
-      }
+      className: "ops-link"
     }, "\u2190 \u8FD4\u56DE\u5DE5\u5177\u5217\u8868"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 14,
@@ -8778,15 +8499,9 @@ function ToolsPanel({
     return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
       type: "button",
       onClick: () => setActive(null),
+      className: "ops-link",
       style: {
-        background: "transparent",
-        border: "none",
-        color: "#2d7dd2",
-        fontSize: 13,
-        cursor: "pointer",
-        fontFamily: "inherit",
-        marginBottom: "1rem",
-        padding: 0
+        marginBottom: "1rem"
       }
     }, "\u2190 \u8FD4\u56DE\u5DE5\u5177\u5217\u8868"), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -8842,30 +8557,12 @@ function ToolsPanel({
   }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: addOnlineDoc,
-    style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 20,
-      padding: "4px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#2d7dd2"
-    }
+    className: "ops-chip"
   }, "+ \u6DFB\u52A0\u5728\u7EBF\u6587\u6863"), TOOL_CATEGORIES.map(c => /*#__PURE__*/React.createElement("button", {
     key: c,
     type: "button",
     onClick: () => setCat(c),
-    style: {
-      background: cat === c ? "#2d7dd2" : "var(--card)",
-      color: cat === c ? "#fff" : "var(--tm)",
-      border: `1px solid ${cat === c ? "#2d7dd2" : "var(--border)"}`,
-      borderRadius: 20,
-      padding: "4px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
+    className: `ops-chip${cat === c ? " active" : ""}`
   }, c))), list.length ? /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -8985,7 +8682,7 @@ function AgentCard({
     },
     style: {
       background: isEditing ? "rgba(45,125,210,0.06)" : "var(--card)",
-      border: isEditing ? "2px solid #2d7dd2" : "1px solid var(--border)",
+      border: isEditing ? "2px solid var(--accent)" : "1px solid var(--border)",
       borderRadius: 12,
       padding: "14px 16px",
       cursor: isEditing ? "default" : "pointer",
@@ -9090,47 +8787,22 @@ function AgentCard({
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onEditSave,
-    style: {
-      background: "#2d7dd2",
-      border: "none",
-      borderRadius: 6,
-      padding: "5px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#fff"
-    }
+    className: "ops-btn ops-btn-primary ops-btn-sm"
   }, "\u4FDD\u5B58"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onEditCancel,
-    style: {
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: 6,
-      padding: "5px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "var(--tm)"
-    }
+    className: "ops-btn ops-btn-sm"
   }, "\u53D6\u6D88"), editUrl.trim() && /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: e => {
       stop(e);
       onEditSaveAndOpen();
     },
+    className: "ops-btn ops-btn-sm",
     style: {
-      marginLeft: "auto",
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: 6,
-      padding: "5px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#2d7dd2"
+      marginLeft: "auto"
     }
-  }, "\u4FDD\u5B58\u5E76\u6253\u5F00 \u2197"))), !isEditing && /*#__PURE__*/React.createElement("div", {
+  }, "\u4FDD\u5B58\u5E76\u6253\u5F00"))), !isEditing && /*#__PURE__*/React.createElement("div", {
     role: "button",
     tabIndex: 0,
     title: agent.url ? "点击打开链接" : "点击设置链接",
@@ -9140,7 +8812,7 @@ function AgentCard({
     },
     style: {
       fontSize: 10,
-      color: "#2d7dd2",
+      color: "var(--accent)",
       marginTop: 6,
       padding: "4px 8px",
       borderRadius: 6,
@@ -9166,18 +8838,7 @@ function AgentCard({
       stop(e);
       onStartEdit(agent);
     },
-    style: {
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: 6,
-      width: 28,
-      height: 28,
-      fontSize: 13,
-      cursor: "pointer",
-      color: "#2d7dd2",
-      fontFamily: "inherit",
-      lineHeight: 1
-    }
+    className: "ops-btn ops-btn-sm"
   }, "\u270E"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     title: "\u590D\u5236\u4E00\u4EFD",
@@ -9328,8 +8989,8 @@ function AgentsPanel({
     };
     setAgents(prev => [...prev, copy]);
   };
-  const deleteAgent = agent => {
-    if (!confirmDeleteWarning(agent.name, "智能体")) return;
+  const deleteAgent = async agent => {
+    if (!(await confirmDeleteWarning(agent.name, "智能体"))) return;
     if (editingId === agent.id) cancelEdit();
     setAgents(prev => prev.filter(a => a.id !== agent.id));
   };
@@ -9354,6 +9015,12 @@ function AgentsPanel({
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
+      fontSize: 12,
+      color: "var(--tm)",
+      marginBottom: 10
+    }
+  }, "\u8FD9\u91CC\u53EA\u653E ChatGPT GPTs \u548C Gemini Gems \u94FE\u63A5\u3002"), /*#__PURE__*/React.createElement("div", {
+    style: {
       display: "flex",
       gap: 8,
       marginBottom: "1rem",
@@ -9373,31 +9040,12 @@ function AgentsPanel({
   }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: addAgent,
-    style: {
-      background: "#2d7dd2",
-      color: "#fff",
-      border: "none",
-      borderRadius: 20,
-      padding: "4px 14px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600
-    }
+    className: "ops-btn ops-btn-primary ops-btn-sm"
   }, "+ \u6DFB\u52A0\u667A\u80FD\u4F53"), AGENT_CATEGORIES.map(c => /*#__PURE__*/React.createElement("button", {
     key: c,
     type: "button",
     onClick: () => setCat(c),
-    style: {
-      background: cat === c ? "#2d7dd2" : "var(--card)",
-      color: cat === c ? "#fff" : "var(--tm)",
-      border: `1px solid ${cat === c ? "#2d7dd2" : "var(--border)"}`,
-      borderRadius: 20,
-      padding: "4px 12px",
-      fontSize: 11,
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
+    className: `ops-chip${cat === c ? " active" : ""}`
   }, c))), list.length ? /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -9455,13 +9103,21 @@ function EmbedPanel({
   url,
   iframeTitle
 }) {
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   const openExternal = () => {
     window.open(url, "_blank", "noopener,noreferrer");
   };
+  useEffect(() => {
+    setReady(false);
+    setFailed(false);
+    const timer = setTimeout(() => setFailed(true), 10000);
+    return () => clearTimeout(timer);
+  }, [url]);
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "relative",
-      height: "calc(100vh - 120px)",
+      height: "calc(100vh - 88px)",
       display: "flex",
       flexDirection: "column"
     }
@@ -9489,46 +9145,69 @@ function EmbedPanel({
   }, subtitle)), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: openExternal,
-    style: {
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "6px 12px",
-      fontSize: 12,
-      cursor: "pointer",
-      color: "#2d7dd2",
-      fontFamily: "inherit",
-      fontWeight: 500
-    }
-  }, "\u2197 \u65B0\u7A97\u53E3\u6253\u5F00")), /*#__PURE__*/React.createElement("iframe", {
-    src: url,
-    title: iframeTitle,
+    className: "ops-btn"
+  }, "\u65B0\u7A97\u53E3\u6253\u5F00")), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
-      width: "100%",
       minHeight: 0,
+      position: "relative"
+    }
+  }, !ready && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      inset: 0,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 13,
+      color: "var(--tm)",
       border: "1px solid var(--border)",
       borderRadius: 10,
-      background: "#fff"
+      background: "var(--card)",
+      zIndex: 1,
+      flexDirection: "column",
+      gap: 10,
+      padding: 24,
+      textAlign: "center"
     }
-  }));
+  }, failed ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", null, "\u65E0\u6CD5\u5728\u672C\u9875\u5185\u5D4C\u6253\u5F00"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ops-btn ops-btn-primary",
+    onClick: openExternal
+  }, "\u65B0\u7A97\u53E3\u6253\u5F00")) : "正在加载…"), /*#__PURE__*/React.createElement("iframe", {
+    src: url,
+    title: iframeTitle,
+    onLoad: () => {
+      setReady(true);
+      setFailed(false);
+    },
+    onError: () => setFailed(true),
+    style: {
+      width: "100%",
+      height: "100%",
+      border: "1px solid var(--border)",
+      borderRadius: 10,
+      background: "var(--card)",
+      visibility: ready ? "visible" : "hidden"
+    }
+  })));
 }
 function KnowledgePanel({
   active = true
 }) {
   return /*#__PURE__*/React.createElement(EmbedPanel, {
-    title: "\uD83D\uDCDA \u4E9A\u9A6C\u900A\u5356\u5BB6\u77E5\u8BC6\u5E93",
-    subtitle: "Amazon Seller OS \xB7 \u8FD0\u8425\u65B9\u6CD5\u8BBA\u4E0E\u5DE5\u5177\u5408\u96C6\uFF0C\u6301\u7EED\u66F4\u65B0",
+    title: "\u4E9A\u9A6C\u900A\u5356\u5BB6\u77E5\u8BC6\u5E93",
+    subtitle: "\u8FD0\u8425\u65B9\u6CD5\u8BBA\u4E0E\u5DE5\u5177\u5408\u96C6\uFF0C\u6301\u7EED\u66F4\u65B0",
     url: KNOWLEDGE_BASE_URL,
-    iframeTitle: "\u4E9A\u9A6C\u900A\u5356\u5BB6\u77E5\u8BC6\u5E93"
+    iframeTitle: "\u77E5\u8BC6\u5E93"
   });
 }
 function KeywordPanel({
   active = true
 }) {
   return /*#__PURE__*/React.createElement(EmbedPanel, {
-    title: "\uD83D\uDD11 \u5173\u952E\u8BCD\u5E93",
-    subtitle: "Rootline Keyword Dashboard \xB7 ASIN \u5173\u952E\u8BCD\u5206\u6790\u4E0E\u8BCD\u5E93",
+    title: "\u5173\u952E\u8BCD\u5E93",
+    subtitle: "ASIN \u5173\u952E\u8BCD\u5206\u6790\u4E0E\u8BCD\u5E93",
     url: KEYWORD_LIBRARY_URL,
     iframeTitle: "\u5173\u952E\u8BCD\u5E93"
   });
@@ -10243,7 +9922,7 @@ function PriorityModal({
   }, [canClose, onClose]);
   const handleSave = () => {
     if (!text.trim()) {
-      setWarn("请先填写今日最优先工作，保存后才能关闭。");
+      setWarn("请先填写内容，或点「稍后再说」。");
       return;
     }
     try {
@@ -10334,30 +10013,11 @@ function PriorityModal({
   }, canClose && /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: tryClose,
-    style: {
-      background: "var(--bg)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "7px 14px",
-      fontSize: 12,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "var(--tm)"
-    }
-  }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
+    className: "ops-btn"
+  }, "\u7A0D\u540E\u518D\u8BF4"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: handleSave,
-    style: {
-      background: "#2d7dd2",
-      border: "none",
-      borderRadius: 8,
-      padding: "7px 16px",
-      fontSize: 12,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "#fff",
-      fontWeight: 600
-    }
+    className: "ops-btn ops-btn-primary"
   }, "\u4FDD\u5B58"))));
 }
 
@@ -10380,7 +10040,7 @@ function HomePanel() {
     let cancelled = false;
     const saved = readPriorityForToday(today);
     setPriority(saved);
-    setShowModal(!saved.text.trim());
+    setShowModal(false);
     setPriorityReady(true);
     resolveClientId().then(id => {
       if (!cancelled && id) setClientId(id);
@@ -10489,8 +10149,8 @@ function HomePanel() {
     className: "ops-metric-sub"
   }, "\u5C1A\u672A\u8BBE\u5B9A\u4ECA\u65E5\u4F18\u5148\u4E8B\u9879\uFF0C\u70B9\u51FB\u300C\u586B\u5199\u300D\u5F00\u59CB\u3002")), priorityReady && showModal && /*#__PURE__*/React.createElement(PriorityModal, {
     initialText: todayPriority,
-    required: !todayPriority,
-    requiredHint: !todayPriority ? "新的一天，请先写下今天最重要的一件事。填写并保存后才能关闭。" : undefined,
+    required: false,
+    requiredHint: "\u5199\u4E0B\u4ECA\u5929\u5FC5\u987B\u5B8C\u6210\u7684\u7B2C\u4E00\u4EF6\u4E8B\uFF0C\u4E5F\u53EF\u7A0D\u540E\u518D\u586B\u3002",
     onSave: handleSavePriority,
     onClose: () => setShowModal(false)
   }));
@@ -11222,12 +10882,13 @@ function PremiumSkuForm({
       }
     });
   };
-  const addSku = () => {
-    const name = window.prompt("输入SKU名称（如 A001 或 蓝色托特包）");
-    if (!name?.trim()) return;
-    const phase = window.confirm("新品期点确定，成熟期点取消") ? "new" : "mature";
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const commitSku = phase => {
+    const name = newName.trim();
+    if (!name) return;
     const next = [...skuList, {
-      name: name.trim(),
+      name,
       phase
     }];
     const idx = next.length - 1;
@@ -11243,6 +10904,8 @@ function PremiumSkuForm({
         [String(idx)]: row
       }
     });
+    setAdding(false);
+    setNewName("");
   };
   const updateSku = (i, patch) => {
     const next = skuList.map((s, j) => j === i ? {
@@ -11428,9 +11091,61 @@ function PremiumSkuForm({
       alignItems: "center",
       flexWrap: "wrap"
     }
-  }, /*#__PURE__*/React.createElement("button", {
+  }, adding ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
+    value: newName,
+    onChange: e => setNewName(e.target.value),
+    placeholder: "SKU \u540D\u79F0\uFF0C\u5982 A001",
+    autoFocus: true,
+    style: {
+      fontSize: 12,
+      padding: "5px 8px",
+      borderRadius: 6,
+      border: "1px solid var(--border)",
+      fontFamily: "inherit",
+      minWidth: 140
+    },
+    onKeyDown: e => {
+      if (e.key === "Escape") {
+        setAdding(false);
+        setNewName("");
+      }
+    }
+  }), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    onClick: addSku,
+    onClick: () => commitSku("new"),
+    className: "ops-btn ops-btn-primary ops-btn-sm"
+  }, "\u65B0\u54C1\u671F"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => commitSku("mature"),
+    style: {
+      fontSize: 12,
+      padding: "5px 12px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      border: "none",
+      background: "#2d9e52",
+      color: "#fff"
+    }
+  }, "\u6210\u719F\u671F"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      setAdding(false);
+      setNewName("");
+    },
+    style: {
+      fontSize: 12,
+      padding: "5px 12px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      border: "1px solid var(--border)",
+      background: "var(--card)",
+      color: "var(--tm)"
+    }
+  }, "\u53D6\u6D88")) : /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setAdding(true),
     style: {
       fontSize: 12,
       padding: "5px 12px",
@@ -11703,6 +11418,28 @@ function OpsPremiumPanel({
 }
 const WEEKS = [1, 2, 3, 4];
 const KPI_STORAGE_KEY = "kpi-monthly";
+function kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek) {
+  return `kpi-draft:${year}|${month}|${curRole}|${curOpsSub}|${person}|${curWeek}`;
+}
+function readKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest" || !person) return null;
+  try {
+    return privateStorage.get(u.id, kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek));
+  } catch {
+    return null;
+  }
+}
+function writeKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek, payload) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest" || !person) return;
+  privateStorage.set(u.id, kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek), payload);
+}
+function clearKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest" || !person) return;
+  privateStorage.delete(u.id, kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek));
+}
 const emptyOpsWeek = () => ({
   wstyle: "",
   nsku: "",
@@ -15029,6 +14766,7 @@ function KpiPanel({
     }
     return weekDirty;
   }, [person, curRole, curWeek, year, month, effectiveRole]);
+  const skipLocalWriteRef = useRef(false);
   useEffect(() => {
     const loadKey = `${year}|${month}|${curRole}|${curOpsSub}|${person}|${curWeek}`;
     const contextChanged = draftLoadKeyRef.current !== loadKey;
@@ -15038,6 +14776,19 @@ function KpiPanel({
       setSkuListDraft([]);
       setMonthTargetsDraft(emptyDevMonthTargets());
       return;
+    }
+    if (contextChanged) {
+      const local = readKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek);
+      if (local?.draft || local?.monthTargetsDraft || local?.skuListDraft) {
+        skipLocalWriteRef.current = true;
+        if (local.draft) setDraft(local.draft);
+        if (local.skuListDraft) setSkuListDraft(local.skuListDraft);
+        if (local.monthTargetsDraft) setMonthTargetsDraft(local.monthTargetsDraft);
+        queueMicrotask(() => {
+          skipLocalWriteRef.current = false;
+        });
+        return;
+      }
     }
     if (curRole === "dev" && curWeek === 0) {
       if (contextChanged || !isDraftDirtyFor(items)) {
@@ -15060,6 +14811,18 @@ function KpiPanel({
       setSkuListDraft(getPremiumSkuList(items, year, month, person));
     }
   }, [items, year, month, curRole, curOpsSub, effectiveRole, person, curWeek, isDraftDirtyFor]);
+  useEffect(() => {
+    if (skipLocalWriteRef.current || !person) return;
+    const timer = setTimeout(() => {
+      writeKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek, {
+        draft,
+        skuListDraft,
+        monthTargetsDraft,
+        savedAt: Date.now()
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [draft, skuListDraft, monthTargetsDraft, year, month, curRole, curOpsSub, person, curWeek]);
   const weekDone = useMemo(() => {
     if (!person) return {};
     const out = {};
@@ -15103,9 +14866,12 @@ function KpiPanel({
       }
       return next;
     });
-    if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    if (ok) {
+      clearKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek);
+      showToast(`第${curWeek}周已保存并上传 ✓`);
+    } else showToast("上传失败，请检查网络后重试", false);
     return ok;
-  }, [person, year, month, effectiveRole, curWeek, persistMerge]);
+  }, [person, year, month, effectiveRole, curRole, curOpsSub, curWeek, persistMerge]);
   const upsertMonthTargets = useCallback(async targets => {
     if (!person || curRole !== "dev") return false;
     const patch = {
@@ -15116,9 +14882,12 @@ function KpiPanel({
       monthTargets: targets
     };
     const ok = await persistMerge(latest => upsertKpiRecord(latest, patch));
-    if (ok) showToast("月目标已保存并上传云端 ✓");else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    if (ok) {
+      clearKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek);
+      showToast("月目标已保存并上传 ✓");
+    } else showToast("上传失败，请检查网络后重试", false);
     return ok;
-  }, [person, year, month, curRole, persistMerge]);
+  }, [person, year, month, curRole, curOpsSub, curWeek, persistMerge]);
   const saveCurrentToCloud = useCallback(async () => {
     if (!person) return "请先选择人员";
     if (curWeek === 0) {
@@ -15151,8 +14920,8 @@ function KpiPanel({
     saving,
     error,
     isDirty: kpiDirty,
-    dirtyHint: curRole === "dev" && curWeek === 0 ? "开发月目标未上传" : `考核第${curWeek}周数据未上传`,
-    barHint: "考核按人员/周次填写，点「保存并上传」写入云端（考核自己的规则）"
+    dirtyHint: "考核已暂存在本账号，尚未给全员",
+    barHint: "考核填写会先记在本账号，点「保存并上传」后全员可见"
   });
   const clearWeek = () => {
     setDraft(emptyWeekForRole(effectiveRole));
@@ -15301,7 +15070,7 @@ function KpiPanel({
       fontSize: 12,
       color: "#e09000"
     }
-  }, "\u6682\u65E0", roleLabel, "\u4EBA\u5458 \xB7 \u8BF7\u5728 \u2699 \u8BBE\u7F6E \u2192 \u5168\u5C40\u5458\u5DE5\u540D\u5355 \u4E2D\u6DFB\u52A0\uFF08\u89D2\u8272\u9009\u300C", roleLabel, "\u300D\uFF09"), person && /*#__PURE__*/React.createElement(RoleBadge, {
+  }, "\u6682\u65E0", roleLabel, "\u4EBA\u5458 \xB7 \u8BF7\u5728 \u2699 \u8BBE\u7F6E \u2192 \u5458\u5DE5\u4E0E M \u7801 \u4E2D\u6DFB\u52A0\uFF08\u89D2\u8272\u9009\u300C", roleLabel, "\u300D\uFF09"), person && /*#__PURE__*/React.createElement(RoleBadge, {
     role: roleLabel
   }), person && /*#__PURE__*/React.createElement("span", {
     style: {
@@ -15433,11 +15202,11 @@ function CloudSyncProvider({
     setToast(msg);
     setTimeout(() => setToast(""), ms);
   }, []);
-  const confirmLeaveIfDirty = useCallback(() => {
+  const confirmLeaveIfDirty = useCallback(async () => {
     const h = handlerRef.current;
     if (!h?.isDirty) return true;
     const hint = h.dirtyHint || LEAVE_MSG;
-    return window.confirm(hint.endsWith("？") ? hint : `${hint}，确定离开吗？`);
+    return opsConfirm(hint.endsWith("？") ? hint : `${hint}，确定离开吗？`);
   }, []);
   useEffect(() => {
     const onBeforeUnload = e => {
@@ -15451,7 +15220,7 @@ function CloudSyncProvider({
   }, []);
   const reloadAllCloud = useCallback(async () => {
     const h = handlerRef.current;
-    if (h?.isDirty && !window.confirm("从云端更新会用全员数据覆盖本账号未上传的修改，确定继续？")) return;
+    if (h?.isDirty && !(await opsConfirm("从云端更新会用全员数据覆盖本账号未上传的修改，确定继续？"))) return;
     setBusy(true);
     try {
       await h?.reload?.({
@@ -15485,7 +15254,7 @@ function CloudSyncProvider({
     setBusy(true);
     try {
       const ok = await h.save();
-      if (ok === false) showToast("上传失败，请检查网络或 Gist 配置", 3200);else if (typeof ok === "string") showToast(ok);else showToast("已分享给全员 ✓");
+      if (ok === false) showToast("上传失败，请检查网络后重试", 3200);else if (typeof ok === "string") showToast(ok);else showToast("已分享给全员 ✓");
     } catch (e) {
       showToast(e?.message || "上传失败", 3200);
     } finally {
@@ -15504,20 +15273,68 @@ function CloudSyncProvider({
       reloadAllCloud,
       busy
     }
-  }, children, toast && /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "fixed",
-      bottom: 20,
-      right: 20,
-      zIndex: 200,
-      background: toast.includes("失败") ? "#fee2e2" : "#d4f0dc",
-      border: `1px solid ${toast.includes("失败") ? "#fecaca" : "#86efac"}`,
-      color: toast.includes("失败") ? "#e55" : "#2d9e52",
-      padding: "9px 16px",
-      borderRadius: 8,
-      fontSize: 12
-    }
+  }, children, /*#__PURE__*/React.createElement(ConfirmHost, null), toast && /*#__PURE__*/React.createElement("div", {
+    className: `ops-toast${toast.includes("失败") ? " ops-toast-err" : " ops-toast-ok"}`
   }, toast));
+}
+function ConfirmHost() {
+  const [req, setReq] = useState(null);
+  useEffect(() => {
+    window.__opsConfirm = message => new Promise(resolve => {
+      setReq({
+        message: String(message || "确定？"),
+        resolve
+      });
+    });
+    return () => {
+      delete window.__opsConfirm;
+    };
+  }, []);
+  if (!req) return null;
+  const close = ok => {
+    req.resolve(ok);
+    setReq(null);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "ops-modal-backdrop",
+    onClick: () => close(false)
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ops-confirm-card",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 600,
+      fontSize: 15,
+      marginBottom: 10
+    }
+  }, "\u8BF7\u786E\u8BA4"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      lineHeight: 1.55,
+      whiteSpace: "pre-wrap",
+      marginBottom: 16
+    }
+  }, req.message), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ops-btn",
+    onClick: () => close(false)
+  }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ops-btn ops-btn-primary",
+    onClick: () => close(true)
+  }, "\u786E\u5B9A"))));
+}
+function opsConfirm(message) {
+  if (typeof window !== "undefined" && typeof window.__opsConfirm === "function") {
+    return window.__opsConfirm(message);
+  }
+  return Promise.resolve(window.confirm(String(message || "确定？")));
 }
 function useCloudSyncPage(active, handlers) {
   const ctx = useContext(CloudSyncContext);
@@ -15578,46 +15395,30 @@ function GlobalCloudBar() {
   const loading = busy || handler?.loading;
   const saving = busy || handler?.saving;
   const error = handler?.error;
-  const pollMin = CLOUD_POLL_MS > 0 ? Math.round(CLOUD_POLL_MS / 60000) : 0;
-  let bg = "#ecfdf5",
-    border = "#6ee7b7",
-    color = "#065f46";
-  let text = handler?.barHint || (userWantsAutoShare() ? "☁️ 已开启自动分享：改完会立刻给全员" : pollMin > 0 ? `☁️ 修改默认只保存在本账号，点「保存并上传」才分享给全员 · 可见时每 ${pollMin} 分钟拉取全员数据` : "☁️ 修改默认只保存在本账号，点「保存并上传」才分享给全员");
+  let tone = "ok";
+  let text = handler?.barHint || (userWantsAutoShare() ? "已开启自动分享：改完会立刻给同事看" : "改完只保存在你的账号，点「保存并上传」才给同事看");
   if (handler?.isDirty) {
-    bg = "#fffbeb";
-    border = "#fcd34d";
-    color = "#92400e";
-    text = `⚠️ ${handler.dirtyHint || "本账号有未分享的修改"} · 点「保存并上传」后全员可见`;
+    tone = "warn";
+    text = `${handler.dirtyHint || "有还没给同事看的修改"} · 点「保存并上传」`;
   } else if (loading && !saving) {
-    bg = "#f3f4f6";
-    border = "#d1d5db";
-    color = "#4b5563";
-    text = "⏳ 正在从云端加载…";
+    tone = "muted";
+    text = "正在从云端加载…";
   } else if (saving) {
-    bg = "#eef6ff";
-    border = "#b8d4f0";
-    color = "#1a4e8a";
-    text = "⏳ 正在保存…";
+    tone = "info";
+    text = "正在保存…";
   } else if (error) {
-    bg = "#fee2e2";
-    border = "#fca5a5";
-    color = "#991b1b";
-    text = `❌ ${error} · 已暂存本机，请重试上传`;
+    tone = "danger";
+    text = `${error} · 已暂存本机，请重试上传`;
   } else if (handler?.barHint) {
     text = handler.barHint;
   } else if (handler?.meta?.updatedBy) {
     const who = handler.meta.updatedBy;
     const when = formatSharedTime(handler.meta.updatedAt);
     const page = handler.label ? `（${handler.label}）` : "";
-    text = pollMin > 0 ? `☁️ 全员数据最后由 ${who} 更新于 ${when}${page} · ${userWantsAutoShare() ? "已开启自动分享" : "本账号修改需点上传才分享"}` : `☁️ 全员数据最后由 ${who} 更新于 ${when}${page} · ${userWantsAutoShare() ? "已开启自动分享" : "本账号修改需点上传才分享"}`;
+    text = `全员数据最后由 ${who} 更新于 ${when}${page} · ${userWantsAutoShare() ? "已开启自动分享" : "点上传才给同事看"}`;
   }
   return /*#__PURE__*/React.createElement("div", {
-    className: "ops-cloud-bar",
-    style: {
-      color,
-      background: bg,
-      border: `1px solid ${border}`
-    }
+    className: `ops-cloud-bar ops-cloud-bar-${tone}`
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       flex: 1,
@@ -15635,25 +15436,22 @@ function GlobalCloudBar() {
     onClick: onSave,
     className: "ops-btn ops-btn-primary",
     style: {
-      opacity: loading || saving ? 0.85 : 1,
-      cursor: loading || saving ? "wait" : "pointer",
       minWidth: 108
     }
-  }, saving ? "上传中…" : "☁️ 保存并上传"), /*#__PURE__*/React.createElement("button", {
+  }, saving ? "上传中…" : "保存并上传"), /*#__PURE__*/React.createElement("button", {
     type: "button",
     disabled: loading || saving,
     onClick: onReload,
     className: "ops-btn",
     style: {
-      opacity: loading || saving ? 0.75 : 1,
-      cursor: loading || saving ? "wait" : "pointer",
       minWidth: 88
     }
-  }, loading ? "更新中…" : "↻ 从云端更新")));
+  }, loading ? "更新中…" : "从云端更新")));
 }
 window.CloudSyncProvider = CloudSyncProvider;
 window.useCloudSyncPage = useCloudSyncPage;
 window.GlobalCloudBar = GlobalCloudBar;
+window.opsConfirm = opsConfirm;
 
 // LogisticsModule.browser.jsx loads storage + GlobalConfig first.
 
@@ -16076,16 +15874,7 @@ function TaskModal({
     }
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    style: {
-      background: "transparent",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      padding: "6px 14px",
-      fontSize: 12,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      color: "var(--tm)"
-    }
+    className: "ops-btn"
   }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       if (!form.task.trim()) return;
@@ -16094,17 +15883,7 @@ function TaskModal({
         nodes: nodes.filter(n => n.name.trim())
       });
     },
-    style: {
-      background: "#2d7dd2",
-      color: "#fff",
-      border: "none",
-      borderRadius: 8,
-      padding: "6px 16px",
-      fontSize: 12,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      fontWeight: 600
-    }
+    className: "ops-btn ops-btn-primary"
   }, "\u4FDD\u5B58")))));
 }
 function TaskCard({
@@ -16236,17 +16015,11 @@ function TaskCard({
   }, catLabel), due, prog > 0 && prog < 100 && /*#__PURE__*/React.createElement("span", {
     style: badge("#f3f4f6", "#666")
   }, prog, "%")), task.block && /*#__PURE__*/React.createElement("div", {
+    className: "ops-note ops-note-warn",
     style: {
-      marginTop: 8,
-      padding: "6px 10px",
-      background: "#fff8e6",
-      color: "#7a4a00",
-      borderRadius: 7,
-      fontSize: 11,
-      lineHeight: 1.5,
-      borderLeft: "3px solid #e09000"
+      marginTop: 8
     }
-  }, "\u26A1 ", task.block));
+  }, "\u5361\u70B9\uFF1A", task.block));
 }
 function TasksPanel({
   active = true
@@ -16344,11 +16117,7 @@ function TasksPanel({
   }, tabs.map(f => /*#__PURE__*/React.createElement("div", {
     key: f.key,
     onClick: () => setFilter(f.key),
-    className: `ops-metric-card ops-card-hover${filter === f.key ? "" : ""}`,
-    style: {
-      borderColor: filter === f.key ? "#4080FF" : "var(--border)",
-      boxShadow: filter === f.key ? "0 0 0 1px #4080FF" : undefined
-    }
+    className: `ops-metric-card ops-card-hover${filter === f.key ? " is-selected" : ""}`
   }, /*#__PURE__*/React.createElement("div", {
     className: "ops-metric-value",
     style: {
@@ -16401,8 +16170,8 @@ function TasksPanel({
     task: modal,
     tasks: tasks,
     onSave: save,
-    onClose: () => {
-      if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
+    onClose: async () => {
+      if (!(await opsConfirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？"))) return;
       setModal(null);
     },
     onDelete: () => {
@@ -16584,86 +16353,9 @@ function BrandLogo({
     fontFamily: "'PingFang SC','Microsoft YaHei',system-ui,sans-serif"
   }, "H"));
 }
-const SETTINGS_MENU_ITEMS = [{
-  key: "staff",
-  label: "员工与 M 码"
-}];
-function SettingsMenu({
-  onSelect
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = e => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    const onKey = e => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-  const pick = key => {
-    setOpen(false);
-    onSelect(key);
-  };
-  return /*#__PURE__*/React.createElement("div", {
-    ref: ref,
-    style: {
-      position: "relative"
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "ops-btn",
-    onClick: () => setOpen(o => !o),
-    "aria-expanded": open,
-    title: "\u8BBE\u7F6E"
-  }, "\u2699 \u8BBE\u7F6E ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      opacity: 0.7
-    }
-  }, "\u25BE")), open && /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "absolute",
-      right: 0,
-      top: "calc(100% + 4px)",
-      minWidth: 148,
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderRadius: 10,
-      padding: 4,
-      boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-      zIndex: 50
-    }
-  }, SETTINGS_MENU_ITEMS.map(item => /*#__PURE__*/React.createElement("button", {
-    key: item.key,
-    type: "button",
-    onClick: () => pick(item.key),
-    style: {
-      display: "block",
-      width: "100%",
-      textAlign: "left",
-      background: "transparent",
-      border: "none",
-      borderRadius: 7,
-      padding: "8px 12px",
-      fontSize: 12,
-      cursor: "pointer",
-      color: "var(--text)",
-      fontFamily: "inherit"
-    },
-    onMouseEnter: e => e.currentTarget.style.background = "var(--bg)",
-    onMouseLeave: e => e.currentTarget.style.background = "transparent"
-  }, item.label))));
-}
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_BUILD = "cloud-44-local";
+const APP_BUILD = "cloud-46-ui";
+const THEME_KEY = "ops-center-theme";
 const AUTH_SESSION_KEY = "ops-center-auth-v6";
 const AUTH_ROLE_SUPER = "super";
 const AUTH_ROLE_STAFF = "staff";
@@ -16690,8 +16382,21 @@ function clearAuthSession() {
   } catch {/* ignore */}
   clearCurrentUser();
 }
+function readDarkPref() {
+  try {
+    return localStorage.getItem(THEME_KEY) === "dark";
+  } catch {
+    return false;
+  }
+}
+function writeDarkPref(dark) {
+  try {
+    localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
+  } catch {/* ignore */}
+}
 function LoginScreen({
-  onSuccess
+  onSuccess,
+  dark
 }) {
   const [password, setPassword] = useState("");
   const [opsName, setOpsName] = useState("");
@@ -16743,7 +16448,7 @@ function LoginScreen({
         onSuccess();
         return;
       }
-      setError("密码错误，请重试");
+      setError("M 码不正确，请重试");
     } catch (err) {
       setError(err?.message || "云端验证失败，请检查网络后重试");
     } finally {
@@ -16761,7 +16466,7 @@ function LoginScreen({
     color: "inherit"
   });
   return /*#__PURE__*/React.createElement("div", {
-    className: "ops-login-wrap"
+    className: `ops-login-wrap${dark ? " ops-theme-dark" : ""}`
   }, /*#__PURE__*/React.createElement("form", {
     onSubmit: submit,
     className: "ops-login-card"
@@ -16792,7 +16497,7 @@ function LoginScreen({
       marginBottom: 18,
       lineHeight: 1.55
     }
-  }, "\u540D\u5355\u91CC\u6709\u540D\u5B57\u5373\u53EF\u8FDB\u5165\u3002\u767B\u5F55\u540E\u53F3\u4E0A\u89D2\u300C\u4E2A\u4EBA\u8BBE\u7F6E\u300D\u53EF\u6539\u5BC6\u7801\uFF1B\u4FEE\u6539\u9ED8\u8BA4\u53EA\u4FDD\u5B58\u5728\u81EA\u5DF1\u8D26\u53F7\uFF0C\u70B9\u300C\u4FDD\u5B58\u5E76\u4E0A\u4F20\u300D\u624D\u5206\u4EAB\u3002"), /*#__PURE__*/React.createElement("label", {
+  }, "\u9009\u62E9\u81EA\u5DF1\u7684\u59D3\u540D\uFF0C\u8F93\u5165 M \u7801\u3002\u5EFA\u8BAE\u7528\u7535\u8111\u6D4F\u89C8\u5668\u6253\u5F00\u3002"), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "block",
       fontSize: 11,
@@ -16808,14 +16513,21 @@ function LoginScreen({
     },
     style: {
       ...fieldStyle(false),
-      marginBottom: 14
+      marginBottom: 6
     }
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
   }, loginStaff.length ? "请选择自己的姓名" : "暂无员工名单"), loginStaff.map(e => /*#__PURE__*/React.createElement("option", {
     key: e.name,
     value: e.name
-  }, e.name, e.role ? ` · ${e.role}` : ""))), /*#__PURE__*/React.createElement("label", {
+  }, e.name, e.role ? ` · ${e.role}` : ""))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--tm)",
+      marginBottom: 14,
+      lineHeight: 1.45
+    }
+  }, "\u7BA1\u7406\u5458\u4E0D\u5FC5\u9009\u59D3\u540D\uFF0C\u76F4\u63A5\u8F93\u5165\u8D85\u7EA7 M \u7801\u5373\u53EF\u3002"), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "block",
       fontSize: 11,
@@ -16830,7 +16542,7 @@ function LoginScreen({
       setPassword(e.target.value);
       if (error) setError("");
     },
-    placeholder: "\u8BF7\u8F93\u5165\u5BC6\u7801",
+    placeholder: "\u8BF7\u8F93\u5165 M \u7801",
     autoFocus: true,
     style: {
       ...fieldStyle(!!error),
@@ -16865,14 +16577,16 @@ function AppShell({
 }) {
   const currentUser = useCurrentUser();
   const isSuper = currentUser?.auth === AUTH_ROLE_SUPER || currentUser?.role === AUTH_ROLE_SUPER;
-  const canEdit = isSuper || currentUser?.canEdit !== false;
   const [pwdOpen, setPwdOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const confirmLeave = useConfirmLeave();
-  const trySetTab = key => {
+  const trySetTab = async key => {
     if (key === tab) return;
-    if (!confirmLeave()) return;
+    if (!(await confirmLeave())) return;
     setTab(key);
+    setNavOpen(false);
   };
+  const showCloudBar = tab !== "home" && tab !== "knowledge" && tab !== "keywords";
   const css = {
     "--bg": dark ? "#0d0d0d" : "#F4F7FE",
     "--card": dark ? "#1a1a1a" : "#FFFFFF",
@@ -16881,6 +16595,7 @@ function AppShell({
     "--text": dark ? "#e8e8e8" : "#1B2559",
     "--tm": dark ? "#888" : "#A3AED0",
     "--primary": "#4318FF",
+    "--accent": "#4080FF",
     "--primary-light": dark ? "#1a2a4a" : "#E9E3FF",
     "--shadow-card": dark ? "0 4px 18px rgba(0,0,0,0.35)" : "0 4px 18px rgba(112,144,176,0.12), 0 1px 3px rgba(112,144,176,0.06)",
     "--shadow-md": dark ? "0 8px 24px rgba(0,0,0,0.45)" : "0 8px 24px rgba(112,144,176,0.14)"
@@ -16888,20 +16603,24 @@ function AppShell({
   return /*#__PURE__*/React.createElement("div", {
     className: `ops-app${dark ? " ops-theme-dark" : " ops-theme-light"}`,
     style: css
-  }, /*#__PURE__*/React.createElement("aside", {
-    className: "ops-sidebar"
+  }, navOpen && /*#__PURE__*/React.createElement("div", {
+    className: "ops-sidebar-backdrop",
+    onClick: () => setNavOpen(false)
+  }), /*#__PURE__*/React.createElement("aside", {
+    className: `ops-sidebar${navOpen ? " ops-sidebar-open" : ""}`
   }, /*#__PURE__*/React.createElement("div", {
     className: "ops-sidebar-brand"
   }, /*#__PURE__*/React.createElement(BrandLogo, {
     size: 32
   }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "ops-sidebar-brand-text"
-  }, "\u6CD3\u68EE\u62D3\u521B\u79D1\u6280"), /*#__PURE__*/React.createElement("span", {
-    className: "ops-badge ops-badge-sidebar",
+  }, "\u6CD3\u68EE\u62D3\u521B\u79D1\u6280"), /*#__PURE__*/React.createElement("div", {
     style: {
+      fontSize: 11,
+      color: "rgba(255,255,255,0.45)",
       marginTop: 4
     }
-  }, APP_BUILD))), /*#__PURE__*/React.createElement("nav", {
+  }, "\u8FD0\u8425\u4E2D\u5FC3"))), /*#__PURE__*/React.createElement("nav", {
     className: "ops-sidebar-nav"
   }, TABS.map(t => /*#__PURE__*/React.createElement("div", {
     key: t.key,
@@ -16916,34 +16635,51 @@ function AppShell({
     name: t.icon
   })), t.label)))), /*#__PURE__*/React.createElement("div", {
     className: "ops-sidebar-footer"
-  }, "\u8FD0\u8425\u4E2D\u5FC3 \xB7 \u4E91\u7AEF\u540C\u6B65")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ops-sidebar-foot-btn",
+    onClick: () => {
+      setPwdOpen(true);
+      setNavOpen(false);
+    }
+  }, "\u4E2A\u4EBA\u8BBE\u7F6E"), isSuper && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ops-sidebar-foot-btn",
+    onClick: () => {
+      setSettingsPanel("staff");
+      setNavOpen(false);
+    }
+  }, "\u5458\u5DE5\u4E0E M \u7801"), isSuper && /*#__PURE__*/React.createElement("span", {
+    className: "ops-badge ops-badge-sidebar ops-sidebar-build"
+  }, APP_BUILD))), /*#__PURE__*/React.createElement("div", {
     className: "ops-main"
   }, /*#__PURE__*/React.createElement("header", {
     className: "ops-topbar"
   }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ops-nav-toggle ops-btn",
+    onClick: () => setNavOpen(v => !v),
+    "aria-label": "\u6253\u5F00\u83DC\u5355"
+  }, "\u83DC\u5355"), /*#__PURE__*/React.createElement("div", {
     className: "ops-topbar-title"
-  }, TAB_TITLES[tab] || "运营中心"), /*#__PURE__*/React.createElement("div", {
+  }, TAB_TITLES[tab] || "运营中心")), /*#__PURE__*/React.createElement("div", {
     className: "ops-topbar-actions"
   }, /*#__PURE__*/React.createElement("span", {
+    className: "ops-topbar-user",
     style: {
       fontSize: 12,
       color: "var(--tm)",
       fontWeight: 600,
       padding: "0 4px"
     }
-  }, isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}${canEdit ? " · 可修改" : " · 只读"}`, currentUser?.autoShare ? " · 自动分享" : " · 仅本账号"), isSuper && /*#__PURE__*/React.createElement(SettingsMenu, {
-    onSelect: key => {
-      if (key === "staff") setSettingsPanel("staff");
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "ops-btn",
-    onClick: () => setPwdOpen(true)
-  }, "\u4E2A\u4EBA\u8BBE\u7F6E"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "ops-btn",
-    onClick: () => setDark(!dark)
-  }, dark ? "☀ 日间" : "☾ 夜间"), /*#__PURE__*/React.createElement("button", {
+  }, isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}`), /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ops-btn",
     onClick: onLogout
@@ -16952,7 +16688,7 @@ function AppShell({
     style: {
       maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" ? 1280 : 960
     }
-  }, /*#__PURE__*/React.createElement(GlobalCloudBar, null), /*#__PURE__*/React.createElement("div", {
+  }, showCloudBar && /*#__PURE__*/React.createElement(GlobalCloudBar, null), /*#__PURE__*/React.createElement("div", {
     style: {
       display: tab === "home" ? "block" : "none"
     }
@@ -17008,6 +16744,8 @@ function AppShell({
     onClose: () => setSettingsPanel(null),
     onSaved: () => setSettingsPanel(null)
   }), pwdOpen && /*#__PURE__*/React.createElement(ChangePasswordModal, {
+    dark: dark,
+    setDark: setDark,
     onClose: () => setPwdOpen(false),
     onSaved: () => window.dispatchEvent(new CustomEvent("ops-user-prefs-updated"))
   }));
@@ -17016,7 +16754,12 @@ function App() {
   const [authed, setAuthed] = useState(readAuthSession);
   const [currentUser, setCurrentUserState] = useState(() => getCurrentUser());
   const [tab, setTab] = useState("home");
-  const [dark, setDark] = useState(false);
+  const [dark, setDarkState] = useState(readDarkPref);
+  const setDark = next => {
+    const value = typeof next === "function" ? next(dark) : next;
+    setDarkState(value);
+    writeDarkPref(value);
+  };
   const [settingsPanel, setSettingsPanel] = useState(null);
   useEffect(() => {
     const syncUser = () => setCurrentUserState(getCurrentUser());
@@ -17040,6 +16783,7 @@ function App() {
   }, []);
   if (!authed) {
     return /*#__PURE__*/React.createElement(LoginScreen, {
+      dark: dark,
       onSuccess: () => {
         setCurrentUserState(getCurrentUser());
         setAuthed(true);

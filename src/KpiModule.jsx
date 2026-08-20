@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { getEmployees, RoleBadge } from "./GlobalConfig.jsx";
-import { useSharedList } from "./utils/storage.js";
+import { useSharedList, getCurrentUser, privateStorage } from "./utils/storage.js";
 import { useCloudSyncPage } from "./GlobalCloudSync.jsx";
 import { useCurrentUser } from "./context/UserContext.jsx";
 import {
@@ -9,6 +9,32 @@ import {
 
 const WEEKS = [1, 2, 3, 4];
 const KPI_STORAGE_KEY = "kpi-monthly";
+
+function kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek) {
+  return `kpi-draft:${year}|${month}|${curRole}|${curOpsSub}|${person}|${curWeek}`;
+}
+
+function readKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest" || !person) return null;
+  try {
+    return privateStorage.get(u.id, kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek));
+  } catch {
+    return null;
+  }
+}
+
+function writeKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek, payload) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest" || !person) return;
+  privateStorage.set(u.id, kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek), payload);
+}
+
+function clearKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek) {
+  const u = getCurrentUser();
+  if (!u?.id || u.id === "guest" || !person) return;
+  privateStorage.delete(u.id, kpiLocalDraftKey(year, month, curRole, curOpsSub, person, curWeek));
+}
 
 const emptyOpsWeek = () => ({
   wstyle: "", nsku: "", lsku: "", selfsku: "", aadd: "", aout: "", atot: "", sales: "", prate: "",
@@ -1658,6 +1684,8 @@ export function KpiPanel({ active = true }) {
     return weekDirty;
   }, [person, curRole, curWeek, year, month, effectiveRole]);
 
+  const skipLocalWriteRef = useRef(false);
+
   useEffect(() => {
     const loadKey = `${year}|${month}|${curRole}|${curOpsSub}|${person}|${curWeek}`;
     const contextChanged = draftLoadKeyRef.current !== loadKey;
@@ -1669,6 +1697,19 @@ export function KpiPanel({ active = true }) {
       setMonthTargetsDraft(emptyDevMonthTargets());
       return;
     }
+
+    if (contextChanged) {
+      const local = readKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek);
+      if (local?.draft || local?.monthTargetsDraft || local?.skuListDraft) {
+        skipLocalWriteRef.current = true;
+        if (local.draft) setDraft(local.draft);
+        if (local.skuListDraft) setSkuListDraft(local.skuListDraft);
+        if (local.monthTargetsDraft) setMonthTargetsDraft(local.monthTargetsDraft);
+        queueMicrotask(() => { skipLocalWriteRef.current = false; });
+        return;
+      }
+    }
+
     if (curRole === "dev" && curWeek === 0) {
       if (contextChanged || !isDraftDirtyFor(items)) {
         setMonthTargetsDraft(getDevMonthTargets(items, year, month, person));
@@ -1688,6 +1729,19 @@ export function KpiPanel({ active = true }) {
       setSkuListDraft(getPremiumSkuList(items, year, month, person));
     }
   }, [items, year, month, curRole, curOpsSub, effectiveRole, person, curWeek, isDraftDirtyFor]);
+
+  useEffect(() => {
+    if (skipLocalWriteRef.current || !person) return;
+    const timer = setTimeout(() => {
+      writeKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek, {
+        draft,
+        skuListDraft,
+        monthTargetsDraft,
+        savedAt: Date.now(),
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [draft, skuListDraft, monthTargetsDraft, year, month, curRole, curOpsSub, person, curWeek]);
 
   const weekDone = useMemo(() => {
     if (!person) return {};
@@ -1730,19 +1784,25 @@ export function KpiPanel({ active = true }) {
       }
       return next;
     });
-    if (ok) showToast(`第${curWeek}周已保存并上传云端 ✓`);
-    else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    if (ok) {
+      clearKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek);
+      showToast(`第${curWeek}周已保存并上传 ✓`);
+    }
+    else showToast("上传失败，请检查网络后重试", false);
     return ok;
-  }, [person, year, month, effectiveRole, curWeek, persistMerge]);
+  }, [person, year, month, effectiveRole, curRole, curOpsSub, curWeek, persistMerge]);
 
   const upsertMonthTargets = useCallback(async (targets) => {
     if (!person || curRole !== "dev") return false;
     const patch = { year, month, role: "dev", person, monthTargets: targets };
     const ok = await persistMerge((latest) => upsertKpiRecord(latest, patch));
-    if (ok) showToast("月目标已保存并上传云端 ✓");
-    else showToast("上传失败，请检查网络或 Gist 配置后重试", false);
+    if (ok) {
+      clearKpiLocalDraft(year, month, curRole, curOpsSub, person, curWeek);
+      showToast("月目标已保存并上传 ✓");
+    }
+    else showToast("上传失败，请检查网络后重试", false);
     return ok;
-  }, [person, year, month, curRole, persistMerge]);
+  }, [person, year, month, curRole, curOpsSub, curWeek, persistMerge]);
 
   const saveCurrentToCloud = useCallback(async () => {
     if (!person) return "请先选择人员";
@@ -1780,8 +1840,8 @@ export function KpiPanel({ active = true }) {
     saving,
     error,
     isDirty: kpiDirty,
-    dirtyHint: curRole === "dev" && curWeek === 0 ? "开发月目标未上传" : `考核第${curWeek}周数据未上传`,
-    barHint: "考核按人员/周次填写，点「保存并上传」写入云端（考核自己的规则）",
+    dirtyHint: "考核已暂存在本账号，尚未给全员",
+    barHint: "考核填写会先记在本账号，点「保存并上传」后全员可见",
   });
 
   const clearWeek = () => {
@@ -1838,7 +1898,7 @@ export function KpiPanel({ active = true }) {
             {staffList.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
           </select>
         ) : (
-          <span style={{ fontSize: 12, color: "#e09000" }}>暂无{roleLabel}人员 · 请在 ⚙ 设置 → 全局员工名单 中添加（角色选「{roleLabel}」）</span>
+          <span style={{ fontSize: 12, color: "#e09000" }}>暂无{roleLabel}人员 · 请在 ⚙ 设置 → 员工与 M 码 中添加（角色选「{roleLabel}」）</span>
         )}
         {person && <RoleBadge role={roleLabel} />}
         {person && (

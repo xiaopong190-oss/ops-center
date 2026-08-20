@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { OwnerField, ownerFilterEntries, RoleBadge, getStaffRole } from "./GlobalConfig.jsx";
 import { useSharedList, formatSharedTime } from "./utils/storage.js";
-import { useCloudSyncPage } from "./GlobalCloudSync.jsx";
+import { useCloudSyncPage, opsConfirm } from "./GlobalCloudSync.jsx";
 import FBAGanttCard, { logisticsGroupsToGanttProducts } from "./FBAGanttCard.jsx";
 
 const TODAY = new Date();
@@ -278,18 +278,6 @@ const formatDuplicateFbaMsg = (dupes, action) => {
 };
 const groupProductKey = (g) => (g.sku || g.name || `id-${g.id}`).trim();
 const groupMatchesProduct = (g, productFilter) => productFilter === "all" || groupProductKey(g) === productFilter;
-const productTabChip = (active) => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--text)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 10,
-  padding: "8px 14px",
-  fontSize: 13,
-  fontWeight: active ? 600 : 500,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap",
-});
 
 const INIT_LOGISTICS = [
   {
@@ -453,7 +441,7 @@ function FbaRow({ fba, onEditTracking }) {
         {editing ? (
           <>
             <input value={trackVal} onChange={e => setTrackVal(e.target.value)} placeholder="输入追踪编码" style={{ ...inpSm, flex: 1, minWidth: 140 }} autoFocus onKeyDown={e => { if (e.key === "Enter") saveTrack(); if (e.key === "Escape") setEditing(false); }} />
-            <button type="button" onClick={saveTrack} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>保存</button>
+            <button type="button" onClick={saveTrack} className="ops-btn ops-btn-primary ops-btn-sm">保存</button>
           </>
         ) : missing ? (
           <button type="button" onClick={e => { e.stopPropagation(); setTrackVal(fba.tracking || ""); setEditing(true); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#E24B4A", fontSize: 11, fontWeight: 600, fontFamily: "inherit" }}>缺少追踪编码 · 点击填写</button>
@@ -662,7 +650,7 @@ function ShipmentModal({ item, onSave, onClose, onDelete, getExistingFbaIds }) {
           <span>FBA 货件 ({fbas.length})</span>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <input ref={fileInputRef} type="file" accept=".csv" multiple style={{ display: "none" }} onChange={onCsvPick} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", color: "#2d7dd2" }}>📥 导入 STA CSV</button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="ops-btn ops-btn-sm">导入 STA CSV</button>
           </div>
         </div>
         {importMsg && <div style={{ fontSize: 11, color: importMsg.includes("失败") || importMsg.includes("不是") ? "#E24B4A" : "#1a6b35", marginBottom: 8, padding: "6px 10px", background: importMsg.includes("失败") || importMsg.includes("不是") ? "#fee2e2" : "#f0faf4", borderRadius: 8 }}>{importMsg}</div>}
@@ -674,8 +662,8 @@ function ShipmentModal({ item, onSave, onClose, onDelete, getExistingFbaIds }) {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             {item.id ? <button type="button" onClick={onDelete} style={{ background: "none", border: "none", color: "#e55", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>删除批次</button> : <div />}
             <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-              <button type="button" onClick={onClose} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
-              <button type="button" onClick={handleSave} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>保存</button>
+              <button type="button" onClick={onClose} className="ops-btn">取消</button>
+              <button type="button" onClick={handleSave} className="ops-btn ops-btn-primary">保存</button>
             </div>
           </div>
         </div>
@@ -754,8 +742,8 @@ export function LogisticsPanel({ active = true }) {
     else persist([...list, { ...withTime, id: nextId() }]);
     setModal(null);
   };
-  const deleteGroup = (g) => {
-    if (!window.confirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`)) return;
+  const deleteGroup = async (g) => {
+    if (!(await opsConfirm(`确定删除批次「${g.name || g.sku || "未命名"}」？删除后无法恢复。`))) return;
     persist(list.filter(x => x.id !== g.id), { replace: true });
     if (modal?.id === g.id) setModal(null);
   };
@@ -828,11 +816,11 @@ export function LogisticsPanel({ active = true }) {
         <div style={{ marginBottom: "1rem" }}>
           <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8 }}>产品分页 · 切换查看各产品头程</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" onClick={() => setProductFilterPersist("all")} style={productTabChip(productFilter === "all")}>
+            <button type="button" onClick={() => setProductFilterPersist("all")} className={`ops-chip ops-chip-tab${productFilter === "all" ? " active" : ""}`}>
               全部产品<span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({list.length})</span>
             </button>
             {products.map(p => (
-              <button key={p.id} type="button" onClick={() => setProductFilterPersist(p.id)} style={productTabChip(productFilter === p.id)} title={p.name}>
+              <button key={p.id} type="button" onClick={() => setProductFilterPersist(p.id)} className={`ops-chip ops-chip-tab${productFilter === p.id ? " active" : ""}`} title={p.name}>
                 {p.sku || p.name}
                 <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({p.batches.length})</span>
               </button>
@@ -841,7 +829,7 @@ export function LogisticsPanel({ active = true }) {
         </div>
       )}
       {currentProduct && (
-        <div style={{ background: "var(--card)", border: "1px solid #2d7dd2", borderRadius: 12, padding: "12px 16px", marginBottom: "1rem" }}>
+        <div style={{ background: "var(--card)", border: "1px solid var(--accent)", borderRadius: 12, padding: "12px 16px", marginBottom: "1rem" }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{currentProduct.name}</div>
           <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 4 }}>
             {currentProduct.batches.length} 个发货批次 · 仅显示本产品相关头程
@@ -852,7 +840,7 @@ export function LogisticsPanel({ active = true }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7, flex: 1, minWidth: 280 }}>
           {tabs.map(f => (
-            <div key={f.key} onClick={() => setFilterPersist(f.key)} style={{ background: "var(--card)", border: `1px solid ${filter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer" }}>
+            <div key={f.key} onClick={() => setFilterPersist(f.key)} className={`ops-filter-card${filter === f.key ? " active" : ""}`}>
               <div style={{ fontSize: 18, fontWeight: 700, color: f.nc }}>{counts[f.key]}</div>
               <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 1 }}>{f.label}</div>
             </div>
@@ -860,14 +848,14 @@ export function LogisticsPanel({ active = true }) {
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
         <input ref={panelCsvRef} type="file" accept=".csv" multiple style={{ display: "none" }} onChange={onPanelCsvImport} />
-        <button type="button" onClick={() => panelCsvRef.current?.click()} style={{ background: "var(--card)", color: "#2d7dd2", border: "1px solid #2d7dd2", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>📥 导入 CSV</button>
-        <button onClick={() => setModal(emptyGroupForProduct())} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>+ 新建批次</button>
+        <button type="button" onClick={() => panelCsvRef.current?.click()} className="ops-btn">导入 CSV</button>
+        <button onClick={() => setModal(emptyGroupForProduct())} className="ops-btn ops-btn-primary">+ 新建批次</button>
         </div>
       </div>
       <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 11, color: "var(--tm)" }}>跟进人</span>
         {owners.map(o => (
-          <button key={o.name} onClick={() => setOwnerFilterPersist(o.name)} style={{ background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)", color: ownerFilter === o.name ? "#fff" : "var(--tm)", border: `1px solid ${ownerFilter === o.name ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <button key={o.name} onClick={() => setOwnerFilterPersist(o.name)} className={`ops-chip${ownerFilter === o.name ? " active" : ""}`}>
             {o.name === "all" ? "全部" : (<>{o.name}{o.role && <RoleBadge role={o.role} style={{ padding: "0 5px", fontSize: 9 }} />}</>)}
           </button>
         ))}
@@ -885,8 +873,8 @@ export function LogisticsPanel({ active = true }) {
           />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>{currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次"}</div>}
       </div>
-      {modal && <ShipmentModal item={modal} onSave={save} getExistingFbaIds={() => collectFbaIdsFromGroups(list, modal.id)} onClose={() => {
-        if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
+      {modal && <ShipmentModal item={modal} onSave={save} getExistingFbaIds={() => collectFbaIdsFromGroups(list, modal.id)} onClose={async () => {
+        if (!(await opsConfirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？"))) return;
         setModal(null);
       }} onDelete={() => { persist(list.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>

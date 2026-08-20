@@ -21,31 +21,6 @@ const PROD_GANTT_SORT_OPTIONS = [
 const PROD_GANTT_FILTER_KEY = "ops-prod-gantt-filters";
 const PROD_GANTT_EXPAND_KEY = "ops-prod-gantt-expanded";
 
-const PROD_GANTT_BTN_PRIMARY = {
-  background: "#2d7dd2",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  padding: "8px 14px",
-  fontSize: 13,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontWeight: 600,
-  flexShrink: 0,
-};
-
-const prodGanttFilterChip = (active) => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--tm)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 20,
-  padding: "4px 12px",
-  fontSize: 11,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap",
-});
-
 function loadProdGanttFilters() {
   try {
     const raw = sessionStorage.getItem(PROD_GANTT_FILTER_KEY);
@@ -602,7 +577,7 @@ function ProdGanttCard({ items = [], today: todayProp, productFilter: controlled
             )}
           </div>
         </div>
-        <button type="button" onClick={() => prodGanttCaptureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试"))} style={PROD_GANTT_BTN_PRIMARY}>📷 截图</button>
+        <button type="button" onClick={() => prodGanttCaptureScreenshot(chartRef.current).catch(() => alert("截图失败，请重试"))} className="ops-btn ops-btn-primary">截图</button>
       </div>
 
       {allProducts.length > 0 && (
@@ -610,9 +585,9 @@ function ProdGanttCard({ items = [], today: todayProp, productFilter: controlled
           {!isProductControlled && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>产品</span>
-              <button type="button" onClick={() => setProduct("all")} style={prodGanttFilterChip(productFilter === "all")}>全部</button>
+              <button type="button" onClick={() => setProduct("all")} className={`ops-chip${productFilter === "all" ? " active" : ""}`}>全部</button>
               {allProducts.map(p => (
-                <button key={p.id} type="button" onClick={() => setProduct(p.id)} style={prodGanttFilterChip(productFilter === p.id)} title={p.name}>
+                <button key={p.id} type="button" onClick={() => setProduct(p.id)} className={`ops-chip${productFilter === p.id ? " active" : ""}`} title={p.name}>
                   {p.sku || p.name}{p.batches?.length > 1 ? ` (${p.batches.length})` : ""}
                 </button>
               ))}
@@ -620,18 +595,18 @@ function ProdGanttCard({ items = [], today: todayProp, productFilter: controlled
           )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>状态</span>
-            <button type="button" onClick={() => setStatus("all")} style={prodGanttFilterChip(statusFilter === "all")}>全部</button>
+            <button type="button" onClick={() => setStatus("all")} className={`ops-chip${statusFilter === "all" ? " active" : ""}`}>全部</button>
             {Object.entries(PROD_GANTT_STATUS).map(([k, v]) => (
-              <button key={k} type="button" onClick={() => setStatus(k)} style={prodGanttFilterChip(statusFilter === k)}>{v.label}</button>
+              <button key={k} type="button" onClick={() => setStatus(k)} className={`ops-chip${statusFilter === k ? " active" : ""}`}>{v.label}</button>
             ))}
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--tm)", flexShrink: 0 }}>排序</span>
             {PROD_GANTT_SORT_OPTIONS.map(o => (
-              <button key={o.key} type="button" onClick={() => setSortBy(o.key)} style={prodGanttFilterChip(sortBy === o.key)}>{o.label}</button>
+              <button key={o.key} type="button" onClick={() => setSortBy(o.key)} className={`ops-chip${sortBy === o.key ? " active" : ""}`}>{o.label}</button>
             ))}
             {hasFilters && (
-              <button type="button" onClick={resetFilters} style={{ ...prodGanttFilterChip(false), marginLeft: 4, color: "#2d7dd2", borderColor: "#b8d4f0" }}>清除筛选</button>
+              <button type="button" onClick={resetFilters} className="ops-link" style={{ marginLeft: 4 }}>清除筛选</button>
             )}
           </div>
         </div>
@@ -653,7 +628,7 @@ function ProdGanttCard({ items = [], today: todayProp, productFilter: controlled
         ) : !viewProducts.length ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>
             没有符合筛选条件的产品
-            <button type="button" onClick={resetFilters} style={{ display: "block", margin: "8px auto 0", background: "none", border: "none", color: "#2d7dd2", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>清除筛选</button>
+            <button type="button" onClick={resetFilters} className="ops-link" style={{ display: "block", margin: "8px auto 0" }}>清除筛选</button>
           </div>
         ) : datedBatchCount === 0 ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>当前产品暂无日期数据，请在下方的批次中填写下单日期或预计交期</div>
@@ -728,18 +703,6 @@ function saveProdFilters(filters) {
   try { sessionStorage.setItem(PROD_FILTER_KEY, JSON.stringify(filters)); } catch { /* ignore */ }
 }
 
-const prodProductTabChip = (active) => ({
-  background: active ? "#2d7dd2" : "var(--card)",
-  color: active ? "#fff" : "var(--text)",
-  border: `1px solid ${active ? "#2d7dd2" : "var(--border)"}`,
-  borderRadius: 10,
-  padding: "8px 14px",
-  fontSize: 13,
-  fontWeight: active ? 600 : 500,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  whiteSpace: "nowrap",
-});
 
 const INIT_PROD = [
   {
@@ -786,7 +749,7 @@ function ProdExceptionEditor({ excs, setExcs }) {
     <>
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--tm)", borderTop: "1px solid var(--border)", paddingTop: 10, marginBottom: 8 }}>异常记录</div>
       {excs.map((ex, i) => (
-        <div key={i} style={{ background: ex.resolved ? "#f0faf4" : "#fff8e6", border: `1px solid ${ex.resolved ? "#b7e4c7" : "#ffe0a0"}`, borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
+        <div key={i} className={`ops-note${ex.resolved ? " ops-note-ok" : " ops-note-warn"}`} style={{ marginBottom: 8 }}>
           <input value={ex.desc} onChange={e => { const a = [...excs]; a[i] = { ...ex, desc: e.target.value }; setExcs(a); }} placeholder="异常描述" style={{ ...inpSm, width: "100%", marginBottom: 6 }} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 6 }}>
             <input type="date" value={ex.date} onChange={e => { const a = [...excs]; a[i] = { ...ex, date: e.target.value }; setExcs(a); }} style={inpSm} />
@@ -869,8 +832,8 @@ function ProdModal({ item, onSave, onClose, onDelete }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--border)", paddingTop: 12 }}>
           {item.id ? <button type="button" onClick={onDelete} style={{ background: "none", border: "none", color: "#e55", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>删除</button> : <div />}
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" onClick={onClose} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--tm)" }}>取消</button>
-            <button type="button" onClick={() => { if (!form.product.trim()) return; onSave({ ...form, exceptions: excs }); }} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>保存</button>
+            <button type="button" onClick={onClose} className="ops-btn">取消</button>
+            <button type="button" onClick={() => { if (!form.product.trim()) return; onSave({ ...form, exceptions: excs }); }} className="ops-btn ops-btn-primary">保存</button>
           </div>
         </div>
       </div>
@@ -968,6 +931,12 @@ function ProductionPanel({ active = true }) {
   const [supplierFilter, setSupplierFilter] = useState(savedFilters.supplierFilter || "all");
   const [productFilter, setProductFilter] = useState(savedFilters.productFilter || "all");
   const [excOnly, setExcOnly] = useState(!!savedFilters.excOnly);
+  const [showMoreFilters, setShowMoreFilters] = useState(
+    (savedFilters.stageFilter && savedFilters.stageFilter !== "all")
+    || (savedFilters.ownerFilter && savedFilters.ownerFilter !== "all")
+    || (savedFilters.supplierFilter && savedFilters.supplierFilter !== "all")
+    || !!savedFilters.excOnly
+  );
 
   const products = useMemo(() => productionItemsToGanttProducts(list), [list]);
   const currentProduct = productFilter === "all" ? null : products.find(p => p.id === productFilter) || null;
@@ -1059,17 +1028,19 @@ function ProductionPanel({ active = true }) {
     dirtyHint: modal ? "生产批次编辑弹窗未保存" : "本账号有未分享的修改",
   });
 
+  const extraFiltersOn = stageFilter !== "all" || ownerFilter !== "all" || supplierFilter !== "all" || excOnly;
+
   return (
     <div>
       {products.length > 0 && (
         <div style={{ marginBottom: "1rem" }}>
           <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8 }}>产品分页 · 切换查看各产品生产进度</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" onClick={() => setProductFilter("all")} style={prodProductTabChip(productFilter === "all")}>
+            <button type="button" onClick={() => setProductFilter("all")} className={`ops-chip ops-chip-tab${productFilter === "all" ? " active" : ""}`}>
               全部产品<span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({list.length})</span>
             </button>
             {products.map(p => (
-              <button key={p.id} type="button" onClick={() => setProductFilter(p.id)} style={prodProductTabChip(productFilter === p.id)} title={p.name}>
+              <button key={p.id} type="button" onClick={() => setProductFilter(p.id)} className={`ops-chip ops-chip-tab${productFilter === p.id ? " active" : ""}`} title={p.name}>
                 {p.sku || p.name}
                 <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>({p.batches.length})</span>
               </button>
@@ -1078,7 +1049,7 @@ function ProductionPanel({ active = true }) {
         </div>
       )}
       {currentProduct && (
-        <div style={{ background: "var(--card)", border: "1px solid #2d7dd2", borderRadius: 12, padding: "12px 16px", marginBottom: "1rem" }}>
+        <div style={{ background: "var(--card)", border: "1px solid var(--accent)", borderRadius: 12, padding: "12px 16px", marginBottom: "1rem" }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{currentProduct.name}</div>
           <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 4 }}>
             {currentProduct.batches.length} 个生产批次 · 仅显示本产品相关订单
@@ -1089,14 +1060,20 @@ function ProductionPanel({ active = true }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 7, flex: 1, minWidth: 320 }}>
           {tabs.map(f => (
-            <div key={f.key} onClick={() => setTabFilter(f.key)} style={{ background: "var(--card)", border: `1px solid ${tabFilter === f.key ? "#2d7dd2" : "var(--border)"}`, borderRadius: 10, padding: "9px 8px", cursor: "pointer" }}>
+            <div key={f.key} onClick={() => setTabFilter(f.key)} className={`ops-filter-card${tabFilter === f.key ? " active" : ""}`}>
               <div style={{ fontSize: 18, fontWeight: 700, color: f.nc }}>{counts[f.key]}</div>
               <div style={{ fontSize: 10, color: "var(--tm)", marginTop: 1 }}>{f.label}</div>
             </div>
           ))}
         </div>
-        <button onClick={() => setModal(emptyBatchForProduct())} style={{ background: "#2d7dd2", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, flexShrink: 0 }}>+ 新建批次</button>
+        <button onClick={() => setModal(emptyBatchForProduct())} className="ops-btn ops-btn-primary" style={{ flexShrink: 0 }}>+ 新建批次</button>
       </div>
+      <div style={{ marginBottom: "1rem" }}>
+        <button type="button" className={`ops-chip${showMoreFilters || extraFiltersOn ? " active" : ""}`} onClick={() => setShowMoreFilters(v => !v)}>
+          {showMoreFilters ? "收起筛选" : extraFiltersOn ? "更多筛选 · 已筛选" : "更多筛选"}
+        </button>
+      </div>
+      {showMoreFilters && (
       <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ ...inpSm, background: "var(--card)", width: "auto" }}>
           <option value="all">全部阶段</option>
@@ -1104,25 +1081,26 @@ function ProductionPanel({ active = true }) {
         </select>
         <span style={{ fontSize: 11, color: "var(--tm)" }}>跟进人</span>
         {owners.map(o => (
-          <button key={o.name} type="button" onClick={() => setOwnerFilter(o.name)} style={{ background: ownerFilter === o.name ? "#2d7dd2" : "var(--card)", color: ownerFilter === o.name ? "#fff" : "var(--tm)", border: `1px solid ${ownerFilter === o.name ? "#2d7dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <button key={o.name} type="button" onClick={() => setOwnerFilter(o.name)} className={`ops-chip${ownerFilter === o.name ? " active" : ""}`}>
             {o.name === "all" ? "全部" : (<>{o.name}{o.role && <RoleBadge role={o.role} style={{ padding: "0 5px", fontSize: 9 }} />}</>)}
           </button>
         ))}
         <span style={{ fontSize: 11, color: "var(--tm)", marginLeft: 4 }}>供应商</span>
         {suppliers.slice(0, 6).map(s => (
-          <button key={s} type="button" onClick={() => setSupplierFilter(s)} style={{ background: supplierFilter === s ? "#7a6dd2" : "var(--card)", color: supplierFilter === s ? "#fff" : "var(--tm)", border: `1px solid ${supplierFilter === s ? "#7a6dd2" : "var(--border)"}`, borderRadius: 20, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{s === "all" ? "全部" : s}</button>
+          <button key={s} type="button" onClick={() => setSupplierFilter(s)} className={`ops-chip${supplierFilter === s ? " active" : ""}`}>{s === "all" ? "全部" : s}</button>
         ))}
         <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--tm)", cursor: "pointer", marginLeft: 4 }}>
           <input type="checkbox" checked={excOnly} onChange={e => setExcOnly(e.target.checked)} />只看异常
         </label>
       </div>
+      )}
       <div>
         {groupList.length ? groupList.map(g => (
           <ProductGroup key={`${g.product}-${g.name}`} product={g.product} name={g.name} batches={g.batches} onEdit={b => setModal(clone(b))} />
         )) : <div style={{ textAlign: "center", padding: "2rem", color: "var(--tm)", fontSize: 13 }}>{currentProduct ? "该产品暂无匹配批次" : "暂无匹配批次"}</div>}
       </div>
-      {modal && <ProdModal item={modal} onSave={save} onClose={() => {
-        if (!window.confirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？")) return;
+      {modal && <ProdModal item={modal} onSave={save} onClose={async () => {
+        if (!(await opsConfirm("弹窗未点「保存」，修改不会记入本账号。确定关闭？"))) return;
         setModal(null);
       }} onDelete={() => { persist(list.filter(x => x.id !== modal.id), { replace: true }); setModal(null); }} />}
     </div>

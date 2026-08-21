@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-08-20T01:07:15.415Z",
+  "updatedAt": "2026-08-21T01:10:56.316Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Alexa+ is now included on Fire TV at no additional cost",
-      "link": "https://www.aboutamazon.com/news/devices/alexa-plus-fire-tv-free-ai?utm_source=rss",
-      "pubDate": "Wed, 19 Aug 2026 14:55:04 GMT",
-      "date": "8/19",
-      "summary": "Alexa+ is now included for free on compatible Fire TV devices, bringing conversational search and smart home controls.",
-      "category": "Devices"
+      "title": "Prime Video to invest $2 billion in Latin America between 2027 and 2030",
+      "link": "https://www.aboutamazon.com/news/entertainment/prime-video-latin-america-investment?utm_source=rss",
+      "pubDate": "Thu, 20 Aug 2026 17:30:07 GMT",
+      "date": "8/20",
+      "summary": "The investment spans original programming and live sports across the region—with more than 25 new titles coming in 2027 alone.",
+      "category": "Entertainment"
     },
     {
-      "title": "Amazon Prime Air drone delivery is expanding to nearly 500 cities and towns this year",
-      "link": "https://www.aboutamazon.com/news/transportation/amazon-prime-air-drone-delivery-expansion?utm_source=rss",
-      "pubDate": "Wed, 19 Aug 2026 09:45:13 GMT",
-      "date": "8/19",
-      "summary": "Prime Air delivers millions of items in as fast as 30 minutes and will reach communities with tens of millions of customers by year-end.",
-      "category": "Transportation"
+      "title": "'Sterling Point' Season 2: Everything to know and how to watch Season 1 on Prime Video",
+      "link": "https://www.aboutamazon.com/news/entertainment/sterling-point-series-prime-video?utm_source=rss",
+      "pubDate": "Thu, 20 Aug 2026 17:00:10 GMT",
+      "date": "8/20",
+      "summary": "The series follows a New York City teen who inherits her grandfather's mysterious island in Canada, uncovering friends, romance, and secrets",
+      "category": "Entertainment"
     },
     {
-      "title": "5 ways Amazon is investing in Arizona",
-      "link": "https://www.aboutamazon.com/news/community/amazon-investment-arizona-jobs-infrastructure-small-business?utm_source=rss",
-      "pubDate": "Tue, 18 Aug 2026 15:51:40 GMT",
-      "date": "8/18",
-      "summary": "Amazon's investments are boosting the Grand Canyon State's economy while creating opportunities for those who call Arizona home.",
-      "category": "Community"
+      "title": "AWS commits more than $500 million to student cloud and AI training",
+      "link": "https://www.aboutamazon.com/news/aws/aws-student-rewards-free-cloud-ai-training?utm_source=rss",
+      "pubDate": "Thu, 20 Aug 2026 10:30:11 GMT",
+      "date": "8/20",
+      "summary": "Through a new Student Rewards program on AWS Builder Center, university students worldwide can earn credits, premium training, and certifica",
+      "category": "AWS"
     }
   ]
 }

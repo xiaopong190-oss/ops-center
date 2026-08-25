@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-24T01:10:28.388Z",
+  "updatedAt": "2026-08-25T01:08:47.882Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon hourly employees became satellite technicians—then watched their work launch into space",
+      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-career-choice-satellite-technicians-space-launch?utm_source=rss",
+      "pubDate": "Mon, 24 Aug 2026 14:00:25 GMT",
+      "date": "8/24",
+      "summary": "Career Choice is helping eligible Amazon employees earn certifications and launch new aerospace careers with Amazon Leo.",
+      "category": "Amazon Leo"
+    },
     {
       "title": "Prime Video to invest $2 billion in Latin America between 2027 and 2030",
       "link": "https://www.aboutamazon.com/news/entertainment/prime-video-latin-america-investment?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "8/20",
       "summary": "The series follows a New York City teen who inherits her grandfather's mysterious island in Canada, uncovering friends, romance, and secrets",
       "category": "Entertainment"
-    },
-    {
-      "title": "AWS commits more than $500 million to student cloud and AI training",
-      "link": "https://www.aboutamazon.com/news/aws/aws-student-rewards-free-cloud-ai-training?utm_source=rss",
-      "pubDate": "Thu, 20 Aug 2026 10:30:11 GMT",
-      "date": "8/20",
-      "summary": "Through a new Student Rewards program on AWS Builder Center, university students worldwide can earn credits, premium training, and certifica",
-      "category": "AWS"
     }
   ]
 }

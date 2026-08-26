@@ -210,7 +210,7 @@
     border-radius:6px;
     box-shadow:var(--shadow);
     margin-bottom:36px;
-    overflow:hidden;
+    overflow:visible;
     scroll-margin-top:80px;
   }
 
@@ -352,6 +352,262 @@
     padding:10px 14px;
     background:rgba(184,145,47,0.06);
     border-radius:0 4px 4px 0;
+  }
+
+  .budget-board{
+    border-top:1px solid var(--parchment-line);
+    background:#fffdf8;
+    padding:22px 30px 28px;
+  }
+  .budget-head{
+    display:flex; flex-wrap:wrap; gap:8px 16px;
+    align-items:baseline;
+    margin-bottom:8px;
+  }
+  .budget-head h3{
+    margin:0;
+    font-family:"Noto Serif SC",serif;
+    font-size:16px;
+    color:var(--ink);
+  }
+  .budget-head p{
+    margin:0;
+    font-size:13px;
+    color:#3a4256;
+    line-height:1.6;
+  }
+  .budget-legend{
+    font-size:13px;
+    color:#3a4256;
+    line-height:1.65;
+    margin:0 0 12px;
+    padding:8px 12px;
+    background:#fff4f1;
+    border:1px solid rgba(165,53,43,0.22);
+    border-radius:4px;
+  }
+  .need-tag{
+    display:inline-block;
+    margin-left:6px;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:0.04em;
+    color:#fff;
+    background:#a5352b;
+    padding:1px 6px;
+    border-radius:8px;
+    vertical-align:middle;
+  }
+  .tip-wrap{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .tip-wrap input,
+  .tip-wrap select{flex:1; min-width:88px;}
+  .tip-dot{
+    width:11px;
+    height:11px;
+    border-radius:50%;
+    background:#c45c32;
+    box-shadow:0 0 0 3px rgba(196,92,50,0.28);
+    border:0;
+    padding:0;
+    cursor:help;
+    flex:none;
+  }
+  .tip-dot:hover,
+  .tip-dot:focus{background:#a5352b; outline:none;}
+  .budget-tip-pop{
+    display:none;
+    position:fixed;
+    z-index:400;
+    max-width:280px;
+    background:#1c2438;
+    color:#fff8e0;
+    font-size:13px;
+    font-weight:500;
+    line-height:1.65;
+    padding:10px 12px;
+    border-radius:8px;
+    box-shadow:0 10px 28px rgba(28,36,56,0.35);
+    pointer-events:none;
+  }
+  .budget-tip-pop.is-on{display:block;}
+  .budget-auto{
+    display:block;
+    min-height:32px;
+    padding:6px 8px;
+    font-size:13px;
+    font-weight:700;
+    color:#3a4256;
+    background:#f3f4f6;
+    border:1px solid var(--border);
+  }
+  .budget-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin:14px 0;
+  }
+  @media (max-width:860px){ .budget-grid{grid-template-columns:1fr 1fr;} }
+  .budget-field label{
+    display:block;
+    font-size:12px;
+    font-weight:700;
+    color:var(--ink);
+    margin-bottom:5px;
+  }
+  .budget-field input,
+  .budget-field select{
+    width:100%;
+    border:1.5px solid #c9a227;
+    background:#fffbeb;
+    color:var(--ink);
+    font-size:14px;
+    font-weight:600;
+    padding:8px 10px;
+    border-radius:4px;
+    font-family:inherit;
+  }
+  .budget-scroll{
+    overflow-x:auto;
+    max-width:100%;
+    margin:8px 0 16px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .budget-table{
+    width:100%;
+    min-width:760px;
+    border-collapse:collapse;
+    font-size:13px;
+    margin:0;
+  }
+  .budget-table th{
+    text-align:left;
+    background:#1c2438;
+    color:#fff8e0;
+    font-weight:700;
+    padding:8px 8px;
+  }
+  .budget-table td{
+    border:1px solid var(--border);
+    padding:4px;
+    background:#fff;
+  }
+  .budget-table input{
+    width:100%;
+    border:1px solid #e0c36a;
+    background:#fffbeb;
+    color:var(--ink);
+    font-size:13px;
+    font-weight:600;
+    padding:6px 8px;
+    font-family:inherit;
+  }
+  .week-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(148px, 1fr));
+    gap:10px;
+    margin:8px 0 16px;
+  }
+  .week-grid .budget-field{margin:0;}
+  .budget-total-bar{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px 18px;
+    margin:0 0 16px;
+    padding:16px 18px;
+    background:#1c2438;
+    color:#fff8e0;
+    border-radius:8px;
+  }
+  @media (max-width:860px){ .budget-total-bar{grid-template-columns:1fr 1fr;} }
+  .budget-stat{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width:0;
+  }
+  .budget-total-bar em{
+    font-style:normal;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.04em;
+    color:#e8c547;
+  }
+  .budget-total-bar strong{
+    font-family:"Noto Serif SC",serif;
+    font-size:26px;
+    font-weight:900;
+    color:#fff;
+    line-height:1.15;
+  }
+  .budget-total-bar span{
+    font-size:12px;
+    font-weight:600;
+    color:#c9d0e0;
+    line-height:1.4;
+  }
+  .budget-extra-bar{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px 18px;
+    margin:-8px 0 16px;
+    padding:14px 18px;
+    background:#2a3450;
+    color:#fff8e0;
+    border-radius:8px;
+  }
+  @media (max-width:860px){ .budget-extra-bar{grid-template-columns:1fr 1fr;} }
+  .budget-auto.fee{
+    min-height:38px;
+    display:flex;
+    align-items:center;
+  }
+  .budget-kpis{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin:12px 0 16px;
+  }
+  @media (max-width:860px){ .budget-kpis{grid-template-columns:1fr 1fr;} }
+  .budget-kpi{
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:12px 14px;
+    background:var(--parchment);
+  }
+  .budget-kpi.is-hero{
+    border-color:#c9a227;
+    background:#fffbeb;
+  }
+  .budget-kpi b{
+    display:block;
+    font-size:12px;
+    color:#5b6478;
+    margin-bottom:4px;
+  }
+  .budget-kpi span{
+    font-size:20px;
+    font-weight:800;
+    color:var(--ink);
+    font-family:"Noto Serif SC",serif;
+  }
+  .budget-msg{
+    font-size:13.5px;
+    font-weight:700;
+    color:var(--seal);
+    background:rgba(165,53,43,0.08);
+    border:1px solid rgba(165,53,43,0.2);
+    padding:10px 12px;
+    border-radius:4px;
+  }
+  .budget-sub{
+    font-size:13px;
+    font-weight:700;
+    color:var(--ink);
+    margin:12px 0 6px;
   }
 
   .notes{
@@ -970,16 +1226,16 @@ const STEPS = [
     id:9, phase:5, phaseName:"第五阶段 · 预算与预案", tag:"总控",
     title:"成本预算与第二方案",
     handoff:"触发线一旦达到，按本步预案切换，不要靠周会现场拍板。",
-    deliver:"总预算盘、目标 TACOS、切换触发线、Plan B 路径、Plan C 收缩条件。",
+    deliver:"填完广告预算表后的总广告费、按周/按词花费、毛利覆盖周次；再加上切换触发线、第二方案路径、Plan C 收缩条件。",
     why:[
-      "前面每步都有备用方案，但项目还需要一张总账：货值、广告、Vine、工具、头程加在一起，这支 ASIN 到底能撑几周。",
-      "更重要的是全局 Plan B。核心指标持续不达标时按预案切，而不是情绪化加预算或突然停掉。"
+      "第一方案就是前面 8 步拼起来的推品路径。第 09 步要把广告账算清楚：这套方案要垫多少广告费、从第几周起毛利才能盖住花费。",
+      "第二方案是第一方案失败后建议改走的路，不是再写一遍前 8 步。账算不出来，切预案也没有触发线。"
     ],
     how:[
-      "汇总本 ASIN 预算：首发货值、测款广告、放量广告、Vine/工具、应急空运预留",
-      "写下目标 TACOS 和可接受的回本周期，广告占比允许一个浮动区间",
+      "必须先填本步下方的广告预算表（关键词 SPR / CPC / CVR、周目标订单、广告占比、售价毛利），结果会自动出来",
+      "用算出的总广告预算和回本周次，写进目标 TACOS 与可接受的回本周期",
       "明确触发线：连续 X 天 ACOS 超线、转化下滑、星级跌破门槛、库存可撑不足 Y 天",
-      "Plan B：主词根整体不赚钱时，转向哪条路径（场景词 / 绑品 / 价格带 / 只打已转化词）",
+      "第二方案：主词根整体不赚钱时，转向哪条路径（场景词 / 绑品 / 价格带 / 只打已转化词）",
       "Plan C 写在触发之前：停投、清理库存、回到产品/竞品分析，而不是把现金流打穿"
     ],
     backupLabel:"第二方案也扛不住时（Plan C）",
@@ -1080,6 +1336,750 @@ function setCloudHint(text){
 
 let cloudHydrating = false;
 let cloudTimer = null;
+let budgetTimer = null;
+
+const BUDGET_KW = 8;
+const BUDGET_WK = 13;
+
+function budgetNum(v){
+  const n = parseFloat(String(v == null ? "" : v).replace(/,/g, "").trim());
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function money(n){
+  if(!Number.isFinite(n)) return "—";
+  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function cvrPctToClicks(cvrPct){
+  const p = budgetNum(cvrPct);
+  if(!(p > 0)) return NaN;
+  return 100 / p;
+}
+
+function clicksToCvrPct(clicks){
+  const c = budgetNum(clicks);
+  if(!(c > 0)) return "";
+  const n = 100 / c;
+  return String(Math.round(n * 100) / 100);
+}
+
+function keywordComplete(kw){
+  return !!(String(kw && kw.name || "").trim()
+    && budgetNum(kw.spr) > 0
+    && budgetNum(kw.cpc) > 0
+    && budgetNum(kw.cvr) > 0
+    && budgetNum(kw.cvr) <= 100);
+}
+
+function keywordStarted(kw){
+  return [kw && kw.name, kw && kw.spr, kw && kw.cpc, kw && kw.cvr].some(v => String(v || "").trim() !== "");
+}
+
+function activeKeywords(d){
+  return (d.keywords || []).filter(keywordComplete);
+}
+
+function activeWeeks(d){
+  return (d.weekTargets || []).map((v, w) => ({ w, week: w + 1, target: budgetNum(v) })).filter(x => x.target > 0);
+}
+function defaultBudget(){
+  return {
+    n: 0, m: 0,
+    adStart: 1, adEnd: 0.3, k: 0.6, mode: "MAX",
+    keywords: Array.from({length: BUDGET_KW}, () => ({name:"", spr:"", cpc:"", cvr:"", clicks:""})),
+    weekTargets: Array.from({length: BUDGET_WK}, () => ""),
+    price:"", commission: 0.85, discount: 1, fba:"", cost:"", head:"",
+    vineQty:"", manQty:"", manFee:""
+  };
+}
+
+function readBudgetForm(){
+  const board = document.getElementById("budgetBoard");
+  if(!board) return defaultBudget();
+  const keywords = [];
+  for(let i = 0; i < BUDGET_KW; i++){
+    keywords.push({
+      name: (document.getElementById("bk-name-"+i) || {}).value || "",
+      spr: (document.getElementById("bk-spr-"+i) || {}).value || "",
+      cpc: (document.getElementById("bk-cpc-"+i) || {}).value || "",
+      cvr: (document.getElementById("bk-cvr-"+i) || {}).value || "",
+      clicks: (function(){
+        const n = cvrPctToClicks((document.getElementById("bk-cvr-"+i) || {}).value);
+        return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : "";
+      })()
+    });
+  }
+  const weekTargets = [];
+  for(let w = 0; w < BUDGET_WK; w++){
+    weekTargets.push((document.getElementById("bw-"+w) || {}).value || "");
+  }
+  return {
+    n: keywords.filter(keywordComplete).length,
+    m: activeWeeks({ weekTargets }).length,
+    adStart: budgetNum(document.getElementById("bk-start").value),
+    adEnd: budgetNum(document.getElementById("bk-end").value),
+    k: budgetNum(document.getElementById("bk-k").value),
+    mode: document.getElementById("bk-mode").value || "MAX",
+    keywords, weekTargets,
+    price: document.getElementById("bk-price").value,
+    commission: document.getElementById("bk-commission").value,
+    discount: document.getElementById("bk-discount").value,
+    fba: document.getElementById("bk-fba").value,
+    cost: (document.getElementById("bk-cost") || {}).value || "",
+    head: (document.getElementById("bk-head") || {}).value || "",
+    vineQty: (document.getElementById("bv-qty") || {}).value || "",
+    manQty: (document.getElementById("bm-qty") || {}).value || "",
+    manFee: (document.getElementById("bm-fee") || {}).value || ""
+  };
+}
+
+function applyBudgetForm(data){
+  const d = Object.assign(defaultBudget(), data || {});
+  d.keywords = (d.keywords || []).concat(defaultBudget().keywords).slice(0, BUDGET_KW);
+  d.weekTargets = (d.weekTargets || []).concat(defaultBudget().weekTargets).slice(0, BUDGET_WK);
+  const set = (id, v) => { const n = document.getElementById(id); if(n) n.value = v == null ? "" : v; };
+  set("bk-start", d.adStart); set("bk-end", d.adEnd); set("bk-k", d.k);
+  set("bk-mode", d.mode || "MAX");
+  set("bk-price", d.price); set("bk-commission", d.commission);
+  set("bk-discount", d.discount); set("bk-fba", d.fba);
+  set("bk-cost", d.cost); set("bk-head", d.head);
+  set("bv-qty", d.vineQty); set("bm-qty", d.manQty); set("bm-fee", d.manFee);
+  d.keywords.forEach((kw, i) => {
+    set("bk-name-"+i, kw.name); set("bk-spr-"+i, kw.spr);
+    set("bk-cpc-"+i, kw.cpc);
+    let cvr = kw.cvr;
+    if((cvr == null || cvr === "") && budgetNum(kw.clicks) > 0) cvr = clicksToCvrPct(kw.clicks);
+    set("bk-cvr-"+i, cvr);
+  });
+  d.weekTargets.forEach((v, i) => set("bw-"+i, v));
+  refreshBudgetDisabled();
+  refreshBudgetClicks();
+  refreshBudgetNeed();
+  renderBudgetResult();
+}
+
+function refreshBudgetDisabled(){
+  for(let i = 0; i < BUDGET_KW; i++){
+    const row = document.getElementById("bk-row-"+i);
+    if(!row) continue;
+    row.classList.remove("is-off");
+    row.querySelectorAll("input").forEach(inp => { inp.disabled = false; });
+  }
+  for(let w = 0; w < BUDGET_WK; w++){
+    const inp = document.getElementById("bw-"+w);
+    if(!inp) continue;
+    inp.disabled = false;
+    const cell = inp.closest("td");
+    if(cell) cell.classList.remove("is-off");
+  }
+}
+
+function validateBudget(d){
+  const miss = [];
+  if(!(d.adStart > 0 && d.adStart <= 1)) miss.push("广告占比起始值（0～1，如 1 = 100%）");
+  if(!(d.adEnd >= 0 && d.adEnd <= 1)) miss.push("广告占比稳定值（0～1）");
+  if(!(d.k > 0)) miss.push("衰减速度 k");
+  (d.keywords || []).forEach((kw, i) => {
+    if(!keywordStarted(kw) || keywordComplete(kw)) return;
+    miss.push("第"+(i+1)+"个词没填完（名称 / SPR / CPC / CVR）");
+  });
+  if(!activeKeywords(d).length) miss.push("至少完整填写 1 个关键词（不用凑满 8 个）");
+  if(!activeWeeks(d).length) miss.push("至少填写 1 周的目标订单（空着的周不算）");
+  if(!(budgetNum(d.price) > 0)) miss.push("产品单价");
+  if(!(budgetNum(d.commission) > 0 && budgetNum(d.commission) <= 1)) miss.push("佣金后比例（如 0.85）");
+  if(!(budgetNum(d.discount) > 0 && budgetNum(d.discount) <= 1)) miss.push("折扣率（不打折填 1）");
+  if(!(budgetNum(d.fba) >= 0)) miss.push("尾程派送费");
+  if(!(budgetNum(d.cost) >= 0)) miss.push("产品成本（采购成本，没有就填 0）");
+  if(!(budgetNum(d.head) >= 0)) miss.push("头程（运到 FBA 的单件运费，没有就填 0）");
+  const vq = budgetNum(d.vineQty);
+  if(String(d.vineQty || "").trim() !== "" && (!(vq >= 0 && vq <= 30) || vq !== Math.round(vq))){
+    miss.push("Vine 数量（0～30 的整数；1–2 免费，3–10 为 $75，11–30 为 $200）");
+  }
+  const mq = budgetNum(d.manQty);
+  if(String(d.manQty || "").trim() !== "" && (!(mq >= 0) || mq !== Math.round(mq))){
+    miss.push("手动测评数量（整数，没有就空着）");
+  }
+  if(qtyInt(d.manQty) > 0 && !(budgetNum(d.manFee) >= 0)){
+    miss.push("手动测评佣金（$/件，产品成本以外付给测评的钱）");
+  }
+  return miss;
+}
+
+function qtyInt(v){
+  const n = budgetNum(v);
+  if(!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n);
+}
+
+function vineFeeUsd(qty){
+  if(qty <= 0) return 0;
+  if(qty <= 2) return 0;
+  if(qty <= 10) return 75;
+  if(qty <= 30) return 200;
+  return NaN;
+}
+
+function extraCosts(d){
+  const vineQty = qtyInt(d.vineQty);
+  const manQty = qtyInt(d.manQty);
+  const fee = vineFeeUsd(vineQty);
+  const vineLanded = budgetNum(d.cost) + budgetNum(d.head) + budgetNum(d.fba);
+  const manLanded = budgetNum(d.cost) + budgetNum(d.head);
+  const manFee = budgetNum(d.manFee);
+  const vineGoods = vineQty * vineLanded;
+  const manGoods = manQty * manLanded;
+  const manPay = manQty * (Number.isFinite(manFee) ? manFee : 0);
+  const vineTotal = fee + vineGoods;
+  const manTotal = manGoods + manPay;
+  return { vineQty, manQty, fee, vineGoods, vineTotal, manFee, manPay, manGoods, manTotal, extra: vineTotal + manTotal };
+}
+
+function computeBudget(d){
+  const kws = activeKeywords(d).map(kw => {
+    const spr = budgetNum(kw.spr);
+    const cpc = budgetNum(kw.cpc);
+    const clicks = cvrPctToClicks(kw.cvr);
+    return {
+      name: String(kw.name || "").trim(),
+      spr, cpc, clicks,
+      cvr: budgetNum(kw.cvr),
+      full: spr * 7,
+      cpa: cpc * clicks
+    };
+  });
+  const weeks = activeWeeks(d);
+  const fulls = kws.map(x => x.full);
+  const listingFull = d.mode === "SUM" ? fulls.reduce((a,b)=>a+b,0) : Math.max.apply(null, fulls.concat([0]));
+  const sell = budgetNum(d.price) * budgetNum(d.discount);
+  const afterFee = sell * budgetNum(d.commission);
+  const unit = afterFee - budgetNum(d.fba) - budgetNum(d.cost) - budgetNum(d.head);
+  const unitRate = sell > 0 ? unit / sell : NaN;
+  const byWeek = weeks.map(() => 0);
+  const byKw = kws.map(() => 0);
+  let total = 0;
+  kws.forEach((kw, i) => {
+    weeks.forEach((slot, wi) => {
+      const progress = listingFull ? slot.target / listingFull : 0;
+      const orders = kw.full * progress;
+      const share = d.adEnd + (d.adStart - d.adEnd) * Math.exp(-d.k * slot.w);
+      const spend = orders * share * kw.cpa;
+      byWeek[wi] += spend;
+      byKw[i] += spend;
+      total += spend;
+    });
+  });
+  let coverWeek = null, paybackWeek = null;
+  let cumProfit = 0, cumAd = 0;
+  const weekProfit = [];
+  const weekNet = [];
+  const extra = extraCosts(d).extra;
+  const extraSafe = Number.isFinite(extra) ? extra : 0;
+  weeks.forEach((slot, wi) => {
+    const profit = slot.target * unit;
+    weekProfit.push(profit);
+    weekNet.push(profit - byWeek[wi]);
+    cumProfit += profit;
+    cumAd += byWeek[wi];
+    if(coverWeek == null && profit >= byWeek[wi]) coverWeek = slot.week;
+    if(paybackWeek == null && cumProfit >= cumAd + extraSafe) paybackWeek = slot.week;
+  });
+  return { kws, listingFull, unit, unitRate, byWeek, byKw, weekProfit, weekNet, total, coverWeek, paybackWeek, weeks, extra: extraSafe };
+}
+
+function weekMark(n){
+  return n ? ("第" + n + "周") : "已填周次内还没有";
+}
+
+function extraHeaderFrom(d, paybackWeek){
+  const x = extraCosts(d);
+  const ready = budgetNum(d.cost) >= 0 && budgetNum(d.head) >= 0 && budgetNum(d.fba) >= 0;
+  const show = (n) => ready && Number.isFinite(n) ? money(n) : "—";
+  return {
+    vine: show(x.vineTotal),
+    manual: show(x.manTotal),
+    extra: show(x.extra),
+    extraProfit: arguments.length < 2 ? "—" : weekMark(paybackWeek),
+    vineHint: x.vineQty ? (x.vineQty + " 件 · 入组费 " + money(x.fee) + " + 货本/头程/尾程") : "不参加就空着或填 0",
+    manHint: x.manQty ? (x.manQty + " 件 ×（产品成本 + 头程 + 佣金）") : "不参加就空着或填 0",
+    extraHint: "Vine + 手动测评",
+    extraProfitHint: "累计毛利盖住广告费 + 测评成本"
+  };
+}
+
+function setBudgetHeader(stats){
+  const map = {
+    budgetTotalNum: stats.total,
+    budgetUnitNum: stats.unit,
+    budgetCardNum: stats.card,
+    budgetProfitNum: stats.profit,
+    budgetVineNum: stats.vine,
+    budgetManNum: stats.manual,
+    budgetExtraNum: stats.extra,
+    budgetExtraProfitNum: stats.extraProfit
+  };
+  Object.keys(map).forEach(id => {
+    const n = document.getElementById(id);
+    if(n && map[id] != null) n.textContent = map[id];
+  });
+  const hints = {
+    budgetTotalHint: stats.totalHint || "",
+    budgetUnitHint: stats.unitHint || "",
+    budgetCardHint: stats.cardHint || "",
+    budgetProfitHint: stats.profitHint || "",
+    budgetVineHint: stats.vineHint || "",
+    budgetManHint: stats.manHint || "",
+    budgetExtraHint: stats.extraHint || "",
+    budgetExtraProfitHint: stats.extraProfitHint || ""
+  };
+  Object.keys(hints).forEach(id => {
+    const n = document.getElementById(id);
+    if(n) n.textContent = hints[id];
+  });
+}
+
+function renderBudgetResult(){
+  const box = document.getElementById("budgetResult");
+  if(!box) return;
+  const d = readBudgetForm();
+  const miss = validateBudget(d);
+  box.innerHTML = "";
+  box.appendChild(el("div","budget-sub","计算结果"));
+  const x = extraCosts(d);
+  const extraBits = extraHeaderFrom(d, null);
+  if(miss.length){
+    setBudgetHeader(Object.assign({
+      total: "—", unit: "—", card: "—", profit: "—",
+      totalHint: "填完下方黄格后自动计算",
+      unitHint: "售价扣佣金、折扣、尾程、产品成本、头程",
+      cardHint: "当周毛利盖住广告费，不用再垫信用卡",
+      profitHint: "累计毛利盖住累计广告费 + 测评成本"
+    }, extraBits));
+    const msg = el("div","budget-msg", "还没算出来。请先填：" + miss.slice(0, 6).join("、") + (miss.length > 6 ? "…" : ""));
+    box.appendChild(msg);
+    return;
+  }
+  const r = computeBudget(d);
+  const rateTxt = Number.isFinite(r.unitRate) ? ("毛利率 " + (r.unitRate * 100).toFixed(1) + "%") : "";
+  setBudgetHeader(Object.assign({
+    total: money(r.total),
+    unit: money(r.unit),
+    card: weekMark(r.coverWeek),
+    profit: weekMark(r.paybackWeek),
+    totalHint: "只统计你填了的周；空着的周不计入",
+    unitHint: rateTxt || "请核对成本和头程",
+    cardHint: r.coverWeek ? "从这周起当周毛利能盖住广告，不用再垫信用卡" : "已填周次内当周还要垫信用卡",
+    profitHint: r.paybackWeek ? "从这周起累计毛利盖住广告费 + Vine/手动测评" : "已填周次内累计尚未赢利"
+  }, extraHeaderFrom(d, r.paybackWeek)));
+  const kpis = el("div","budget-kpis");
+  [["总广告预算", money(r.total)], ["单件毛利", money(r.unit) + (rateTxt ? "（"+rateTxt+"）" : "")], ["不用垫信用卡", weekMark(r.coverWeek)], ["开始赢利", weekMark(r.paybackWeek)]].forEach((pair, i) => {
+    const card = el("div", i === 0 ? "budget-kpi is-hero" : "budget-kpi");
+    card.appendChild(el("b",null,pair[0]));
+    card.appendChild(el("span",null,pair[1]));
+    kpis.appendChild(card);
+  });
+  box.appendChild(kpis);
+
+  box.appendChild(el("div","budget-sub","按周花费"));
+  const tw = document.createElement("table");
+  tw.className = "budget-table";
+  tw.innerHTML = "<thead><tr><th>周次</th><th>目标订单</th><th>广告花费</th><th>当周毛利</th><th>当周净利</th><th>信用卡</th></tr></thead>";
+  const tbw = document.createElement("tbody");
+  r.weeks.forEach((slot, i) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(el("td",null, String(slot.week)));
+    tr.appendChild(el("td",null, String(slot.target)));
+    tr.appendChild(el("td",null, money(r.byWeek[i])));
+    tr.appendChild(el("td",null, money(r.weekProfit[i])));
+    tr.appendChild(el("td",null, money(r.weekNet[i])));
+    tr.appendChild(el("td",null, r.weekNet[i] >= 0 ? "不用垫" : "要垫"));
+    tbw.appendChild(tr);
+  });
+  tw.appendChild(tbw);
+  const weekScroll = el("div","budget-scroll");
+  weekScroll.appendChild(tw);
+  box.appendChild(weekScroll);
+
+  box.appendChild(el("div","budget-sub","按关键词花费"));
+  const tk = document.createElement("table");
+  tk.className = "budget-table";
+  tk.innerHTML = "<thead><tr><th>关键词</th><th>CVR</th><th>每单点击</th><th>CPA</th><th>广告花费</th></tr></thead>";
+  const tbk = document.createElement("tbody");
+  r.kws.forEach((kw, i) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(el("td",null, kw.name));
+    tr.appendChild(el("td",null, Number.isFinite(kw.cvr) ? (kw.cvr + "%") : "—"));
+    tr.appendChild(el("td",null, Number.isFinite(kw.clicks) ? kw.clicks.toFixed(2) : "—"));
+    tr.appendChild(el("td",null, money(kw.cpa)));
+    tr.appendChild(el("td",null, money(r.byKw[i])));
+    tbk.appendChild(tr);
+  });
+  tk.appendChild(tbk);
+  const kwResScroll = el("div","budget-scroll");
+  kwResScroll.appendChild(tk);
+  box.appendChild(kwResScroll);
+
+  box.appendChild(el("div","budget-sub","Vine / 手动测评拆分"));
+  const te = document.createElement("table");
+  te.className = "budget-table";
+  te.innerHTML = "<thead><tr><th>项目</th><th>数量</th><th>明细</th><th>金额</th></tr></thead>";
+  const teb = document.createElement("tbody");
+  [
+    ["Vine 入组费", String(x.vineQty), x.vineQty <= 0 ? "未参加" : (x.vineQty <= 2 ? "1–2 件免费" : (x.vineQty <= 10 ? "3–10 件 $75" : "11–30 件 $200")), money(x.fee)],
+    ["Vine 货与尾程", String(x.vineQty), "件数 ×（产品成本 + 头程 + FBA 尾程）", money(x.vineGoods)],
+    ["Vine 合计", String(x.vineQty), "", money(x.vineTotal)],
+    ["手动货本", String(x.manQty), "件数 ×（产品成本 + 头程），不含 FBA", money(x.manGoods)],
+    ["手动佣金", String(x.manQty), "件数 × 每件佣金", money(x.manPay)],
+    ["手动合计", String(x.manQty), "", money(x.manTotal)],
+    ["测评合计", String(x.vineQty + x.manQty), "加进开始赢利", money(x.extra)]
+  ].forEach(row => {
+    const tr = document.createElement("tr");
+    row.forEach(cell => tr.appendChild(el("td",null, cell)));
+    teb.appendChild(tr);
+  });
+  te.appendChild(teb);
+  const teScroll = el("div","budget-scroll");
+  teScroll.appendChild(te);
+  box.appendChild(teScroll);
+}
+
+function refreshBudgetNeed(){
+  const board = document.getElementById("budgetBoard");
+  if(!board) return;
+  const d = readBudgetForm();
+  const hasKw = activeKeywords(d).length > 0;
+  const hasWeek = activeWeeks(d).length > 0;
+  board.querySelectorAll("input, select").forEach(inp => {
+    inp.classList.remove("need-empty");
+    const id = inp.id || "";
+    if(id.indexOf("bk-name-") === 0 || id.indexOf("bk-spr-") === 0 || id.indexOf("bk-cpc-") === 0 || id.indexOf("bk-cvr-") === 0){
+      const i = +id.split("-").pop();
+      const kw = d.keywords[i] || {};
+      if(!keywordStarted(kw)){
+        if(!hasKw && i === 0) inp.classList.add("need-empty");
+        return;
+      }
+      if(!keywordComplete(kw) && String(inp.value || "").trim() === "") inp.classList.add("need-empty");
+      return;
+    }
+    if(id.indexOf("bw-") === 0){
+      if(!hasWeek && id === "bw-0" && String(inp.value || "").trim() === "") inp.classList.add("need-empty");
+      return;
+    }
+    if(id === "bv-qty" || id === "bm-qty") return;
+    if(id === "bm-fee"){
+      if(qtyInt(d.manQty) > 0 && String(inp.value || "").trim() === "") inp.classList.add("need-empty");
+      return;
+    }
+    if(String(inp.value || "").trim() === "") inp.classList.add("need-empty");
+  });
+  refreshBudgetClicks();
+}
+
+function refreshBudgetClicks(){
+  for(let i = 0; i < BUDGET_KW; i++){
+    const out = document.getElementById("bk-clicks-"+i);
+    if(!out) continue;
+    const n = cvrPctToClicks((document.getElementById("bk-cvr-"+i) || {}).value);
+    out.textContent = Number.isFinite(n) ? n.toFixed(2) : "—";
+  }
+  refreshVineFee();
+}
+
+function refreshVineFee(){
+  const out = document.getElementById("bv-fee");
+  if(!out) return;
+  const qty = qtyInt((document.getElementById("bv-qty") || {}).value);
+  if(qty > 30){ out.textContent = "最多 30 件"; return; }
+  out.textContent = money(vineFeeUsd(qty));
+}
+
+function tipDot(text){
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "tip-dot";
+  b.dataset.tip = text;
+  b.setAttribute("aria-label", "新手说明");
+  return b;
+}
+
+function wrapTip(control, text){
+  const wrap = el("div","tip-wrap");
+  wrap.appendChild(control);
+  wrap.appendChild(tipDot(text));
+  return wrap;
+}
+
+function labeled(text){
+  const lab = document.createElement("label");
+  lab.appendChild(document.createTextNode(text));
+  lab.appendChild(el("span","need-tag","需填"));
+  return lab;
+}
+
+function field(label, id, attrs, tip, need){
+  const wrap = el("div","budget-field");
+  wrap.appendChild(need === false ? (function(){
+    const lab = document.createElement("label");
+    lab.textContent = label;
+    return lab;
+  })() : labeled(label));
+  const input = document.createElement(attrs.tag || "input");
+  input.id = id;
+  if(!attrs.tag) input.type = attrs.type || "number";
+  Object.keys(attrs).forEach(k => {
+    if(k === "tag" || k === "type" || k === "placeholder") return;
+    input.setAttribute(k, attrs[k]);
+  });
+  if(attrs.placeholder) input.placeholder = attrs.placeholder;
+  wrap.appendChild(wrapTip(input, tip));
+  return wrap;
+}
+
+function bindBudgetTips(board){
+  let pop = document.getElementById("budgetTipPop");
+  if(!pop){
+    pop = el("div","budget-tip-pop");
+    pop.id = "budgetTipPop";
+    document.body.appendChild(pop);
+  }
+  const show = (dot) => {
+    pop.textContent = dot.dataset.tip || "";
+    pop.classList.add("is-on");
+    const r = dot.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - 292));
+    let top = r.bottom + 8;
+    pop.style.left = left + "px";
+    pop.style.top = top + "px";
+    const box = pop.getBoundingClientRect();
+    if(box.bottom > window.innerHeight - 8){
+      pop.style.top = Math.max(8, r.top - box.height - 8) + "px";
+    }
+  };
+  const hide = () => pop.classList.remove("is-on");
+  board.addEventListener("mouseover", (e) => {
+    const d = e.target.closest(".tip-dot");
+    if(d) show(d);
+  });
+  board.addEventListener("mouseout", (e) => {
+    const d = e.target.closest(".tip-dot");
+    if(!d) return;
+    if(e.relatedTarget && d.contains(e.relatedTarget)) return;
+    hide();
+  });
+  board.addEventListener("focusin", (e) => {
+    const d = e.target.closest(".tip-dot");
+    if(d) show(d);
+  });
+  board.addEventListener("focusout", hide);
+  board.addEventListener("click", (e) => {
+    const d = e.target.closest(".tip-dot");
+    if(d){
+      e.preventDefault();
+      show(d);
+    }
+  });
+}
+
+function mountBudgetBoard(stepEl){
+  const board = el("div","budget-board");
+  board.id = "budgetBoard";
+  const head = el("div","budget-head");
+  head.appendChild(el("h3",null,"广告预算表（必填）"));
+  board.appendChild(head);
+  const legend = el("div","budget-legend");
+  legend.innerHTML = "<b>表头</b>：总广告预算、单件毛利、不用垫信用卡、开始赢利。下一行是 Vine / 手动测评成本。运营填<b>产品成本 + 头程</b>，Vine 和手动只需填数量（手动再填每件佣金）。";
+  board.appendChild(legend);
+  const totalBar = el("div","budget-total-bar");
+  const stats = [
+    ["budgetTotalNum","总广告预算","budgetTotalHint","填完下方必填项后自动计算"],
+    ["budgetUnitNum","单件毛利","budgetUnitHint","售价扣佣金、折扣、尾程、产品成本、头程"],
+    ["budgetCardNum","不用垫信用卡","budgetCardHint","当周毛利盖住广告费的那一周起"],
+    ["budgetProfitNum","开始赢利","budgetProfitHint","累计毛利盖住累计广告费"]
+  ];
+  stats.forEach(row => {
+    const box = el("div","budget-stat");
+    box.appendChild(el("em",null,row[1]));
+    const num = document.createElement("strong");
+    num.id = row[0];
+    num.textContent = "—";
+    box.appendChild(num);
+    const hint = el("span",null,row[3]);
+    hint.id = row[2];
+    box.appendChild(hint);
+    totalBar.appendChild(box);
+  });
+  board.appendChild(totalBar);
+  const extraBar = el("div","budget-extra-bar");
+  [
+    ["budgetVineNum","Vine 成本","budgetVineHint","填数量后自动算：2件免费 / 10件$75 / 30件$200"],
+    ["budgetManNum","手动测评成本","budgetManHint","件数 ×（产品成本 + 头程 + 佣金）"],
+    ["budgetExtraNum","测评合计","budgetExtraHint","Vine + 手动"],
+    ["budgetExtraProfitNum","含测评后开始赢利","budgetExtraProfitHint","累计毛利盖住广告费 + 测评"]
+  ].forEach(row => {
+    const box = el("div","budget-stat");
+    box.appendChild(el("em",null,row[1]));
+    const num = document.createElement("strong");
+    num.id = row[0];
+    num.textContent = "—";
+    box.appendChild(num);
+    const hint = el("span",null,row[3]);
+    hint.id = row[2];
+    box.appendChild(hint);
+    extraBar.appendChild(box);
+  });
+  board.appendChild(extraBar);
+
+  const TIPS = {
+    n: "这支出几个核心词。最多 8 个。填 3 就只填下面表格前 3 行。",
+    m: "这套广告计划跑几周。最多 13 周。填 8 就只填下面 W1～W8。",
+    start: "第 1 周广告订单大概占总订单多少。填 1 表示 100% 靠广告；填 0.8 表示 80%。推品初期通常很高。",
+    end: "后面自然流量起来后，广告还占总订单多少。长期稳态，常见 0.2～0.4。",
+    k: "广告占比从起始值降到稳定值有多快。数字越大，降得越快。不确定就先填 0.6。",
+    mode: "把各词「满载周目标」合成 listing 满载：MAX 取最大那个词；SUM 把几个词加起来。一般用 MAX。",
+    price: "这支 ASIN 的售价，单位美元。用来算单件毛利。",
+    commission: "扣完亚马逊佣金后还剩多少。美国站大约 0.85（佣金约 15%）。",
+    discount: "促销后价格比例。不打折填 1；打九折填 0.9。",
+    fba: "每单 FBA 尾程派送费，单位美元。没有就填 0。",
+    cost: "产品采购成本，折成美元/件。运营必填；不确定先填工厂报价。",
+    head: "头程：从工厂运到 FBA 仓的单件运费（美元）。海运、空运都填到这里。没有就填 0。",
+    vineQty: "本次 Vine 计划送出件数，自己填。美国站：1–2 件入组费 $0，3–10 件 $75，11–30 件 $200。单次最多 30 件。不参加填 0。",
+    vineFee: "亚马逊 Vine 入组费，按件数自动套档，不用手填。",
+    manQty: "手动测评送出件数。不走 Vine、自己找人测。不参加填 0。",
+    manFee: "每件手动测评佣金（美元），是产品成本以外付给测评的钱。有数量就必须填，没有佣金填 0。",
+    name: "要投放的搜索词，例如 yoga mat。有几个填几个，空行不算，不必凑满 8 个。",
+    spr: "SPR：连续 N 天每天卖 N 单，这个词大概能上首页。例如填 8，表示大约每天 8 单。",
+    cpc: "假设每次点击多少美元。可先用广告后台或类目均价。",
+    cvr: "转化率 CVR。填 10 表示 10%（10 次点击出 1 单）。每单点击数 = 100 ÷ CVR%，不用手填。",
+    clicks: "由 CVR 自动算出：每单点击数 = 100 ÷ CVR%。例如 CVR 10% → 10 次点击出 1 单。CPA = CPC × 每单点击。",
+    week: "这一周整个 listing 计划卖多少单。只填你想规划的周，空着的周不计入总广告花费。"
+  };
+
+  const grid = el("div","budget-grid");
+  grid.appendChild(field("广告占比起始值（第1周）","bk-start",{min:"0",max:"1",step:"0.05",placeholder:"1=100%"}, TIPS.start));
+  grid.appendChild(field("广告占比稳定值","bk-end",{min:"0",max:"1",step:"0.05",placeholder:"如 0.3"}, TIPS.end));
+  grid.appendChild(field("衰减速度 k","bk-k",{min:"0.05",step:"0.1",placeholder:"如 0.6"}, TIPS.k));
+  const modeWrap = el("div","budget-field");
+  modeWrap.appendChild(labeled("listing 满载目标"));
+  const mode = document.createElement("select");
+  mode.id = "bk-mode";
+  mode.innerHTML = "<option value=\"MAX\">MAX（取各词满载最大值）</option><option value=\"SUM\">SUM（各词满载相加）</option>";
+  modeWrap.appendChild(wrapTip(mode, TIPS.mode));
+  grid.appendChild(modeWrap);
+  grid.appendChild(field("产品单价 $","bk-price",{min:"0",step:"0.01",placeholder:"必填"}, TIPS.price));
+  grid.appendChild(field("佣金后比例","bk-commission",{min:"0",max:"1",step:"0.01",placeholder:"如 0.85"}, TIPS.commission));
+  grid.appendChild(field("折扣率","bk-discount",{min:"0",max:"1",step:"0.01",placeholder:"不打折填 1"}, TIPS.discount));
+  grid.appendChild(field("尾程派送费 $","bk-fba",{min:"0",step:"0.01",placeholder:"必填"}, TIPS.fba));
+  grid.appendChild(field("产品成本 $","bk-cost",{min:"0",step:"0.01",placeholder:"采购成本"}, TIPS.cost));
+  grid.appendChild(field("头程 $","bk-head",{min:"0",step:"0.01",placeholder:"单件头程"}, TIPS.head));
+  board.appendChild(grid);
+
+  const extraTitle = el("div","budget-sub");
+  extraTitle.appendChild(document.createTextNode("Vine / 手动测评（选填，填数量就算成本）"));
+  board.appendChild(extraTitle);
+  const extraGrid = el("div","budget-grid");
+  extraGrid.appendChild(field("Vine 数量","bv-qty",{min:"0",max:"30",step:"1",placeholder:"0～30"}, TIPS.vineQty, false));
+  const feeWrap = el("div","budget-field");
+  const feeLab = document.createElement("label");
+  feeLab.textContent = "Vine 入组费（自动）";
+  feeWrap.appendChild(feeLab);
+  const feeAuto = el("span","budget-auto fee","$0.00");
+  feeAuto.id = "bv-fee";
+  feeWrap.appendChild(wrapTip(feeAuto, TIPS.vineFee));
+  extraGrid.appendChild(feeWrap);
+  extraGrid.appendChild(field("手动测评数量","bm-qty",{min:"0",step:"1",placeholder:"没有填 0"}, TIPS.manQty, false));
+  extraGrid.appendChild(field("手动佣金 $/件","bm-fee",{min:"0",step:"0.01",placeholder:"产品外佣金"}, TIPS.manFee, false));
+  board.appendChild(extraGrid);
+
+  const kwTitle = el("div","budget-sub");
+  kwTitle.appendChild(document.createTextNode("关键词（有几个填几个，空行不算）"));
+  kwTitle.appendChild(el("span","need-tag","至少1个"));
+  board.appendChild(kwTitle);
+  const kt = document.createElement("table");
+  kt.className = "budget-table";
+  kt.innerHTML = "<thead><tr><th>#</th><th>关键词</th><th>SPR（单/天）</th><th>CPC $</th><th>CVR %</th><th>每单点击（自动）</th></tr></thead>";
+  const ktb = document.createElement("tbody");
+  const kwTips = {name: TIPS.name, spr: TIPS.spr, cpc: TIPS.cpc, cvr: TIPS.cvr};
+  const kwPh = {name:"有就填", spr:"如 8", cpc:"如 0.9", cvr:"如 10"};
+  for(let i = 0; i < BUDGET_KW; i++){
+    const tr = document.createElement("tr");
+    tr.id = "bk-row-"+i;
+    tr.appendChild(el("td",null,String(i+1)));
+    ["name","spr","cpc","cvr"].forEach(key => {
+      const td = document.createElement("td");
+      const inp = document.createElement("input");
+      inp.id = "bk-"+key+"-"+i;
+      inp.placeholder = kwPh[key];
+      if(key !== "name"){ inp.type = "number"; inp.min = "0"; inp.step = "0.01"; }
+      if(key === "cvr"){ inp.max = "100"; inp.step = "0.1"; }
+      td.appendChild(wrapTip(inp, kwTips[key]));
+      tr.appendChild(td);
+    });
+    const autoTd = document.createElement("td");
+    const auto = el("span","budget-auto","—");
+    auto.id = "bk-clicks-"+i;
+    autoTd.appendChild(wrapTip(auto, TIPS.clicks));
+    tr.appendChild(autoTd);
+    ktb.appendChild(tr);
+  }
+  kt.appendChild(ktb);
+  const kwScroll = el("div","budget-scroll");
+  kwScroll.appendChild(kt);
+  board.appendChild(kwScroll);
+
+  const weekTitle = el("div","budget-sub");
+  weekTitle.appendChild(document.createTextNode("每周 listing 目标总订单（只填要规划的周）"));
+  weekTitle.appendChild(el("span","need-tag","至少1周"));
+  board.appendChild(weekTitle);
+  const weekGrid = el("div","week-grid");
+  weekGrid.id = "bw-row";
+  for(let w = 0; w < BUDGET_WK; w++){
+    const wrap = el("div","budget-field");
+    const lab = document.createElement("label");
+    lab.textContent = "W" + (w + 1);
+    wrap.appendChild(lab);
+    const inp = document.createElement("input");
+    inp.id = "bw-"+w;
+    inp.type = "number"; inp.min = "0"; inp.step = "1";
+    inp.placeholder = "选填";
+    wrap.appendChild(wrapTip(inp, "第"+(w+1)+"周：" + TIPS.week));
+    weekGrid.appendChild(wrap);
+  }
+  board.appendChild(weekGrid);
+
+  const result = el("div");
+  result.id = "budgetResult";
+  board.appendChild(result);
+  stepEl.appendChild(board);
+  bindBudgetTips(board);
+}
+
+async function saveBudget(){
+  if(!planId || !document.getElementById("budgetBoard")) return;
+  try{
+    await store.set("budget", JSON.stringify(readBudgetForm()));
+    await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(Date.now()));
+    scheduleCloudSave();
+  }catch(e){ console.error(e); }
+}
+
+function scheduleBudget(){
+  refreshBudgetDisabled();
+  refreshBudgetClicks();
+  refreshBudgetNeed();
+  renderBudgetResult();
+  clearTimeout(budgetTimer);
+  budgetTimer = setTimeout(saveBudget, 400);
+}
+
+async function loadBudget(){
+  let data = defaultBudget();
+  try{
+    const raw = await store.get("budget");
+    if(raw) data = Object.assign(defaultBudget(), JSON.parse(raw));
+  }catch(e){}
+  applyBudgetForm(data);
+}
 
 function scopedFor(pid, key){
   return "user:"+userId+":hs-playbook:"+pid+":"+key;
@@ -1094,6 +2094,9 @@ async function persistCurrentPlanLocal(){
     }
   }
   await store.set("meta", JSON.stringify(readCase()));
+  if(document.getElementById("budgetBoard")){
+    await store.set("budget", JSON.stringify(readBudgetForm()));
+  }
 }
 
 async function packCloudBlob(){
@@ -1117,11 +2120,16 @@ async function packCloudBlob(){
       }
     }
     let meta = p;
+    let budget = null;
     try{
       const raw = await storeRaw.get(scopedFor(p.id, "meta"));
       if(raw) meta = { ...p, ...JSON.parse(raw) };
     }catch(e){}
-    plans[p.id] = { meta, mmap, notes };
+    try{
+      const raw = await storeRaw.get(scopedFor(p.id, "budget"));
+      if(raw) budget = JSON.parse(raw);
+    }catch(e){}
+    plans[p.id] = { meta, mmap, notes, budget };
   }
   return { index: keep, lastPlan: last || "", plans };
 }
@@ -1136,6 +2144,7 @@ async function applyCloudBlob(blob){
       const pack = blob.plans && blob.plans[p.id];
       if(!pack) continue;
       if(pack.meta) await storeRaw.set(scopedFor(p.id, "meta"), JSON.stringify(pack.meta));
+      if(pack.budget) await storeRaw.set(scopedFor(p.id, "budget"), JSON.stringify(pack.budget));
       for(const s of STEPS){
         if(pack.mmap && pack.mmap[s.id]){
           await storeRaw.set(scopedFor(p.id, "mmap:"+s.id), JSON.stringify(pack.mmap[s.id]));
@@ -1350,6 +2359,8 @@ async function createBlankPlan(opts){
   planId = newPlanId();
   applyCase({ site:"", asin:"", name:name, price:"" });
   await resetCurrentTrees();
+  applyBudgetForm(defaultBudget());
+  await store.set("budget", JSON.stringify(defaultBudget()));
   const meta = { id: planId, site:"", asin:"", name:name, price:"", updated: Date.now() };
   idx.unshift(meta);
   await saveIndex(idx);
@@ -1373,6 +2384,7 @@ async function deleteCurrentPlan(){
     }
   }
   await storeRaw.del(scopedFor(id, "meta"));
+  await storeRaw.del(scopedFor(id, "budget"));
   const next = idx.filter(p => p.id !== id);
   await saveIndex(next);
   if(next[0]) await openPlan(next[0].id);
@@ -1575,6 +2587,7 @@ function renderSteps(){
 
     body.appendChild(notes);
     step.appendChild(body);
+    if(s.id === 9) mountBudgetBoard(step);
     main.appendChild(step);
   });
 }
@@ -1872,6 +2885,7 @@ function buildBackup(){
     kind: "hongsen-growth-playbook",
     owner: USER,
     meta: readCase(),
+    budget: readBudgetForm(),
     steps
   };
 }
@@ -1913,6 +2927,8 @@ async function importBackup(data){
     showPage(s.id, "plan");
     refreshPageDots(s.id);
   }
+  applyBudgetForm(data.budget || defaultBudget());
+  await saveBudget();
   await touchPlanMeta();
 }
 
@@ -2083,6 +3099,12 @@ function attachHandlers(){
     if(active) active.classList.add("is-current");
   }, {rootMargin:"-40% 0px -50% 0px", threshold:[0.1,0.25,0.5]});
   sections.forEach(sec => sec && obs.observe(sec));
+
+  const board = document.getElementById("budgetBoard");
+  if(board){
+    board.addEventListener("input", scheduleBudget);
+    board.addEventListener("change", scheduleBudget);
+  }
 }
 
 async function loadStepsData(){
@@ -2099,6 +3121,7 @@ async function loadStepsData(){
     await loadStepNotes(s.id);
     showPage(s.id, "plan");
   }
+  await loadBudget();
 }
 
 async function loadAll(){

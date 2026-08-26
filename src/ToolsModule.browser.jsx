@@ -78,6 +78,21 @@ const resolveToolUrl = (url) => {
   }
 };
 
+const withOpsUser = (url, user) => {
+  if (!url) return "";
+  const id = String(user?.id || user?.name || "guest");
+  const name = String(user?.name || id);
+  try {
+    const next = new URL(url, location.href);
+    next.searchParams.set("opsUser", id);
+    next.searchParams.set("opsName", name);
+    return next.href;
+  } catch {
+    const join = url.indexOf("?") >= 0 ? "&" : "?";
+    return url + join + "opsUser=" + encodeURIComponent(id) + "&opsName=" + encodeURIComponent(name);
+  }
+};
+
 const openToolUrl = (url) => {
   const target = resolveToolUrl(url);
   if (!target) return false;
@@ -606,6 +621,8 @@ function ToolCard({ tool, displayName, resolvedUrl, isEditing, editName, editUrl
 }
 
 function ToolsPanel({ active: tabActive = true }) {
+  const currentUser = useCurrentUser();
+  const opsUid = String(currentUser?.id || currentUser?.name || "guest");
   const { items: onlineDocs, meta: docsMeta, loading: docsLoading, saving: docsSaving, error: docsError, persist: persistOnlineDocs, reload: reloadDocs, dirty: docsDirty } =
     useSharedList("tools-links", DEFAULT_ONLINE_DOCS, { active: tabActive });
   const [customUrls, setCustomUrls] = useState(loadCustomUrls);
@@ -618,6 +635,11 @@ function ToolsPanel({ active: tabActive = true }) {
   const [editUrl, setEditUrl] = useState("");
   const [editName, setEditName] = useState("");
   const [legacyMigrated, setLegacyMigrated] = useState(false);
+
+  useEffect(() => {
+    setInlineTool(null);
+    setActive(null);
+  }, [opsUid]);
 
   useEffect(() => {
     if (!tabActive || docsLoading || legacyMigrated) return;
@@ -796,6 +818,8 @@ function ToolsPanel({ active: tabActive = true }) {
 
   if (inlineTool) {
     const url = resolveToolUrl(inlineTool._resolvedUrl || toolUrl(inlineTool, customUrls));
+    const isPlaybook = String(inlineTool.id || "").indexOf("growth-playbook") === 0;
+    const iframeSrc = isPlaybook ? withOpsUser(url, currentUser) : url;
     return (
       <div style={{ position: "relative", height: "calc(100vh - 120px)", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexShrink: 0 }}>
@@ -808,7 +832,7 @@ function ToolsPanel({ active: tabActive = true }) {
             此工具仅在公司内网可用，外网或 GitHub Pages 无法访问爬虫服务。
           </div>
         )}
-        <iframe src={url} title={inlineTool.name} style={{ flex: 1, width: "100%", minHeight: 0, border: "none", borderRadius: 8, background: "#fff" }} />
+        <iframe key={String(inlineTool.id) + ":" + opsUid} src={iframeSrc} title={inlineTool.name} style={{ flex: 1, width: "100%", minHeight: 0, border: "none", borderRadius: 8, background: "#fff" }} />
       </div>
     );
   }

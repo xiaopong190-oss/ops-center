@@ -1301,25 +1301,51 @@ function defaultTree(step){
 }
 
 const CURRENT_USER_KEY = "ops-center-current-user";
-const USER = (function(){
+function parsePlaybookUser(raw){
+  if(!raw) return null;
   try{
-    const raw = sessionStorage.getItem(CURRENT_USER_KEY);
-    if(raw){
-      const p = JSON.parse(raw);
-      if(p && (p.id || p.name)) return { id: String(p.id || p.name), name: p.name || String(p.id) };
+    const p = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if(p && (p.id || p.name)) return { id: String(p.id || p.name), name: String(p.name || p.id) };
+  }catch(e){}
+  return null;
+}
+function readPlaybookUser(){
+  try{
+    const fromWin = parsePlaybookUser(window.opsCurrentUser);
+    if(fromWin) return fromWin;
+  }catch(e){}
+  try{
+    if(window.parent && window.parent !== window){
+      const fromParentWin = parsePlaybookUser(window.parent.opsCurrentUser);
+      if(fromParentWin) return fromParentWin;
+      try{
+        const fromParentSs = parsePlaybookUser(window.parent.sessionStorage.getItem(CURRENT_USER_KEY));
+        if(fromParentSs) return fromParentSs;
+      }catch(e){}
     }
   }catch(e){}
+  try{
+    const fromOwn = parsePlaybookUser(sessionStorage.getItem(CURRENT_USER_KEY));
+    if(fromOwn) return fromOwn;
+  }catch(e){}
+  try{
+    const q = new URLSearchParams(location.search);
+    const id = String(q.get("opsUser") || "").trim();
+    const name = String(q.get("opsName") || "").trim();
+    if(id) return { id, name: name || id };
+  }catch(e){}
   return { id: "guest", name: "访客" };
-})();
-const userId = USER.id;
+}
+let USER = readPlaybookUser();
+function getUserId(){ return String(USER && USER.id ? USER.id : "guest"); }
 const MAX_PLANS = 5;
 
 let planId = "";
 let refreshingSelect = false;
 
-function indexKey(){ return "user:"+userId+":hs-playbook:index"; }
-function lastKey(){ return "user:"+userId+":hs-playbook:last-plan"; }
-function scoped(key){ return "user:"+userId+":hs-playbook:"+planId+":"+key; }
+function indexKey(){ return "user:"+getUserId()+":hs-playbook:index"; }
+function lastKey(){ return "user:"+getUserId()+":hs-playbook:last-plan"; }
+function scoped(key){ return "user:"+getUserId()+":hs-playbook:"+planId+":"+key; }
 
 const storeRaw = {
   async get(full){
@@ -1984,7 +2010,7 @@ async function saveBudget(){
   if(!planId || !document.getElementById("budgetBoard")) return;
   try{
     await store.set("budget", JSON.stringify(readBudgetForm()));
-    await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(Date.now()));
+    await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(Date.now()));
     scheduleCloudSave();
   }catch(e){ console.error(e); }
 }
@@ -2014,7 +2040,7 @@ async function loadBudget(){
 }
 
 function scopedFor(pid, key){
-  return "user:"+userId+":hs-playbook:"+pid+":"+key;
+  return "user:"+getUserId()+":hs-playbook:"+pid+":"+key;
 }
 
 async function persistCurrentPlanLocal(){
@@ -2094,7 +2120,7 @@ async function applyCloudBlob(blob){
 }
 
 function scheduleCloudSave(){
-  if(cloudHydrating || userId === "guest") return;
+  if(cloudHydrating || getUserId() === "guest") return;
   const api = getCloudApi();
   if(!api || typeof api.save !== "function") return;
   clearTimeout(cloudTimer);
@@ -2102,7 +2128,7 @@ function scheduleCloudSave(){
 }
 
 async function flushCloudSave(){
-  if(cloudHydrating || userId === "guest") return;
+  if(cloudHydrating || getUserId() === "guest") return;
   const api = getCloudApi();
   if(!api || typeof api.save !== "function") return;
   if(api.configured && !api.configured()){
@@ -2111,7 +2137,7 @@ async function flushCloudSave(){
   }
   setCloudHint("云端：同步中…");
   try{
-    await api.save(userId, await packCloudBlob());
+    await api.save(getUserId(), await packCloudBlob());
     setCloudHint("云端：已同步（本账号空间）");
   }catch(e){
     setCloudHint("云端：" + (e && e.message ? e.message : "同步失败"));
@@ -2119,7 +2145,7 @@ async function flushCloudSave(){
 }
 
 async function hydrateFromCloud(){
-  if(userId === "guest"){
+  if(getUserId() === "guest"){
     setCloudHint("云端：访客仅本机");
     return;
   }
@@ -2134,17 +2160,17 @@ async function hydrateFromCloud(){
   }
   setCloudHint("云端：拉取中…");
   try{
-    const blob = await api.load(userId);
+    const blob = await api.load(getUserId());
     if(!blob || !Array.isArray(blob.index) || !blob.index.length){
       setCloudHint("云端：本账号空间已就绪");
       return;
     }
     const localIdx = await loadIndex();
-    const localStamp = Number(await storeRaw.get("user:"+userId+":hs-playbook:updatedAt")) || 0;
+    const localStamp = Number(await storeRaw.get("user:"+getUserId()+":hs-playbook:updatedAt")) || 0;
     const cloudStamp = Number(blob.updatedAt) || 0;
     if(!localIdx.length || cloudStamp >= localStamp){
       await applyCloudBlob(blob);
-      await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(cloudStamp || Date.now()));
+      await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(cloudStamp || Date.now()));
       setCloudHint("云端：已拉取本账号空间");
     }else{
       setCloudHint("云端：本机较新，稍后上传");
@@ -2236,7 +2262,7 @@ async function loadIndex(){
 
 async function saveIndex(list){
   await storeRaw.set(indexKey(), JSON.stringify(list));
-  await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(Date.now()));
+  await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(Date.now()));
   scheduleCloudSave();
 }
 
@@ -2543,7 +2569,7 @@ async function saveTree(stepId){
   try{
     await store.set("mmap:"+stepId, JSON.stringify(trees[stepId]));
     flashSaved(stepId, "已保存");
-    await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(Date.now()));
+    await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(Date.now()));
     scheduleCloudSave();
   }catch(e){
     flashSaved(stepId, "保存失败");
@@ -2556,7 +2582,7 @@ async function saveNote(stepId, branchKey, value){
     await store.set("note:"+stepId+":"+branchKey, value);
     flashSaved(stepId, "已保存");
     refreshPageDots(stepId);
-    await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(Date.now()));
+    await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(Date.now()));
     scheduleCloudSave();
   }catch(e){
     flashSaved(stepId, "保存失败");
@@ -3054,15 +3080,34 @@ async function loadStepsData(){
   await loadBudget();
 }
 
-async function loadAll(){
+function paintWhoLabel(){
   const who = document.getElementById("whoLabel");
-  if(who) who.textContent = "运营：" + USER.name;
+  if(who) who.textContent = "运营：" + (USER && USER.name ? USER.name : "访客");
+}
+function applyPlaybookUser(next){
+  const incoming = next && (next.id || next.name)
+    ? { id: String(next.id || next.name), name: String(next.name || next.id) }
+    : readPlaybookUser();
+  const prevId = getUserId();
+  USER = incoming;
+  if(prevId === getUserId()) return;
+  planId = "";
+  paintWhoLabel();
+  loadAll();
+}
+let loadGen = 0;
+async function loadAll(){
+  const gen = ++loadGen;
+  USER = readPlaybookUser();
+  paintWhoLabel();
   await hydrateFromCloud();
+  if(gen !== loadGen) return;
 
   const params = new URLSearchParams(location.search);
   const wantNew = params.get("new") === "1";
   const wantPlan = params.get("plan");
   let idx = await loadIndex();
+  if(gen !== loadGen) return;
 
   if(wantNew){
     const ok = await createBlankPlan();
@@ -3094,6 +3139,15 @@ async function loadAll(){
 if(window.parent !== window) document.body.classList.add("embedded");
 renderSteps();
 attachHandlers();
+window.addEventListener("message", function(ev){
+  const d = ev && ev.data;
+  if(d && d.type === "ops-user-changed") applyPlaybookUser(d.user);
+});
+window.addEventListener("focus", function(){ applyPlaybookUser(readPlaybookUser()); });
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden) applyPlaybookUser(readPlaybookUser());
+});
+setInterval(function(){ applyPlaybookUser(readPlaybookUser()); }, 2000);
 loadAll();
 </script>
 </body>

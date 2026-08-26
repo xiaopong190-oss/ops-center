@@ -19,6 +19,25 @@ export function getCurrentUser() {
   return { id: "guest", name: "访客", role: "" };
 }
 
+export function publishCurrentUser(user) {
+  const payload = user && (user.id || user.name)
+    ? {
+        id: user.id || user.name || "guest",
+        name: user.name || "访客",
+        role: user.role || "",
+        auth: user.auth || user.role || "",
+        canEdit: user.canEdit !== false,
+        autoShare: user.autoShare === true,
+      }
+    : { id: "guest", name: "访客", role: "" };
+  try { window.opsCurrentUser = payload; } catch { /* ignore */ }
+  try {
+    document.querySelectorAll("iframe").forEach((frame) => {
+      try { frame.contentWindow.postMessage({ type: "ops-user-changed", user: payload }, "*"); } catch { /* ignore */ }
+    });
+  } catch { /* ignore */ }
+}
+
 export function setCurrentUser(user) {
   try {
     sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify({
@@ -29,11 +48,13 @@ export function setCurrentUser(user) {
       canEdit: user.canEdit !== false,
       autoShare: user.autoShare === true,
     }));
+    publishCurrentUser(user);
   } catch { /* ignore */ }
 }
 
 export function clearCurrentUser() {
   try { sessionStorage.removeItem(CURRENT_USER_KEY); } catch { /* ignore */ }
+  publishCurrentUser({ id: "guest", name: "访客", role: "" });
 }
 
 export function isSuperUser(user) {

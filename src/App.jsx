@@ -479,6 +479,9 @@ export default function App() {
     return () => window.removeEventListener("ops-user-prefs-updated", syncUser);
   }, []);
   useEffect(() => {
+    try { window.opsCurrentUser = currentUser || { id: "guest", name: "访客" }; } catch { /* ignore */ }
+  }, [currentUser]);
+  useEffect(() => {
     fetchGlobalConfigFromCloud().then(() => {
       if (sessionStorage.getItem(AUTH_SESSION_KEY) !== AUTH_ROLE_STAFF && sessionStorage.getItem(AUTH_SESSION_KEY) !== "ops") return;
       const user = getCurrentUser();

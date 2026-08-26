@@ -242,6 +242,172 @@ async function gistWriteRecord(key, payload) {
   }
   return payload;
 }
+const PLAYBOOK_MAX_BYTES = 800000;
+function playbookGistFileName(userId) {
+  const raw = String(userId || "").trim();
+  if (!raw || raw === "guest") return "";
+  let b64 = "";
+  try {
+    b64 = btoa(unescape(encodeURIComponent(raw))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  } catch {
+    b64 = encodeURIComponent(raw).replace(/%/g, "_");
+  }
+  return `playbook-u-${b64}.json`;
+}
+function decodePlaybookFileUser(fileName) {
+  const m = /^playbook-u-(.+)\.json$/i.exec(String(fileName || ""));
+  if (!m) return "";
+  try {
+    let b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    return decodeURIComponent(escape(atob(b64)));
+  } catch {
+    return "";
+  }
+}
+function samePlaybookUser(u, userId) {
+  const id = String(userId || "").trim().toLowerCase();
+  if (!u || !id) return false;
+  return String(u.id || "").trim().toLowerCase() === id || String(u.name || "").trim().toLowerCase() === id;
+}
+function purgeLocalPlaybook(userId) {
+  const prefix = `user:${userId}:hs-playbook:`;
+  const drop = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) drop.push(k);
+    }
+  } catch {/* ignore */}
+  drop.forEach(k => {
+    try {
+      localStorage.removeItem(k);
+    } catch {/* ignore */}
+  });
+}
+async function gistPatchFiles(files) {
+  const res = await fetch(`${GIST_API}/${getGistId()}`, {
+    method: "PATCH",
+    headers: gistHeaders(true),
+    body: JSON.stringify({
+      files
+    })
+  });
+  if (!res.ok) throw new Error("云端保存失败，请检查网络后重试");
+}
+const opsPlaybookCloud = {
+  configured() {
+    return gistConfigured();
+  },
+  async load(userId) {
+    const file = playbookGistFileName(userId);
+    if (!file || !gistConfigured()) return null;
+    const gist = await gistFetchAll();
+    let content = gist?.files?.[file]?.content;
+    if (!content) {
+      const want = String(userId || "").trim().toLowerCase();
+      for (const [name, f] of Object.entries(gist?.files || {})) {
+        const decoded = decodePlaybookFileUser(name);
+        if (decoded && decoded.toLowerCase() === want && f?.content) {
+          content = f.content;
+          break;
+        }
+      }
+    }
+    if (!content) return null;
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  },
+  async save(userId, data) {
+    const file = playbookGistFileName(userId);
+    if (!file) return {
+      skipped: true
+    };
+    const u = readSessionUser();
+    const isSuper = u && (u.auth === "super" || u.role === "super");
+    if (u && u.id !== "guest" && !samePlaybookUser(u, userId) && !isSuper) {
+      throw new Error("不能写入其他运营的推品空间");
+    }
+    if (!gistConfigured()) throw new Error("云端未配置");
+    const payload = {
+      kind: "hongsen-playbook-cloud",
+      version: 1,
+      userId,
+      updatedAt: Date.now(),
+      ...data
+    };
+    const text = JSON.stringify(payload);
+    if (text.length > PLAYBOOK_MAX_BYTES) {
+      throw new Error("本账号推品计划超过云端限额，请删掉旧计划后再保存");
+    }
+    await gistPatchFiles({
+      [file]: {
+        content: JSON.stringify(payload, null, 2)
+      }
+    });
+    return payload;
+  },
+  async remove(userId) {
+    purgeLocalPlaybook(userId);
+    const file = playbookGistFileName(userId);
+    if (!file || !gistConfigured()) return;
+    try {
+      await gistPatchFiles({
+        [file]: null
+      });
+    } catch (e) {
+      console.warn("[opsPlaybookCloud] 删除云端空间失败", userId, e?.message);
+    }
+  },
+  async purgeRemovedStaff(prevStaff, nextStaff) {
+    const next = new Set((nextStaff || []).map(e => String(e?.name || e || "").trim()).filter(Boolean));
+    const prev = (prevStaff || []).map(e => String(e?.name || e || "").trim()).filter(Boolean);
+    for (const name of prev) {
+      if (!next.has(name)) await opsPlaybookCloud.remove(name);
+    }
+  }
+};
+if (typeof window !== "undefined") window.opsPlaybookCloud = opsPlaybookCloud;
+function bindPlaybookCloudBridge() {
+  if (typeof window === "undefined" || window.__opsPlaybookCloudBridge) return;
+  window.__opsPlaybookCloudBridge = true;
+  window.addEventListener("message", async ev => {
+    const d = ev && ev.data;
+    if (!d || d.type !== "ops-playbook-cloud" || !ev.source) return;
+    const reply = (ok, result, error) => {
+      try {
+        ev.source.postMessage({
+          type: "ops-playbook-cloud-result",
+          reqId: d.reqId,
+          ok,
+          result,
+          error
+        }, "*");
+      } catch {/* ignore */}
+    };
+    try {
+      if (d.op === "configured") {
+        reply(true, opsPlaybookCloud.configured());
+        return;
+      }
+      if (d.op === "load") {
+        reply(true, await opsPlaybookCloud.load(d.userId));
+        return;
+      }
+      if (d.op === "save") {
+        reply(true, await opsPlaybookCloud.save(d.userId, d.data));
+        return;
+      }
+      reply(false, null, "unknown op");
+    } catch (e) {
+      reply(false, null, e?.message || String(e));
+    }
+  });
+}
+bindPlaybookCloudBridge();
 
 // ─── sharedStorage ───────────────────────────────────────────────────
 // 已配置 Gist → 全公司共享；未配置 → 仅 localStorage
@@ -564,6 +730,11 @@ async function saveGlobalConfig(config, opts = {}) {
       updatedAt: Date.now()
     });
     window.dispatchEvent(new CustomEvent("ops-shared-updated:global-config"));
+  }
+  try {
+    await opsPlaybookCloud.purgeRemovedStaff(prev.staff, next.staff);
+  } catch (e) {
+    console.warn("[opsPlaybookCloud] 清理离职账号空间失败", e?.message);
   }
   window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
   return next;
@@ -1038,7 +1209,7 @@ function GlobalSettingsModal({
       marginBottom: 8,
       lineHeight: 1.5
     }
-  }, "\u540D\u5355\u91CC\u6709\u540D\u5B57\u5C31\u80FD\u767B\u5F55\u3002\u9ED8\u8BA4\u4FEE\u6539\u53EA\u4FDD\u5B58\u5728\u81EA\u5DF1\u8D26\u53F7\uFF0C\u70B9\u300C\u4FDD\u5B58\u5E76\u4E0A\u4F20\u300D\u624D\u5206\u4EAB\u3002\u300C\u81EA\u52A8\u5206\u4EAB\u300D\u52FE\u4E0A\u540E\u6539\u5B8C\u7ACB\u523B\u7ED9\u5168\u5458\u3002\u8003\u6838\u3001\u63A8\u54C1\u8BA1\u5212\u3001\u701A\u6D77 SKU \u5E93\u7B49\u5DE5\u5177\u4ECD\u6309\u5404\u81EA\u89C4\u5219\u3002\u79BB\u804C\u53EA\u5220\u4EBA\u3002"), /*#__PURE__*/React.createElement("div", {
+  }, "\u540D\u5355\u91CC\u6709\u540D\u5B57\u5C31\u80FD\u767B\u5F55\u3002\u63A8\u54C1\u8BA1\u5212\u6BCF\u4EBA\u4E00\u5757\u4E91\u7AEF\u7A7A\u95F4\uFF0C\u6362\u7535\u8111\u4E5F\u80FD\u8BFB\u5230\u81EA\u5DF1\u7684\u3002\u4ECE\u540D\u5355\u5220\u4EBA\u540E\uFF0C\u8BE5\u7A7A\u95F4\u4E00\u5E76\u6D88\u9664\u3002\u9ED8\u8BA4\u4FEE\u6539\u53EA\u4FDD\u5B58\u5728\u81EA\u5DF1\u8D26\u53F7\uFF0C\u70B9\u300C\u4FDD\u5B58\u5E76\u4E0A\u4F20\u300D\u624D\u5206\u4EAB\u3002"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "#065f46",
@@ -1462,6 +1633,7 @@ window.useGlobalConfig = useGlobalConfig;
 window.fetchGlobalConfigFromCloud = fetchGlobalConfigFromCloud;
 window.getGlobalConfigMeta = getGlobalConfigMeta;
 window.sharedStorage = sharedStorage;
+window.opsPlaybookCloud = opsPlaybookCloud;
 // ─── STORAGE (shared / private) ─────────────────────────────────────
 const CURRENT_USER_KEY = "ops-center-current-user";
 
@@ -1481,6 +1653,33 @@ function getCurrentUser() {
     role: ""
   };
 }
+function publishCurrentUser(user) {
+  const payload = user && (user.id || user.name) ? {
+    id: user.id || user.name || "guest",
+    name: user.name || "访客",
+    role: user.role || "",
+    auth: user.auth || user.role || "",
+    canEdit: user.canEdit !== false,
+    autoShare: user.autoShare === true
+  } : {
+    id: "guest",
+    name: "访客",
+    role: ""
+  };
+  try {
+    window.opsCurrentUser = payload;
+  } catch {/* ignore */}
+  try {
+    document.querySelectorAll("iframe").forEach(frame => {
+      try {
+        frame.contentWindow.postMessage({
+          type: "ops-user-changed",
+          user: payload
+        }, "*");
+      } catch {/* ignore */}
+    });
+  } catch {/* ignore */}
+}
 function setCurrentUser(user) {
   try {
     sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify({
@@ -1491,12 +1690,18 @@ function setCurrentUser(user) {
       canEdit: user.canEdit !== false,
       autoShare: user.autoShare === true
     }));
+    publishCurrentUser(user);
   } catch {/* ignore */}
 }
 function clearCurrentUser() {
   try {
     sessionStorage.removeItem(CURRENT_USER_KEY);
   } catch {/* ignore */}
+  publishCurrentUser({
+    id: "guest",
+    name: "访客",
+    role: ""
+  });
 }
 function isSuperUser(user) {
   const u = user || getCurrentUser();
@@ -7538,6 +7743,20 @@ const resolveToolUrl = url => {
     return url;
   }
 };
+const withOpsUser = (url, user) => {
+  if (!url) return "";
+  const id = String(user?.id || user?.name || "guest");
+  const name = String(user?.name || id);
+  try {
+    const next = new URL(url, location.href);
+    next.searchParams.set("opsUser", id);
+    next.searchParams.set("opsName", name);
+    return next.href;
+  } catch {
+    const join = url.indexOf("?") >= 0 ? "&" : "?";
+    return url + join + "opsUser=" + encodeURIComponent(id) + "&opsName=" + encodeURIComponent(name);
+  }
+};
 const openToolUrl = url => {
   const target = resolveToolUrl(url);
   if (!target) return false;
@@ -7986,19 +8205,19 @@ const TOOL_CATALOG = [{
 }, {
   id: "growth-playbook",
   name: "推品计划",
-  desc: "五阶段九步作战手册 · 按运营账号分开保存 · 可导出 PDF",
+  desc: "五阶段九步作战手册 · 每人最多 5 个产品、下拉切换 · 可导出 PDF",
   icon: "🗺️",
   category: "运营",
   target: "inline",
-  openUrl: "tools/growth-playbook/index.html"
+  openUrl: "tools/growth-playbook/index.html?v=20260826u"
 }, {
   id: "growth-playbook-new",
-  name: "推品计划 · 空白",
-  desc: "新开一份空白计划，写下一支 ASIN，不影响已有计划",
+  name: "推品计划 · 添加产品",
+  desc: "再加一支产品（每人最多 5 个），不影响已有计划",
   icon: "📝",
   category: "运营",
   target: "inline",
-  openUrl: "tools/growth-playbook/index.html?new=1"
+  openUrl: "tools/growth-playbook/index.html?new=1&v=20260826u"
 }];
 const loadCustomUrls = () => {
   const saved = {};
@@ -8261,6 +8480,8 @@ function ToolCard({
 function ToolsPanel({
   active: tabActive = true
 }) {
+  const currentUser = useCurrentUser();
+  const opsUid = String(currentUser?.id || currentUser?.name || "guest");
   const {
     items: onlineDocs,
     meta: docsMeta,
@@ -8283,6 +8504,10 @@ function ToolsPanel({
   const [editUrl, setEditUrl] = useState("");
   const [editName, setEditName] = useState("");
   const [legacyMigrated, setLegacyMigrated] = useState(false);
+  useEffect(() => {
+    setInlineTool(null);
+    setActive(null);
+  }, [opsUid]);
   useEffect(() => {
     if (!tabActive || docsLoading || legacyMigrated) return;
     const legacy = readLegacyOnlineDocs();
@@ -8449,6 +8674,8 @@ function ToolsPanel({
   });
   if (inlineTool) {
     const url = resolveToolUrl(inlineTool._resolvedUrl || toolUrl(inlineTool, customUrls));
+    const isPlaybook = String(inlineTool.id || "").indexOf("growth-playbook") === 0;
+    const iframeSrc = isPlaybook ? withOpsUser(url, currentUser) : url;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         position: "relative",
@@ -8483,7 +8710,8 @@ function ToolsPanel({
         flexShrink: 0
       }
     }, "\u6B64\u5DE5\u5177\u4EC5\u5728\u516C\u53F8\u5185\u7F51\u53EF\u7528\uFF0C\u5916\u7F51\u6216 GitHub Pages \u65E0\u6CD5\u8BBF\u95EE\u722C\u866B\u670D\u52A1\u3002"), /*#__PURE__*/React.createElement("iframe", {
-      src: url,
+      key: String(inlineTool.id) + ":" + opsUid,
+      src: iframeSrc,
       title: inlineTool.name,
       style: {
         flex: 1,
@@ -16766,6 +16994,14 @@ function App() {
     window.addEventListener("ops-user-prefs-updated", syncUser);
     return () => window.removeEventListener("ops-user-prefs-updated", syncUser);
   }, []);
+  useEffect(() => {
+    try {
+      window.opsCurrentUser = currentUser || {
+        id: "guest",
+        name: "访客"
+      };
+    } catch {/* ignore */}
+  }, [currentUser]);
   useEffect(() => {
     fetchGlobalConfigFromCloud().then(() => {
       if (sessionStorage.getItem(AUTH_SESSION_KEY) !== AUTH_ROLE_STAFF && sessionStorage.getItem(AUTH_SESSION_KEY) !== "ops") return;

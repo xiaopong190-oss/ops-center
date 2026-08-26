@@ -175,6 +175,24 @@ function playbookGistFileName(userId) {
   return `playbook-u-${b64}.json`;
 }
 
+function decodePlaybookFileUser(fileName) {
+  const m = /^playbook-u-(.+)\.json$/i.exec(String(fileName || ""));
+  if (!m) return "";
+  try {
+    let b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    return decodeURIComponent(escape(atob(b64)));
+  } catch {
+    return "";
+  }
+}
+
+function samePlaybookUser(u, userId) {
+  const id = String(userId || "").trim().toLowerCase();
+  if (!u || !id) return false;
+  return String(u.id || "").trim().toLowerCase() === id || String(u.name || "").trim().toLowerCase() === id;
+}
+
 function purgeLocalPlaybook(userId) {
   const prefix = `user:${userId}:hs-playbook:`;
   const drop = [];
@@ -206,7 +224,17 @@ const opsPlaybookCloud = {
     const file = playbookGistFileName(userId);
     if (!file || !gistConfigured()) return null;
     const gist = await gistFetchAll();
-    const content = gist?.files?.[file]?.content;
+    let content = gist?.files?.[file]?.content;
+    if (!content) {
+      const want = String(userId || "").trim().toLowerCase();
+      for (const [name, f] of Object.entries(gist?.files || {})) {
+        const decoded = decodePlaybookFileUser(name);
+        if (decoded && decoded.toLowerCase() === want && f?.content) {
+          content = f.content;
+          break;
+        }
+      }
+    }
     if (!content) return null;
     try {
       return JSON.parse(content);
@@ -218,9 +246,8 @@ const opsPlaybookCloud = {
     const file = playbookGistFileName(userId);
     if (!file) return { skipped: true };
     const u = readSessionUser();
-    const sameUser = u && (String(u.id) === String(userId) || String(u.name) === String(userId));
     const isSuper = u && (u.auth === "super" || u.role === "super");
-    if (u && u.id !== "guest" && !sameUser && !isSuper) {
+    if (u && u.id !== "guest" && !samePlaybookUser(u, userId) && !isSuper) {
       throw new Error("不能写入其他运营的推品空间");
     }
     if (!gistConfigured()) throw new Error("云端未配置");

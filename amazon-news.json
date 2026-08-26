@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-08-25T01:08:47.882Z",
+  "updatedAt": "2026-08-26T01:11:24.730Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon hourly employees became satellite technicians—then watched their work launch into space",
-      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-career-choice-satellite-technicians-space-launch?utm_source=rss",
-      "pubDate": "Mon, 24 Aug 2026 14:00:25 GMT",
-      "date": "8/24",
-      "summary": "Career Choice is helping eligible Amazon employees earn certifications and launch new aerospace careers with Amazon Leo.",
-      "category": "Amazon Leo"
+      "title": "I'm an Amazon SVP who hadn't coded in 25 years. Then I wrote 100,000 lines of code with AI.",
+      "link": "https://www.aboutamazon.com/news/workplace/amazon-svp-ai-tools-employees-careers?utm_source=rss",
+      "pubDate": "Tue, 25 Aug 2026 18:31:13 GMT",
+      "date": "8/25",
+      "summary": "Amazon’s HR leader, Beth Galetti, shares how AI tools are empowering employees to build and how the company is investing $2.5 billion to pre",
+      "category": "Workplace"
     },
     {
-      "title": "Prime Video to invest $2 billion in Latin America between 2027 and 2030",
-      "link": "https://www.aboutamazon.com/news/entertainment/prime-video-latin-america-investment?utm_source=rss",
-      "pubDate": "Thu, 20 Aug 2026 17:30:07 GMT",
-      "date": "8/20",
-      "summary": "The investment spans original programming and live sports across the region—with more than 25 new titles coming in 2027 alone.",
-      "category": "Entertainment"
+      "title": "Inside the grocery operation Amazon built to be pickier than you",
+      "link": "https://www.aboutamazon.com/stories/how-amazon-grocery-delivery-works?utm_source=rss",
+      "pubDate": "Tue, 25 Aug 2026 12:55:05 GMT",
+      "date": "8/25",
+      "summary": "From cherry taste tests to banana ripening rooms, here’s what happens before your Amazon groceries reach your door.",
+      "category": "Retail"
     },
     {
-      "title": "'Sterling Point' Season 2: Everything to know and how to watch Season 1 on Prime Video",
-      "link": "https://www.aboutamazon.com/news/entertainment/sterling-point-series-prime-video?utm_source=rss",
-      "pubDate": "Thu, 20 Aug 2026 17:00:10 GMT",
-      "date": "8/20",
-      "summary": "The series follows a New York City teen who inherits her grandfather's mysterious island in Canada, uncovering friends, romance, and secrets",
-      "category": "Entertainment"
+      "title": "How to buy a car with Amazon Autos",
+      "link": "https://www.aboutamazon.com/news/retail/how-to-buy-a-car-with-amazon-autos?utm_source=rss",
+      "pubDate": "Tue, 25 Aug 2026 09:24:59 GMT",
+      "date": "8/25",
+      "summary": "Amazon Autos lets you browse, compare, finance, and buy new, used, and certified pre-owned vehicles—all online.",
+      "category": "Retail"
     }
   ]
 }

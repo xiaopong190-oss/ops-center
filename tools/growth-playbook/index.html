@@ -560,10 +560,31 @@
     border-radius:8px;
   }
   @media (max-width:860px){ .budget-extra-bar{grid-template-columns:1fr 1fr;} }
-  .budget-auto.fee{
-    min-height:38px;
-    display:flex;
-    align-items:center;
+  .budget-extra-bar em{
+    font-style:normal;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.04em;
+    color:#e8c547;
+  }
+  .budget-extra-bar strong{
+    font-family:"Noto Serif SC",serif;
+    font-size:26px;
+    font-weight:900;
+    color:#fff;
+    line-height:1.15;
+  }
+  .budget-extra-bar > .budget-stat > span{
+    font-size:12px;
+    font-weight:600;
+    color:#c9d0e0;
+    line-height:1.4;
+  }
+  .budget-split span{
+    font-size:11px;
+    font-weight:600;
+    color:#c9d0e0;
+    line-height:1.45;
   }
   .budget-kpis{
     display:grid;
@@ -988,8 +1009,8 @@
     </div>
   </div>
   <div class="case-field">
-    <label>售价</label>
-    <input id="casePrice" placeholder="$ / € / £" />
+    <label>售价 $</label>
+    <input id="casePrice" placeholder="如 29.99，同步到预算单价" />
   </div>
   <div class="case-actions">
     <button class="ghost-btn" id="masterBtn" type="button">打开总推品图</button>
@@ -1044,6 +1065,7 @@
   </div>
 </div>
 
+<script src="budget-math.cjs"></script>
 <script>
 const STEPS = [
   {
@@ -1338,60 +1360,21 @@ let cloudHydrating = false;
 let cloudTimer = null;
 let budgetTimer = null;
 
-const BUDGET_KW = 8;
-const BUDGET_WK = 13;
+function fieldVal(id){
+  const n = document.getElementById(id);
+  return n ? n.value : "";
+}
 
-function budgetNum(v){
-  const n = parseFloat(String(v == null ? "" : v).replace(/,/g, "").trim());
+function parseMoneyInput(v){
+  const n = budgetNum(String(v == null ? "" : v).replace(/[$€£¥￥,\s]/g, ""));
   return Number.isFinite(n) ? n : NaN;
 }
 
-function money(n){
-  if(!Number.isFinite(n)) return "—";
-  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function cvrPctToClicks(cvrPct){
-  const p = budgetNum(cvrPct);
-  if(!(p > 0)) return NaN;
-  return 100 / p;
-}
-
-function clicksToCvrPct(clicks){
-  const c = budgetNum(clicks);
-  if(!(c > 0)) return "";
-  const n = 100 / c;
-  return String(Math.round(n * 100) / 100);
-}
-
-function keywordComplete(kw){
-  return !!(String(kw && kw.name || "").trim()
-    && budgetNum(kw.spr) > 0
-    && budgetNum(kw.cpc) > 0
-    && budgetNum(kw.cvr) > 0
-    && budgetNum(kw.cvr) <= 100);
-}
-
-function keywordStarted(kw){
-  return [kw && kw.name, kw && kw.spr, kw && kw.cpc, kw && kw.cvr].some(v => String(v || "").trim() !== "");
-}
-
-function activeKeywords(d){
-  return (d.keywords || []).filter(keywordComplete);
-}
-
-function activeWeeks(d){
-  return (d.weekTargets || []).map((v, w) => ({ w, week: w + 1, target: budgetNum(v) })).filter(x => x.target > 0);
-}
-function defaultBudget(){
-  return {
-    n: 0, m: 0,
-    adStart: 1, adEnd: 0.3, k: 0.6, mode: "MAX",
-    keywords: Array.from({length: BUDGET_KW}, () => ({name:"", spr:"", cpc:"", cvr:"", clicks:""})),
-    weekTargets: Array.from({length: BUDGET_WK}, () => ""),
-    price:"", commission: 0.85, discount: 1, fba:"", cost:"", head:"",
-    vineQty:"", manQty:"", manFee:""
-  };
+function syncCasePriceToBudget(){
+  const n = parseMoneyInput(fieldVal("casePrice"));
+  const inp = document.getElementById("bk-price");
+  if(!inp || !Number.isFinite(n)) return;
+  if(String(inp.value) !== String(n)) inp.value = String(n);
 }
 
 function readBudgetForm(){
@@ -1417,20 +1400,20 @@ function readBudgetForm(){
   return {
     n: keywords.filter(keywordComplete).length,
     m: activeWeeks({ weekTargets }).length,
-    adStart: budgetNum(document.getElementById("bk-start").value),
-    adEnd: budgetNum(document.getElementById("bk-end").value),
-    k: budgetNum(document.getElementById("bk-k").value),
-    mode: document.getElementById("bk-mode").value || "MAX",
+    adStart: budgetNum(fieldVal("bk-start")),
+    adEnd: budgetNum(fieldVal("bk-end")),
+    k: budgetNum(fieldVal("bk-k")),
+    mode: fieldVal("bk-mode") || "MAX",
     keywords, weekTargets,
-    price: document.getElementById("bk-price").value,
-    commission: document.getElementById("bk-commission").value,
-    discount: document.getElementById("bk-discount").value,
-    fba: document.getElementById("bk-fba").value,
-    cost: (document.getElementById("bk-cost") || {}).value || "",
-    head: (document.getElementById("bk-head") || {}).value || "",
-    vineQty: (document.getElementById("bv-qty") || {}).value || "",
-    manQty: (document.getElementById("bm-qty") || {}).value || "",
-    manFee: (document.getElementById("bm-fee") || {}).value || ""
+    price: fieldVal("bk-price"),
+    commission: fieldVal("bk-commission"),
+    discount: fieldVal("bk-discount"),
+    fba: fieldVal("bk-fba"),
+    cost: fieldVal("bk-cost"),
+    head: fieldVal("bk-head"),
+    vineQty: fieldVal("bv-qty"),
+    manQty: fieldVal("bm-qty"),
+    manFee: fieldVal("bm-fee")
   };
 }
 
@@ -1443,6 +1426,10 @@ function applyBudgetForm(data){
   set("bk-mode", d.mode || "MAX");
   set("bk-price", d.price); set("bk-commission", d.commission);
   set("bk-discount", d.discount); set("bk-fba", d.fba);
+  if(!String(fieldVal("bk-price") || "").trim()){
+    const fromCase = parseMoneyInput(fieldVal("casePrice"));
+    if(Number.isFinite(fromCase)) set("bk-price", fromCase);
+  }
   set("bk-cost", d.cost); set("bk-head", d.head);
   set("bv-qty", d.vineQty); set("bm-qty", d.manQty); set("bm-fee", d.manFee);
   d.keywords.forEach((kw, i) => {
@@ -1475,117 +1462,6 @@ function refreshBudgetDisabled(){
   }
 }
 
-function validateBudget(d){
-  const miss = [];
-  if(!(d.adStart > 0 && d.adStart <= 1)) miss.push("广告占比起始值（0～1，如 1 = 100%）");
-  if(!(d.adEnd >= 0 && d.adEnd <= 1)) miss.push("广告占比稳定值（0～1）");
-  if(!(d.k > 0)) miss.push("衰减速度 k");
-  (d.keywords || []).forEach((kw, i) => {
-    if(!keywordStarted(kw) || keywordComplete(kw)) return;
-    miss.push("第"+(i+1)+"个词没填完（名称 / SPR / CPC / CVR）");
-  });
-  if(!activeKeywords(d).length) miss.push("至少完整填写 1 个关键词（不用凑满 8 个）");
-  if(!activeWeeks(d).length) miss.push("至少填写 1 周的目标订单（空着的周不算）");
-  if(!(budgetNum(d.price) > 0)) miss.push("产品单价");
-  if(!(budgetNum(d.commission) > 0 && budgetNum(d.commission) <= 1)) miss.push("佣金后比例（如 0.85）");
-  if(!(budgetNum(d.discount) > 0 && budgetNum(d.discount) <= 1)) miss.push("折扣率（不打折填 1）");
-  if(!(budgetNum(d.fba) >= 0)) miss.push("尾程派送费");
-  if(!(budgetNum(d.cost) >= 0)) miss.push("产品成本（采购成本，没有就填 0）");
-  if(!(budgetNum(d.head) >= 0)) miss.push("头程（运到 FBA 的单件运费，没有就填 0）");
-  const vq = budgetNum(d.vineQty);
-  if(String(d.vineQty || "").trim() !== "" && (!(vq >= 0 && vq <= 30) || vq !== Math.round(vq))){
-    miss.push("Vine 数量（0～30 的整数；1–2 免费，3–10 为 $75，11–30 为 $200）");
-  }
-  const mq = budgetNum(d.manQty);
-  if(String(d.manQty || "").trim() !== "" && (!(mq >= 0) || mq !== Math.round(mq))){
-    miss.push("手动测评数量（整数，没有就空着）");
-  }
-  if(qtyInt(d.manQty) > 0 && !(budgetNum(d.manFee) >= 0)){
-    miss.push("手动测评佣金（$/件，产品成本以外付给测评的钱）");
-  }
-  return miss;
-}
-
-function qtyInt(v){
-  const n = budgetNum(v);
-  if(!Number.isFinite(n) || n <= 0) return 0;
-  return Math.round(n);
-}
-
-function vineFeeUsd(qty){
-  if(qty <= 0) return 0;
-  if(qty <= 2) return 0;
-  if(qty <= 10) return 75;
-  if(qty <= 30) return 200;
-  return NaN;
-}
-
-function extraCosts(d){
-  const vineQty = qtyInt(d.vineQty);
-  const manQty = qtyInt(d.manQty);
-  const fee = vineFeeUsd(vineQty);
-  const vineLanded = budgetNum(d.cost) + budgetNum(d.head) + budgetNum(d.fba);
-  const manLanded = budgetNum(d.cost) + budgetNum(d.head);
-  const manFee = budgetNum(d.manFee);
-  const vineGoods = vineQty * vineLanded;
-  const manGoods = manQty * manLanded;
-  const manPay = manQty * (Number.isFinite(manFee) ? manFee : 0);
-  const vineTotal = fee + vineGoods;
-  const manTotal = manGoods + manPay;
-  return { vineQty, manQty, fee, vineGoods, vineTotal, manFee, manPay, manGoods, manTotal, extra: vineTotal + manTotal };
-}
-
-function computeBudget(d){
-  const kws = activeKeywords(d).map(kw => {
-    const spr = budgetNum(kw.spr);
-    const cpc = budgetNum(kw.cpc);
-    const clicks = cvrPctToClicks(kw.cvr);
-    return {
-      name: String(kw.name || "").trim(),
-      spr, cpc, clicks,
-      cvr: budgetNum(kw.cvr),
-      full: spr * 7,
-      cpa: cpc * clicks
-    };
-  });
-  const weeks = activeWeeks(d);
-  const fulls = kws.map(x => x.full);
-  const listingFull = d.mode === "SUM" ? fulls.reduce((a,b)=>a+b,0) : Math.max.apply(null, fulls.concat([0]));
-  const sell = budgetNum(d.price) * budgetNum(d.discount);
-  const afterFee = sell * budgetNum(d.commission);
-  const unit = afterFee - budgetNum(d.fba) - budgetNum(d.cost) - budgetNum(d.head);
-  const unitRate = sell > 0 ? unit / sell : NaN;
-  const byWeek = weeks.map(() => 0);
-  const byKw = kws.map(() => 0);
-  let total = 0;
-  kws.forEach((kw, i) => {
-    weeks.forEach((slot, wi) => {
-      const progress = listingFull ? slot.target / listingFull : 0;
-      const orders = kw.full * progress;
-      const share = d.adEnd + (d.adStart - d.adEnd) * Math.exp(-d.k * slot.w);
-      const spend = orders * share * kw.cpa;
-      byWeek[wi] += spend;
-      byKw[i] += spend;
-      total += spend;
-    });
-  });
-  let coverWeek = null, paybackWeek = null;
-  let cumProfit = 0, cumAd = 0;
-  const weekProfit = [];
-  const weekNet = [];
-  const extra = extraCosts(d).extra;
-  const extraSafe = Number.isFinite(extra) ? extra : 0;
-  weeks.forEach((slot, wi) => {
-    const profit = slot.target * unit;
-    weekProfit.push(profit);
-    weekNet.push(profit - byWeek[wi]);
-    cumProfit += profit;
-    cumAd += byWeek[wi];
-    if(coverWeek == null && profit >= byWeek[wi]) coverWeek = slot.week;
-    if(paybackWeek == null && cumProfit >= cumAd + extraSafe) paybackWeek = slot.week;
-  });
-  return { kws, listingFull, unit, unitRate, byWeek, byKw, weekProfit, weekNet, total, coverWeek, paybackWeek, weeks, extra: extraSafe };
-}
 
 function weekMark(n){
   return n ? ("第" + n + "周") : "已填周次内还没有";
@@ -1593,16 +1469,16 @@ function weekMark(n){
 
 function extraHeaderFrom(d, paybackWeek){
   const x = extraCosts(d);
-  const ready = budgetNum(d.cost) >= 0 && budgetNum(d.head) >= 0 && budgetNum(d.fba) >= 0;
-  const show = (n) => ready && Number.isFinite(n) ? money(n) : "—";
+  const goodsNote = x.vineQty ? ("入组费 " + money(x.fee) + " + 送出货 " + money(x.vineGoods) + "（" + x.vineQty + " 件 × 成本/头程/尾程）") : "不参加就空着或填 0";
   return {
-    vine: show(x.vineTotal),
-    manual: show(x.manTotal),
-    extra: show(x.extra),
+    vine: money(x.vineTotal),
+    manual: money(x.manTotal),
+    extra: money(x.extra),
     extraProfit: arguments.length < 2 ? "—" : weekMark(paybackWeek),
-    vineHint: x.vineQty ? (x.vineQty + " 件 · 入组费 " + money(x.fee) + " + 货本/头程/尾程") : "不参加就空着或填 0",
+    extraVineLine: "Vine 入组 " + money(x.fee) + " + 货 " + money(x.vineGoods),
+    extraManLine: "手动 货 " + money(x.manGoods) + " + 佣金 " + money(x.manPay),
+    vineHint: goodsNote,
     manHint: x.manQty ? (x.manQty + " 件 ×（产品成本 + 头程 + 佣金）") : "不参加就空着或填 0",
-    extraHint: "Vine + 手动测评",
     extraProfitHint: "累计毛利盖住广告费 + 测评成本"
   };
 }
@@ -1629,7 +1505,8 @@ function setBudgetHeader(stats){
     budgetProfitHint: stats.profitHint || "",
     budgetVineHint: stats.vineHint || "",
     budgetManHint: stats.manHint || "",
-    budgetExtraHint: stats.extraHint || "",
+    budgetExtraVineLine: stats.extraVineLine || "Vine 入组 $0.00 + 货 $0.00",
+    budgetExtraManLine: stats.extraManLine || "手动 货 $0.00 + 佣金 $0.00",
     budgetExtraProfitHint: stats.extraProfitHint || ""
   };
   Object.keys(hints).forEach(id => {
@@ -1726,8 +1603,8 @@ function renderBudgetResult(){
   const teb = document.createElement("tbody");
   [
     ["Vine 入组费", String(x.vineQty), x.vineQty <= 0 ? "未参加" : (x.vineQty <= 2 ? "1–2 件免费" : (x.vineQty <= 10 ? "3–10 件 $75" : "11–30 件 $200")), money(x.fee)],
-    ["Vine 货与尾程", String(x.vineQty), "件数 ×（产品成本 + 头程 + FBA 尾程）", money(x.vineGoods)],
-    ["Vine 合计", String(x.vineQty), "", money(x.vineTotal)],
+    ["Vine 送出货", String(x.vineQty), x.vineQty + " 件 ×（产品成本 " + money(num0(d.cost)) + " + 头程 " + money(num0(d.head)) + " + 尾程 " + money(num0(d.fba)) + "）", money(x.vineGoods)],
+    ["Vine 合计（入组费+货）", String(x.vineQty), "不是只有 $200 入组费", money(x.vineTotal)],
     ["手动货本", String(x.manQty), "件数 ×（产品成本 + 头程），不含 FBA", money(x.manGoods)],
     ["手动佣金", String(x.manQty), "件数 × 每件佣金", money(x.manPay)],
     ["手动合计", String(x.manQty), "", money(x.manTotal)],
@@ -1914,9 +1791,25 @@ function mountBudgetBoard(stepEl){
   [
     ["budgetVineNum","Vine 成本","budgetVineHint","填数量后自动算：2件免费 / 10件$75 / 30件$200"],
     ["budgetManNum","手动测评成本","budgetManHint","件数 ×（产品成本 + 头程 + 佣金）"],
-    ["budgetExtraNum","测评合计","budgetExtraHint","Vine + 手动"],
     ["budgetExtraProfitNum","含测评后开始赢利","budgetExtraProfitHint","累计毛利盖住广告费 + 测评"]
-  ].forEach(row => {
+  ].forEach((row, i) => {
+    if(i === 2){
+      const sumBox = el("div","budget-stat");
+      sumBox.appendChild(el("em",null,"测评合计"));
+      const sumNum = document.createElement("strong");
+      sumNum.id = "budgetExtraNum";
+      sumNum.textContent = "—";
+      sumBox.appendChild(sumNum);
+      const split = el("div","budget-split");
+      const vineLine = el("span",null,"Vine 入组 $0.00 + 货 $0.00");
+      vineLine.id = "budgetExtraVineLine";
+      const manLine = el("span",null,"手动 货 $0.00 + 佣金 $0.00");
+      manLine.id = "budgetExtraManLine";
+      split.appendChild(vineLine);
+      split.appendChild(manLine);
+      sumBox.appendChild(split);
+      extraBar.appendChild(sumBox);
+    }
     const box = el("div","budget-stat");
     box.appendChild(el("em",null,row[1]));
     const num = document.createElement("strong");
@@ -1937,7 +1830,7 @@ function mountBudgetBoard(stepEl){
     end: "后面自然流量起来后，广告还占总订单多少。长期稳态，常见 0.2～0.4。",
     k: "广告占比从起始值降到稳定值有多快。数字越大，降得越快。不确定就先填 0.6。",
     mode: "把各词「满载周目标」合成 listing 满载：MAX 取最大那个词；SUM 把几个词加起来。一般用 MAX。",
-    price: "这支 ASIN 的售价，单位美元。用来算单件毛利。",
+    price: "这支 ASIN 的售价，单位美元。改这里或改页面顶部「售价」，表头单件毛利会马上重算。",
     commission: "扣完亚马逊佣金后还剩多少。美国站大约 0.85（佣金约 15%）。",
     discount: "促销后价格比例。不打折填 1；打九折填 0.9。",
     fba: "每单 FBA 尾程派送费，单位美元。没有就填 0。",
@@ -2052,6 +1945,15 @@ function mountBudgetBoard(stepEl){
   board.appendChild(result);
   stepEl.appendChild(board);
   bindBudgetTips(board);
+  bindBudgetLive(board);
+}
+
+function bindBudgetLive(board){
+  if(!board || board.dataset.liveBound === "1") return;
+  board.dataset.liveBound = "1";
+  board.addEventListener("input", scheduleBudget);
+  board.addEventListener("change", scheduleBudget);
+  board.addEventListener("keyup", scheduleBudget);
 }
 
 async function saveBudget(){
@@ -2063,11 +1965,17 @@ async function saveBudget(){
   }catch(e){ console.error(e); }
 }
 
-function scheduleBudget(){
-  refreshBudgetDisabled();
-  refreshBudgetClicks();
-  refreshBudgetNeed();
-  renderBudgetResult();
+function scheduleBudget(e){
+  try{
+    const id = e && e.target && e.target.id;
+    if(id === "casePrice") syncCasePriceToBudget();
+    refreshBudgetDisabled();
+    refreshBudgetClicks();
+    refreshBudgetNeed();
+    renderBudgetResult();
+  }catch(err){
+    console.error(err);
+  }
   clearTimeout(budgetTimer);
   budgetTimer = setTimeout(saveBudget, 400);
 }
@@ -3042,6 +2950,7 @@ function attachHandlers(){
 
   ["caseSite","caseAsin","caseName","casePrice"].forEach(id => {
     document.getElementById(id).addEventListener("input", () => {
+      if(id === "casePrice") scheduleBudget();
       clearTimeout(saveTimers.meta);
       saveTimers.meta = setTimeout(() => touchPlanMeta(), 400);
     });
@@ -3101,10 +3010,7 @@ function attachHandlers(){
   sections.forEach(sec => sec && obs.observe(sec));
 
   const board = document.getElementById("budgetBoard");
-  if(board){
-    board.addEventListener("input", scheduleBudget);
-    board.addEventListener("change", scheduleBudget);
-  }
+  bindBudgetLive(board);
 }
 
 async function loadStepsData(){

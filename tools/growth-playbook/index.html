@@ -1422,13 +1422,99 @@ const store = {
   del(key){ return storeRaw.del(scoped(key)); }
 };
 
+function playbookCloudRpc(op, extra){
+  return new Promise(function(resolve, reject){
+    if(!window.parent || window.parent === window){
+      reject(new Error("no parent"));
+      return;
+    }
+    const reqId = "pb" + Date.now() + Math.random().toString(36).slice(2, 8);
+    const timer = setTimeout(function(){
+      window.removeEventListener("message", onMsg);
+      reject(new Error("云端超时"));
+    }, 20000);
+    function onMsg(ev){
+      const d = ev && ev.data;
+      if(!d || d.type !== "ops-playbook-cloud-result" || d.reqId !== reqId) return;
+      clearTimeout(timer);
+      window.removeEventListener("message", onMsg);
+      if(d.ok) resolve(d.result);
+      else reject(new Error(d.error || "云端失败"));
+    }
+    window.addEventListener("message", onMsg);
+    try{
+      window.parent.postMessage({
+        type: "ops-playbook-cloud",
+        op: op,
+        reqId: reqId,
+        userId: extra && extra.userId,
+        data: extra && extra.data
+      }, "*");
+    }catch(e){
+      clearTimeout(timer);
+      window.removeEventListener("message", onMsg);
+      reject(e);
+    }
+  });
+}
+
 function getCloudApi(){
   try{
     if(window.parent && window.parent !== window && window.parent.opsPlaybookCloud){
       return window.parent.opsPlaybookCloud;
     }
   }catch(e){}
-  return window.opsPlaybookCloud || null;
+  if(window.opsPlaybookCloud) return window.opsPlaybookCloud;
+  if(window.parent && window.parent !== window){
+    return {
+      configured: function(){ return true; },
+      load: function(userId){ return playbookCloudRpc("load", { userId: userId }); },
+      save: function(userId, data){ return playbookCloudRpc("save", { userId: userId, data: data }); }
+    };
+  }
+  return null;
+}
+
+function syncStampKey(){ return "user:"+getUserId()+":hs-playbook:cloudSyncedAt"; }
+
+async function waitForPlaybookUser(){
+  USER = readPlaybookUser();
+  if(USER.id !== "guest") return USER;
+  if(window.parent === window) return USER;
+  for(let i = 0; i < 30; i++){
+    await new Promise(function(r){ setTimeout(r, 50); });
+    USER = readPlaybookUser();
+    if(USER.id !== "guest") return USER;
+  }
+  return USER;
+}
+
+async function migrateGuestPlaybook(toId){
+  if(!toId || toId === "guest") return false;
+  const from = "user:guest:hs-playbook:";
+  const to = "user:"+toId+":hs-playbook:";
+  const guestIdxRaw = await storeRaw.get(from + "index");
+  if(!guestIdxRaw) return false;
+  let guestIdx = [];
+  try{ guestIdx = JSON.parse(guestIdxRaw) || []; }catch(e){ return false; }
+  if(!guestIdx.length) return false;
+  const userIdxRaw = await storeRaw.get(to + "index");
+  let userIdx = [];
+  try{ userIdx = userIdxRaw ? JSON.parse(userIdxRaw) : []; }catch(e){}
+  if(userIdx.length) return false;
+  const keys = [];
+  try{
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.indexOf(from) === 0) keys.push(k);
+    }
+  }catch(e){}
+  for(const k of keys){
+    const v = await storeRaw.get(k);
+    if(v == null || v === "") continue;
+    await storeRaw.set(to + k.slice(from.length), v);
+  }
+  return true;
 }
 
 function setCloudHint(text){
@@ -1439,6 +1525,7 @@ function setCloudHint(text){
 let cloudHydrating = false;
 let cloudTimer = null;
 let budgetTimer = null;
+let cloudHydrateTried = false;
 
 function fieldVal(id){
   const n = document.getElementById(id);
@@ -2149,8 +2236,12 @@ async function applyCloudBlob(blob){
       if(pack.meta) await storeRaw.set(scopedFor(p.id, "meta"), JSON.stringify(pack.meta));
       if(pack.budget) await storeRaw.set(scopedFor(p.id, "budget"), JSON.stringify(pack.budget));
       for(const s of STEPS){
-        if(pack.mmap && pack.mmap[s.id]){
-          await storeRaw.set(scopedFor(p.id, "mmap:"+s.id), JSON.stringify(pack.mmap[s.id]));
+        if(pack.mmap){
+          if(pack.mmap[s.id] != null){
+            await storeRaw.set(scopedFor(p.id, "mmap:"+s.id), JSON.stringify(pack.mmap[s.id]));
+          }else{
+            await storeRaw.del(scopedFor(p.id, "mmap:"+s.id));
+          }
         }
         for(const b of BRANCHES){
           const v = pack.notes && pack.notes[s.id] ? (pack.notes[s.id][b.key] || "") : "";
@@ -2169,11 +2260,12 @@ function scheduleCloudSave(){
   const api = getCloudApi();
   if(!api || typeof api.save !== "function") return;
   clearTimeout(cloudTimer);
-  cloudTimer = setTimeout(() => { flushCloudSave(); }, 1400);
+  cloudTimer = setTimeout(() => { flushCloudSave(); }, 600);
 }
 
 async function flushCloudSave(){
   if(cloudHydrating || getUserId() === "guest") return;
+  if(!cloudHydrateTried) return;
   const api = getCloudApi();
   if(!api || typeof api.save !== "function") return;
   if(api.configured && !api.configured()){
@@ -2182,7 +2274,10 @@ async function flushCloudSave(){
   }
   setCloudHint("云端：同步中…");
   try{
-    await api.save(getUserId(), await packCloudBlob());
+    const saved = await api.save(getUserId(), await packCloudBlob());
+    const stamp = String((saved && saved.updatedAt) || Date.now());
+    await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", stamp);
+    await storeRaw.set(syncStampKey(), stamp);
     setCloudHint("云端：已同步（本账号空间）");
   }catch(e){
     setCloudHint("云端：" + (e && e.message ? e.message : "同步失败"));
@@ -2190,8 +2285,9 @@ async function flushCloudSave(){
 }
 
 async function hydrateFromCloud(){
+  cloudHydrateTried = true;
   if(getUserId() === "guest"){
-    setCloudHint("云端：访客仅本机");
+    setCloudHint("云端：访客仅本机，换账号看不到");
     return;
   }
   const api = getCloudApi();
@@ -2212,10 +2308,12 @@ async function hydrateFromCloud(){
     }
     const localIdx = await loadIndex();
     const localStamp = Number(await storeRaw.get("user:"+getUserId()+":hs-playbook:updatedAt")) || 0;
+    const lastSync = Number(await storeRaw.get(syncStampKey())) || 0;
     const cloudStamp = Number(blob.updatedAt) || 0;
-    if(!localIdx.length || cloudStamp >= localStamp){
+    if(!localIdx.length || cloudStamp >= localStamp || cloudStamp > lastSync){
       await applyCloudBlob(blob);
       await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(cloudStamp || Date.now()));
+      await storeRaw.set(syncStampKey(), String(cloudStamp || Date.now()));
       setCloudHint("云端：已拉取本账号空间");
     }else{
       setCloudHint("云端：本机较新，稍后上传");
@@ -3189,7 +3287,8 @@ function applyPlaybookUser(next){
 let loadGen = 0;
 async function loadAll(){
   const gen = ++loadGen;
-  USER = readPlaybookUser();
+  await waitForPlaybookUser();
+  if(gen !== loadGen) return;
   paintWhoLabel();
   await hydrateFromCloud();
   if(gen !== loadGen) return;
@@ -3198,6 +3297,15 @@ async function loadAll(){
   const wantNew = params.get("new") === "1";
   const wantPlan = params.get("plan");
   let idx = await loadIndex();
+  if(gen !== loadGen) return;
+  if(!idx.length && getUserId() !== "guest"){
+    const moved = await migrateGuestPlaybook(getUserId());
+    if(moved){
+      setCloudHint("云端：正在把本机草稿写入本账号…");
+      await flushCloudSave();
+      idx = await loadIndex();
+    }
+  }
   if(gen !== loadGen) return;
 
   if(wantNew){
@@ -3236,7 +3344,16 @@ window.addEventListener("message", function(ev){
 });
 window.addEventListener("focus", function(){ applyPlaybookUser(readPlaybookUser()); });
 document.addEventListener("visibilitychange", function(){
-  if(!document.hidden) applyPlaybookUser(readPlaybookUser());
+  if(document.hidden){
+    if(cloudTimer){ clearTimeout(cloudTimer); cloudTimer = null; }
+    flushCloudSave();
+    return;
+  }
+  applyPlaybookUser(readPlaybookUser());
+});
+window.addEventListener("pagehide", function(){
+  if(cloudTimer){ clearTimeout(cloudTimer); cloudTimer = null; }
+  flushCloudSave();
 });
 setInterval(function(){ applyPlaybookUser(readPlaybookUser()); }, 2000);
 loadAll();

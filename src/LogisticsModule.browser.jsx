@@ -253,6 +253,27 @@ const opsPlaybookCloud = {
 
 if (typeof window !== "undefined") window.opsPlaybookCloud = opsPlaybookCloud;
 
+function bindPlaybookCloudBridge() {
+  if (typeof window === "undefined" || window.__opsPlaybookCloudBridge) return;
+  window.__opsPlaybookCloudBridge = true;
+  window.addEventListener("message", async (ev) => {
+    const d = ev && ev.data;
+    if (!d || d.type !== "ops-playbook-cloud" || !ev.source) return;
+    const reply = (ok, result, error) => {
+      try { ev.source.postMessage({ type: "ops-playbook-cloud-result", reqId: d.reqId, ok, result, error }, "*"); } catch { /* ignore */ }
+    };
+    try {
+      if (d.op === "configured") { reply(true, opsPlaybookCloud.configured()); return; }
+      if (d.op === "load") { reply(true, await opsPlaybookCloud.load(d.userId)); return; }
+      if (d.op === "save") { reply(true, await opsPlaybookCloud.save(d.userId, d.data)); return; }
+      reply(false, null, "unknown op");
+    } catch (e) {
+      reply(false, null, e?.message || String(e));
+    }
+  });
+}
+bindPlaybookCloudBridge();
+
 // ─── sharedStorage ───────────────────────────────────────────────────
 // 已配置 Gist → 全公司共享；未配置 → 仅 localStorage
 

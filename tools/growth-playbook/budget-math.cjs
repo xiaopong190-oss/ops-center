@@ -9,7 +9,7 @@
   const MAN_MAX = 9999;
 
   function budgetNum(v) {
-    const n = parseFloat(String(v == null ? "" : v).replace(/,/g, "").trim());
+    const n = parseFloat(String(v == null ? "" : v).replace(/[$,]/g, "").trim());
     return Number.isFinite(n) ? n : NaN;
   }
 
@@ -61,14 +61,47 @@
   }
 
   function defaultBudget() {
+    const keywords = Array.from({ length: BUDGET_KW }, () => ({ name: "", spr: "", cpc: "", cvr: "", clicks: "" }));
+    keywords[0] = { name: "yoga mat", spr: 8, cpc: 0.9, cvr: 10, clicks: "" };
+    const weekTargets = Array.from({ length: BUDGET_WK }, () => "");
+    weekTargets[0] = 28;
     return {
       n: 0, m: 0,
       adStart: 1, adEnd: 0.3, k: 0.6, mode: "MAX",
-      keywords: Array.from({ length: BUDGET_KW }, () => ({ name: "", spr: "", cpc: "", cvr: "", clicks: "" })),
-      weekTargets: Array.from({ length: BUDGET_WK }, () => ""),
-      price: "", commission: 0.85, discount: 1, fba: "", cost: "", head: "",
-      vineQty: "", manQty: "", manFee: ""
+      keywords, weekTargets,
+      price: 30, commission: 0.85, discount: 0.9, fba: 4, cost: 8, head: 2,
+      vineQty: "", manQty: 10, manFee: 15, manRate: 1
     };
+  }
+
+  function emptyVal(v) {
+    return v == null || String(v).trim() === "";
+  }
+
+  function hydrateBudget(saved) {
+    const demo = defaultBudget();
+    if (!saved || typeof saved !== "object") return demo;
+    const d = Object.assign({}, demo, saved);
+    ["price", "fba", "cost", "head", "discount", "commission", "adStart", "adEnd", "k", "mode", "manQty", "manFee", "manRate"].forEach((k) => {
+      if (emptyVal(d[k])) d[k] = demo[k];
+    });
+    const blankKw = () => ({ name: "", spr: "", cpc: "", cvr: "", clicks: "" });
+    const kwIn = Array.isArray(saved.keywords) ? saved.keywords : [];
+    d.keywords = Array.from({ length: BUDGET_KW }, (_, i) => Object.assign(blankKw(), kwIn[i] || {}));
+    if (!activeKeywords(d).length) d.keywords = demo.keywords.map((kw) => Object.assign({}, kw));
+    const wkIn = Array.isArray(saved.weekTargets) ? saved.weekTargets : [];
+    d.weekTargets = Array.from({ length: BUDGET_WK }, (_, i) => (i < wkIn.length ? wkIn[i] : ""));
+    if (!activeWeeks(d).length) d.weekTargets = demo.weekTargets.slice();
+    return d;
+  }
+
+  function productReady(d) {
+    return budgetNum(d && d.price) > 0
+      && budgetNum(d && d.commission) > 0 && budgetNum(d && d.commission) <= 1
+      && budgetNum(d && d.discount) > 0 && budgetNum(d && d.discount) <= 1
+      && budgetNum(d && d.fba) >= 0
+      && budgetNum(d && d.cost) >= 0
+      && budgetNum(d && d.head) >= 0;
   }
 
   function boundedInt(v, min, max) {
@@ -91,6 +124,20 @@
     return NaN;
   }
 
+  function sellPrice(d) {
+    const price = Math.max(0, num0(d && d.price));
+    const disc = budgetNum(d && d.discount);
+    if (!Number.isFinite(disc)) return price;
+    return price * Math.max(0, disc);
+  }
+
+  function unitMargin(d) {
+    const sell = sellPrice(d);
+    const comm = budgetNum(d && d.commission);
+    const after = sell * (Number.isFinite(comm) && comm > 0 && comm <= 1 ? comm : 0);
+    return after - Math.max(0, num0(d && d.fba)) - Math.max(0, num0(d && d.cost)) - Math.max(0, num0(d && d.head));
+  }
+
   function extraCosts(d) {
     const vineQty = vineQtyInt(d && d.vineQty);
     const manQty = manQtyInt(d && d.manQty);
@@ -100,16 +147,25 @@
     const head = Math.max(0, num0(d && d.head));
     const fba = Math.max(0, num0(d && d.fba));
     const manFee = Math.max(0, num0(d && d.manFee));
+    const rateRaw = budgetNum(d && d.manRate);
+    const rateFilled = String((d && d.manRate) || "").trim() !== "";
+    let manRate = 0;
+    if (Number.isFinite(rateRaw) && rateRaw >= 0 && rateRaw <= 1) manRate = rateRaw;
+    else if (manQty && !rateFilled) manRate = 1;
     const vineUnit = cost + head + fba;
-    const manUnit = cost + head;
     const vineGoods = vineQty * vineUnit;
-    const manGoods = manQty * manUnit;
-    const manPay = manQty * manFee;
     const vineTotal = fee + vineGoods;
-    const manTotal = manGoods + manPay;
+    const unit = unitMargin(d);
+    const manIncome = manQty * unit;
+    // 支出不含产品成本：成本已在 unit margin（收入）里扣过，避免算两次。
+    const manExpense = manQty * (Math.max(0, num0(d && d.price)) * manRate + manFee);
+    const manPay = manQty * manFee;
+    const manGoods = manQty * Math.max(0, num0(d && d.price)) * manRate;
+    const manTotal = manExpense - manIncome;
     return {
       vineQty, manQty, fee, vineUnit, vineGoods, vineTotal,
-      manFee, manPay, manGoods, manTotal, extra: vineTotal + manTotal
+      manFee, manPay, manRate, manIncome, manExpense, manGoods, manTotal,
+      extra: vineTotal + manTotal
     };
   }
 
@@ -124,6 +180,12 @@
     });
     if (!activeKeywords(d).length) miss.push("至少完整填写 1 个关键词（不用凑满 8 个）");
     if (!activeWeeks(d).length) miss.push("至少填写 1 周的目标订单（空着的周不算）");
+    (d.weekTargets || []).forEach((v, i) => {
+      const raw = String(v == null ? "" : v).trim();
+      if (raw === "") return;
+      const n = budgetNum(v);
+      if (!(n > 0)) miss.push("第" + (i + 1) + "周目标订单须为正数");
+    });
     if (!(budgetNum(d.price) > 0)) miss.push("产品单价");
     if (!(budgetNum(d.commission) > 0 && budgetNum(d.commission) <= 1)) miss.push("佣金后比例（如 0.85）");
     if (!(budgetNum(d.discount) > 0 && budgetNum(d.discount) <= 1)) miss.push("折扣率（不打折填 1）");
@@ -141,7 +203,11 @@
       miss.push("手动测评数量（整数，没有就空着）");
     }
     if (manQtyInt(d.manQty) > 0 && !(budgetNum(d.manFee) >= 0)) {
-      miss.push("手动测评佣金（$/件，产品成本以外付给测评的钱）");
+      miss.push("手动测评佣金（$/件，没有就填 0）");
+    }
+    const rate = budgetNum(d.manRate);
+    if (manQtyInt(d.manQty) > 0 && String(d.manRate || "").trim() !== "" && !(rate >= 0 && rate <= 1)) {
+      miss.push("手动拿货折扣（0～1，默认 1 表示按售价全额）");
     }
     if (budgetNum(d.cost) < 0) miss.push("产品成本不能为负");
     if (budgetNum(d.head) < 0) miss.push("头程不能为负");
@@ -165,9 +231,8 @@
     const weeks = activeWeeks(d);
     const fulls = kws.map(x => x.full);
     const listingFull = d.mode === "SUM" ? fulls.reduce((a, b) => a + b, 0) : Math.max.apply(null, fulls.concat([0]));
-    const sell = budgetNum(d.price) * budgetNum(d.discount);
-    const afterFee = sell * budgetNum(d.commission);
-    const unit = afterFee - Math.max(0, num0(d.fba)) - Math.max(0, num0(d.cost)) - Math.max(0, num0(d.head));
+    const sell = sellPrice(d);
+    const unit = unitMargin(d);
     const unitRate = sell > 0 ? unit / sell : NaN;
     const byWeek = weeks.map(() => 0);
     const byKw = kws.map(() => 0);
@@ -207,6 +272,7 @@
     budgetNum, num0, money, nearInt, cvrPctToClicks, clicksToCvrPct,
     keywordComplete, keywordStarted, activeKeywords, activeWeeks,
     defaultBudget, qtyInt, vineQtyInt, manQtyInt, vineFeeUsd,
-    extraCosts, validateBudget, computeBudget
+    extraCosts, validateBudget, computeBudget, unitMargin, sellPrice,
+    hydrateBudget, productReady
   };
 });

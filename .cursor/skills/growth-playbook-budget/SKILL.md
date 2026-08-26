@@ -26,7 +26,11 @@ Vine is **not** the Amazon fee alone:
 - Goods: qty × (product cost + first-mile + FBA). Missing cost pieces count as 0, never NaN.
 - Total Vine = fee + goods.
 
-Manual reviews: qty × (product cost + first-mile + per-unit commission). No FBA. Qty without commission fails validation (0 commission is allowed).
+Manual reviews (net cost = 支出 − 收入):
+
+- 收入 = qty × unit margin (same unit as ads: `price × discount × commission − FBA − cost − 头程`). Product cost is deducted here, once.
+- 支出 = qty × 售价 × 拿货折扣 + qty × 佣金 $/件. Do **not** add product cost / 头程 / FBA again. Default 拿货折扣 `manRate` = 1（按售价全额）. Empty rate with qty still computes as 1.
+- Qty without 佣金 fails validation (0 commission is allowed). Invalid filled rate must be 0–1.
 
 Header:
 
@@ -42,6 +46,8 @@ MAX vs SUM: both still cost **every complete keyword**. MAX uses max(SPR×7) as 
 - Negative cost/head/fba/commission are clamped to 0 in extras; ads still require ≥ 0.
 - CVR must be (0, 100]; 0 and >100 are incomplete keywords.
 - Top bar 售价 syncs into 产品单价 only when the user edits 售价, not on every budget keystroke.
+- New / empty budget forms load the demo sample via `hydrateBudget`. If the saved plan already has a complete keyword or a positive week, empty other rows/weeks stay empty (do not inject yoga mat / week1=28).
+- Header 单件毛利 / Vine / 手动 still update when ads are incomplete; 总广告预算 and week marks stay — until keywords + weeks validate.
 
 ## Do not
 

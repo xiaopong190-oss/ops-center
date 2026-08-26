@@ -1065,7 +1065,16 @@
   </div>
 </div>
 
-<script src="budget-math.cjs"></script>
+<script>
+(function () {
+  var p = location.pathname;
+  if (location.protocol !== "file:" && !/\.html?$/i.test(p) && p.slice(-1) !== "/") {
+    location.replace(p + "/" + location.search + location.hash);
+    return;
+  }
+  document.write('<script src="budget-math.cjs"><\/script>');
+})();
+</script>
 <script>
 const STEPS = [
   {
@@ -1413,14 +1422,13 @@ function readBudgetForm(){
     head: fieldVal("bk-head"),
     vineQty: fieldVal("bv-qty"),
     manQty: fieldVal("bm-qty"),
-    manFee: fieldVal("bm-fee")
+    manFee: fieldVal("bm-fee"),
+    manRate: fieldVal("bm-rate")
   };
 }
 
 function applyBudgetForm(data){
-  const d = Object.assign(defaultBudget(), data || {});
-  d.keywords = (d.keywords || []).concat(defaultBudget().keywords).slice(0, BUDGET_KW);
-  d.weekTargets = (d.weekTargets || []).concat(defaultBudget().weekTargets).slice(0, BUDGET_WK);
+  const d = hydrateBudget(data);
   const set = (id, v) => { const n = document.getElementById(id); if(n) n.value = v == null ? "" : v; };
   set("bk-start", d.adStart); set("bk-end", d.adEnd); set("bk-k", d.k);
   set("bk-mode", d.mode || "MAX");
@@ -1430,8 +1438,13 @@ function applyBudgetForm(data){
     const fromCase = parseMoneyInput(fieldVal("casePrice"));
     if(Number.isFinite(fromCase)) set("bk-price", fromCase);
   }
+  if(budgetNum(d.price) > 0 && !String(fieldVal("casePrice") || "").trim()){
+    set("casePrice", d.price);
+  }
   set("bk-cost", d.cost); set("bk-head", d.head);
   set("bv-qty", d.vineQty); set("bm-qty", d.manQty); set("bm-fee", d.manFee);
+  const rate = Number(d.manRate);
+  set("bm-rate", d.manRate == null || d.manRate === "" || rate === 0.3 ? 1 : d.manRate);
   d.keywords.forEach((kw, i) => {
     set("bk-name-"+i, kw.name); set("bk-spr-"+i, kw.spr);
     set("bk-cpc-"+i, kw.cpc);
@@ -1476,9 +1489,9 @@ function extraHeaderFrom(d, paybackWeek){
     extra: money(x.extra),
     extraProfit: arguments.length < 2 ? "—" : weekMark(paybackWeek),
     extraVineLine: "Vine 入组 " + money(x.fee) + " + 货 " + money(x.vineGoods),
-    extraManLine: "手动 货 " + money(x.manGoods) + " + 佣金 " + money(x.manPay),
+    extraManLine: x.manQty ? ("手动 收入 " + money(x.manIncome) + " / 支出 " + money(x.manExpense)) : "手动 收入 $0.00 / 支出 $0.00",
     vineHint: goodsNote,
-    manHint: x.manQty ? (x.manQty + " 件 ×（产品成本 + 头程 + 佣金）") : "不参加就空着或填 0",
+    manHint: x.manQty ? ("收入 " + x.manQty + "×单件毛利（已含产品成本）；支出只计售价×" + x.manRate + "+佣金，成本不再加一遍。净成本 " + money(x.manTotal)) : "不参加就空着或填 0",
     extraProfitHint: "累计毛利盖住广告费 + 测评成本"
   };
 }
@@ -1506,7 +1519,7 @@ function setBudgetHeader(stats){
     budgetVineHint: stats.vineHint || "",
     budgetManHint: stats.manHint || "",
     budgetExtraVineLine: stats.extraVineLine || "Vine 入组 $0.00 + 货 $0.00",
-    budgetExtraManLine: stats.extraManLine || "手动 货 $0.00 + 佣金 $0.00",
+    budgetExtraManLine: stats.extraManLine || "手动 收入 $0.00 / 支出 $0.00",
     budgetExtraProfitHint: stats.extraProfitHint || ""
   };
   Object.keys(hints).forEach(id => {
@@ -1522,13 +1535,21 @@ function renderBudgetResult(){
   const miss = validateBudget(d);
   box.innerHTML = "";
   box.appendChild(el("div","budget-sub","计算结果"));
-  const x = extraCosts(d);
   const extraBits = extraHeaderFrom(d, null);
   if(miss.length){
+    const unitOk = productReady(d);
+    const unit = unitMargin(d);
+    const sell = Math.max(0, num0(d.price)) * (budgetNum(d.discount) > 0 ? budgetNum(d.discount) : 1);
+    const rateTxt = unitOk && Number.isFinite(unit) && sell > 0
+      ? ("毛利率 " + ((unit / sell) * 100).toFixed(1) + "%")
+      : "";
     setBudgetHeader(Object.assign({
-      total: "—", unit: "—", card: "—", profit: "—",
-      totalHint: "填完下方黄格后自动计算",
-      unitHint: "售价扣佣金、折扣、尾程、产品成本、头程",
+      total: "—",
+      unit: unitOk ? money(unit) : "—",
+      card: "—",
+      profit: "—",
+      totalHint: "还缺：" + miss.slice(0, 4).join("、") + (miss.length > 4 ? "…" : ""),
+      unitHint: unitOk ? (rateTxt || "售价扣佣金、折扣、尾程、产品成本、头程") : "售价扣佣金、折扣、尾程、产品成本、头程",
       cardHint: "当周毛利盖住广告费，不用再垫信用卡",
       profitHint: "累计毛利盖住累计广告费 + 测评成本"
     }, extraBits));
@@ -1537,6 +1558,7 @@ function renderBudgetResult(){
     return;
   }
   const r = computeBudget(d);
+  const x = extraCosts(d);
   const rateTxt = Number.isFinite(r.unitRate) ? ("毛利率 " + (r.unitRate * 100).toFixed(1) + "%") : "";
   setBudgetHeader(Object.assign({
     total: money(r.total),
@@ -1605,9 +1627,9 @@ function renderBudgetResult(){
     ["Vine 入组费", String(x.vineQty), x.vineQty <= 0 ? "未参加" : (x.vineQty <= 2 ? "1–2 件免费" : (x.vineQty <= 10 ? "3–10 件 $75" : "11–30 件 $200")), money(x.fee)],
     ["Vine 送出货", String(x.vineQty), x.vineQty + " 件 ×（产品成本 " + money(num0(d.cost)) + " + 头程 " + money(num0(d.head)) + " + 尾程 " + money(num0(d.fba)) + "）", money(x.vineGoods)],
     ["Vine 合计（入组费+货）", String(x.vineQty), "不是只有 $200 入组费", money(x.vineTotal)],
-    ["手动货本", String(x.manQty), "件数 ×（产品成本 + 头程），不含 FBA", money(x.manGoods)],
-    ["手动佣金", String(x.manQty), "件数 × 每件佣金", money(x.manPay)],
-    ["手动合计", String(x.manQty), "", money(x.manTotal)],
+    ["手动收入", String(x.manQty), "件数 × 单件正常毛利（已扣尾程、产品成本、头程）", money(x.manIncome)],
+    ["手动支出", String(x.manQty), "件数 × 售价 × " + x.manRate + " + 件数 × 佣金；产品成本已在收入里扣过，这里不加", money(x.manExpense)],
+    ["手动净成本", String(x.manQty), "支出 − 收入，加进开始赢利", money(x.manTotal)],
     ["测评合计", String(x.vineQty + x.manQty), "加进开始赢利", money(x.extra)]
   ].forEach(row => {
     const tr = document.createElement("tr");
@@ -1644,7 +1666,7 @@ function refreshBudgetNeed(){
       return;
     }
     if(id === "bv-qty" || id === "bm-qty") return;
-    if(id === "bm-fee"){
+    if(id === "bm-fee" || id === "bm-rate"){
       if(qtyInt(d.manQty) > 0 && String(inp.value || "").trim() === "") inp.classList.add("need-empty");
       return;
     }
@@ -1765,7 +1787,7 @@ function mountBudgetBoard(stepEl){
   head.appendChild(el("h3",null,"广告预算表（必填）"));
   board.appendChild(head);
   const legend = el("div","budget-legend");
-  legend.innerHTML = "<b>表头</b>：总广告预算、单件毛利、不用垫信用卡、开始赢利。下一行是 Vine / 手动测评成本。运营填<b>产品成本 + 头程</b>，Vine 和手动只需填数量（手动再填每件佣金）。";
+  legend.innerHTML = "<b>表头</b>：总广告预算、单件毛利、不用垫信用卡、开始赢利。下一行是 Vine / 手动测评。手动：收入=件数×正常毛利（已含产品成本），支出=件数×售价×拿货折扣（默认1，按售价全额）+佣金，成本不重复加。";
   board.appendChild(legend);
   const totalBar = el("div","budget-total-bar");
   const stats = [
@@ -1790,7 +1812,7 @@ function mountBudgetBoard(stepEl){
   const extraBar = el("div","budget-extra-bar");
   [
     ["budgetVineNum","Vine 成本","budgetVineHint","填数量后自动算：2件免费 / 10件$75 / 30件$200"],
-    ["budgetManNum","手动测评成本","budgetManHint","件数 ×（产品成本 + 头程 + 佣金）"],
+    ["budgetManNum","手动测评净成本","budgetManHint","收入已含产品成本；支出按售价全额+佣金"],
     ["budgetExtraProfitNum","含测评后开始赢利","budgetExtraProfitHint","累计毛利盖住广告费 + 测评"]
   ].forEach((row, i) => {
     if(i === 2){
@@ -1803,7 +1825,7 @@ function mountBudgetBoard(stepEl){
       const split = el("div","budget-split");
       const vineLine = el("span",null,"Vine 入组 $0.00 + 货 $0.00");
       vineLine.id = "budgetExtraVineLine";
-      const manLine = el("span",null,"手动 货 $0.00 + 佣金 $0.00");
+      const manLine = el("span",null,"手动 收入 $0.00 / 支出 $0.00");
       manLine.id = "budgetExtraManLine";
       split.appendChild(vineLine);
       split.appendChild(manLine);
@@ -1838,8 +1860,9 @@ function mountBudgetBoard(stepEl){
     head: "头程：从工厂运到 FBA 仓的单件运费（美元）。海运、空运都填到这里。没有就填 0。",
     vineQty: "本次 Vine 计划送出件数，自己填。美国站：1–2 件入组费 $0，3–10 件 $75，11–30 件 $200。单次最多 30 件。不参加填 0。",
     vineFee: "亚马逊 Vine 入组费，按件数自动套档，不用手填。",
-    manQty: "手动测评送出件数。不走 Vine、自己找人测。不参加填 0。",
-    manFee: "每件手动测评佣金（美元），是产品成本以外付给测评的钱。有数量就必须填，没有佣金填 0。",
+    manQty: "手动测评件数。收入按这些单的正常毛利算（毛利里已经扣了产品成本）。不参加填 0。",
+    manRate: "测评按售价的多少付钱。默认 1 表示支出 = 件数 × 售价。产品成本已在收入里算过，支出不再加成本。",
+    manFee: "每件另付给测评的佣金（美元）。没有填 0。支出 = 件数×售价×折扣 + 件数×佣金。",
     name: "要投放的搜索词，例如 yoga mat。有几个填几个，空行不算，不必凑满 8 个。",
     spr: "SPR：连续 N 天每天卖 N 单，这个词大概能上首页。例如填 8，表示大约每天 8 单。",
     cpc: "假设每次点击多少美元。可先用广告后台或类目均价。",
@@ -1881,6 +1904,7 @@ function mountBudgetBoard(stepEl){
   feeWrap.appendChild(wrapTip(feeAuto, TIPS.vineFee));
   extraGrid.appendChild(feeWrap);
   extraGrid.appendChild(field("手动测评数量","bm-qty",{min:"0",step:"1",placeholder:"没有填 0"}, TIPS.manQty, false));
+  extraGrid.appendChild(field("手动拿货折扣","bm-rate",{min:"0",max:"1",step:"0.01",placeholder:"默认 1"}, TIPS.manRate, false));
   extraGrid.appendChild(field("手动佣金 $/件","bm-fee",{min:"0",step:"0.01",placeholder:"产品外佣金"}, TIPS.manFee, false));
   board.appendChild(extraGrid);
 
@@ -1984,7 +2008,7 @@ async function loadBudget(){
   let data = defaultBudget();
   try{
     const raw = await store.get("budget");
-    if(raw) data = Object.assign(defaultBudget(), JSON.parse(raw));
+    if(raw) data = hydrateBudget(JSON.parse(raw));
   }catch(e){}
   applyBudgetForm(data);
 }

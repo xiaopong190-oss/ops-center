@@ -56,11 +56,24 @@ test("vine total is fee plus goods not fee only", () => {
   assert.strictEqual(x.vineTotal, 200 + 420);
 });
 
-test("manual is goods plus commission not product cost only", () => {
-  const x = m.extraCosts(sample({ vineQty: 0, manQty: 5, manFee: 15 }));
-  assert.strictEqual(x.manGoods, 5 * (8 + 2));
-  assert.strictEqual(x.manPay, 75);
-  assert.strictEqual(x.manTotal, 125);
+test("manual income is qty times unit margin; expense is qty times full price plus commission", () => {
+  const d = sample({ vineQty: 0, manQty: 10, manFee: 15, manRate: 1 });
+  const x = m.extraCosts(d);
+  const unit = m.unitMargin(d);
+  assert.ok(Math.abs(unit - (30 * 0.9 * 0.85 - 4 - 8 - 2)) < 1e-9);
+  assert.ok(Math.abs(x.manIncome - 10 * unit) < 1e-9);
+  assert.ok(Math.abs(x.manGoods - 10 * 30 * 1) < 1e-9);
+  assert.ok(Math.abs(x.manPay - 150) < 1e-9);
+  assert.ok(Math.abs(x.manExpense - (300 + 150)) < 1e-9);
+  assert.ok(Math.abs(x.manTotal - (x.manExpense - x.manIncome)) < 1e-9);
+});
+
+test("manual expense does not add product cost again (already in income)", () => {
+  const a = m.extraCosts(sample({ manQty: 10, manFee: 15, manRate: 1, cost: 8 }));
+  const b = m.extraCosts(sample({ manQty: 10, manFee: 15, manRate: 1, cost: 18 }));
+  assert.ok(Math.abs(a.manExpense - b.manExpense) < 1e-12);
+  assert.ok(b.manIncome < a.manIncome);
+  assert.ok(b.manTotal > a.manTotal);
 });
 
 test("empty cost treated as 0 for extra, not NaN", () => {
@@ -161,8 +174,10 @@ test("missing required fields fail validate", () => {
   assert.ok(m.validateBudget(sample({ price: "" })).length);
   assert.ok(m.validateBudget(sample({ cost: "" })).length);
   assert.ok(m.validateBudget(sample({ fba: "" })).length);
-  assert.ok(m.validateBudget(sample({ keywords: m.defaultBudget().keywords })).length);
-  assert.ok(m.validateBudget(sample({ weekTargets: m.defaultBudget().weekTargets })).length);
+  const emptyKw = Array.from({ length: m.BUDGET_KW }, () => ({ name: "", spr: "", cpc: "", cvr: "", clicks: "" }));
+  const emptyWk = Array.from({ length: m.BUDGET_WK }, () => "");
+  assert.ok(m.validateBudget(sample({ keywords: emptyKw })).length);
+  assert.ok(m.validateBudget(sample({ weekTargets: emptyWk })).length);
 });
 
 test("man qty without commission fails; 0 commission ok", () => {
@@ -170,9 +185,114 @@ test("man qty without commission fails; 0 commission ok", () => {
   ok(sample({ manQty: 3, manFee: 0 }));
 });
 
+test("empty manRate with qty still uses 1", () => {
+  const x = m.extraCosts(sample({ manQty: 10, manFee: 0, manRate: "" }));
+  assert.ok(Math.abs(x.manRate - 1) < 1e-12);
+  assert.ok(Math.abs(x.manGoods - 10 * 30) < 1e-9);
+});
+
 test("k=0 and adStart=0 fail", () => {
   assert.ok(m.validateBudget(sample({ k: 0 })).length);
   assert.ok(m.validateBudget(sample({ adStart: 0 })).length);
+});
+
+test("hydrateBudget fills empty saved form with demo so header can compute", () => {
+  const d = m.hydrateBudget({ price: "", keywords: [], weekTargets: [] });
+  assert.strictEqual(d.price, 30);
+  assert.strictEqual(d.keywords[0].name, "yoga mat");
+  assert.strictEqual(d.weekTargets[0], 28);
+  assert.deepStrictEqual(m.validateBudget(d), []);
+  const kept = m.hydrateBudget(sample({ price: 42 }));
+  kept.keywords[0] = { name: "bands", spr: 6, cpc: 1, cvr: 12 };
+  const kept2 = m.hydrateBudget(kept);
+  assert.strictEqual(kept2.price, 42);
+  assert.strictEqual(kept2.keywords[0].name, "bands");
+});
+
+test("hydrate does not inject demo week1/keyword0 over a partial user plan", () => {
+  const weeks = Array.from({ length: m.BUDGET_WK }, () => "");
+  weeks[2] = 40;
+  const kws = Array.from({ length: m.BUDGET_KW }, () => ({ name: "", spr: "", cpc: "", cvr: "", clicks: "" }));
+  kws[1] = { name: "bands", spr: 6, cpc: 1, cvr: 12 };
+  const d = m.hydrateBudget({ price: 42, fba: 4, cost: 8, head: 2, keywords: kws, weekTargets: weeks, manQty: 0 });
+  assert.strictEqual(d.price, 42);
+  assert.strictEqual(d.keywords[0].name, "");
+  assert.strictEqual(d.keywords[1].name, "bands");
+  assert.strictEqual(String(d.weekTargets[0] || ""), "");
+  assert.strictEqual(Number(d.weekTargets[2]), 40);
+  assert.strictEqual(Number(d.manQty), 0);
+});
+
+test("budgetNum strips $ and commas; $ prefix is not NaN", () => {
+  assert.strictEqual(m.budgetNum("$30"), 30);
+  assert.strictEqual(m.budgetNum("1,234.5"), 1234.5);
+  assert.strictEqual(m.budgetNum("  $8.00 "), 8);
+});
+
+test("discount 0 is zero sell not treated as 1", () => {
+  const unit = m.unitMargin(sample({ discount: 0 }));
+  assert.ok(Math.abs(unit - (0 - 4 - 8 - 2)) < 1e-9);
+});
+
+test("computeBudget unit matches unitMargin", () => {
+  const d = sample({ price: -30, discount: 0.9 });
+  const r = m.computeBudget(d);
+  assert.ok(Math.abs(r.unit - m.unitMargin(d)) < 1e-12);
+});
+
+test("negative week target fails validate and is not billed", () => {
+  const weeks = Array.from({ length: m.BUDGET_WK }, () => "");
+  weeks[0] = -10;
+  const miss = m.validateBudget(sample({ weekTargets: weeks }));
+  assert.ok(miss.some(s => /周/.test(s)));
+  const r = m.computeBudget(sample({ weekTargets: weeks }));
+  assert.strictEqual(r.weeks.length, 0);
+  assert.strictEqual(r.total, 0);
+});
+
+test("manRate 0 bills commission only; invalid 1.5 does not silently use 1", () => {
+  const zero = m.extraCosts(sample({ manQty: 10, manFee: 15, manRate: 0 }));
+  assert.strictEqual(zero.manRate, 0);
+  assert.ok(Math.abs(zero.manExpense - 150) < 1e-9);
+  const bad = m.extraCosts(sample({ manQty: 10, manFee: 15, manRate: 1.5 }));
+  assert.strictEqual(bad.manRate, 0);
+  assert.ok(m.validateBudget(sample({ manQty: 10, manFee: 15, manRate: 1.5 })).some(s => /拿货/.test(s)));
+});
+
+test("cover week ignores vine/manual extra", () => {
+  const weeks = Array.from({ length: 13 }, (_, i) => String(80 + i * 10));
+  const a = m.computeBudget(sample({ vineQty: "", manQty: "", weekTargets: weeks }));
+  const b = m.computeBudget(sample({ vineQty: 30, manQty: 20, manFee: 50, weekTargets: weeks }));
+  assert.strictEqual(a.coverWeek, b.coverWeek);
+  assert.ok(b.extra > a.extra);
+});
+
+test("vine 10.0 and spaced 11 stay in the right fee tier", () => {
+  assert.strictEqual(m.vineQtyInt("10.0"), 10);
+  assert.strictEqual(m.vineFeeUsd(m.vineQtyInt("10.0")), 75);
+  assert.strictEqual(m.vineQtyInt(" 11 "), 11);
+  assert.strictEqual(m.vineFeeUsd(11), 200);
+});
+
+test("manual 2.4 and 10000 do not bill", () => {
+  assert.strictEqual(m.extraCosts(sample({ manQty: 2.4, manFee: 15 })).manQty, 0);
+  assert.ok(m.validateBudget(sample({ manQty: 2.4, manFee: 15 })).length);
+  assert.strictEqual(m.extraCosts(sample({ manQty: 10000, manFee: 15 })).manQty, 0);
+  assert.ok(m.validateBudget(sample({ manQty: 10000, manFee: 15 })).length);
+});
+
+test("manual net can be negative if take-rate is 0 and fee is 0", () => {
+  const x = m.extraCosts(sample({ manQty: 10, manFee: 0, manRate: 0 }));
+  assert.ok(x.manTotal < 0);
+  assert.ok(Number.isFinite(x.extra));
+});
+
+test("commission 1 and CVR 100 stay valid", () => {
+  ok(sample({ commission: 1 }));
+  const d = sample();
+  d.keywords[0].cvr = 100;
+  ok(d);
+  assert.strictEqual(m.cvrPctToClicks(100), 1);
 });
 
 console.log("\n" + n + " tests passed");

@@ -32,7 +32,7 @@
     background: linear-gradient(180deg,#141b2c 0%, #1c2438 340px, var(--parchment) 340px);
     font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
     color:var(--ink);
-    padding-bottom:80px;
+    padding-bottom:72px;
   }
   body.embedded header{padding-top:28px;padding-bottom:16px;}
   body.embedded h1{font-size:clamp(24px,3.4vw,36px);}
@@ -95,6 +95,9 @@
     border-top:1px solid rgba(232,217,168,0.22);
     border-bottom:1px solid rgba(232,217,168,0.22);
     padding:14px 0 16px;
+    position:sticky;
+    top:0;
+    z-index:50;
   }
   .casebar{
     max-width:1180px;
@@ -981,6 +984,46 @@
     letter-spacing:0.04em;
     margin-right:6px;
   }
+  #cloudHint, #cloudHintDock{
+    padding:4px 10px;
+    border-radius:999px;
+    background:rgba(255,243,200,0.12);
+    border:1px solid rgba(232,217,168,0.35);
+  }
+  #cloudHint[data-state="ok"], #cloudHintDock[data-state="ok"]{
+    color:#86efac; border-color:rgba(134,239,172,0.55); background:rgba(22,101,52,0.35);
+  }
+  #cloudHint[data-state="warn"], #cloudHintDock[data-state="warn"]{
+    color:#fcd34d; border-color:rgba(252,211,77,0.5); background:rgba(113,63,18,0.35);
+  }
+  #cloudHint[data-state="err"], #cloudHintDock[data-state="err"]{
+    color:#fca5a5; border-color:rgba(252,165,165,0.5); background:rgba(127,29,29,0.35);
+  }
+  .status-dock{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    z-index:50;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:center;
+    gap:10px 14px;
+    padding:10px 16px 12px;
+    background:rgba(20,27,44,0.96);
+    border-top:1px solid rgba(232,217,168,0.28);
+    color:#f4efe0;
+    font-size:12px;
+  }
+  .status-dock .reset-btn{
+    margin-top:0;
+    color:#f4efe0;
+    border-color:rgba(232,217,168,0.4);
+  }
+  footer{
+    display:none;
+  }
   .planbar select{
     background:#2a3450;
     border:1.5px solid #d7b24a;
@@ -1082,10 +1125,12 @@
 
 <main id="main"></main>
 
-<footer>
-  <div>每位运营一块云端空间，换电脑可同步；从员工名单删除后，该空间一并消除</div>
+<div class="status-dock" id="statusDock">
+  <span class="who" id="whoLabelDock">运营：—</span>
+  <span class="who" id="cloudHintDock">云端：检测中</span>
+  <span>换电脑看同一运营号即可同步</span>
   <button class="reset-btn" id="resetBtn" type="button">清空当前这份计划</button>
-</footer>
+</div>
 
 <div class="modal" id="masterModal">
   <div class="modal-card">
@@ -1517,9 +1562,22 @@ async function migrateGuestPlaybook(toId){
   return true;
 }
 
+function cloudHintState(text){
+  const t = String(text || "");
+  if(t.indexOf("已同步") >= 0 || t.indexOf("已拉取") >= 0) return "ok";
+  if(t.indexOf("失败") >= 0 || t.indexOf("访客") >= 0) return "err";
+  if(t.indexOf("仅本机") >= 0 || t.indexOf("较新") >= 0 || t.indexOf("检测") >= 0 || t.indexOf("拉取中") >= 0 || t.indexOf("同步中") >= 0) return "warn";
+  return "";
+}
 function setCloudHint(text){
-  const el = document.getElementById("cloudHint");
-  if(el) el.textContent = text;
+  const state = cloudHintState(text);
+  ["cloudHint", "cloudHintDock"].forEach(function(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = text;
+    if(state) el.setAttribute("data-state", state);
+    else el.removeAttribute("data-state");
+  });
 }
 
 let cloudHydrating = false;
@@ -2429,8 +2487,11 @@ function refreshPlanSelect(list){
   fillSelect(document.getElementById("planSelect"), items);
   fillSelect(document.getElementById("caseNameSelect"), items);
   refreshingSelect = false;
-  const who = document.getElementById("whoLabel");
-  if(who) who.textContent = "运营：" + USER.name + " · " + items.length + "/" + MAX_PLANS;
+  const whoText = "运营：" + (USER && USER.name ? USER.name : "访客") + " · " + items.length + "/" + MAX_PLANS;
+  ["whoLabel", "whoLabelDock"].forEach(function(id){
+    const who = document.getElementById(id);
+    if(who) who.textContent = whoText;
+  });
   const addBtn = document.getElementById("newPlanBtn");
   if(addBtn) addBtn.disabled = items.length >= MAX_PLANS;
 }
@@ -3270,8 +3331,11 @@ async function loadStepsData(){
 }
 
 function paintWhoLabel(){
-  const who = document.getElementById("whoLabel");
-  if(who) who.textContent = "运营：" + (USER && USER.name ? USER.name : "访客");
+  const text = "运营：" + (USER && USER.name ? USER.name : "访客");
+  ["whoLabel", "whoLabelDock"].forEach(function(id){
+    const who = document.getElementById(id);
+    if(who) who.textContent = text;
+  });
 }
 function applyPlaybookUser(next){
   const incoming = next && (next.id || next.name)

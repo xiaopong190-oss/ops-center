@@ -930,6 +930,40 @@
   .master-col.fix b{color:var(--fix);}
   .master-col ul{margin:0; padding-left:16px;}
   .modal-actions{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
+  .confirm-card{
+    width:min(440px,100%);
+    padding:24px 22px 18px;
+    margin-top:12vh;
+  }
+  .confirm-card h3{font-size:18px;}
+  .confirm-card .modal-sub{
+    font-size:13px;
+    line-height:1.65;
+    color:var(--ink-2);
+    white-space:pre-wrap;
+  }
+  .danger-btn{
+    background:var(--seal);
+    border:1px solid var(--seal);
+    color:#fff;
+    font-size:13px;
+    font-weight:700;
+    padding:8px 16px;
+    border-radius:4px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .danger-btn:hover{background:#8a2c24;}
+  .confirm-cancel{
+    background:#fff;
+    border:1px solid var(--border);
+    color:var(--ink-2);
+    font-size:13px;
+    padding:8px 16px;
+    border-radius:4px;
+    cursor:pointer;
+    font-family:inherit;
+  }
 
   .planbar{
     max-width:1180px;
@@ -1061,6 +1095,17 @@
     <div class="modal-actions">
       <button class="ghost-btn" id="masterExport" type="button" style="color:var(--ink);border-color:var(--border);">导出 Markdown</button>
       <button class="reset-btn" id="masterClose" type="button" style="margin-top:0;">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal-card confirm-card">
+    <h3 id="confirmTitle">请确认</h3>
+    <p class="modal-sub" id="confirmMsg"></p>
+    <div class="modal-actions">
+      <button class="confirm-cancel" id="confirmCancel" type="button">取消</button>
+      <button class="danger-btn" id="confirmOk" type="button">确定</button>
     </div>
   </div>
 </div>
@@ -2971,6 +3016,48 @@ function attachMapEvents(){
   });
 }
 
+function playbookConfirm(message, opts){
+  opts = opts || {};
+  return new Promise(function(resolve){
+    try{
+      if(window.parent && window.parent !== window && typeof window.parent.opsConfirm === "function"){
+        window.parent.opsConfirm(message).then(resolve);
+        return;
+      }
+    }catch(e){}
+    const modal = document.getElementById("confirmModal");
+    const title = document.getElementById("confirmTitle");
+    const msg = document.getElementById("confirmMsg");
+    const okBtn = document.getElementById("confirmOk");
+    const cancelBtn = document.getElementById("confirmCancel");
+    if(!modal || !okBtn || !cancelBtn){
+      resolve(window.confirm(String(message || "确定？")));
+      return;
+    }
+    title.textContent = opts.title || "请确认";
+    msg.textContent = message;
+    okBtn.textContent = opts.okLabel || "确定";
+    function finish(ok){
+      modal.classList.remove("open");
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      modal.removeEventListener("click", onBackdrop);
+      document.removeEventListener("keydown", onKey);
+      resolve(ok);
+    }
+    function onOk(){ finish(true); }
+    function onCancel(){ finish(false); }
+    function onBackdrop(e){ if(e.target.id === "confirmModal") finish(false); }
+    function onKey(e){ if(e.key === "Escape") finish(false); }
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    modal.addEventListener("click", onBackdrop);
+    document.addEventListener("keydown", onKey);
+    modal.classList.add("open");
+    cancelBtn.focus();
+  });
+}
+
 function attachHandlers(){
   attachMapEvents();
 
@@ -2988,7 +3075,11 @@ function attachHandlers(){
 
   document.getElementById("resetBtn").addEventListener("click", async () => {
     const label = planLabel(readCase()) || "当前这份空白计划";
-    if(!confirm("确定清空【"+label+"】？只清这一份，其他计划和同事的数据都不受影响。")) return;
+    const ok = await playbookConfirm(
+      "确定清空「" + label + "」吗？\n\n九步导图和笔记都会清掉，不能恢复。只清这一份，其他计划和同事的数据都不受影响。",
+      { title: "清空当前计划", okLabel: "确定清空" }
+    );
+    if(!ok) return;
     for(const s of STEPS){
       trees[s.id] = defaultTree(s);
       renderMap(s.id);

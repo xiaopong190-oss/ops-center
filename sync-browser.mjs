@@ -96,6 +96,7 @@ function globalConfigBrowserBlock() {
     .replace(/^export const SUPER_PASSWORD/m, "const SUPER_PASSWORD")
     .replace(/^export const DEFAULT_OPS_PASSWORD/m, "const DEFAULT_OPS_PASSWORD")
     .replace(/^export const sharedStorage/m, "const sharedStorage")
+    .replace(/^export const opsPlaybookCloud/m, "const opsPlaybookCloud")
     .replace(/^export const ROLE_COLORS/m, "const ROLE_COLORS")
     .replace(/^export const STAFF_ROLE_OPTIONS/m, "const STAFF_ROLE_OPTIONS")
     .replace(/^export const DEFAULT_GLOBAL_CONFIG/m, "const DEFAULT_GLOBAL_CONFIG")
@@ -134,7 +135,8 @@ function globalConfigBrowserBlock() {
     "window.useGlobalConfig = useGlobalConfig;\n" +
     "window.fetchGlobalConfigFromCloud = fetchGlobalConfigFromCloud;\n" +
     "window.getGlobalConfigMeta = getGlobalConfigMeta;\n" +
-    "window.sharedStorage = sharedStorage;\n"
+    "window.sharedStorage = sharedStorage;\n" +
+    "window.opsPlaybookCloud = opsPlaybookCloud;\n"
   );
 }
 

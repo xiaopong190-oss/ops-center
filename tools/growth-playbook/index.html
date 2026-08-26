@@ -90,13 +90,19 @@
     font-family:"Noto Serif SC",serif;
   }
 
+  .control-strip{
+    background:#1c2438;
+    border-top:1px solid rgba(232,217,168,0.22);
+    border-bottom:1px solid rgba(232,217,168,0.22);
+    padding:14px 0 16px;
+  }
   .casebar{
     max-width:1180px;
-    margin:0 auto 8px;
-    padding:0 32px 20px;
+    margin:0 auto;
+    padding:10px 32px 4px;
     display:grid;
-    grid-template-columns:repeat(4,1fr) auto;
-    gap:10px;
+    grid-template-columns:0.8fr 1.1fr 1.6fr 0.8fr auto;
+    gap:12px;
     align-items:end;
   }
   @media (max-width:860px){
@@ -104,37 +110,45 @@
   }
   .case-field label{
     display:block;
-    font-size:11px;
-    letter-spacing:0.12em;
-    color:var(--gold-soft);
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.08em;
+    color:#fff3c8;
     margin-bottom:6px;
   }
-  .case-field input{
+  .case-field input,
+  .case-field select{
     width:100%;
-    background:rgba(255,253,248,0.08);
-    border:1px solid rgba(232,217,168,0.28);
-    color:#f4efe0;
-    font-size:13px;
-    padding:8px 10px;
-    border-radius:3px;
+    background:#2a3450;
+    border:1.5px solid #d7b24a;
+    color:#fffdf6;
+    font-size:14px;
+    font-weight:600;
+    padding:9px 11px;
+    border-radius:4px;
     outline:none;
     font-family:inherit;
   }
-  .case-field input:focus{border-color:var(--gold-soft);}
-  .case-field input::placeholder{color:#8b91a3;}
+  .case-field select option{color:#1c2438;}
+  .case-field input:focus,
+  .case-field select:focus{border-color:#ffe08a; background:#334063;}
+  .case-field input::placeholder{color:#c5cde0; font-weight:500;}
+  .name-row{display:grid; grid-template-columns:1.2fr 1fr; gap:6px;}
   .case-actions{display:flex; gap:8px; flex-wrap:wrap;}
   .ghost-btn{
-    background:rgba(232,217,168,0.08);
-    border:1px solid rgba(232,217,168,0.35);
-    color:var(--gold-soft);
-    font-size:12px;
-    padding:8px 12px;
-    border-radius:3px;
+    background:#2f3a58;
+    border:1.5px solid #e0c36a;
+    color:#fff8e0;
+    font-size:13px;
+    font-weight:700;
+    padding:9px 14px;
+    border-radius:4px;
     cursor:pointer;
     font-family:inherit;
     white-space:nowrap;
   }
-  .ghost-btn:hover{background:rgba(232,217,168,0.16);}
+  .ghost-btn:hover{background:#3d4b70; border-color:#ffe08a; color:#fff;}
+  .ghost-btn:disabled{opacity:0.45;cursor:not-allowed;}
 
   .navwrap{
     position:sticky; top:0; z-index:50;
@@ -643,30 +657,33 @@
   .planbar{
     max-width:1180px;
     margin:0 auto;
-    padding:0 32px 12px;
+    padding:0 32px 8px;
     display:flex;
     flex-wrap:wrap;
     gap:8px;
     align-items:center;
   }
   .who{
-    font-size:12px;
-    color:var(--gold-soft);
+    font-size:13px;
+    font-weight:700;
+    color:#fff8e0;
     letter-spacing:0.04em;
     margin-right:6px;
   }
   .planbar select{
-    background:rgba(255,253,248,0.08);
-    border:1px solid rgba(232,217,168,0.28);
-    color:#f4efe0;
-    font-size:13px;
-    padding:8px 10px;
-    border-radius:3px;
+    background:#2a3450;
+    border:1.5px solid #d7b24a;
+    color:#fffdf6;
+    font-size:14px;
+    font-weight:600;
+    padding:9px 11px;
+    border-radius:4px;
     font-family:inherit;
     min-width:220px;
     max-width:320px;
   }
   .planbar select option{color:#1c2438;}
+  #planSelect{display:none;}
   .file-input{display:none;}
 </style>
 </head>
@@ -685,11 +702,13 @@
   </div>
 </header>
 
+<div class="control-strip">
 <div class="planbar">
   <span class="who" id="whoLabel">运营：—</span>
+  <span class="who" id="cloudHint">云端：检测中</span>
   <select id="planSelect" title="我的推品计划"></select>
-  <button class="ghost-btn" id="newPlanBtn" type="button">新建空白计划</button>
-  <button class="ghost-btn" id="copyBlankBtn" type="button">复制空白链接</button>
+  <button class="ghost-btn" id="newPlanBtn" type="button" title="再加一支产品，每人最多 5 个">添加产品</button>
+  <button class="ghost-btn" id="deletePlanBtn" type="button" title="删除当前这支产品">删除当前产品</button>
   <button class="ghost-btn" id="pdfBtn" type="button">导出 PDF</button>
   <button class="ghost-btn" id="exportJsonBtn" type="button">导出备份</button>
   <button class="ghost-btn" id="importBtn" type="button">导入计划</button>
@@ -705,9 +724,12 @@
     <label>ASIN</label>
     <input id="caseAsin" placeholder="B0XXXXXXXX" />
   </div>
-  <div class="case-field">
-    <label>产品简称</label>
-    <input id="caseName" placeholder="这支要推的品" />
+  <div class="case-field case-field-name">
+    <label>产品简称（下拉切换）</label>
+    <div class="name-row">
+      <select id="caseNameSelect" title="做完以后在这里切换产品，每人最多 5 个"></select>
+      <input id="caseName" placeholder="改简称" />
+    </div>
   </div>
   <div class="case-field">
     <label>售价</label>
@@ -715,8 +737,8 @@
   </div>
   <div class="case-actions">
     <button class="ghost-btn" id="masterBtn" type="button">打开总推品图</button>
-    <button class="ghost-btn" id="exportBtn" type="button">导出 Markdown</button>
   </div>
+</div>
 </div>
 
 <div class="navwrap">
@@ -750,7 +772,7 @@
 <main id="main"></main>
 
 <footer>
-  <div>每位运营的计划互相隔离 · 空白链接可开下一支 ASIN · 可导出 PDF</div>
+  <div>每位运营一块云端空间，换电脑可同步；从员工名单删除后，该空间一并消除</div>
   <button class="reset-btn" id="resetBtn" type="button">清空当前这份计划</button>
 </footer>
 
@@ -1003,8 +1025,10 @@ const USER = (function(){
   return { id: "guest", name: "访客" };
 })();
 const userId = USER.id;
+const MAX_PLANS = 5;
 
 let planId = "";
+let refreshingSelect = false;
 
 function indexKey(){ return "user:"+userId+":hs-playbook:index"; }
 function lastKey(){ return "user:"+userId+":hs-playbook:last-plan"; }
@@ -1040,6 +1064,156 @@ const store = {
   del(key){ return storeRaw.del(scoped(key)); }
 };
 
+function getCloudApi(){
+  try{
+    if(window.parent && window.parent !== window && window.parent.opsPlaybookCloud){
+      return window.parent.opsPlaybookCloud;
+    }
+  }catch(e){}
+  return window.opsPlaybookCloud || null;
+}
+
+function setCloudHint(text){
+  const el = document.getElementById("cloudHint");
+  if(el) el.textContent = text;
+}
+
+let cloudHydrating = false;
+let cloudTimer = null;
+
+function scopedFor(pid, key){
+  return "user:"+userId+":hs-playbook:"+pid+":"+key;
+}
+
+async function persistCurrentPlanLocal(){
+  if(!planId) return;
+  for(const s of STEPS){
+    if(trees[s.id]) await storeRaw.set(scoped("mmap:"+s.id), JSON.stringify(trees[s.id]));
+    for(const b of BRANCHES){
+      await storeRaw.set(scoped("note:"+s.id+":"+b.key), noteValue(s.id, b.key));
+    }
+  }
+  await store.set("meta", JSON.stringify(readCase()));
+}
+
+async function packCloudBlob(){
+  await persistCurrentPlanLocal();
+  const index = await loadIndex();
+  const last = await storeRaw.get(lastKey());
+  const plans = {};
+  const keep = (index || []).slice(0, MAX_PLANS);
+  for(const p of keep){
+    const mmap = {};
+    const notes = {};
+    for(const s of STEPS){
+      try{
+        const raw = await storeRaw.get(scopedFor(p.id, "mmap:"+s.id));
+        if(raw) mmap[s.id] = JSON.parse(raw);
+      }catch(e){}
+      notes[s.id] = {};
+      for(const b of BRANCHES){
+        try{ notes[s.id][b.key] = (await storeRaw.get(scopedFor(p.id, "note:"+s.id+":"+b.key))) || ""; }
+        catch(e){ notes[s.id][b.key] = ""; }
+      }
+    }
+    let meta = p;
+    try{
+      const raw = await storeRaw.get(scopedFor(p.id, "meta"));
+      if(raw) meta = { ...p, ...JSON.parse(raw) };
+    }catch(e){}
+    plans[p.id] = { meta, mmap, notes };
+  }
+  return { index: keep, lastPlan: last || "", plans };
+}
+
+async function applyCloudBlob(blob){
+  if(!blob || !Array.isArray(blob.index)) return false;
+  cloudHydrating = true;
+  try{
+    await storeRaw.set(indexKey(), JSON.stringify(blob.index));
+    if(blob.lastPlan) await storeRaw.set(lastKey(), blob.lastPlan);
+    for(const p of blob.index){
+      const pack = blob.plans && blob.plans[p.id];
+      if(!pack) continue;
+      if(pack.meta) await storeRaw.set(scopedFor(p.id, "meta"), JSON.stringify(pack.meta));
+      for(const s of STEPS){
+        if(pack.mmap && pack.mmap[s.id]){
+          await storeRaw.set(scopedFor(p.id, "mmap:"+s.id), JSON.stringify(pack.mmap[s.id]));
+        }
+        for(const b of BRANCHES){
+          const v = pack.notes && pack.notes[s.id] ? (pack.notes[s.id][b.key] || "") : "";
+          await storeRaw.set(scopedFor(p.id, "note:"+s.id+":"+b.key), v);
+        }
+      }
+    }
+  }finally{
+    cloudHydrating = false;
+  }
+  return true;
+}
+
+function scheduleCloudSave(){
+  if(cloudHydrating || userId === "guest") return;
+  const api = getCloudApi();
+  if(!api || typeof api.save !== "function") return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(() => { flushCloudSave(); }, 1400);
+}
+
+async function flushCloudSave(){
+  if(cloudHydrating || userId === "guest") return;
+  const api = getCloudApi();
+  if(!api || typeof api.save !== "function") return;
+  if(api.configured && !api.configured()){
+    setCloudHint("云端：未配置，仅本机");
+    return;
+  }
+  setCloudHint("云端：同步中…");
+  try{
+    await api.save(userId, await packCloudBlob());
+    setCloudHint("云端：已同步（本账号空间）");
+  }catch(e){
+    setCloudHint("云端：" + (e && e.message ? e.message : "同步失败"));
+  }
+}
+
+async function hydrateFromCloud(){
+  if(userId === "guest"){
+    setCloudHint("云端：访客仅本机");
+    return;
+  }
+  const api = getCloudApi();
+  if(!api || typeof api.load !== "function"){
+    setCloudHint("云端：仅本机预览");
+    return;
+  }
+  if(api.configured && !api.configured()){
+    setCloudHint("云端：未配置，仅本机");
+    return;
+  }
+  setCloudHint("云端：拉取中…");
+  try{
+    const blob = await api.load(userId);
+    if(!blob || !Array.isArray(blob.index) || !blob.index.length){
+      setCloudHint("云端：本账号空间已就绪");
+      return;
+    }
+    const localIdx = await loadIndex();
+    const localStamp = Number(await storeRaw.get("user:"+userId+":hs-playbook:updatedAt")) || 0;
+    const cloudStamp = Number(blob.updatedAt) || 0;
+    if(!localIdx.length || cloudStamp >= localStamp){
+      await applyCloudBlob(blob);
+      await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(cloudStamp || Date.now()));
+      setCloudHint("云端：已拉取本账号空间");
+    }else{
+      setCloudHint("云端：本机较新，稍后上传");
+      scheduleCloudSave();
+    }
+  }catch(e){
+    setCloudHint("云端：拉取失败，用本机");
+  }
+}
+
 function newPlanId(){
   return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 }
@@ -1050,7 +1224,34 @@ function planLabel(p){
   if(asin && name) return asin + " · " + name;
   if(asin) return asin;
   if(name) return name;
-  return "空白计划";
+  return "未命名产品";
+}
+
+function productLabel(p){
+  const name = (p && p.name || "").trim();
+  if(name) return name;
+  const asin = (p && p.asin || "").trim();
+  if(asin) return asin;
+  return "未命名产品";
+}
+
+function fillSelect(sel, items){
+  if(!sel) return;
+  sel.innerHTML = "";
+  if(!items.length){
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "还没有产品";
+    sel.appendChild(opt);
+    return;
+  }
+  items.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = productLabel(p);
+    if(p.id === planId) opt.selected = true;
+    sel.appendChild(opt);
+  });
 }
 
 function readCase(){
@@ -1094,6 +1295,8 @@ async function loadIndex(){
 
 async function saveIndex(list){
   await storeRaw.set(indexKey(), JSON.stringify(list));
+  await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(Date.now()));
+  scheduleCloudSave();
 }
 
 async function touchPlanMeta(){
@@ -1103,7 +1306,7 @@ async function touchPlanMeta(){
   const i = idx.findIndex(p => p.id === planId);
   const meta = { id: planId, ...data, updated: Date.now() };
   if(i >= 0) idx[i] = { ...idx[i], ...meta };
-  else idx.unshift(meta);
+  else if(idx.length < MAX_PLANS) idx.unshift(meta);
   await saveIndex(idx);
   await storeRaw.set(lastKey(), planId);
   await store.set("meta", JSON.stringify(data));
@@ -1111,24 +1314,15 @@ async function touchPlanMeta(){
 }
 
 function refreshPlanSelect(list){
-  const sel = document.getElementById("planSelect");
-  if(!sel) return;
   const items = list || [];
-  sel.innerHTML = "";
-  if(!items.length){
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "还没有计划";
-    sel.appendChild(opt);
-    return;
-  }
-  items.forEach(p => {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = planLabel(p);
-    if(p.id === planId) opt.selected = true;
-    sel.appendChild(opt);
-  });
+  refreshingSelect = true;
+  fillSelect(document.getElementById("planSelect"), items);
+  fillSelect(document.getElementById("caseNameSelect"), items);
+  refreshingSelect = false;
+  const who = document.getElementById("whoLabel");
+  if(who) who.textContent = "运营：" + USER.name + " · " + items.length + "/" + MAX_PLANS;
+  const addBtn = document.getElementById("newPlanBtn");
+  if(addBtn) addBtn.disabled = items.length >= MAX_PLANS;
 }
 
 async function resetCurrentTrees(){
@@ -1140,17 +1334,49 @@ async function resetCurrentTrees(){
   }
 }
 
-async function createBlankPlan(){
-  planId = newPlanId();
-  applyCase({ site:"", asin:"", name:"", price:"" });
-  await resetCurrentTrees();
-  const meta = { id: planId, site:"", asin:"", name:"", price:"", updated: Date.now() };
+async function createBlankPlan(opts){
   const idx = await loadIndex();
+  if(idx.length >= MAX_PLANS){
+    alert("每人最多保存 5 个产品。请先在「产品简称」下拉里选一个，或删除不用的产品。");
+    return false;
+  }
+  let name = "";
+  if(idx.length > 0 && !(opts && opts.silent)){
+    const suggested = "产品" + (idx.length + 1);
+    const typed = prompt("给新产品起个简称，之后可在「产品简称」下拉里切换", suggested);
+    if(typed === null) return false;
+    name = typed.trim() || suggested;
+  }
+  planId = newPlanId();
+  applyCase({ site:"", asin:"", name:name, price:"" });
+  await resetCurrentTrees();
+  const meta = { id: planId, site:"", asin:"", name:name, price:"", updated: Date.now() };
   idx.unshift(meta);
   await saveIndex(idx);
   await storeRaw.set(lastKey(), planId);
   setUrlPlan(planId);
   refreshPlanSelect(idx);
+  return true;
+}
+
+async function deleteCurrentPlan(){
+  if(!planId) return;
+  const idx = await loadIndex();
+  const hit = idx.find(p => p.id === planId);
+  const label = productLabel(hit || readCase());
+  if(!confirm("删除产品「" + label + "」？导图和笔记也会删掉，不能恢复。")) return;
+  const id = planId;
+  for(const s of STEPS){
+    await storeRaw.del(scopedFor(id, "mmap:"+s.id));
+    for(const b of BRANCHES){
+      await storeRaw.del(scopedFor(id, "note:"+s.id+":"+b.key));
+    }
+  }
+  await storeRaw.del(scopedFor(id, "meta"));
+  const next = idx.filter(p => p.id !== id);
+  await saveIndex(next);
+  if(next[0]) await openPlan(next[0].id);
+  else await createBlankPlan({ silent:true });
 }
 
 async function openPlan(id){
@@ -1372,6 +1598,8 @@ async function saveTree(stepId){
   try{
     await store.set("mmap:"+stepId, JSON.stringify(trees[stepId]));
     flashSaved(stepId, "已保存");
+    await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(Date.now()));
+    scheduleCloudSave();
   }catch(e){
     flashSaved(stepId, "保存失败");
     console.error(e);
@@ -1383,6 +1611,8 @@ async function saveNote(stepId, branchKey, value){
     await store.set("note:"+stepId+":"+branchKey, value);
     flashSaved(stepId, "已保存");
     refreshPageDots(stepId);
+    await storeRaw.set("user:"+userId+":hs-playbook:updatedAt", String(Date.now()));
+    scheduleCloudSave();
   }catch(e){
     flashSaved(stepId, "保存失败");
     console.error(e);
@@ -1662,7 +1892,8 @@ async function importBackup(data){
     alert("不是有效的推品计划备份文件。");
     return;
   }
-  await createBlankPlan();
+  const ok = await createBlankPlan();
+  if(!ok) return;
   applyCase(data.meta || {});
   for(const s of STEPS){
     const pack = data.steps[s.id];
@@ -1802,21 +2033,21 @@ function attachHandlers(){
 
   document.getElementById("planSelect").addEventListener("change", async (e) => {
     const id = e.target.value;
-    if(!id || id === planId) return;
+    if(refreshingSelect || !id || id === planId) return;
+    await persistCurrentPlanLocal();
+    await openPlan(id);
+  });
+  document.getElementById("caseNameSelect").addEventListener("change", async (e) => {
+    const id = e.target.value;
+    if(refreshingSelect || !id || id === planId) return;
+    await persistCurrentPlanLocal();
     await openPlan(id);
   });
   document.getElementById("newPlanBtn").addEventListener("click", async () => {
     await createBlankPlan();
   });
-  document.getElementById("copyBlankBtn").addEventListener("click", async () => {
-    const link = blankLink();
-    try{
-      await navigator.clipboard.writeText(link);
-      document.getElementById("copyBlankBtn").textContent = "已复制";
-      setTimeout(() => { document.getElementById("copyBlankBtn").textContent = "复制空白链接"; }, 1500);
-    }catch(e){
-      prompt("复制下面的空白链接", link);
-    }
+  document.getElementById("deletePlanBtn").addEventListener("click", async () => {
+    await deleteCurrentPlan();
   });
   document.getElementById("pdfBtn").addEventListener("click", exportPdf);
   document.getElementById("exportJsonBtn").addEventListener("click", exportBackup);
@@ -1834,7 +2065,6 @@ function attachHandlers(){
   });
 
   document.getElementById("masterBtn").addEventListener("click", openMaster);
-  document.getElementById("exportBtn").addEventListener("click", exportPlan);
   document.getElementById("masterExport").addEventListener("click", exportPlan);
   document.getElementById("masterClose").addEventListener("click", () => {
     document.getElementById("masterModal").classList.remove("open");
@@ -1874,6 +2104,7 @@ async function loadStepsData(){
 async function loadAll(){
   const who = document.getElementById("whoLabel");
   if(who) who.textContent = "运营：" + USER.name;
+  await hydrateFromCloud();
 
   const params = new URLSearchParams(location.search);
   const wantNew = params.get("new") === "1";
@@ -1881,7 +2112,12 @@ async function loadAll(){
   let idx = await loadIndex();
 
   if(wantNew){
-    await createBlankPlan();
+    const ok = await createBlankPlan();
+    if(!ok){
+      const last = await storeRaw.get(lastKey());
+      if(last && idx.some(p => p.id === last)) await openPlan(last);
+      else if(idx[0]) await openPlan(idx[0].id);
+    }
     return;
   }
 
@@ -1899,7 +2135,7 @@ async function loadAll(){
     await openPlan(idx[0].id);
     return;
   }
-  await createBlankPlan();
+  await createBlankPlan({ silent:true });
 }
 
 if(window.parent !== window) document.body.classList.add("embedded");

@@ -85,6 +85,98 @@ async function gistWriteRecord(key, payload) {
   return payload;
 }
 
+const PLAYBOOK_MAX_BYTES = 800000;
+
+function playbookGistFileName(userId) {
+  const raw = String(userId || "").trim();
+  if (!raw || raw === "guest") return "";
+  let b64 = "";
+  try {
+    b64 = btoa(unescape(encodeURIComponent(raw))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  } catch {
+    b64 = encodeURIComponent(raw).replace(/%/g, "_");
+  }
+  return `playbook-u-${b64}.json`;
+}
+
+function purgeLocalPlaybook(userId) {
+  const prefix = `user:${userId}:hs-playbook:`;
+  const drop = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) drop.push(k);
+    }
+  } catch { /* ignore */ }
+  drop.forEach((k) => {
+    try { localStorage.removeItem(k); } catch { /* ignore */ }
+  });
+}
+
+async function gistPatchFiles(files) {
+  const res = await fetch(`${GIST_API}/${getGistId()}`, {
+    method: "PATCH",
+    headers: gistHeaders(true),
+    body: JSON.stringify({ files }),
+  });
+  if (!res.ok) throw new Error("云端保存失败，请检查网络后重试");
+}
+
+export const opsPlaybookCloud = {
+  configured() {
+    return gistConfigured();
+  },
+  async load(userId) {
+    const file = playbookGistFileName(userId);
+    if (!file || !gistConfigured()) return null;
+    const gist = await gistFetchAll();
+    const content = gist?.files?.[file]?.content;
+    if (!content) return null;
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  },
+  async save(userId, data) {
+    const file = playbookGistFileName(userId);
+    if (!file) return { skipped: true };
+    const u = readSessionUser();
+    const sameUser = u && (String(u.id) === String(userId) || String(u.name) === String(userId));
+    const isSuper = u && (u.auth === "super" || u.role === "super");
+    if (u && u.id !== "guest" && !sameUser && !isSuper) {
+      throw new Error("不能写入其他运营的推品空间");
+    }
+    if (!gistConfigured()) throw new Error("云端未配置");
+    const payload = { kind: "hongsen-playbook-cloud", version: 1, userId, updatedAt: Date.now(), ...data };
+    const text = JSON.stringify(payload);
+    if (text.length > PLAYBOOK_MAX_BYTES) {
+      throw new Error("本账号推品计划超过云端限额，请删掉旧计划后再保存");
+    }
+    await gistPatchFiles({ [file]: { content: JSON.stringify(payload, null, 2) } });
+    return payload;
+  },
+  async remove(userId) {
+    purgeLocalPlaybook(userId);
+    const file = playbookGistFileName(userId);
+    if (!file || !gistConfigured()) return;
+    try {
+      await gistPatchFiles({ [file]: null });
+    } catch (e) {
+      console.warn("[opsPlaybookCloud] 删除云端空间失败", userId, e?.message);
+    }
+  },
+  async purgeRemovedStaff(prevStaff, nextStaff) {
+    const next = new Set((nextStaff || []).map((e) => String(e?.name || e || "").trim()).filter(Boolean));
+    const prev = (prevStaff || []).map((e) => String(e?.name || e || "").trim()).filter(Boolean);
+    for (const name of prev) {
+      if (!next.has(name)) await opsPlaybookCloud.remove(name);
+    }
+  },
+};
+
+if (typeof window !== "undefined") window.opsPlaybookCloud = opsPlaybookCloud;
+
 // ─── sharedStorage ───────────────────────────────────────────────────
 // 已配置 Gist → 全公司共享；未配置 → 仅 localStorage
 
@@ -385,6 +477,11 @@ export async function saveGlobalConfig(config, opts = {}) {
     });
     window.dispatchEvent(new CustomEvent("ops-shared-updated:global-config"));
   }
+  try {
+    await opsPlaybookCloud.purgeRemovedStaff(prev.staff, next.staff);
+  } catch (e) {
+    console.warn("[opsPlaybookCloud] 清理离职账号空间失败", e?.message);
+  }
   window.dispatchEvent(new CustomEvent("ops-global-config-updated"));
   return next;
 }
@@ -613,7 +710,7 @@ export function GlobalSettingsModal({ onClose, onSaved }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 620, color: "var(--text)" }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>员工与云端 M 码</div>
-        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>名单里有名字就能登录。默认修改只保存在自己账号，点「保存并上传」才分享。「自动分享」勾上后改完立刻给全员。考核、推品计划、瀚海 SKU 库等工具仍按各自规则。离职只删人。</div>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>名单里有名字就能登录。推品计划每人一块云端空间，换电脑也能读到自己的。从名单删人后，该空间一并消除。默认修改只保存在自己账号，点「保存并上传」才分享。</div>
         <div style={{ fontSize: 11, color: "#065f46", background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 8, padding: "6px 10px", marginBottom: 12 }}>{metaLine}</div>
         {error && <div className="ops-note ops-note-danger" style={{ marginBottom: 10 }}>{error}</div>}
         <StaffListEditor rows={rows} onChange={setRows} defaultLoginCode={opsPassword.trim() || DEFAULT_OPS_PASSWORD} />

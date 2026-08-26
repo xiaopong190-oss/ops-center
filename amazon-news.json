@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-08-20T01:07:15.415Z",
+  "updatedAt": "2026-08-26T01:11:24.730Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Alexa+ is now included on Fire TV at no additional cost",
-      "link": "https://www.aboutamazon.com/news/devices/alexa-plus-fire-tv-free-ai?utm_source=rss",
-      "pubDate": "Wed, 19 Aug 2026 14:55:04 GMT",
-      "date": "8/19",
-      "summary": "Alexa+ is now included for free on compatible Fire TV devices, bringing conversational search and smart home controls.",
-      "category": "Devices"
+      "title": "I'm an Amazon SVP who hadn't coded in 25 years. Then I wrote 100,000 lines of code with AI.",
+      "link": "https://www.aboutamazon.com/news/workplace/amazon-svp-ai-tools-employees-careers?utm_source=rss",
+      "pubDate": "Tue, 25 Aug 2026 18:31:13 GMT",
+      "date": "8/25",
+      "summary": "Amazon’s HR leader, Beth Galetti, shares how AI tools are empowering employees to build and how the company is investing $2.5 billion to pre",
+      "category": "Workplace"
     },
     {
-      "title": "Amazon Prime Air drone delivery is expanding to nearly 500 cities and towns this year",
-      "link": "https://www.aboutamazon.com/news/transportation/amazon-prime-air-drone-delivery-expansion?utm_source=rss",
-      "pubDate": "Wed, 19 Aug 2026 09:45:13 GMT",
-      "date": "8/19",
-      "summary": "Prime Air delivers millions of items in as fast as 30 minutes and will reach communities with tens of millions of customers by year-end.",
-      "category": "Transportation"
+      "title": "Inside the grocery operation Amazon built to be pickier than you",
+      "link": "https://www.aboutamazon.com/stories/how-amazon-grocery-delivery-works?utm_source=rss",
+      "pubDate": "Tue, 25 Aug 2026 12:55:05 GMT",
+      "date": "8/25",
+      "summary": "From cherry taste tests to banana ripening rooms, here’s what happens before your Amazon groceries reach your door.",
+      "category": "Retail"
     },
     {
-      "title": "5 ways Amazon is investing in Arizona",
-      "link": "https://www.aboutamazon.com/news/community/amazon-investment-arizona-jobs-infrastructure-small-business?utm_source=rss",
-      "pubDate": "Tue, 18 Aug 2026 15:51:40 GMT",
-      "date": "8/18",
-      "summary": "Amazon's investments are boosting the Grand Canyon State's economy while creating opportunities for those who call Arizona home.",
-      "category": "Community"
+      "title": "How to buy a car with Amazon Autos",
+      "link": "https://www.aboutamazon.com/news/retail/how-to-buy-a-car-with-amazon-autos?utm_source=rss",
+      "pubDate": "Tue, 25 Aug 2026 09:24:59 GMT",
+      "date": "8/25",
+      "summary": "Amazon Autos lets you browse, compare, finance, and buy new, used, and certified pre-owned vehicles—all online.",
+      "category": "Retail"
     }
   ]
 }

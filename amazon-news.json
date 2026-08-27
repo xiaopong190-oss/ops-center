@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-08-26T01:11:24.730Z",
+  "updatedAt": "2026-08-27T07:23:07.400Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "I'm an Amazon SVP who hadn't coded in 25 years. Then I wrote 100,000 lines of code with AI.",
-      "link": "https://www.aboutamazon.com/news/workplace/amazon-svp-ai-tools-employees-careers?utm_source=rss",
-      "pubDate": "Tue, 25 Aug 2026 18:31:13 GMT",
-      "date": "8/25",
-      "summary": "Amazon’s HR leader, Beth Galetti, shares how AI tools are empowering employees to build and how the company is investing $2.5 billion to pre",
-      "category": "Workplace"
+      "title": "AWS and NVIDIA expand partnership for next-gen AI infrastructure",
+      "link": "https://www.aboutamazon.com/news/aws/aws-nvidia-2-million-gpus-ai?utm_source=rss",
+      "pubDate": "Wed, 26 Aug 2026 21:12:41 GMT",
+      "date": "8/26",
+      "summary": "AWS and NVIDIA will deploy 2 million additional GPUs and deepen collaboration across CPUs, networking, and robotics.",
+      "category": "AWS"
     },
     {
-      "title": "Inside the grocery operation Amazon built to be pickier than you",
-      "link": "https://www.aboutamazon.com/stories/how-amazon-grocery-delivery-works?utm_source=rss",
-      "pubDate": "Tue, 25 Aug 2026 12:55:05 GMT",
-      "date": "8/25",
-      "summary": "From cherry taste tests to banana ripening rooms, here’s what happens before your Amazon groceries reach your door.",
-      "category": "Retail"
+      "title": "AWS to acquire DuckLabs, the Amsterdam-based company behind DuckDB",
+      "link": "https://www.aboutamazon.com/news/company-news/aws-ducklabs?utm_source=rss",
+      "pubDate": "Wed, 26 Aug 2026 13:00:22 GMT",
+      "date": "8/26",
+      "summary": "",
+      "category": "Company news"
     },
     {
-      "title": "How to buy a car with Amazon Autos",
-      "link": "https://www.aboutamazon.com/news/retail/how-to-buy-a-car-with-amazon-autos?utm_source=rss",
-      "pubDate": "Tue, 25 Aug 2026 09:24:59 GMT",
-      "date": "8/25",
-      "summary": "Amazon Autos lets you browse, compare, finance, and buy new, used, and certified pre-owned vehicles—all online.",
-      "category": "Retail"
+      "title": "Ring introduces TAKE, setting a new industry standard for default encryption and control",
+      "link": "https://www.aboutamazon.com/news/devices/ring-take-encryption?utm_source=rss",
+      "pubDate": "Wed, 26 Aug 2026 12:00:07 GMT",
+      "date": "8/26",
+      "summary": "TAKE (Throw Away the Key Encryption) will become the default encryption for all Ring customers worldwide when fully rolled out.",
+      "category": "Devices"
     }
   ]
 }

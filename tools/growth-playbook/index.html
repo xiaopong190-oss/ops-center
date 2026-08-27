@@ -1017,7 +1017,8 @@
     font-size:12px;
   }
   .status-dock .reset-btn,
-  .status-dock .upload-btn{
+  .status-dock .upload-btn,
+  .status-dock .pull-btn{
     margin-top:0;
     color:#f4efe0;
     border-color:rgba(232,217,168,0.4);
@@ -1032,6 +1033,10 @@
     color:#fff8e0;
     border-color:rgba(215,178,74,0.7);
     background:rgba(215,178,74,0.18);
+  }
+  .status-dock .pull-btn{
+    color:#e0f2fe;
+    border-color:rgba(125,211,252,0.45);
   }
   footer{
     display:none;
@@ -1140,7 +1145,8 @@
 <div class="status-dock" id="statusDock">
   <span class="who" id="whoLabelDock">运营：—</span>
   <span class="who" id="cloudHintDock">云端：检测中</span>
-  <span>填过的那台电脑要点一次「上传本机到云端」</span>
+  <span>这台是空的就点「从云端拉取」；只在填过的电脑上点「上传」</span>
+  <button class="pull-btn" id="pullCloudBtn" type="button">从云端拉取</button>
   <button class="upload-btn" id="uploadLocalBtn" type="button">上传本机到云端</button>
   <button class="reset-btn" id="resetBtn" type="button">清空当前这份计划</button>
 </div>
@@ -1577,14 +1583,25 @@ async function loadIndexFor(id){
   }catch(e){ return []; }
 }
 
-function indexHasNamedPlan(idx){
-  return (idx || []).some(function(p){
+function namedPlanCount(idx){
+  return (idx || []).filter(function(p){
     return !!(String(p && p.name || "").trim() || String(p && p.asin || "").trim());
+  }).length;
+}
+function blobNamedCount(blob){
+  if(!blob || !Array.isArray(blob.index)) return 0;
+  let n = namedPlanCount(blob.index);
+  if(n) return n;
+  const plans = blob.plans || {};
+  blob.index.forEach(function(p){
+    const meta = p && plans[p.id] && plans[p.id].meta;
+    if(meta && (String(meta.name || "").trim() || String(meta.asin || "").trim())) n++;
   });
+  return n;
 }
 
 async function ownerLooksFilled(ownerId, idx){
-  if(indexHasNamedPlan(idx)) return true;
+  if(namedPlanCount(idx) > 0) return true;
   for(const p of (idx || [])){
     if(!p || !p.id) continue;
     try{
@@ -2498,35 +2515,77 @@ async function hydrateFromCloud(){
     const localIdx = await loadIndex();
     const localFilled = await ownerLooksFilled(getUserId(), localIdx);
     const localStamp = Number(await storeRaw.get(playbookPrefix(getUserId())+"updatedAt")) || 0;
-    const lastSync = Number(await storeRaw.get(syncStampKey())) || 0;
     const cloudStamp = Number(blob && blob.updatedAt) || 0;
     const cloudHas = !!(blob && Array.isArray(blob.index) && blob.index.length);
+    const cloudNamed = blobNamedCount(blob);
+    const localNamed = namedPlanCount(localIdx);
+    const preferCloud = cloudHas && (cloudNamed > localNamed || (!localFilled && cloudHas) || (cloudStamp >= localStamp && cloudNamed >= localNamed));
 
-    if(lastSync === 0 && localFilled){
-      setCloudHint("云端：本机有未上传计划，正在上传…");
-      await flushCloudSave();
-      return;
-    }
-    if(!cloudHas){
-      if(localFilled){
-        setCloudHint("云端：本账号空间空着，正在上传本机…");
-        await flushCloudSave();
-        return;
-      }
-      setCloudHint("云端：本账号空间已就绪");
-      return;
-    }
-    if(!localIdx.length || (cloudStamp >= localStamp && cloudStamp > lastSync)){
+    if(preferCloud){
       await applyCloudBlob(blob);
       await storeRaw.set(playbookPrefix(getUserId())+"updatedAt", String(cloudStamp || Date.now()));
       await storeRaw.set(syncStampKey(), String(cloudStamp || Date.now()));
       setCloudHint("云端：已拉取本账号空间");
-    }else{
+      return;
+    }
+    if(localFilled && !cloudHas){
+      setCloudHint("云端：本账号空间空着，正在上传本机…");
+      await flushCloudSave();
+      return;
+    }
+    if(localFilled && cloudHas && localStamp > cloudStamp && localNamed >= cloudNamed){
       setCloudHint("云端：本机较新，正在上传…");
       await flushCloudSave();
+      return;
     }
+    if(cloudHas){
+      await applyCloudBlob(blob);
+      await storeRaw.set(playbookPrefix(getUserId())+"updatedAt", String(cloudStamp || Date.now()));
+      await storeRaw.set(syncStampKey(), String(cloudStamp || Date.now()));
+      setCloudHint("云端：已拉取本账号空间");
+      return;
+    }
+    setCloudHint("云端：本账号空间已就绪");
   }catch(e){
     setCloudHint("云端：拉取失败，用本机");
+  }
+}
+
+async function pullCloudToLocal(){
+  if(isGuestUser(USER)){
+    await playbookConfirm("请先用要查看的那个运营号登录。推品计划按人隔离，登自己的号看不到别人的。", { title: "还没登录", okLabel: "知道了" });
+    return;
+  }
+  const ok = await playbookConfirm(
+    "用云端「" + (USER && USER.name ? USER.name : getUserId()) + "」的计划覆盖这台电脑上的显示？\n\n只改这台电脑，不会改同事已经传上去的内容。",
+    { title: "从云端拉取", okLabel: "确定拉取" }
+  );
+  if(!ok) return;
+  const api = getCloudApi();
+  if(!api || typeof api.load !== "function"){
+    setCloudHint("云端：仅本机预览");
+    return;
+  }
+  cloudHydrateTried = true;
+  setCloudHint("云端：正在拉取…");
+  try{
+    const blob = await api.load(getUserId());
+    if(!blob || !Array.isArray(blob.index) || !blob.index.length){
+      setCloudHint("云端：这个账号还没有计划");
+      return;
+    }
+    await applyCloudBlob(blob);
+    const stamp = String(blob.updatedAt || Date.now());
+    await storeRaw.set(playbookPrefix(getUserId())+"updatedAt", stamp);
+    await storeRaw.set(syncStampKey(), stamp);
+    setCloudHint("云端：已拉取本账号空间");
+    planId = "";
+    const idx = await loadIndex();
+    refreshPlanSelect(idx);
+    if(idx[0]) await openPlan(idx[0].id);
+    else await createBlankPlan({ silent:true });
+  }catch(e){
+    setCloudHint("云端：" + (e && e.message ? e.message : "拉取失败"));
   }
 }
 
@@ -3402,6 +3461,8 @@ function attachHandlers(){
     });
   });
 
+  const pullBtn = document.getElementById("pullCloudBtn");
+  if(pullBtn) pullBtn.addEventListener("click", function(){ pullCloudToLocal(); });
   const uploadBtn = document.getElementById("uploadLocalBtn");
   if(uploadBtn) uploadBtn.addEventListener("click", function(){ uploadLocalToCloud(); });
 

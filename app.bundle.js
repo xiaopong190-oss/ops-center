@@ -8233,7 +8233,7 @@ const TOOL_CATALOG = [{
   icon: "🗺️",
   category: "运营",
   target: "inline",
-  openUrl: "tools/growth-playbook/index.html?v=20260827auth"
+  openUrl: "tools/growth-playbook/index.html?v=20260827pull"
 }, {
   id: "growth-playbook-new",
   name: "推品计划 · 添加产品",
@@ -8241,7 +8241,7 @@ const TOOL_CATALOG = [{
   icon: "📝",
   category: "运营",
   target: "inline",
-  openUrl: "tools/growth-playbook/index.html?new=1&v=20260827auth"
+  openUrl: "tools/growth-playbook/index.html?new=1&v=20260827pull"
 }];
 const loadCustomUrls = () => {
   const saved = {};

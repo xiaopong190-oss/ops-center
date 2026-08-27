@@ -246,24 +246,50 @@ function BrandLogo({ size = 28 }) {
 }
 
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_BUILD = "cloud-46-ui";
+const APP_BUILD = "cloud-47-auth";
 const THEME_KEY = "ops-center-theme";
 const AUTH_SESSION_KEY = "ops-center-auth-v6";
 const AUTH_ROLE_SUPER = "super";
 const AUTH_ROLE_STAFF = "staff";
 
+function staffNameKey(name) {
+  return String(name || "").trim().toLowerCase();
+}
+function staffNamesMatch(a, b) {
+  const left = staffNameKey(a);
+  return !!left && left === staffNameKey(b);
+}
+function readAuthRole() {
+  try {
+    const fromSession = sessionStorage.getItem(AUTH_SESSION_KEY);
+    if (fromSession) return fromSession;
+  } catch { /* ignore */ }
+  try {
+    const fromLocal = localStorage.getItem(AUTH_SESSION_KEY);
+    if (fromLocal) {
+      try { sessionStorage.setItem(AUTH_SESSION_KEY, fromLocal); } catch { /* ignore */ }
+      return fromLocal;
+    }
+  } catch { /* ignore */ }
+  return "";
+}
+
 function persistAuth(user) {
   setCurrentUser(user);
-  try { sessionStorage.setItem(AUTH_SESSION_KEY, user.auth || user.role); } catch { /* ignore */ }
+  const role = user.auth || user.role || "";
+  try { sessionStorage.setItem(AUTH_SESSION_KEY, role); } catch { /* ignore */ }
+  try { localStorage.setItem(AUTH_SESSION_KEY, role); } catch { /* ignore */ }
 }
 
 function readAuthSession() {
   try {
-    const role = sessionStorage.getItem(AUTH_SESSION_KEY);
+    const role = readAuthRole();
     if (role === AUTH_ROLE_SUPER) return true;
     if (role !== AUTH_ROLE_STAFF && role !== "ops") return false;
     const user = getCurrentUser();
-    return getLoginStaff().some(e => e.name === user?.name);
+    const staff = getLoginStaff();
+    if (!staff.length) return !!(user?.id && user.id !== "guest");
+    return staff.some(e => staffNamesMatch(e.name, user?.name));
   } catch {
     return false;
   }
@@ -271,6 +297,7 @@ function readAuthSession() {
 
 function clearAuthSession() {
   try { sessionStorage.removeItem(AUTH_SESSION_KEY); } catch { /* ignore */ }
+  try { localStorage.removeItem(AUTH_SESSION_KEY); } catch { /* ignore */ }
   clearCurrentUser();
 }
 
@@ -310,7 +337,7 @@ function LoginScreen({ onSuccess, dark }) {
         setError("尚未录入员工，无法登录。请使用超级 M 码进入后添加人员。");
         return;
       }
-      const picked = staff.find(e => e.name === opsName);
+      const picked = staff.find(e => staffNamesMatch(e.name, opsName));
       if (!picked) {
         setError("请选择自己的姓名。只有云端名单里的人可以登录。");
         return;
@@ -483,12 +510,25 @@ export default function App() {
   }, [currentUser]);
   useEffect(() => {
     fetchGlobalConfigFromCloud().then(() => {
-      if (sessionStorage.getItem(AUTH_SESSION_KEY) !== AUTH_ROLE_STAFF && sessionStorage.getItem(AUTH_SESSION_KEY) !== "ops") return;
+      const role = readAuthRole();
+      if (role !== AUTH_ROLE_STAFF && role !== "ops") return;
       const user = getCurrentUser();
-      if (!getLoginStaff().some(e => e.name === user?.name)) {
+      const staff = getLoginStaff();
+      if (!staff.length) return;
+      const hit = staff.find(e => staffNamesMatch(e.name, user?.name));
+      if (!hit) {
         clearAuthSession();
         setCurrentUserState({ id: "guest", name: "访客", role: "" });
         setAuthed(false);
+        return;
+      }
+      if (hit.name !== user?.name || hit.name !== user?.id) {
+        persistAuth({
+          ...user,
+          id: hit.name,
+          name: hit.name,
+        });
+        setCurrentUserState(getCurrentUser());
       }
     });
   }, []);

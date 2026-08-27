@@ -306,7 +306,7 @@ bindPlaybookCloudBridge();
 
 function readSessionUser() {
   try {
-    const raw = sessionStorage.getItem("ops-center-current-user");
+    const raw = sessionStorage.getItem("ops-center-current-user") || localStorage.getItem("ops-center-current-user");
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -444,10 +444,10 @@ function formatStaffText(staff) {
 
 function getCurrentUserName() {
   try {
-    const raw = sessionStorage.getItem("ops-center-current-user");
+    const raw = sessionStorage.getItem("ops-center-current-user") || localStorage.getItem("ops-center-current-user");
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed?.name) return parsed.name;
+      if (parsed?.name && parsed.name !== "访客") return parsed.name;
     }
   } catch { /* ignore */ }
   return "未知";
@@ -638,9 +638,11 @@ async function updateOwnLoginCode(oldPwd, newPwd) {
 
 function patchSessionUser(patch) {
   try {
-    const raw = sessionStorage.getItem("ops-center-current-user");
+    const raw = sessionStorage.getItem("ops-center-current-user") || localStorage.getItem("ops-center-current-user");
     const parsed = raw ? JSON.parse(raw) : {};
-    sessionStorage.setItem("ops-center-current-user", JSON.stringify({ ...parsed, ...patch }));
+    const next = JSON.stringify({ ...parsed, ...patch });
+    sessionStorage.setItem("ops-center-current-user", next);
+    localStorage.setItem("ops-center-current-user", next);
   } catch { /* ignore */ }
 }
 
@@ -988,12 +990,25 @@ const CURRENT_USER_KEY = "ops-center-current-user";
 /** 后台拉取间隔；0=关闭自动拉取，仅手动「从云端更新」。默认 30 分钟 */
 const CLOUD_POLL_MS = 1800000;
 
+function readUserJson(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.id && parsed?.name && parsed.id !== "guest") return parsed;
+  } catch { /* ignore */ }
+  return null;
+}
+
 function getCurrentUser() {
   try {
-    const raw = sessionStorage.getItem(CURRENT_USER_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed?.id && parsed?.name) return parsed;
+    const fromSession = readUserJson(sessionStorage.getItem(CURRENT_USER_KEY));
+    if (fromSession) return fromSession;
+  } catch { /* ignore */ }
+  try {
+    const fromLocal = readUserJson(localStorage.getItem(CURRENT_USER_KEY));
+    if (fromLocal) {
+      try { sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(fromLocal)); } catch { /* ignore */ }
+      return fromLocal;
     }
   } catch { /* ignore */ }
   return { id: "guest", name: "访客", role: "" };
@@ -1019,21 +1034,23 @@ function publishCurrentUser(user) {
 }
 
 function setCurrentUser(user) {
-  try {
-    sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify({
-      id: user.id || user.name || "guest",
-      name: user.name || "访客",
-      role: user.role || "",
-      auth: user.auth || user.role || "",
-      canEdit: user.canEdit !== false,
-      autoShare: user.autoShare === true,
-    }));
-    publishCurrentUser(user);
-  } catch { /* ignore */ }
+  const payload = {
+    id: user.id || user.name || "guest",
+    name: user.name || "访客",
+    role: user.role || "",
+    auth: user.auth || user.role || "",
+    canEdit: user.canEdit !== false,
+    autoShare: user.autoShare === true,
+  };
+  const raw = JSON.stringify(payload);
+  try { sessionStorage.setItem(CURRENT_USER_KEY, raw); } catch { /* ignore */ }
+  try { localStorage.setItem(CURRENT_USER_KEY, raw); } catch { /* ignore */ }
+  publishCurrentUser(payload);
 }
 
 function clearCurrentUser() {
   try { sessionStorage.removeItem(CURRENT_USER_KEY); } catch { /* ignore */ }
+  try { localStorage.removeItem(CURRENT_USER_KEY); } catch { /* ignore */ }
   publishCurrentUser({ id: "guest", name: "访客", role: "" });
 }
 

@@ -230,7 +230,7 @@ bindPlaybookCloudBridge();
 
 function readSessionUser() {
   try {
-    const raw = sessionStorage.getItem("ops-center-current-user");
+    const raw = sessionStorage.getItem("ops-center-current-user") || localStorage.getItem("ops-center-current-user");
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -368,10 +368,10 @@ export function formatStaffText(staff) {
 
 function getCurrentUserName() {
   try {
-    const raw = sessionStorage.getItem("ops-center-current-user");
+    const raw = sessionStorage.getItem("ops-center-current-user") || localStorage.getItem("ops-center-current-user");
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed?.name) return parsed.name;
+      if (parsed?.name && parsed.name !== "访客") return parsed.name;
     }
   } catch { /* ignore */ }
   return "未知";
@@ -562,9 +562,11 @@ export async function updateOwnLoginCode(oldPwd, newPwd) {
 
 function patchSessionUser(patch) {
   try {
-    const raw = sessionStorage.getItem("ops-center-current-user");
+    const raw = sessionStorage.getItem("ops-center-current-user") || localStorage.getItem("ops-center-current-user");
     const parsed = raw ? JSON.parse(raw) : {};
-    sessionStorage.setItem("ops-center-current-user", JSON.stringify({ ...parsed, ...patch }));
+    const next = JSON.stringify({ ...parsed, ...patch });
+    sessionStorage.setItem("ops-center-current-user", next);
+    localStorage.setItem("ops-center-current-user", next);
   } catch { /* ignore */ }
 }
 

@@ -1412,32 +1412,34 @@ function parsePlaybookUser(raw){
   }catch(e){}
   return null;
 }
+function isGuestUser(u){
+  const id = String(u && u.id || "").trim().toLowerCase();
+  const name = String(u && u.name || "").trim();
+  return !id || id === "guest" || name === "访客";
+}
 function readPlaybookUser(){
-  try{
-    const fromWin = parsePlaybookUser(window.opsCurrentUser);
-    if(fromWin) return fromWin;
-  }catch(e){}
+  const found = [];
+  function add(raw){
+    const u = parsePlaybookUser(raw);
+    if(u && !isGuestUser(u) && !found.some(function(x){ return x.id === u.id; })) found.push(u);
+  }
+  try{ add(window.opsCurrentUser); }catch(e){}
   try{
     if(window.parent && window.parent !== window){
-      const fromParentWin = parsePlaybookUser(window.parent.opsCurrentUser);
-      if(fromParentWin) return fromParentWin;
-      try{
-        const fromParentSs = parsePlaybookUser(window.parent.sessionStorage.getItem(CURRENT_USER_KEY));
-        if(fromParentSs) return fromParentSs;
-      }catch(e){}
+      add(window.parent.opsCurrentUser);
+      try{ add(window.parent.sessionStorage.getItem(CURRENT_USER_KEY)); }catch(e){}
+      try{ add(window.parent.localStorage.getItem(CURRENT_USER_KEY)); }catch(e){}
     }
   }catch(e){}
-  try{
-    const fromOwn = parsePlaybookUser(sessionStorage.getItem(CURRENT_USER_KEY));
-    if(fromOwn) return fromOwn;
-  }catch(e){}
+  try{ add(sessionStorage.getItem(CURRENT_USER_KEY)); }catch(e){}
+  try{ add(localStorage.getItem(CURRENT_USER_KEY)); }catch(e){}
   try{
     const q = new URLSearchParams(location.search);
     const id = String(q.get("opsUser") || "").trim();
     const name = String(q.get("opsName") || "").trim();
-    if(id) return { id, name: name || id };
+    if(id && id.toLowerCase() !== "guest") add({ id: id, name: name || id });
   }catch(e){}
-  return { id: "guest", name: "访客" };
+  return found[0] || { id: "guest", name: "访客" };
 }
 let USER = readPlaybookUser();
 function getUserId(){ return String(USER && USER.id ? USER.id : "guest"); }
@@ -1538,12 +1540,12 @@ function syncStampKey(){ return "user:"+getUserId()+":hs-playbook:cloudSyncedAt"
 
 async function waitForPlaybookUser(){
   USER = readPlaybookUser();
-  if(USER.id !== "guest") return USER;
+  if(!isGuestUser(USER)) return USER;
   if(window.parent === window) return USER;
-  for(let i = 0; i < 30; i++){
+  for(let i = 0; i < 60; i++){
     await new Promise(function(r){ setTimeout(r, 50); });
     USER = readPlaybookUser();
-    if(USER.id !== "guest") return USER;
+    if(!isGuestUser(USER)) return USER;
   }
   return USER;
 }
@@ -1643,7 +1645,7 @@ async function copyPlaybookKeys(fromId, toId, overwrite){
 }
 
 async function mergeLocalPlaybooksIntoUser(toId){
-  if(!toId || toId === "guest") return false;
+  if(!toId || String(toId).trim().toLowerCase() === "guest") return false;
   const want = String(toId).trim().toLowerCase();
   const owners = listLocalPlaybookOwners();
   const sources = [];
@@ -2441,7 +2443,7 @@ async function applyCloudBlob(blob){
 }
 
 function scheduleCloudSave(){
-  if(cloudHydrating || getUserId() === "guest") return;
+  if(cloudHydrating || isGuestUser(USER)) return;
   const api = getCloudApi();
   if(!api || typeof api.save !== "function") return;
   clearTimeout(cloudTimer);
@@ -2449,7 +2451,7 @@ function scheduleCloudSave(){
 }
 
 async function flushCloudSave(){
-  if(cloudHydrating || getUserId() === "guest") return false;
+  if(cloudHydrating || isGuestUser(USER)) return false;
   if(!cloudHydrateTried) return false;
   const api = getCloudApi();
   if(!api || typeof api.save !== "function") return false;
@@ -2477,7 +2479,7 @@ async function flushCloudSave(){
 
 async function hydrateFromCloud(){
   cloudHydrateTried = true;
-  if(getUserId() === "guest"){
+  if(isGuestUser(USER)){
     setCloudHint("云端：访客仅本机，换账号看不到");
     return;
   }
@@ -2529,7 +2531,7 @@ async function hydrateFromCloud(){
 }
 
 async function uploadLocalToCloud(){
-  if(getUserId() === "guest"){
+  if(isGuestUser(USER)){
     await playbookConfirm("请先用运营账号登录。访客内容不会上云，换电脑也看不到。", { title: "还没登录", okLabel: "知道了" });
     return;
   }
@@ -3509,9 +3511,13 @@ function paintWhoLabel(){
   });
 }
 function applyPlaybookUser(next){
-  const incoming = next && (next.id || next.name)
+  let incoming = next && (next.id || next.name)
     ? { id: String(next.id || next.name), name: String(next.name || next.id) }
     : readPlaybookUser();
+  if(isGuestUser(incoming)){
+    const live = readPlaybookUser();
+    if(!isGuestUser(live)) incoming = live;
+  }
   const prevId = getUserId();
   USER = incoming;
   if(prevId === getUserId()) return;
@@ -3525,7 +3531,7 @@ async function loadAll(){
   await waitForPlaybookUser();
   if(gen !== loadGen) return;
   paintWhoLabel();
-  if(getUserId() !== "guest"){
+  if(!isGuestUser(USER)){
     const moved = await mergeLocalPlaybooksIntoUser(getUserId());
     if(gen !== loadGen) return;
     if(moved) setCloudHint("云端：已合并本机草稿，准备上传…");

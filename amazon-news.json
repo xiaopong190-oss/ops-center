@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-27T07:23:07.400Z",
+  "updatedAt": "2026-08-28T09:37:51.966Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How Amazon is preparing for the energy needs of the future",
+      "link": "https://www.aboutamazon.com/news/sustainability/amazon-renewable-energy-updates?utm_source=rss",
+      "pubDate": "Fri, 28 Aug 2026 07:20:00 GMT",
+      "date": "8/28",
+      "summary": "Learn how we're supporting the transition to carbon-free energy and powering our business with sustainability in mind.",
+      "category": "Sustainability"
+    },
     {
       "title": "AWS and NVIDIA expand partnership for next-gen AI infrastructure",
       "link": "https://www.aboutamazon.com/news/aws/aws-nvidia-2-million-gpus-ai?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "8/26",
       "summary": "",
       "category": "Company news"
-    },
-    {
-      "title": "Ring introduces TAKE, setting a new industry standard for default encryption and control",
-      "link": "https://www.aboutamazon.com/news/devices/ring-take-encryption?utm_source=rss",
-      "pubDate": "Wed, 26 Aug 2026 12:00:07 GMT",
-      "date": "8/26",
-      "summary": "TAKE (Throw Away the Key Encryption) will become the default encryption for all Ring customers worldwide when fully rolled out.",
-      "category": "Devices"
     }
   ]
 }

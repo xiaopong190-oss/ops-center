@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-08-28T09:37:51.966Z",
+  "updatedAt": "2026-08-29T05:42:26.314Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How Amazon is helping communities impacted by the Nepal flash floods",
+      "link": "https://www.aboutamazon.com/news/community/nepal-floods-amazon-disaster-relief?utm_source=rss",
+      "pubDate": "Fri, 28 Aug 2026 23:26:53 GMT",
+      "date": "8/28",
+      "summary": "Amazon is working with aid organizations to help communities recover following flooding and landslides along the Nepal border.",
+      "category": "Community"
+    },
+    {
+      "title": "Amazon's Second Chance Deal Days returns to Europe, with deals also available in the US, Mexico, and Brazil",
+      "link": "https://www.aboutamazon.com/news/retail/second-chance-deal-days?utm_source=rss",
+      "pubDate": "Fri, 28 Aug 2026 14:02:03 GMT",
+      "date": "8/28",
+      "summary": "Shoppers in Europe, Brazil, and Mexico can save up to 50% on high-quality returned and refurbished items, while U.S. customers can enjoy sec",
+      "category": "Retail"
+    },
     {
       "title": "How Amazon is preparing for the energy needs of the future",
       "link": "https://www.aboutamazon.com/news/sustainability/amazon-renewable-energy-updates?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "8/28",
       "summary": "Learn how we're supporting the transition to carbon-free energy and powering our business with sustainability in mind.",
       "category": "Sustainability"
-    },
-    {
-      "title": "AWS and NVIDIA expand partnership for next-gen AI infrastructure",
-      "link": "https://www.aboutamazon.com/news/aws/aws-nvidia-2-million-gpus-ai?utm_source=rss",
-      "pubDate": "Wed, 26 Aug 2026 21:12:41 GMT",
-      "date": "8/26",
-      "summary": "AWS and NVIDIA will deploy 2 million additional GPUs and deepen collaboration across CPUs, networking, and robotics.",
-      "category": "AWS"
-    },
-    {
-      "title": "AWS to acquire DuckLabs, the Amsterdam-based company behind DuckDB",
-      "link": "https://www.aboutamazon.com/news/company-news/aws-ducklabs?utm_source=rss",
-      "pubDate": "Wed, 26 Aug 2026 13:00:22 GMT",
-      "date": "8/26",
-      "summary": "",
-      "category": "Company news"
     }
   ]
 }

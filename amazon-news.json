@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-08-31T03:45:16.926Z",
+  "updatedAt": "2026-09-01T03:39:21.638Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon’s response to the FTC’s lawsuit regarding Sponsored Ads",
+      "link": "https://www.aboutamazon.com/company-news/amazon-ftc-sponsored-ads-lawsuit-response?utm_source=rss",
+      "pubDate": "Mon, 31 Aug 2026 19:36:13 GMT",
+      "date": "8/31",
+      "summary": "The FTC today filed a misguided lawsuit claiming Amazon misled advertisers about its Sponsored Ads pricing and auction. Amazon strongly disa",
+      "category": "Policy news &amp; views"
+    },
+    {
+      "title": "AWS to launch first cloud infrastructure region in the Kingdom of Saudi Arabia by December 2026",
+      "link": "https://www.aboutamazon.com/news/aws/aws-cloud-region-saudi-arabia?utm_source=rss",
+      "pubDate": "Mon, 31 Aug 2026 14:08:31 GMT",
+      "date": "8/31",
+      "summary": "AWS and HUMAIN deepen partnership with a commitment to deliver up to 50MW of capacity in Saudi’s first AI Zone by 2028.",
+      "category": "AWS"
+    },
     {
       "title": "How Amazon is helping communities impacted by the Nepal flash floods",
       "link": "https://www.aboutamazon.com/news/community/nepal-floods-amazon-disaster-relief?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "8/28",
       "summary": "Amazon is working with aid organizations to help communities recover following flooding and landslides along the Nepal border.",
       "category": "Community"
-    },
-    {
-      "title": "Amazon's Second Chance Deal Days returns to Europe, with deals also available in the US, Mexico, and Brazil",
-      "link": "https://www.aboutamazon.com/news/retail/second-chance-deal-days?utm_source=rss",
-      "pubDate": "Fri, 28 Aug 2026 14:02:03 GMT",
-      "date": "8/28",
-      "summary": "Shoppers in Europe, Brazil, and Mexico can save up to 50% on high-quality returned and refurbished items, while U.S. customers can enjoy sec",
-      "category": "Retail"
-    },
-    {
-      "title": "How Amazon is preparing for the energy needs of the future",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-renewable-energy-updates?utm_source=rss",
-      "pubDate": "Fri, 28 Aug 2026 07:20:00 GMT",
-      "date": "8/28",
-      "summary": "Learn how we're supporting the transition to carbon-free energy and powering our business with sustainability in mind.",
-      "category": "Sustainability"
     }
   ]
 }

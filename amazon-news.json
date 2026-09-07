@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-09-06T03:00:43.326Z",
+  "updatedAt": "2026-09-07T02:58:31.951Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon 21 Air updates",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-21-air-miami-updates?utm_source=rss",
+      "pubDate": "Sun, 06 Sep 2026 20:43:38 GMT",
+      "date": "9/6",
+      "summary": "",
+      "category": "Company news"
+    },
     {
       "title": "Amazon expands Career Choice employee benefit with new programs in high-demand industries",
       "link": "https://www.aboutamazon.com/news/workplace/amazon-career-choice-training-programs-tuition-careers?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "9/4",
       "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
       "category": "Sustainability"
-    },
-    {
-      "title": "Is that message really from Amazon? Just ask Alexa for Shopping.",
-      "link": "https://www.aboutamazon.com/news/retail/how-to-verify-amazon-messages-alexa-for-shopping?utm_source=rss",
-      "pubDate": "Wed, 02 Sep 2026 13:01:10 GMT",
-      "date": "9/2",
-      "summary": "Amazon’s first-of-its-kind Alexa for Shopping feature helps protect consumers from scams.",
-      "category": "Retail"
     }
   ]
 }

@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-09-08T03:08:51.274Z",
+  "updatedAt": "2026-09-09T03:10:33.676Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Millions of students can now get access to a free year of Kiro from AWS",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-expands-free-kiro-access-students-universities?utm_source=rss",
+      "pubDate": "Tue, 08 Sep 2026 15:55:21 GMT",
+      "date": "9/8",
+      "summary": "AWS is giving students at 132 universities across 18 countries a full year of free access to Kiro, so they enter the workforce ready to buil",
+      "category": "AWS"
+    },
+    {
+      "title": "A first look at ‘Our Fault: London,’ the ‘Your Fault: London’ and 'My Fault: London' sequel coming to Prime Video in 2027",
+      "link": "https://www.aboutamazon.com/news/entertainment/our-fault-london-prime-video?utm_source=rss",
+      "pubDate": "Tue, 08 Sep 2026 08:28:07 GMT",
+      "date": "9/8",
+      "summary": "Asha Banks and Matthew Broome return for the concluding chapter of the English-language adaptation of Mercedes Ron's 'Culpables' trilogy.",
+      "category": "Entertainment"
+    },
     {
       "title": "Amazon 21 Air updates",
       "link": "https://www.aboutamazon.com/news/company-news/amazon-21-air-miami-updates?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "9/6",
       "summary": "",
       "category": "Company news"
-    },
-    {
-      "title": "Amazon expands Career Choice employee benefit with new programs in high-demand industries",
-      "link": "https://www.aboutamazon.com/news/workplace/amazon-career-choice-training-programs-tuition-careers?utm_source=rss",
-      "pubDate": "Fri, 04 Sep 2026 15:27:02 GMT",
-      "date": "9/4",
-      "summary": "Eligible employees, including corporate employees, will be able to use Amazon’s tuition assistance and career development benefit to earn cr",
-      "category": "Workplace"
-    },
-    {
-      "title": "Amazon's water conservation and replenishment efforts around the world",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
-      "pubDate": "Fri, 04 Sep 2026 08:25:00 GMT",
-      "date": "9/4",
-      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
-      "category": "Sustainability"
     }
   ]
 }

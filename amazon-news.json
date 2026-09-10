@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-09-09T03:10:33.676Z",
+  "updatedAt": "2026-09-10T03:10:05.669Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Millions of students can now get access to a free year of Kiro from AWS",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-expands-free-kiro-access-students-universities?utm_source=rss",
-      "pubDate": "Tue, 08 Sep 2026 15:55:21 GMT",
-      "date": "9/8",
-      "summary": "AWS is giving students at 132 universities across 18 countries a full year of free access to Kiro, so they enter the workforce ready to buil",
-      "category": "AWS"
-    },
-    {
-      "title": "A first look at ‘Our Fault: London,’ the ‘Your Fault: London’ and 'My Fault: London' sequel coming to Prime Video in 2027",
-      "link": "https://www.aboutamazon.com/news/entertainment/our-fault-london-prime-video?utm_source=rss",
-      "pubDate": "Tue, 08 Sep 2026 08:28:07 GMT",
-      "date": "9/8",
-      "summary": "Asha Banks and Matthew Broome return for the concluding chapter of the English-language adaptation of Mercedes Ron's 'Culpables' trilogy.",
-      "category": "Entertainment"
-    },
-    {
-      "title": "Amazon 21 Air updates",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-21-air-miami-updates?utm_source=rss",
-      "pubDate": "Sun, 06 Sep 2026 20:43:38 GMT",
-      "date": "9/6",
-      "summary": "",
+      "title": "Cybersecurity expert Kevin Mandia joins Amazon's Board of Directors",
+      "link": "https://www.aboutamazon.com/news/company-news/kevin-mandia-amazon-board-of-directors?utm_source=rss",
+      "pubDate": "Wed, 09 Sep 2026 20:32:47 GMT",
+      "date": "9/9",
+      "summary": "Mandia is the founder and CEO of Armadin, Inc. and the co-founder and general partner of Ballistic Ventures. He also founded and previously ",
       "category": "Company news"
+    },
+    {
+      "title": "Meet the new paper replacing Amazon's plastic packaging",
+      "link": "https://www.aboutamazon.com/stories/amazon-paper-packaging-sustainability?utm_source=rss",
+      "pubDate": "Wed, 09 Sep 2026 17:16:34 GMT",
+      "date": "9/9",
+      "summary": "A stronger, stretchier kind of paper is helping to replace plastic across Amazon's packaging network—and boosting efficiency while working t",
+      "category": "Sustainability"
+    },
+    {
+      "title": "How Amazon is helping communities impacted by the Nepal flash floods",
+      "link": "https://www.aboutamazon.com/news/community/nepal-floods-amazon-disaster-relief?utm_source=rss",
+      "pubDate": "Wed, 09 Sep 2026 16:06:00 GMT",
+      "date": "9/9",
+      "summary": "Amazon is working with aid organizations to help communities recover following flooding and landslides along the Nepal border.",
+      "category": "Community"
     }
   ]
 }

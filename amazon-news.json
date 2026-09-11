@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-09-10T03:10:05.669Z",
+  "updatedAt": "2026-09-11T03:05:38.930Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon Leo adds 6 new Arianespace launches, expanding its launch partnership",
+      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-arianespace-new-launches?utm_source=rss",
+      "pubDate": "Thu, 10 Sep 2026 19:26:06 GMT",
+      "date": "9/10",
+      "summary": "The agreement extends the largest commercial contract in Arianespace history and supports investment and innovation across Europe.",
+      "category": "Amazon Leo"
+    },
+    {
+      "title": "Investing more than $230 million in higher pay and expanded benefits for Whole Foods Market team members",
+      "link": "https://www.aboutamazon.com/news/workplace/whole-foods-market-pay-benefits-expansion?utm_source=rss",
+      "pubDate": "Thu, 10 Sep 2026 17:00:08 GMT",
+      "date": "9/10",
+      "summary": "More than 100,000 U.S. Whole Foods Market team members will soon gain access to Amazon's comprehensive benefits.",
+      "category": "Workplace"
+    },
     {
       "title": "Cybersecurity expert Kevin Mandia joins Amazon's Board of Directors",
       "link": "https://www.aboutamazon.com/news/company-news/kevin-mandia-amazon-board-of-directors?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "9/9",
       "summary": "Mandia is the founder and CEO of Armadin, Inc. and the co-founder and general partner of Ballistic Ventures. He also founded and previously ",
       "category": "Company news"
-    },
-    {
-      "title": "Meet the new paper replacing Amazon's plastic packaging",
-      "link": "https://www.aboutamazon.com/stories/amazon-paper-packaging-sustainability?utm_source=rss",
-      "pubDate": "Wed, 09 Sep 2026 17:16:34 GMT",
-      "date": "9/9",
-      "summary": "A stronger, stretchier kind of paper is helping to replace plastic across Amazon's packaging network—and boosting efficiency while working t",
-      "category": "Sustainability"
-    },
-    {
-      "title": "How Amazon is helping communities impacted by the Nepal flash floods",
-      "link": "https://www.aboutamazon.com/news/community/nepal-floods-amazon-disaster-relief?utm_source=rss",
-      "pubDate": "Wed, 09 Sep 2026 16:06:00 GMT",
-      "date": "9/9",
-      "summary": "Amazon is working with aid organizations to help communities recover following flooding and landslides along the Nepal border.",
-      "category": "Community"
     }
   ]
 }

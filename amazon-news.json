@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-09-11T03:05:38.930Z",
+  "updatedAt": "2026-09-12T03:12:13.568Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon's water conservation and replenishment efforts around the world",
+      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
+      "pubDate": "Fri, 11 Sep 2026 16:34:00 GMT",
+      "date": "9/11",
+      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
+      "category": "Sustainability"
+    },
     {
       "title": "Amazon Leo adds 6 new Arianespace launches, expanding its launch partnership",
       "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-arianespace-new-launches?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "9/10",
       "summary": "More than 100,000 U.S. Whole Foods Market team members will soon gain access to Amazon's comprehensive benefits.",
       "category": "Workplace"
-    },
-    {
-      "title": "Cybersecurity expert Kevin Mandia joins Amazon's Board of Directors",
-      "link": "https://www.aboutamazon.com/news/company-news/kevin-mandia-amazon-board-of-directors?utm_source=rss",
-      "pubDate": "Wed, 09 Sep 2026 20:32:47 GMT",
-      "date": "9/9",
-      "summary": "Mandia is the founder and CEO of Armadin, Inc. and the co-founder and general partner of Ballistic Ventures. He also founded and previously ",
-      "category": "Company news"
     }
   ]
 }

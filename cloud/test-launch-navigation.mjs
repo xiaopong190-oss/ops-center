@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const base=process.env.OPS_GROWTH_TEST_URL;
+const html=base?await(await fetch(base+'/launch-plan/app?embedded=1')).text():fs.readFileSync(new URL('./public/launch-plan/app.html',import.meta.url),'utf8');
+assert.ok(!html.includes('location.replace('),'Launch plan must not fight host URL normalization');
+assert.ok(html.includes('/launch-plan/budget-math.js'));
+const code=base?await(async()=>{const r=await fetch(base+'/launch-plan/budget-math.js');assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/javascript/);return r.text();})():fs.readFileSync(new URL('./public/launch-plan/budget-math.js',import.meta.url),'utf8');
+const context={};vm.runInNewContext(code,context);
+assert.equal(typeof context.computeBudget,'function');
+assert.equal(typeof context.defaultBudget,'function');
+console.log('PASS no client redirect loop; budget module loads and exposes required functions');

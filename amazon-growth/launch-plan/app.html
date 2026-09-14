@@ -1174,16 +1174,8 @@
   </div>
 </div>
 
-<script>
-(function () {
-  var p = location.pathname;
-  if (location.protocol !== "file:" && !/\.html?$/i.test(p) && p.slice(-1) !== "/") {
-    location.replace(p + "/" + location.search + location.hash);
-    return;
-  }
-  document.write('<script src="budget-math.cjs"><\/script>');
-})();
-</script>
+<!-- The host owns URL normalization; do not redirect extensionless asset URLs. -->
+<script src="/launch-plan/budget-math.cjs"></script>
 <script>
 const STEPS = [
   {

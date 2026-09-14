@@ -6,4 +6,8 @@ function copy(dir,dest){fs.mkdirSync(dest,{recursive:true});for(const entry of f
 for(const d of ['assets','asinscope/assets','watchlist/assets','keywords','launch-plan'])copy(path.join(source,d),path.join(out,d));
 for(const p of ['index.html','asinscope/index.html','watchlist/index.html']){const target=path.join(out,p);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,fs.readFileSync(path.join(source,p),'utf8').replace(/<head>/i,'<head><script src="/growth-auth.js"></script>'));}
 fs.copyFileSync(new URL('./growth-auth.js',import.meta.url),path.join(out,'growth-auth.js'));
+// Serve the shared budget module with a browser JavaScript extension and MIME type.
+fs.copyFileSync(path.join(source,'launch-plan/budget-math.cjs'),path.join(out,'launch-plan/budget-math.js'));
+const plan=path.join(out,'launch-plan/app.html');
+fs.writeFileSync(plan,fs.readFileSync(plan,'utf8').replace('/launch-plan/budget-math.cjs','/launch-plan/budget-math.js'));
 console.log('Growth browser assets prepared; server files excluded');

@@ -104,7 +104,7 @@ export function AmazonGrowthPanel() {
         <span className="ops-badge">{isSuper ? "超级管理员 · 可配置连接" : "运营账号 · 仅业务调用"}</span>
       </div>
       <iframe
-        src={`http://127.0.0.1:8791/?${params}`}
+        src={`${window.OpsCloud?.base || 'http://127.0.0.1:8791'}/?${params}`}
         title="亚马逊增长中心"
         style={{ flex: 1, width: "100%", minHeight: 0, border: "1px solid var(--border)", borderRadius: 10, background: "#f6f6f2" }}
       />

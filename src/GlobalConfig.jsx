@@ -23,7 +23,7 @@ function getGistId() {
 }
 
 // ─── GitHub Gist 共享（一个 Gist 里多个 json 文件）────────────────────
-const GIST_API = "https://api.github.com/gists";
+const GIST_API = typeof window !== 'undefined' && window.OpsCloud ? window.OpsCloud.base + '/ops-api/gist' : "https://api.github.com/gists";
 const GIST_SHARED_FILES = {
   logistics: "logistics.json",
   tasks: "tasks.json",
@@ -36,10 +36,12 @@ const GIST_SHARED_FILES = {
 };
 
 function gistConfigured() {
+  if (typeof window !== 'undefined' && window.OpsCloud) return true;
   return Boolean(getGistToken() && getGistId());
 }
 
 function gistHeaders(json = false) {
+  if (typeof window !== 'undefined' && window.OpsCloud) return {'Content-Type':'application/json', ...(window.OpsCloud.token()?{Authorization:'Bearer '+window.OpsCloud.token()}:{})};
   const h = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${getGistToken()}`,
@@ -210,6 +212,7 @@ function bindPlaybookCloudBridge() {
   window.addEventListener("message", async (ev) => {
     const d = ev && ev.data;
     if (!d || d.type !== "ops-playbook-cloud" || !ev.source) return;
+    if (ev.origin !== location.origin) return;
     const reply = (ok, result, error) => {
       try { ev.source.postMessage({ type: "ops-playbook-cloud-result", reqId: d.reqId, ok, result, error }, "*"); } catch { /* ignore */ }
     };
@@ -490,6 +493,12 @@ export function getGlobalConfigMeta() {
 }
 
 export async function saveGlobalConfig(config, opts = {}) {
+  if (typeof window !== 'undefined' && window.OpsCloud) {
+    await gistWriteRecord('global-config', {data:config,updatedAt:Date.now()});
+    await fetchGlobalConfigFromCloud();
+    window.dispatchEvent(new CustomEvent('ops-global-config-updated'));
+    return loadGlobalConfig();
+  }
   const prev = loadGlobalConfig();
   const opsPassword = config.opsPassword !== undefined
     ? String(config.opsPassword || "").trim()
@@ -535,6 +544,7 @@ export async function saveGlobalConfig(config, opts = {}) {
 }
 
 export async function updateOwnLoginCode(oldPwd, newPwd) {
+  if (typeof window !== 'undefined' && window.OpsCloud) { await window.OpsCloud.request('/ops-api/password',{oldPassword:oldPwd,newPassword:newPwd});return true; }
   const user = readSessionUser();
   const name = String(user?.name || "").trim();
   if (!name || user?.auth === "super" || user?.role === "super") {
@@ -571,6 +581,12 @@ function patchSessionUser(patch) {
 }
 
 export async function updateOwnAutoShare(autoShare) {
+  if (window.OpsCloud) {
+    await window.OpsCloud.request('/ops-api/preferences',{autoShare:!!autoShare});
+    patchSessionUser({autoShare:!!autoShare});
+    window.dispatchEvent(new CustomEvent('ops-user-prefs-updated'));
+    return true;
+  }
   const user = readSessionUser();
   if (!user?.name || user.id === "guest") throw new Error("请先登录");
   const on = !!autoShare;
@@ -706,8 +722,9 @@ function StaffListEditor({ rows, onChange, defaultLoginCode }) {
 
 export function GlobalSettingsModal({ onClose, onSaved }) {
   const [rows, setRows] = useState(() => getEmployees().map(e => ({ ...e })));
-  const [opsPassword, setOpsPassword] = useState(() => getOpsPassword());
-  const [superPassword, setSuperPassword] = useState(() => getSuperPassword());
+  const cloud = !!window.OpsCloud;
+  const [opsPassword, setOpsPassword] = useState(() => cloud ? '' : getOpsPassword());
+  const [superPassword, setSuperPassword] = useState(() => cloud ? '' : getSuperPassword());
   const [superAutoShare, setSuperAutoShare] = useState(() => loadGlobalConfig().superAutoShare === true);
   const [showOpsPwd, setShowOpsPwd] = useState(false);
   const [showSuperPwd, setShowSuperPwd] = useState(false);
@@ -727,16 +744,16 @@ export function GlobalSettingsModal({ onClose, onSaved }) {
   const save = async () => {
     const pwd = opsPassword.trim();
     const superPwd = superPassword.trim();
-    if (!superPwd) { setError("请设置超级 M 码"); return; }
-    if (!pwd) { setError("请设置全员 M 码"); return; }
-    if (pwd === superPwd) { setError("全员 M 码不能与超级 M 码相同"); return; }
+    if (!cloud && !superPwd) { setError("请设置超级 M 码"); return; }
+    if (!cloud && !pwd) { setError("请设置全员 M 码"); return; }
+    if (pwd && pwd === superPwd) { setError("全员 M 码不能与超级 M 码相同"); return; }
     const prevOps = getOpsPassword();
     const staff = rows.map(r => {
       const existing = String(r.loginCode || "").trim();
       return {
         name: r.name.trim(),
         role: r.role || "",
-        loginCode: !existing || existing === prevOps ? pwd : existing,
+        loginCode: cloud ? '' : (!existing || existing === prevOps ? pwd : existing),
         canEdit: r.canEdit !== false,
         autoShare: r.autoShare === true,
       };
@@ -760,7 +777,7 @@ export function GlobalSettingsModal({ onClose, onSaved }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "2rem 1rem", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.25rem 1.5rem", width: "100%", maxWidth: 620, color: "var(--text)" }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>员工与云端 M 码</div>
-        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>名单里有名字就能登录。推品计划每人一块云端空间，换电脑也能读到自己的。从名单删人后，该空间一并消除。默认修改只保存在自己账号，点「保存并上传」才分享。</div>
+        <div style={{ fontSize: 11, color: "var(--tm)", marginBottom: 8, lineHeight: 1.5 }}>推品计划按运营独立存储，换电脑可读取。M 码留空表示不修改；云端不返回原 M 码。删除员工将禁用其访问，历史数据保留。</div>
         <div style={{ fontSize: 11, color: "#065f46", background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 8, padding: "6px 10px", marginBottom: 12 }}>{metaLine}</div>
         {error && <div className="ops-note ops-note-danger" style={{ marginBottom: 10 }}>{error}</div>}
         <StaffListEditor rows={rows} onChange={setRows} defaultLoginCode={opsPassword.trim() || DEFAULT_OPS_PASSWORD} />

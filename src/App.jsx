@@ -248,7 +248,7 @@ function BrandLogo({ size = 28 }) {
 }
 
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_BUILD = "cloud-47-auth";
+const APP_BUILD = "cloud-48-secure";
 const THEME_KEY = "ops-center-theme";
 const AUTH_SESSION_KEY = "ops-center-auth-v6";
 const AUTH_ROLE_SUPER = "super";
@@ -284,6 +284,7 @@ function persistAuth(user) {
 }
 
 function readAuthSession() {
+  if (window.OpsCloud && !window.OpsCloud.token()) return false;
   try {
     const role = readAuthRole();
     if (role === AUTH_ROLE_SUPER) return true;
@@ -298,6 +299,7 @@ function readAuthSession() {
 }
 
 function clearAuthSession() {
+  window.OpsCloud?.logout();
   try { sessionStorage.removeItem(AUTH_SESSION_KEY); } catch { /* ignore */ }
   try { localStorage.removeItem(AUTH_SESSION_KEY); } catch { /* ignore */ }
   clearCurrentUser();
@@ -329,6 +331,11 @@ function LoginScreen({ onSuccess, dark }) {
     try {
       await fetchGlobalConfigFromCloud();
       const staff = getLoginStaff();
+      if (!window.OpsCloud && !['localhost','127.0.0.1'].includes(window.location.hostname)) throw new Error('云端登录组件未加载，请刷新后重试');
+      if (window.OpsCloud) {
+        const user = await window.OpsCloud.login(opsName,pwd);
+        persistAuth(user);onSuccess();return;
+      }
       setLoginStaff(staff);
       if (pwd && pwd === getSuperPassword()) {
         persistAuth({ id: "super", name: APP_ORG_NAME, role: AUTH_ROLE_SUPER, auth: AUTH_ROLE_SUPER, canEdit: true, autoShare: loadGlobalConfig().superAutoShare === true });
@@ -493,7 +500,8 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState(readAuthSession);
+  // A cached role is not proof of authentication. Require M-code entry on page load.
+  const [authed, setAuthed] = useState(false);
   const [currentUser, setCurrentUserState] = useState(() => getCurrentUser());
   const [tab, setTab] = useState("home");
   const [dark, setDarkState] = useState(readDarkPref);

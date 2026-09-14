@@ -128,14 +128,10 @@ copyFile(
   path.join(out, "vendor", "babel.min.js")
 );
 
-console.log("==> sync cloud snapshots (Pages fallback for CN)");
-try {
-  run("node deploy/sync-cloud-snapshot.mjs");
-} catch (e) {
-  console.warn("cloud snapshot skipped:", e?.message || e);
-}
+console.log("==> private records are served by authenticated Worker; no public snapshots");
 
 const staticFiles = [
+  "cloud-client.js",
   "app.html",
   "gist-config.js",
   "logo.svg",

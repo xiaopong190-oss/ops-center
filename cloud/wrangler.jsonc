@@ -1,0 +1,9 @@
+{
+  "name": "ops-center-cloud",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "account_id": "f898361a6c7974eea5b8c3d88cf1b452",
+  "assets": {"directory": "./public", "binding": "ASSETS", "run_worker_first": true},
+  "d1_databases": [{"binding":"DB", "database_name":"ops-center-cloud", "database_id":"59dab53e-19e5-4de6-a452-280ae22cdfa1"}]
+}

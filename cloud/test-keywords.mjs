@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {analyzeRequest} from './keyword/server/services/analyze.js';
+const input={ownAsin:'B000000001',competitorAsins:['B000000002'],marketplace:'US',source:'mock'};
+const result=await analyzeRequest(input);
+assert.ok(result.summary.totalKeywords>0);
+assert.ok(Array.isArray(result.mainLibrary));
+assert.ok(result.meta.source.includes('mock'));
+await assert.rejects(()=>analyzeRequest({...input,ownAsin:'invalid'}),{name:'ValidationError'});
+await assert.rejects(()=>analyzeRequest({...input,source:'mcp'}));
+console.log('PASS keyword rule analysis, input validation, missing-MCP rejection; no live queries');

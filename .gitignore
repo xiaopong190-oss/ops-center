@@ -1,4 +1,10 @@
 node_modules
+cloud/public/
+cloud/.wrangler/
+.chrome-*/
+online-netlog.json
+headless-*.png
+app-entry.png
 dist
 .DS_Store
 Thumbs.db

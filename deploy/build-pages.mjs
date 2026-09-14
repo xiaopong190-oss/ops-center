@@ -153,10 +153,9 @@ const ciGist = getCiGistSecrets();
 if (ciGist) {
   const gistCfg =
     "window.__OPS_GIST__ = window.__OPS_GIST__ || {};\n" +
-    `window.__OPS_GIST__.token = ${JSON.stringify(ciGist.token)};\n` +
     `window.__OPS_GIST__.id = ${JSON.stringify(ciGist.gistId)};\n`;
   fs.writeFileSync(path.join(out, "gist-config.js"), gistCfg, "utf8");
-  console.log("gist-config.js ← CI secrets (deploy only, not in git)");
+  console.log("gist-config.js ← public Gist id only (tokens stay server-side)");
 } else {
   copyFile(path.join(root, "gist-config.js"), path.join(out, "gist-config.js"));
 }
@@ -179,7 +178,6 @@ copyDir(path.join(root, "packages"), path.join(out, "packages"));
 if (ciGist) {
   const amzGistCfg =
     "window.__AMZ_GIST__ = window.__AMZ_GIST__ || {};\n" +
-    `window.__AMZ_GIST__.token = ${JSON.stringify(ciGist.token)};\n` +
     `window.__AMZ_GIST__.id = "a24d08263026d407b32e9c9dbe70fe35";\n`;
   const amzGistPath = path.join(out, "tools", "amazon-tracker", "gist-config.js");
   if (fs.existsSync(path.dirname(amzGistPath))) {

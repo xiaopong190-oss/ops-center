@@ -107,6 +107,27 @@ console.log("==> build docs/");
 rmrf(out);
 mkdirp(out);
 
+console.log("==> bundle local browser runtime");
+const { build } = await import("esbuild");
+await build({
+  stdin: {
+    contents:
+      'import * as React from "react";\n' +
+      'import * as ReactDOM from "react-dom/client";\n' +
+      'window.React = React; window.ReactDOM = ReactDOM;\n',
+    resolveDir: root,
+    sourcefile: "react-runtime-entry.js",
+  },
+  bundle: true,
+  minify: true,
+  format: "iife",
+  outfile: path.join(out, "vendor", "react-runtime.js"),
+});
+copyFile(
+  path.join(root, "node_modules", "@babel", "standalone", "babel.min.js"),
+  path.join(out, "vendor", "babel.min.js")
+);
+
 console.log("==> sync cloud snapshots (Pages fallback for CN)");
 try {
   run("node deploy/sync-cloud-snapshot.mjs");

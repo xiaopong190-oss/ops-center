@@ -1,0 +1,4 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const ctx={window:{},fetch:()=>{throw Error('报告不应调用外部模型');},AbortSignal};
+vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(__dirname,'../assets/claude.js'),'utf8'),ctx);
+(async()=>{const scene={name:'价格带卡位'},steps=[{tool:'get_category_price_segment_trends',status:'ok',data:{data:[{priceType:'lowPrice',min:9,max:35,sales:{value:100}},{priceType:'highPrice',min:65,max:260,sales:{value:80}}]}}];const r=await ctx.window.Analyst.report({},scene,{},steps);assert(r.local);assert(r.text.includes('价格带卡位'));assert(r.text.includes('价格带对比'));assert(!r.text.includes('专项分析报告'));assert(!r.text.includes('Anthropic 密钥'));console.log('PASS local report without Anthropic');})().catch(e=>{console.error(e);process.exitCode=1;});

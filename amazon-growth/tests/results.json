@@ -1,0 +1,510 @@
+{
+  "scope": "Local HTTP with real filesystem + VM frontend and deployment handlers; mocked upstream, no external API calls",
+  "results": [
+    {
+      "name": "空 ASIN 阻止运行",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "非法 ASIN 拦截",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "倒置日期拦截",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "null 行容错",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "混合 null 行容错",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "HTML 对抗文本转义",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "空数组渲染",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "美国站词表不把日文译名当站点",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "未知 schema 字段不误映射",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "类目文本不得冒充 categoryId",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "真实 categoryId 从前置上下文注入",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "类目接口自动补 last30days 周期",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "新品榜自动补 reportPeriod",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "新品榜在 schema 允许时写入上架天数",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "代表商品在 schema 允许时写入销量最大价格带",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "代表商品 schema 无价格带字段时不得写入",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "类目搜索优先叶子而不是父级复合类目",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "ABA 周趋势补 start_week",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "ABA 周趋势按 ISO 周格式",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "月度格局短窗口补到 6 个月",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "销量走势短窗口补到 6 个月",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "词库核心词可补 get_keyword_info",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "反打补拉优先自然位>4 的词",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "反打自然位读 ranks.or.totalRank",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "场景必填字段包含日期与关键词",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "关键词按逗号拆分且保留词面空格",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "超过 8 个关键词拦截",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "两个关键词通过校验",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "多关键词展开接口步骤",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "逗号串不会整段传给 keyword",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "卖家精灵 request 包装关键词接口",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "卖家精灵 request 包装出单词接口",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "卖家精灵 request 包装 Google 趋势",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "卖家精灵出单词补齐 reverseType 和月份",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "卖家精灵 request 无内层 properties 仍包装",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "卖家精灵流量来源 q 使用 ASIN",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "关联列表补齐 relations 和 asinList",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "关联列表优先用统计出的非零类型",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "关联统计全 0 跳过明细",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "关联明细按类型拆步",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "类目文本不得写入 nodeIdPath",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "非法 nodeIdPath 不得注入市场接口",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "市场集中度使用数字 nodeIdPath",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "卖家精灵节点优先 Electric Kettles 叶子",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "市场壁垒无节点则跳过",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "评论接口 size 不超过 10",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "评论按星级写入 starList",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "BSR 预测拒绝类目文本和西柚 categoryId",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "BSR 预测使用大类排名和一级节点",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "变体字符串 ASIN 写入对比名单",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "销量趋势写入 BSR 上下文",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "缺少大类 BSR 则跳过 BSR 预测",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "VOC 场景按星级拆成三步",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "产品节点写入 ctx.nodeIdPath",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "关联统计按条数排序",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "Keepa 扁平 schema 仍带美国站",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "schema 未列出 marketplace 时 Keepa 仍强制美国站",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "空站点默认美国站而不是日本站",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "类目关键词强制使用上一完整自然月",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "前置代表 ASIN 覆盖表单残留值",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "MCP isError 不得当成功",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "JSON-RPC 错误触发失败",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "响应 ID 不匹配应拒绝",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "SSE 多帧末帧无空行",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "运行中切换场景",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "重复运行阻止重复调用",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "运行中编辑不改变后续实参",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "类目链在搜索 402 后跳过后续且不误报 categoryId",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "全失败时保留上次成功运行",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "跳过原因：缺 categoryId 不提必填参数",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "不存在的日历日期拒绝",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "20 个 ASIN 边界接受",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "21 个 ASIN 边界拒绝",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "工具列表分页读取",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "健康检查",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "MCP GET 拒绝",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "OPTIONS 预检",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "禁止 .env 静态读取",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "相邻目录前缀穿越",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "禁止请求头改写上游并泄露服务端密钥",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "非法 JSON 拦截",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "路由必须精确匹配",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "恶意 Origin 不能访问代理",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "损坏 URL 编码返回客户端错误",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "真实静态首页可读取",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "8787 页头可打开完整竞品分析",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "8787 页头可打开监控清单",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "专项报告脚本可读取",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "带版本号的脚本可读取",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "浏览器默认图标不返回禁止访问",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "正常 MCP 请求转发固定端点并禁止重定向",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "伪造 Host 被拦截",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "超大请求返回 413",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "mcp 部署版拒绝匿名调用",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "mcp 部署版授权正常调用",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "mcp 部署版拒绝非法 JSON",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "mcp 部署版无令牌配置时关闭服务",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "claude 部署版拒绝匿名调用",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "claude 部署版授权正常调用",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "claude 部署版拒绝非法 JSON",
+      "pass": true,
+      "detail": "预期行为已验证"
+    },
+    {
+      "name": "claude 部署版无令牌配置时关闭服务",
+      "pass": true,
+      "detail": "预期行为已验证"
+    }
+  ]
+}

@@ -1,0 +1,3662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>推品计划 · 泓森拓创科技</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&family=Noto+Sans+SC:wght@400;500;700&family=Zhi+Mang+Xing&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c2438;
+    --ink-2:#2a3450;
+    --parchment:#faf6ec;
+    --parchment-line:#e4dcc6;
+    --paper:#fffdf8;
+    --seal:#a5352b;
+    --seal-dim:#c96b5f;
+    --gold:#b8912f;
+    --gold-soft:#e9d9a8;
+    --muted:#6b7280;
+    --border:#d9d2bd;
+    --shadow: 0 10px 30px rgba(28,36,56,0.12);
+    --plan:#3d5a80;
+    --risk:#a5352b;
+    --fix:#4f7a4f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    background: linear-gradient(180deg,#141b2c 0%, #1c2438 340px, var(--parchment) 340px);
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--ink);
+    padding-bottom:72px;
+  }
+  body.embedded header{padding-top:28px;padding-bottom:16px;}
+  body.embedded h1{font-size:clamp(24px,3.4vw,36px);}
+  body.embedded .lede{margin-bottom:14px;}
+
+  header{
+    max-width:1180px;
+    margin:0 auto;
+    padding:56px 32px 28px;
+    color:#f4efe0;
+    position:relative;
+  }
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:0.32em;
+    color:var(--gold-soft);
+    text-transform:uppercase;
+    margin-bottom:14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:26px; height:1px;
+    background:var(--gold-soft);
+    display:inline-block;
+  }
+  h1{
+    font-family:"Noto Serif SC","Source Han Serif SC","SimSun",serif;
+    font-weight:900;
+    font-size:clamp(30px,4.2vw,46px);
+    margin:0 0 14px;
+    letter-spacing:0.02em;
+    line-height:1.25;
+  }
+  .lede{
+    font-size:15px;
+    line-height:1.8;
+    color:#c9cede;
+    max-width:720px;
+    margin:0 0 22px;
+  }
+  .stamp-row{
+    display:flex; gap:12px; flex-wrap:wrap;
+    align-items:center;
+  }
+  .stamp{
+    border:1.5px solid rgba(232,217,168,0.55);
+    color:var(--gold-soft);
+    font-size:12px;
+    padding:7px 14px;
+    border-radius:2px;
+    letter-spacing:0.08em;
+    font-family:"Noto Serif SC",serif;
+  }
+
+  .control-strip{
+    background:#1c2438;
+    border-top:1px solid rgba(232,217,168,0.22);
+    border-bottom:1px solid rgba(232,217,168,0.22);
+    padding:14px 0 16px;
+    position:sticky;
+    top:0;
+    z-index:50;
+  }
+  .casebar{
+    max-width:1180px;
+    margin:0 auto;
+    padding:10px 32px 4px;
+    display:grid;
+    grid-template-columns:0.8fr 1.1fr 1.6fr 0.8fr auto;
+    gap:12px;
+    align-items:end;
+  }
+  @media (max-width:860px){
+    .casebar{grid-template-columns:1fr 1fr;}
+  }
+  .case-field label{
+    display:block;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.08em;
+    color:#fff3c8;
+    margin-bottom:6px;
+  }
+  .case-field input,
+  .case-field select{
+    width:100%;
+    background:#2a3450;
+    border:1.5px solid #d7b24a;
+    color:#fffdf6;
+    font-size:14px;
+    font-weight:600;
+    padding:9px 11px;
+    border-radius:4px;
+    outline:none;
+    font-family:inherit;
+  }
+  .case-field select option{color:#1c2438;}
+  .case-field input:focus,
+  .case-field select:focus{border-color:#ffe08a; background:#334063;}
+  .case-field input::placeholder{color:#c5cde0; font-weight:500;}
+  .name-row{display:grid; grid-template-columns:1.2fr 1fr; gap:6px;}
+  .case-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .ghost-btn{
+    background:#2f3a58;
+    border:1.5px solid #e0c36a;
+    color:#fff8e0;
+    font-size:13px;
+    font-weight:700;
+    padding:9px 14px;
+    border-radius:4px;
+    cursor:pointer;
+    font-family:inherit;
+    white-space:nowrap;
+  }
+  .ghost-btn:hover{background:#3d4b70; border-color:#ffe08a; color:#fff;}
+  .ghost-btn:disabled{opacity:0.45;cursor:not-allowed;}
+
+  .navwrap{
+    position:sticky; top:0; z-index:50;
+    background:rgba(28,36,56,0.94);
+    backdrop-filter:blur(6px);
+    border-bottom:1px solid rgba(232,217,168,0.25);
+  }
+  nav.steps{
+    max-width:1180px; margin:0 auto;
+    display:flex; align-items:center;
+    gap:6px;
+    padding:10px 32px;
+    overflow-x:auto;
+  }
+  .nav-group{display:flex; gap:4px;}
+  .nav-divider{
+    width:1px;
+    align-self:stretch;
+    background:rgba(232,217,168,0.25);
+    margin:6px 6px;
+    flex:none;
+  }
+  nav.steps a{
+    flex:none;
+    min-width:96px;
+    text-decoration:none;
+    color:#aab0c4;
+    font-size:12.5px;
+    padding:10px 12px;
+    border-radius:3px;
+    text-align:center;
+    border:1px solid transparent;
+    transition:all .15s ease;
+    white-space:nowrap;
+  }
+  nav.steps a .n{
+    color:var(--gold-soft);
+    font-family:"Noto Serif SC",serif;
+    margin-right:6px;
+  }
+  nav.steps a.done{color:#f4efe0;}
+  nav.steps a.done::after{
+    content:"✓";
+    color:#7fae7f;
+    margin-left:6px;
+  }
+  nav.steps a:hover{background:rgba(232,217,168,0.08); border-color:rgba(232,217,168,0.25);}
+  nav.steps a.is-current{border-color:rgba(232,217,168,0.5); color:#f4efe0;}
+
+  main{
+    max-width:1180px;
+    margin:0 auto;
+    padding:44px 32px 0;
+  }
+
+  .step{
+    background:var(--paper);
+    border:1px solid var(--border);
+    border-radius:6px;
+    box-shadow:var(--shadow);
+    margin-bottom:36px;
+    overflow:visible;
+    scroll-margin-top:80px;
+  }
+
+  .phase-banner{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin:0 0 20px;
+    padding:0 4px;
+  }
+  .phase-banner:not(:first-child){margin-top:8px;}
+  .phase-banner-num{
+    font-family:"Noto Serif SC",serif;
+    font-weight:900;
+    font-size:13px;
+    color:var(--paper);
+    background:var(--ink);
+    width:26px;height:26px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    flex:none;
+  }
+  .phase-banner-title{
+    font-family:"Noto Serif SC",serif;
+    font-weight:700;
+    font-size:15px;
+    color:var(--ink);
+    letter-spacing:0.02em;
+  }
+  .phase-banner-sub{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  .phase-banner::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background:repeating-linear-gradient(90deg, var(--border) 0 6px, transparent 6px 11px);
+  }
+  .step-head{
+    display:flex;
+    align-items:center;
+    gap:18px;
+    padding:26px 30px;
+    border-bottom:1px solid var(--parchment-line);
+    background:
+      repeating-linear-gradient(135deg, rgba(165,53,43,0.035) 0 2px, transparent 2px 14px);
+  }
+  .badge{
+    width:56px;height:56px;
+    flex:none;
+    border-radius:50%;
+    border:2px solid var(--seal);
+    color:var(--seal);
+    font-family:"Noto Serif SC",serif;
+    font-weight:900;
+    font-size:22px;
+    display:flex;align-items:center;justify-content:center;
+    position:relative;
+  }
+  .badge::before{
+    content:"";
+    position:absolute; inset:-6px;
+    border:1px solid var(--seal-dim);
+    border-radius:50%;
+    opacity:0.5;
+  }
+  .step-head h2{
+    font-family:"Noto Serif SC",serif;
+    font-size:22px;
+    margin:0 0 4px;
+    color:var(--ink);
+  }
+  .step-head .phase-tag{
+    font-size:12px;
+    color:var(--muted);
+    letter-spacing:0.04em;
+  }
+  .handoff{
+    margin-top:6px;
+    font-size:12px;
+    color:var(--seal);
+  }
+
+  .step-body{
+    display:grid;
+    grid-template-columns: 1.02fr 1.12fr;
+  }
+  @media (max-width:980px){
+    .step-body{grid-template-columns:1fr;}
+  }
+
+  .brief{
+    padding:28px 30px 30px;
+    border-right:1px dashed var(--parchment-line);
+    background:var(--parchment);
+  }
+  @media (max-width:980px){ .brief{border-right:none; border-bottom:1px dashed var(--parchment-line);} }
+
+  .block{margin-bottom:22px;}
+  .block:last-child{margin-bottom:0;}
+  .block-label{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.06em;
+    padding:3px 9px;
+    border-radius:2px;
+    margin-bottom:9px;
+  }
+  .label-why{ color:var(--seal); background:rgba(165,53,43,0.08); }
+  .label-how{ color:#3d5a80; background:rgba(61,90,128,0.08); }
+  .label-out{ color:#5b4b8a; background:rgba(91,75,138,0.08); }
+  .label-backup{ color:var(--gold); background:rgba(184,145,47,0.1); }
+
+  .block p, .block li{
+    font-size:13.5px;
+    line-height:1.85;
+    color:#3a4256;
+    margin:0;
+  }
+  .block p + p{margin-top:8px;}
+  .block ul{margin:0; padding-left:18px;}
+  .block li{margin-bottom:5px;}
+  .block li::marker{color:var(--muted);}
+  .deliver{
+    font-size:13px;
+    line-height:1.7;
+    color:var(--ink-2);
+    background:rgba(91,75,138,0.06);
+    border:1px solid rgba(91,75,138,0.15);
+    padding:10px 12px;
+    border-radius:4px;
+  }
+
+  .backup-box{
+    border-left:3px solid var(--gold);
+    padding:10px 14px;
+    background:rgba(184,145,47,0.06);
+    border-radius:0 4px 4px 0;
+  }
+
+  .budget-board{
+    border-top:1px solid var(--parchment-line);
+    background:#fffdf8;
+    padding:22px 30px 28px;
+  }
+  .budget-head{
+    display:flex; flex-wrap:wrap; gap:8px 16px;
+    align-items:baseline;
+    margin-bottom:8px;
+  }
+  .budget-head h3{
+    margin:0;
+    font-family:"Noto Serif SC",serif;
+    font-size:16px;
+    color:var(--ink);
+  }
+  .budget-head p{
+    margin:0;
+    font-size:13px;
+    color:#3a4256;
+    line-height:1.6;
+  }
+  .budget-legend{
+    font-size:13px;
+    color:#3a4256;
+    line-height:1.65;
+    margin:0 0 12px;
+    padding:8px 12px;
+    background:#fff4f1;
+    border:1px solid rgba(165,53,43,0.22);
+    border-radius:4px;
+  }
+  .need-tag{
+    display:inline-block;
+    margin-left:6px;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:0.04em;
+    color:#fff;
+    background:#a5352b;
+    padding:1px 6px;
+    border-radius:8px;
+    vertical-align:middle;
+  }
+  .tip-wrap{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .tip-wrap input,
+  .tip-wrap select{flex:1; min-width:88px;}
+  .tip-dot{
+    width:11px;
+    height:11px;
+    border-radius:50%;
+    background:#c45c32;
+    box-shadow:0 0 0 3px rgba(196,92,50,0.28);
+    border:0;
+    padding:0;
+    cursor:help;
+    flex:none;
+  }
+  .tip-dot:hover,
+  .tip-dot:focus{background:#a5352b; outline:none;}
+  .budget-tip-pop{
+    display:none;
+    position:fixed;
+    z-index:400;
+    max-width:280px;
+    background:#1c2438;
+    color:#fff8e0;
+    font-size:13px;
+    font-weight:500;
+    line-height:1.65;
+    padding:10px 12px;
+    border-radius:8px;
+    box-shadow:0 10px 28px rgba(28,36,56,0.35);
+    pointer-events:none;
+  }
+  .budget-tip-pop.is-on{display:block;}
+  .budget-auto{
+    display:block;
+    min-height:32px;
+    padding:6px 8px;
+    font-size:13px;
+    font-weight:700;
+    color:#3a4256;
+    background:#f3f4f6;
+    border:1px solid var(--border);
+  }
+  .budget-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin:14px 0;
+  }
+  @media (max-width:860px){ .budget-grid{grid-template-columns:1fr 1fr;} }
+  .budget-field label{
+    display:block;
+    font-size:12px;
+    font-weight:700;
+    color:var(--ink);
+    margin-bottom:5px;
+  }
+  .budget-field input,
+  .budget-field select{
+    width:100%;
+    border:1.5px solid #c9a227;
+    background:#fffbeb;
+    color:var(--ink);
+    font-size:14px;
+    font-weight:600;
+    padding:8px 10px;
+    border-radius:4px;
+    font-family:inherit;
+  }
+  .budget-scroll{
+    overflow-x:auto;
+    max-width:100%;
+    margin:8px 0 16px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .budget-table{
+    width:100%;
+    min-width:760px;
+    border-collapse:collapse;
+    font-size:13px;
+    margin:0;
+  }
+  .budget-table th{
+    text-align:left;
+    background:#1c2438;
+    color:#fff8e0;
+    font-weight:700;
+    padding:8px 8px;
+  }
+  .budget-table td{
+    border:1px solid var(--border);
+    padding:4px;
+    background:#fff;
+  }
+  .budget-table input{
+    width:100%;
+    border:1px solid #e0c36a;
+    background:#fffbeb;
+    color:var(--ink);
+    font-size:13px;
+    font-weight:600;
+    padding:6px 8px;
+    font-family:inherit;
+  }
+  .week-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(148px, 1fr));
+    gap:10px;
+    margin:8px 0 16px;
+  }
+  .week-grid .budget-field{margin:0;}
+  .budget-total-bar{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px 18px;
+    margin:0 0 16px;
+    padding:16px 18px;
+    background:#1c2438;
+    color:#fff8e0;
+    border-radius:8px;
+  }
+  @media (max-width:860px){ .budget-total-bar{grid-template-columns:1fr 1fr;} }
+  .budget-stat{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width:0;
+  }
+  .budget-total-bar em{
+    font-style:normal;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.04em;
+    color:#e8c547;
+  }
+  .budget-total-bar strong{
+    font-family:"Noto Serif SC",serif;
+    font-size:26px;
+    font-weight:900;
+    color:#fff;
+    line-height:1.15;
+  }
+  .budget-total-bar span{
+    font-size:12px;
+    font-weight:600;
+    color:#c9d0e0;
+    line-height:1.4;
+  }
+  .budget-extra-bar{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px 18px;
+    margin:-8px 0 16px;
+    padding:14px 18px;
+    background:#2a3450;
+    color:#fff8e0;
+    border-radius:8px;
+  }
+  @media (max-width:860px){ .budget-extra-bar{grid-template-columns:1fr 1fr;} }
+  .budget-extra-bar em{
+    font-style:normal;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.04em;
+    color:#e8c547;
+  }
+  .budget-extra-bar strong{
+    font-family:"Noto Serif SC",serif;
+    font-size:26px;
+    font-weight:900;
+    color:#fff;
+    line-height:1.15;
+  }
+  .budget-extra-bar > .budget-stat > span{
+    font-size:12px;
+    font-weight:600;
+    color:#c9d0e0;
+    line-height:1.4;
+  }
+  .budget-split span{
+    font-size:11px;
+    font-weight:600;
+    color:#c9d0e0;
+    line-height:1.45;
+  }
+  .budget-kpis{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin:12px 0 16px;
+  }
+  @media (max-width:860px){ .budget-kpis{grid-template-columns:1fr 1fr;} }
+  .budget-kpi{
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:12px 14px;
+    background:var(--parchment);
+  }
+  .budget-kpi.is-hero{
+    border-color:#c9a227;
+    background:#fffbeb;
+  }
+  .budget-kpi b{
+    display:block;
+    font-size:12px;
+    color:#5b6478;
+    margin-bottom:4px;
+  }
+  .budget-kpi span{
+    font-size:20px;
+    font-weight:800;
+    color:var(--ink);
+    font-family:"Noto Serif SC",serif;
+  }
+  .budget-msg{
+    font-size:13.5px;
+    font-weight:700;
+    color:var(--seal);
+    background:rgba(165,53,43,0.08);
+    border:1px solid rgba(165,53,43,0.2);
+    padding:10px 12px;
+    border-radius:4px;
+  }
+  .budget-sub{
+    font-size:13px;
+    font-weight:700;
+    color:var(--ink);
+    margin:12px 0 6px;
+  }
+
+  .notes{
+    padding:22px 20px 18px;
+    display:flex;
+    flex-direction:column;
+    min-height:100%;
+    background:
+      repeating-linear-gradient(#fffdf8, #fffdf8 31px, #eee6cf 32px);
+    background-size:100% 32px;
+  }
+  .notes-head{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom:8px;
+    background:#fffdf8;
+    gap:10px;
+  }
+  .notes-title{
+    font-family:"Zhi Mang Xing", "Noto Serif SC", serif;
+    font-size:22px;
+    color:var(--seal);
+    letter-spacing:0.02em;
+  }
+  .save-status{
+    font-size:11px;
+    color:var(--muted);
+    transition:opacity .3s;
+  }
+
+  .mm-root-wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    background:#fffdf8;
+    margin-bottom:4px;
+  }
+  .mm-root{
+    font-family:"Noto Serif SC",serif;
+    font-weight:700;
+    font-size:13px;
+    color:var(--paper);
+    background:var(--ink);
+    padding:7px 16px;
+    border-radius:16px;
+    letter-spacing:0.04em;
+  }
+  .mm-stem{
+    width:1px;
+    height:14px;
+    background:var(--border);
+  }
+  .mm-fork{
+    width:calc(100% - 36px);
+    height:10px;
+    border:1px solid var(--border);
+    border-bottom:none;
+    border-radius:8px 8px 0 0;
+  }
+
+  .mm-cols{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:8px;
+    align-items:start;
+    background:#fffdf8;
+    padding:0 2px 8px;
+  }
+  .mm-col{
+    border:1px solid var(--border);
+    border-radius:6px;
+    background:rgba(255,253,248,0.92);
+    min-height:180px;
+    display:flex;
+    flex-direction:column;
+  }
+  .mm-col.plan{border-top:3px solid var(--plan);}
+  .mm-col.risk{border-top:3px solid var(--risk);}
+  .mm-col.fix{border-top:3px solid var(--fix);}
+  .mm-col-h{
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.08em;
+    padding:8px 8px 6px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .mm-col.plan .mm-col-h{color:var(--plan);}
+  .mm-col.risk .mm-col-h{color:var(--risk);}
+  .mm-col.fix .mm-col-h{color:var(--fix);}
+  .mm-add{
+    width:20px;height:20px;
+    border:1px solid currentColor;
+    border-radius:50%;
+    background:transparent;
+    color:inherit;
+    cursor:pointer;
+    font-size:14px;
+    line-height:1;
+    padding:0;
+    opacity:0.7;
+  }
+  .mm-add:hover{opacity:1; background:rgba(0,0,0,0.04);}
+  .mm-list{padding:0 6px 8px; flex:1;}
+  .mm-card{
+    margin:0 0 6px;
+  }
+  .mm-card-row{
+    display:flex;
+    align-items:flex-start;
+    gap:4px;
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:6px 6px 6px 8px;
+  }
+  .mm-card.is-sel > .mm-card-row{
+    border-color:var(--ink);
+    box-shadow:0 0 0 2px rgba(28,36,56,0.08);
+  }
+  .mm-text{
+    flex:1;
+    font-size:12.5px;
+    line-height:1.55;
+    color:var(--ink-2);
+    outline:none;
+    min-height:18px;
+    word-break:break-word;
+  }
+  .mm-text:empty:before{
+    content:attr(data-ph);
+    color:#b8ae90;
+  }
+  .mm-x{
+    flex:none;
+    border:none;
+    background:transparent;
+    color:#c4bba3;
+    cursor:pointer;
+    font-size:13px;
+    padding:0 2px;
+    line-height:1;
+  }
+  .mm-x:hover{color:var(--seal);}
+  .mm-kids{
+    margin:4px 0 0 10px;
+    padding-left:8px;
+    border-left:1px dashed var(--parchment-line);
+  }
+  .mm-hint{
+    font-size:11px;
+    color:#b8ae90;
+    background:#fffdf8;
+    padding:4px 2px 0;
+  }
+
+  .notes-foot{
+    display:flex; gap:10px; margin-top:10px;
+    background:#fffdf8;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .notes-pad{
+    margin-top:8px;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-height:280px;
+    background:transparent;
+  }
+  .notes-pad textarea{
+    flex:1;
+    min-height:280px;
+    width:100%;
+    border:none;
+    background:transparent;
+    resize:vertical;
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    font-size:14px;
+    line-height:32px;
+    color:var(--ink-2);
+    outline:none;
+    padding:0;
+  }
+  .notes-pad textarea::placeholder{ color:#b8ae90; }
+  .page-tabs{
+    display:flex;
+    gap:4px;
+    background:#fffdf8;
+    margin:8px 0 0;
+  }
+  .page-tab{
+    flex:1;
+    text-align:center;
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:0.04em;
+    padding:10px 8px;
+    border:1px solid var(--border);
+    border-bottom:none;
+    background:#f3eee0;
+    color:var(--muted);
+    cursor:pointer;
+    border-radius:6px 6px 0 0;
+    font-family:inherit;
+    position:relative;
+  }
+  .page-tab.is-on{ background:#fffdf8; color:var(--ink); }
+  .page-tab.plan.is-on{ color:var(--plan); box-shadow:inset 0 3px 0 var(--plan); }
+  .page-tab.risk.is-on{ color:var(--risk); box-shadow:inset 0 3px 0 var(--risk); }
+  .page-tab.fix.is-on{ color:var(--fix); box-shadow:inset 0 3px 0 var(--fix); }
+  .page-tab.has-text::after{
+    content:"";
+    width:6px;height:6px;
+    border-radius:50%;
+    background:currentColor;
+    display:inline-block;
+    margin-left:6px;
+    vertical-align:middle;
+    opacity:0.7;
+  }
+  .page-panel{ display:none; flex:1; flex-direction:column; min-height:0; }
+  .page-panel.is-on{ display:flex; }
+  .chip-status{
+    font-size:11.5px;
+    padding:5px 11px;
+    border-radius:12px;
+    border:1px solid var(--border);
+    color:var(--muted);
+    cursor:pointer;
+    background:#fffdf8;
+    user-select:none;
+    transition:all .15s;
+  }
+  .foot-left{display:flex; gap:8px; flex-wrap:wrap;}
+
+  footer{
+    max-width:1180px; margin:0 auto;
+    padding:20px 32px 50px;
+    text-align:center;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .reset-btn{
+    background:none; border:1px solid var(--border);
+    color:var(--muted); font-size:12px;
+    padding:8px 16px; border-radius:4px;
+    cursor:pointer; margin-top:16px;
+  }
+  .reset-btn:hover{ border-color:var(--seal); color:var(--seal); }
+
+  .modal{
+    position:fixed; inset:0; z-index:80;
+    background:rgba(20,27,44,0.55);
+    display:none;
+    align-items:flex-start;
+    justify-content:center;
+    padding:40px 20px;
+    overflow:auto;
+  }
+  .modal.open{display:flex;}
+  .modal-card{
+    background:var(--paper);
+    border:1px solid var(--border);
+    border-radius:8px;
+    width:min(980px,100%);
+    padding:28px 28px 20px;
+    box-shadow:var(--shadow);
+  }
+  .modal-card h3{
+    font-family:"Noto Serif SC",serif;
+    margin:0 0 6px;
+  }
+  .modal-sub{font-size:12px; color:var(--muted); margin:0 0 18px;}
+  .master-step{margin-bottom:18px;}
+  .master-step h4{
+    font-family:"Noto Serif SC",serif;
+    font-size:15px;
+    margin:0 0 8px;
+    color:var(--ink);
+  }
+  .master-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+  }
+  .master-col{
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:8px 10px;
+    font-size:12.5px;
+    line-height:1.65;
+    background:var(--parchment);
+  }
+  .master-col b{display:block; margin-bottom:4px; font-size:11px; letter-spacing:0.06em;}
+  .master-col.plan b{color:var(--plan);}
+  .master-col.risk b{color:var(--risk);}
+  .master-col.fix b{color:var(--fix);}
+  .master-col ul{margin:0; padding-left:16px;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
+  .confirm-card{
+    width:min(440px,100%);
+    padding:24px 22px 18px;
+    margin-top:12vh;
+  }
+  .confirm-card h3{font-size:18px;}
+  .confirm-card .modal-sub{
+    font-size:13px;
+    line-height:1.65;
+    color:var(--ink-2);
+    white-space:pre-wrap;
+  }
+  .danger-btn{
+    background:var(--seal);
+    border:1px solid var(--seal);
+    color:#fff;
+    font-size:13px;
+    font-weight:700;
+    padding:8px 16px;
+    border-radius:4px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .danger-btn:hover{background:#8a2c24;}
+  .confirm-cancel{
+    background:#fff;
+    border:1px solid var(--border);
+    color:var(--ink-2);
+    font-size:13px;
+    padding:8px 16px;
+    border-radius:4px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+
+  .planbar{
+    max-width:1180px;
+    margin:0 auto;
+    padding:0 32px 8px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+  }
+  .who{
+    font-size:13px;
+    font-weight:700;
+    color:#fff8e0;
+    letter-spacing:0.04em;
+    margin-right:6px;
+  }
+  #cloudHint, #cloudHintDock{
+    padding:4px 10px;
+    border-radius:999px;
+    background:rgba(255,243,200,0.12);
+    border:1px solid rgba(232,217,168,0.35);
+  }
+  #cloudHint[data-state="ok"], #cloudHintDock[data-state="ok"]{
+    color:#86efac; border-color:rgba(134,239,172,0.55); background:rgba(22,101,52,0.35);
+  }
+  #cloudHint[data-state="warn"], #cloudHintDock[data-state="warn"]{
+    color:#fcd34d; border-color:rgba(252,211,77,0.5); background:rgba(113,63,18,0.35);
+  }
+  #cloudHint[data-state="err"], #cloudHintDock[data-state="err"]{
+    color:#fca5a5; border-color:rgba(252,165,165,0.5); background:rgba(127,29,29,0.35);
+  }
+  .status-dock{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    z-index:50;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:center;
+    gap:10px 14px;
+    padding:10px 16px 12px;
+    background:rgba(20,27,44,0.96);
+    border-top:1px solid rgba(232,217,168,0.28);
+    color:#f4efe0;
+    font-size:12px;
+  }
+  .status-dock .reset-btn,
+  .status-dock .upload-btn,
+  .status-dock .pull-btn{
+    margin-top:0;
+    color:#f4efe0;
+    border-color:rgba(232,217,168,0.4);
+    background:transparent;
+    font-size:12px;
+    padding:6px 12px;
+    border-radius:4px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .status-dock .upload-btn{
+    color:#fff8e0;
+    border-color:rgba(215,178,74,0.7);
+    background:rgba(215,178,74,0.18);
+  }
+  .status-dock .pull-btn{
+    color:#e0f2fe;
+    border-color:rgba(125,211,252,0.45);
+  }
+  footer{
+    display:none;
+  }
+  .planbar select{
+    background:#2a3450;
+    border:1.5px solid #d7b24a;
+    color:#fffdf6;
+    font-size:14px;
+    font-weight:600;
+    padding:9px 11px;
+    border-radius:4px;
+    font-family:inherit;
+    min-width:220px;
+    max-width:320px;
+  }
+  .planbar select option{color:#1c2438;}
+  #planSelect{display:none;}
+  .file-input{display:none;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">泓森拓创科技 · 亚马逊推品作战手册</div>
+  <h1>五阶段九步<br>亚马逊推品计划</h1>
+  <p class="lede">左边是这一步为什么做、怎么做、打不通怎么办。右边是这支 ASIN 的思维导图 —— 按「方案 / 可能异常 / 解决方案」把推品计划铺开，内容会自动保存。</p>
+  <div class="stamp-row">
+    <span class="stamp">一 认知</span>
+    <span class="stamp">二 落地准备</span>
+    <span class="stamp">三 星级与节奏</span>
+    <span class="stamp">四 测款 · 放量</span>
+    <span class="stamp">五 预算与预案</span>
+  </div>
+</header>
+
+<div class="control-strip">
+<div class="planbar">
+  <span class="who" id="whoLabel">运营：—</span>
+  <span class="who" id="cloudHint">云端：检测中</span>
+  <select id="planSelect" title="我的推品计划"></select>
+  <button class="ghost-btn" id="newPlanBtn" type="button" title="再加一支产品，每人最多 5 个">添加产品</button>
+  <button class="ghost-btn" id="deletePlanBtn" type="button" title="删除当前这支产品">删除当前产品</button>
+  <button class="ghost-btn" id="pdfBtn" type="button">导出 PDF</button>
+  <button class="ghost-btn" id="exportJsonBtn" type="button">导出备份</button>
+  <button class="ghost-btn" id="importBtn" type="button">导入计划</button>
+  <input class="file-input" id="importFile" type="file" accept="application/json,.json" />
+</div>
+
+<div class="casebar">
+  <div class="case-field">
+    <label>站点</label>
+    <input id="caseSite" placeholder="如 US / UK / DE" />
+  </div>
+  <div class="case-field">
+    <label>ASIN</label>
+    <input id="caseAsin" placeholder="B0XXXXXXXX" />
+  </div>
+  <div class="case-field case-field-name">
+    <label>产品简称（下拉切换）</label>
+    <div class="name-row">
+      <select id="caseNameSelect" title="做完以后在这里切换产品，每人最多 5 个"></select>
+      <input id="caseName" placeholder="改简称" />
+    </div>
+  </div>
+  <div class="case-field">
+    <label>售价 $</label>
+    <input id="casePrice" placeholder="如 29.99，同步到预算单价" />
+  </div>
+  <div class="case-actions">
+    <button class="ghost-btn" id="masterBtn" type="button">打开总推品图</button>
+  </div>
+</div>
+</div>
+
+<div class="navwrap">
+  <nav class="steps" id="stepNav">
+    <div class="nav-group">
+      <a href="#step-1" data-step="1"><span class="n">01</span>产品分析</a>
+      <a href="#step-2" data-step="2"><span class="n">02</span>竞品分析</a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-group">
+      <a href="#step-3" data-step="3"><span class="n">03</span>Listing方案</a>
+      <a href="#step-4" data-step="4"><span class="n">04</span>FBA备货</a>
+      <a href="#step-5" data-step="5"><span class="n">05</span>广告与关键词</a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-group">
+      <a href="#step-6" data-step="6"><span class="n">06</span>星级节奏</a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-group">
+      <a href="#step-7" data-step="7"><span class="n">07</span>测款期</a>
+      <a href="#step-8" data-step="8"><span class="n">08</span>放量期</a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-group">
+      <a href="#step-9" data-step="9"><span class="n">09</span>预算与Plan B</a>
+    </div>
+  </nav>
+</div>
+
+<main id="main"></main>
+
+<div class="status-dock" id="statusDock">
+  <span class="who" id="whoLabelDock">运营：—</span>
+  <span class="who" id="cloudHintDock">云端：检测中</span>
+  <span>这台是空的就点「从云端拉取」；只在填过的电脑上点「上传」</span>
+  <button class="pull-btn" id="pullCloudBtn" type="button">从云端拉取</button>
+  <button class="upload-btn" id="uploadLocalBtn" type="button">上传本机到云端</button>
+  <button class="reset-btn" id="resetBtn" type="button">清空当前这份计划</button>
+</div>
+
+<div class="modal" id="masterModal">
+  <div class="modal-card">
+    <h3>总推品图</h3>
+    <p class="modal-sub" id="masterMeta">九步方案 / 异常 / 解决汇总，可导出为计划文本。</p>
+    <div id="masterBody"></div>
+    <div class="modal-actions">
+      <button class="ghost-btn" id="masterExport" type="button" style="color:var(--ink);border-color:var(--border);">导出 Markdown</button>
+      <button class="reset-btn" id="masterClose" type="button" style="margin-top:0;">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal-card confirm-card">
+    <h3 id="confirmTitle">请确认</h3>
+    <p class="modal-sub" id="confirmMsg"></p>
+    <div class="modal-actions">
+      <button class="confirm-cancel" id="confirmCancel" type="button">取消</button>
+      <button class="danger-btn" id="confirmOk" type="button">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var p = location.pathname;
+  if (location.protocol !== "file:" && !/\.html?$/i.test(p) && p.slice(-1) !== "/") {
+    location.replace(p + "/" + location.search + location.hash);
+    return;
+  }
+  document.write('<script src="budget-math.cjs"><\/script>');
+})();
+</script>
+<script>
+const STEPS = [
+  {
+    id:1, phase:1, phaseName:"第一阶段 · 认知", tag:"认知这支品",
+    title:"产品分析",
+    handoff:"本步输出会流入竞品对比、Listing 卖点和盈亏平衡 ACOS。",
+    deliver:"一句话卖点、目标买家、定价与可承受广告上限、Listing 缺口清单。",
+    why:[
+      "推品不是先开广告。先想清楚这支 ASIN 卖给谁、凭什么赢、利润能不能撑住 PPC，否则测款期花的是信息费，放量期烧的是本金。",
+      "产品分析是后面竞品矩阵、标题五点、关键词架构的共同输入。这里含糊，后面每一步都会返工。"
+    ],
+    how:[
+      "写清一句话卖点：为什么选我而不是同页另外三个 ASIN",
+      "锁定目标买家（使用场景 / 决策动机 / 会搜的词族），不要只写年龄性别",
+      "核对类目节点、变体结构和当前 BSR 现实，避免推一个打不进的大类目头词",
+      "算清售价、头程、FBA、佣金后的毛利，倒推出盈亏平衡 ACOS 和日预算上限",
+      "对照现有 Listing：主图、标题、五点、A+、视频，列出缺口而不是感觉还行"
+    ],
+    backupLabel:"没有调研样本或后台数据时",
+    backup:"先用 3~5 个竞品的公开评论反推 VOC 和短板，用小样本快速定一版卖点与人群；同时用盈亏平衡 ACOS 卡住预算，而不是等完美数据再开推。",
+    plan:["一句话卖点","目标买家（场景/动机）","类目节点与变体","售价 / 毛利 / 盈亏平衡 ACOS","Listing 缺口（主图·标题·A+）"],
+    risk:["卖点不够独特，会打成同质化价格战","利润撑不住核心词 CPC","类目星级/认证门槛高于现状"],
+    fix:["改打细分场景或配件差异化","先砍非必要成本再定价，或换价格带","换细分类目节点，或先补齐合规再推"]
+  },
+  {
+    id:2, phase:1, phaseName:"第一阶段 · 认知", tag:"认知市场",
+    title:"竞品分析",
+    handoff:"差异化点和 VOC 痛点，直接交给 Listing 文案和广告否定/进攻词。",
+    deliver:"3~5 个核心竞品 ASIN、价格带与 Ratings 对照、VOC 痛点、差异化矩阵。",
+    why:[
+      "亚马逊搜索页就是战场坐标系。不看同价格带、同场景的 ASIN，差异化只会写在内部文档里，进不了主图和标题。",
+      "竞品评论是最快的 VOC。他们被骂的点，往往是你可以打的点；他们在吃的词，决定你要避还是要抢。"
+    ],
+    how:[
+      "圈定 3~5 个可打的核心竞品（同场景、同价格带；新品先避开不可撼动的大牌头款）",
+      "逐个拆：价格、Ratings 数量与星级、主图/A+结构、变体、疑似广告布局",
+      "把竞品 1~2 星和 3 星评论扫一遍，抽出可复现的痛点，不要只看 5 星吹点",
+      "做一张差异化矩阵：功能 / 规格 / 场景 / 价格 / 内容，我方 vs 竞品逐项打分",
+      "标出要进攻的缺口词、要回避的品牌词和已经打穿的头词"
+    ],
+    backupLabel:"竞品是新品牌或广告布局看不清时",
+    backup:"用卖家精灵等第三方看流量词与类目对比，再回竞品评论区拿一手感受。广告布局看不清就先当「他们一定在打核心词」，你的第一枪改打场景词和长尾。",
+    plan:["核心竞品 ASIN 清单（3~5）","价格带 / 星级 / Ratings 对照","VOC 痛点（1~3星）","差异化矩阵结论","要抢的缺口 vs 要避的头词"],
+    risk:["头部品牌+Amazon 自营把量吃完","竞品 Vine/广告很猛，CPC 被抬高","和竞品几乎同款，只能拼价"],
+    fix:["打剩余市场：长尾场景、规格、捆绑","先避头词，用自动广告+长尾试转化","上配件/规格/包数差异，或换定位再推"]
+  },
+  {
+    id:3, phase:2, phaseName:"第二阶段 · 落地准备", tag:"准备①",
+    title:"Listing / A+ / 视频方案",
+    handoff:"标题与主图要和关键词架构一一对应，否则广告点进来会对不上。",
+    deliver:"主图策略、标题覆盖词、五点利益点、A+ 模块草稿、视频钩子、合规删除项。",
+    why:[
+      "用户先碰到的是主图和标题，不是你的产品参数。点击率决定广告能不能跑起来，转化率决定 ACOS 能不能活。",
+      "Listing 要把上两步的差异化，翻译成 A9 能匹配、买家能看懂、Rufus 能抽出的句子和画面。"
+    ],
+    how:[
+      "主图先解决「搜索页停得住」：主体清晰、场景可识别、和竞品墙能区分",
+      "标题按核心词 + 关键属性 + 可读性来写，不要堆成词表",
+      "五点承接 VOC：每条一个利益点，对应竞品被骂的痛点或我方独有功能",
+      "A+ 用场景模块讲清「谁用、怎么用、和普通款差在哪」，品牌故事放后面",
+      "准备 1 条短视频：3 秒钩子 → 痛点 → 演示 → 规格信任。主图和标题准备 A/B 各两套"
+    ],
+    backupLabel:"拍摄或设计资源不够时",
+    backup:"先打主图 + 标题 + 五点这三块转化入口，A+ 和视频可以测通出单后再补。合规优先：删绝对化、医疗功效、保证用语和竞品品牌词。",
+    plan:["主图区分点（vs 竞品墙）","标题：核心词 + 属性 + 可读","五点：对应 VOC 痛点","A+ 场景模块草稿","视频 3 秒钩子"],
+    risk:["主图进搜索页停不住","标题堆词，人看不懂、也不转化","宣称踩合规（医疗/保证/绝对化）"],
+    fix:["先 A/B 两套主图，只改一张","核心词保留，其余改成人话","删除风险句，改成可验证的规格和场景"]
+  },
+  {
+    id:4, phase:2, phaseName:"第二阶段 · 落地准备", tag:"准备②",
+    title:"FBA 备货方案",
+    handoff:"测款和放量的日预算，必须能被库存天数接住，否则广告白打。",
+    deliver:"测试期日销假设、首发入仓量、补货点、交期、断货/滞销预案。",
+    why:[
+      "亚马逊排名和广告权重都怕断货。流量起来却没货，等于把刚买到的位置让给竞品。",
+      "备货也是现金流闸门：测款期备太满会压死资金，备太少会在出单时被迫空运或停广告。"
+    ],
+    how:[
+      "用保守日销假设倒推首发 FBA 数量（测款期按能撑 3~4 周，含入仓时效）",
+      "写清生产周期、头程、上架缓冲，算出补货点（库存可撑天数 ≤ 交期+缓冲 就下单）",
+      "分滞销和爆款两套预案：滞销如何停广告/促清理；爆款如何加急补、要不要先收广告",
+      "和财务对齐这支 ASIN 最多能压多少货值，不要用全账户库存思维看单品",
+      "旺季或入仓受限时，把入仓预约和 IPI/仓储费一并写进计划，而不是到仓了再急"
+    ],
+    backupLabel:"交期长或测款预算紧时",
+    backup:"先按保守预估小批量入仓测转化，同时锁一条空运/加急渠道（成本更高也要有）。确认出单模型后再走海运加单，避免测款期断货丢排名。",
+    plan:["测试期日销假设","首发 FBA 数量","生产/头程/上架交期","补货点（可撑天数）","爆款加急 / 滞销清理预案"],
+    risk:["测款期断货，广告和自然位一起掉","备太多，测失败压现金流","旺季舱位或入仓限制"],
+    fix:["小批量 + 预留空运应急","测通再加海运，不赌首批发完","提前一个交期备旺季，广告按库存限速"]
+  },
+  {
+    id:5, phase:2, phaseName:"第二阶段 · 落地准备", tag:"准备③",
+    title:"广告布局与关键词",
+    handoff:"词库和 Listing 对不上就先改 Listing，不要用加价硬打。",
+    deliver:"词库分层、活动架构、日预算与 ACOS 上限、否定规则、词与 Listing 对应表。",
+    why:[
+      "广告决定流量进不进得来，关键词决定进的是不是对的人。这两件事拆开做，会出现有花费无订单、或订单来了 Listing 承接不住。",
+      "推品期不要什么匹配都开。先设计「自动收词 + 核心精确验证 + 预算闸门」，再谈放量。"
+    ],
+    how:[
+      "词库分层：核心转化词 / 场景长尾 / 竞品 ASIN / 要否定的无关词，先少而清",
+      "活动架构先简：自动广告收词，手动精确验证核心词；SB 测款期最多 1 条，SD 放到有订单后再说",
+      "每一组要打的词，在标题或五点里要有对应语言，避免词不对文",
+      "写下日预算上限、盈亏平衡 ACOS、以及连续几天超线就降价/缩词/暂停的条件",
+      "否定规则提前写：无关品类、错误规格、纯浏览大词，避免自动广告把预算洗光"
+    ],
+    backupLabel:"没有搜索词报告或大盘词数据时",
+    backup:"先用竞品分析里的缺口词和场景词打底，开自动广告 7~14 天只为收词。用这批真实搜索词反哺词库，而不是从 0 猜核心词。",
+    plan:["词库分层（核心/长尾/场景/竞品ASIN）","自动 + 手动精确架构","日预算与 ACOS 上限","词 ↔ Listing 对应","否定词规则"],
+    risk:["没有后台搜索词，只能猜大词","核心词 CPC 吃光日预算","词和标题/主图场景不一致"],
+    fix:["先自动广告收词 7~14 天","预算锁在已出单或高意图长尾","先改 Listing 再加价，不硬打头词"]
+  },
+  {
+    id:6, phase:3, phaseName:"第三阶段 · 星级与节奏", tag:"口碑与复盘",
+    title:"星级、评论与复盘节奏",
+    handoff:"测款是否放量，要看转化，也要看星级会不会在放量时被砸穿。",
+    deliver:"目标星级与 Ratings 数量、合规跟评路径、差评 SOP、日/周/月复盘结论格式。",
+    why:[
+      "很多类目星级掉到阈值以下，广告和自然都会变贵。推品要把「评论爬坡」写成计划，而不是出了差评再救。",
+      "增长靠的是投放 → 看搜索词 → 改 Listing/否定/出价的循环。没有固定节奏，好词留不住，差词也停不掉。"
+    ],
+    how:[
+      "写下目标星级和 Ratings 数量门槛，以及低于门槛时是否允许放量",
+      "只走平台合规入口：Vine（如可用）和后台 Request a Review，禁止站外返现、插卡求五星",
+      "差评 SOP：24 小时内客服响应、看是否质量/物流/期望管理问题，该退的退，不争辩刷星",
+      "三级节奏：日看花费异常和断货；周收割搜索词、加否定、改一条 Listing；月看这支品还该不该推",
+      "每次周复盘只输出三个结论：继续做 / 停止做 / 加大做，并写到本步思维导图里"
+    ],
+    backupLabel:"早期没有评论、数据系统也没搭好时",
+    backup:"先用订单量+客服记录+差评截图做定性复盘，同时把 Request a Review 节奏跑起来。没有评论时更要控期望：包装、说明书、主图不要过度承诺。",
+    plan:["目标星级 / Ratings 门槛","Vine 或 Request a Review 节奏","差评 24h SOP","日异常 / 周收词 / 月方向","周复盘三结论格式"],
+    risk:["前 10 个评论里出现差评，星级难翻","出单快但评论跟不上","周会开完没有可执行结论"],
+    fix:["先停放大、修期望管理与客服，不合规不催评","按订单合规请求评价，不走站外","每次只留继续/停止/加大三条"]
+  },
+  {
+    id:7, phase:4, phaseName:"第四阶段 · 流量导入", tag:"导入①",
+    title:"测款期 / 冷启动",
+    handoff:"本步必须给出「哪组词 + 哪张主图值得放量」；给不出就不要加预算。",
+    deliver:"测试组合、样本门槛、止损线、以及明确的放量/切换结论。",
+    why:[
+      "测款期买的是信息：哪组关键词、哪张主图、哪个价格能转化。目标不是这周赚钱，是尽快得到能不能放量的答案。",
+      "没验证就加大预算，会把错误匹配和弱主图一起放大。亚马逊上改一次比多烧一周更便宜。"
+    ],
+    how:[
+      "同时只测 2~3 组：自动收词、核心精确、必要时 1 条 SB。预算要够产生可判断的点击样本",
+      "一次只改一个变量（主图或出价或匹配），不要同一天全改",
+      "提前写止损：日预算、最低点击样本、ACOS 上限、测试天数。到期强制出结论",
+      "看三类结果：有曝光无点击（主图/标题）、有点击无订单（Listing/价格/评价）、有订单但 ACOS 死（词或出价）",
+      "测试结束必须写下：放大哪组、砍哪组、还要不要再测一轮"
+    ],
+    backupLabel:"主组合 ROI 不达标时",
+    backup:"48 小时内切到预案：换场景长尾、换匹配、或改打竞品 ASIN 定位。不要在同一组核心词上反复加价。备选渠道清单本步就要写在「解决方案」里。",
+    plan:["测试组合（自动/精确/SB）","只测一个变量","止损线（预算/ACOS/天数/点击样本）","三类结果判断","放量或切换的结论"],
+    risk:["有点击不转化","有曝光没点击","预算撒太开，哪组都测不透"],
+    fix:["查价格、卖点、星级、五点是否接得住这批词","换主图/标题，不先加预算","砍到 1~2 个活动，凑够样本再判断"]
+  },
+  {
+    id:8, phase:4, phaseName:"第四阶段 · 流量导入", tag:"导入②",
+    title:"放量期 / 规模化",
+    handoff:"放量后的 TACOS、库存可撑天数、差评率，会反过来卡预算盘。",
+    deliver:"放量词表、否定与词组、SB/SD 补位、TACOS 健康线、库存与星级闸门。",
+    why:[
+      "测通之后要在窗口期内把有效组合放大。拖久了，同样的词会被同行把 CPC 抬上去。",
+      "放量不是无限加预算。要开始养自然位，用 TACOS 看这支品是否在减少对广告的依赖，而不是一直烧。"
+    ],
+    how:[
+      "把测款期出单的精确词加大，按词根/场景拆组，同步加否定，避免自动广告继续乱花",
+      "SB 补品牌/场景教育，SD 做关联和再营销——有稳定订单再加，不要测款期就铺满",
+      "每周看自然位和 TACOS：广告在涨、自然不动，说明 Listing 或评价还没接住",
+      "放量闸门：库存可撑天数、星级、差评率。任一亮红灯就限速，不要用广告掩盖断货和口碑问题",
+      "把已验证转化词同步进标题/A+ 覆盖，让广告和自然抢同一批该抢的词"
+    ],
+    backupLabel:"CPC 上涨或政策/库存收紧时",
+    backup:"收缩到已转化精确词，停掉消耗型大词；用 SB 守住品牌和场景；公域变贵时，靠已有评价和 Listing 资产撑自然。不要在成本上升时用更宽匹配硬冲。",
+    plan:["放量词表（已出单精确词）","词组拆分 + 否定","SB/SD 补位时机","TACOS 与自然位观察","库存天数 / 星级闸门"],
+    risk:["CPC 上涨，同样订单更贵","广告涨、自然位不跟","放量后差评率上升"],
+    fix:["只留转化词，砍宽匹配和大词","先补 Listing/评价，再加预算","限速投放，先修产品和客服"]
+  },
+  {
+    id:9, phase:5, phaseName:"第五阶段 · 预算与预案", tag:"总控",
+    title:"成本预算与第二方案",
+    handoff:"触发线一旦达到，按本步预案切换，不要靠周会现场拍板。",
+    deliver:"填完广告预算表后的总广告费、按周/按词花费、毛利覆盖周次；再加上切换触发线、第二方案路径、Plan C 收缩条件。",
+    why:[
+      "第一方案就是前面 8 步拼起来的推品路径。第 09 步要把广告账算清楚：这套方案要垫多少广告费、从第几周起毛利才能盖住花费。",
+      "第二方案是第一方案失败后建议改走的路，不是再写一遍前 8 步。账算不出来，切预案也没有触发线。"
+    ],
+    how:[
+      "必须先填本步下方的广告预算表（关键词 SPR / CPC / CVR、周目标订单、广告占比、售价毛利），结果会自动出来",
+      "用算出的总广告预算和回本周次，写进目标 TACOS 与可接受的回本周期",
+      "明确触发线：连续 X 天 ACOS 超线、转化下滑、星级跌破门槛、库存可撑不足 Y 天",
+      "第二方案：主词根整体不赚钱时，转向哪条路径（场景词 / 绑品 / 价格带 / 只打已转化词）",
+      "Plan C 写在触发之前：停投、清理库存、回到产品/竞品分析，而不是把现金流打穿"
+    ],
+    backupLabel:"第二方案也扛不住时（Plan C）",
+    backup:"预留保守收缩：大幅削减预算，只保留已转化精确词和最基本的库存周转，先保住账户健康和现金，再回头重做产品与竞品分析。硬撑头词通常会把测款信息费变成沉没成本。",
+    plan:["总预算盘（货+广告+Vine+工具）","目标 TACOS / 回本周期","触发线（ACOS/转化/星级/库存）","Plan B 备用增长路径","Plan C 收缩条件"],
+    risk:["主词根整体不赚钱","现金撑不到自然位起来","Plan B 切过去仍然不达标"],
+    fix:["切场景词/绑品/价格带，或只打已转化词","按库存和 TACOS 限速，不靠加预算赌","执行 Plan C：停投、清货、回到第 1 步"]
+  }
+];
+
+const BRANCHES = [
+  {key:"plan", label:"方案", ph:"本页只写「方案」：准备怎么推、词怎么打、货怎么备。切到其他页不会丢掉这里。"},
+  {key:"risk", label:"可能异常", ph:"本页只写「可能异常」：CPC、断货、差评、转化掉等。与方案页互不影响。"},
+  {key:"fix",  label:"备用方案", ph:"本页只写「备用方案」：主方案不行时切哪条路。与前两页互不影响。"}
+];
+
+function uid(){ return "n" + Math.random().toString(36).slice(2,9); }
+
+function defaultBranch(key, texts){
+  return {
+    id: uid(),
+    key,
+    children: (texts || []).map(text => ({id: uid(), text, children: []}))
+  };
+}
+function defaultTree(step){
+  return {
+    plan: defaultBranch("plan", step.plan),
+    risk: defaultBranch("risk", step.risk),
+    fix:  defaultBranch("fix",  step.fix)
+  };
+}
+
+const CURRENT_USER_KEY = "ops-center-current-user";
+function parsePlaybookUser(raw){
+  if(!raw) return null;
+  try{
+    const p = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if(p && (p.id || p.name)) return { id: String(p.id || p.name), name: String(p.name || p.id) };
+  }catch(e){}
+  return null;
+}
+function isGuestUser(u){
+  const id = String(u && u.id || "").trim().toLowerCase();
+  const name = String(u && u.name || "").trim();
+  return !id || id === "guest" || name === "访客";
+}
+function readPlaybookUser(){
+  const found = [];
+  function add(raw){
+    const u = parsePlaybookUser(raw);
+    if(u && !isGuestUser(u) && !found.some(function(x){ return x.id === u.id; })) found.push(u);
+  }
+  try{ add(window.opsCurrentUser); }catch(e){}
+  try{
+    if(window.parent && window.parent !== window){
+      add(window.parent.opsCurrentUser);
+      try{ add(window.parent.sessionStorage.getItem(CURRENT_USER_KEY)); }catch(e){}
+      try{ add(window.parent.localStorage.getItem(CURRENT_USER_KEY)); }catch(e){}
+    }
+  }catch(e){}
+  try{ add(sessionStorage.getItem(CURRENT_USER_KEY)); }catch(e){}
+  try{ add(localStorage.getItem(CURRENT_USER_KEY)); }catch(e){}
+  try{
+    const q = new URLSearchParams(location.search);
+    const id = String(q.get("opsUser") || "").trim();
+    const name = String(q.get("opsName") || "").trim();
+    if(id && id.toLowerCase() !== "guest") add({ id: id, name: name || id });
+  }catch(e){}
+  return found[0] || { id: "guest", name: "访客" };
+}
+let USER = readPlaybookUser();
+function getUserId(){ return String(USER && USER.id ? USER.id : "guest"); }
+const MAX_PLANS = 5;
+
+let planId = "";
+let refreshingSelect = false;
+
+function playbookPrefix(id){ return "user:"+id+":hs-playbook:"; }
+function indexKey(){ return playbookPrefix(getUserId())+"index"; }
+function lastKey(){ return playbookPrefix(getUserId())+"last-plan"; }
+function scoped(key){ return playbookPrefix(getUserId())+planId+":"+key; }
+
+const storeRaw = {
+  async get(full){
+    if(window.storage && typeof window.storage.get === "function"){
+      try{
+        const res = await window.storage.get(full, false);
+        if(res && res.value != null && res.value !== "") return res.value;
+      }catch(e){}
+    }
+    try{ return localStorage.getItem(full); }catch(e){ return null; }
+  },
+  async set(full, value){
+    if(window.storage && typeof window.storage.set === "function"){
+      try{ await window.storage.set(full, value, false); return; }catch(e){}
+    }
+    try{ localStorage.setItem(full, value); }catch(e){}
+  },
+  async del(full){
+    if(window.storage && typeof window.storage.delete === "function"){
+      try{ await window.storage.delete(full, false); }catch(e){}
+    }
+    try{ localStorage.removeItem(full); }catch(e){}
+  }
+};
+
+const store = {
+  get(key){ return storeRaw.get(scoped(key)); },
+  set(key, value){ return storeRaw.set(scoped(key), value); },
+  del(key){ return storeRaw.del(scoped(key)); }
+};
+
+function playbookCloudRpc(op, extra){
+  return new Promise(function(resolve, reject){
+    if(!window.parent || window.parent === window){
+      reject(new Error("no parent"));
+      return;
+    }
+    const reqId = "pb" + Date.now() + Math.random().toString(36).slice(2, 8);
+    const timer = setTimeout(function(){
+      window.removeEventListener("message", onMsg);
+      reject(new Error("云端超时"));
+    }, 20000);
+    function onMsg(ev){
+      const d = ev && ev.data;
+      if(!d || d.type !== "ops-playbook-cloud-result" || d.reqId !== reqId) return;
+      clearTimeout(timer);
+      window.removeEventListener("message", onMsg);
+      if(d.ok) resolve(d.result);
+      else reject(new Error(d.error || "云端失败"));
+    }
+    window.addEventListener("message", onMsg);
+    try{
+      window.parent.postMessage({
+        type: "ops-playbook-cloud",
+        op: op,
+        reqId: reqId,
+        userId: extra && extra.userId,
+        data: extra && extra.data
+      }, "*");
+    }catch(e){
+      clearTimeout(timer);
+      window.removeEventListener("message", onMsg);
+      reject(e);
+    }
+  });
+}
+
+function getCloudApi(){
+  try{
+    if(window.parent && window.parent !== window && window.parent.opsPlaybookCloud){
+      return window.parent.opsPlaybookCloud;
+    }
+  }catch(e){}
+  if(window.opsPlaybookCloud) return window.opsPlaybookCloud;
+  if(window.parent && window.parent !== window){
+    return {
+      configured: function(){ return true; },
+      load: function(userId){ return playbookCloudRpc("load", { userId: userId }); },
+      save: function(userId, data){ return playbookCloudRpc("save", { userId: userId, data: data }); }
+    };
+  }
+  return null;
+}
+
+function syncStampKey(){ return "user:"+getUserId()+":hs-playbook:cloudSyncedAt"; }
+
+async function waitForPlaybookUser(){
+  USER = readPlaybookUser();
+  if(!isGuestUser(USER)) return USER;
+  if(window.parent === window) return USER;
+  for(let i = 0; i < 60; i++){
+    await new Promise(function(r){ setTimeout(r, 50); });
+    USER = readPlaybookUser();
+    if(!isGuestUser(USER)) return USER;
+  }
+  return USER;
+}
+
+function listLocalPlaybookOwners(){
+  const owners = [];
+  function scan(ls){
+    if(!ls) return;
+    try{
+      for(let i = 0; i < ls.length; i++){
+        const k = ls.key(i);
+        const m = k && /^user:([^:]+):hs-playbook:/.exec(k);
+        if(m && owners.indexOf(m[1]) < 0) owners.push(m[1]);
+      }
+    }catch(e){}
+  }
+  try{ scan(localStorage); }catch(e){}
+  try{
+    if(window.parent && window.parent !== window) scan(window.parent.localStorage);
+  }catch(e){}
+  return owners;
+}
+
+async function loadIndexFor(id){
+  try{
+    const raw = await storeRaw.get(playbookPrefix(id)+"index");
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+
+function namedPlanCount(idx){
+  return (idx || []).filter(function(p){
+    return !!(String(p && p.name || "").trim() || String(p && p.asin || "").trim());
+  }).length;
+}
+function blobNamedCount(blob){
+  if(!blob || !Array.isArray(blob.index)) return 0;
+  let n = namedPlanCount(blob.index);
+  if(n) return n;
+  const plans = blob.plans || {};
+  blob.index.forEach(function(p){
+    const meta = p && plans[p.id] && plans[p.id].meta;
+    if(meta && (String(meta.name || "").trim() || String(meta.asin || "").trim())) n++;
+  });
+  return n;
+}
+
+async function ownerLooksFilled(ownerId, idx){
+  if(namedPlanCount(idx) > 0) return true;
+  for(const p of (idx || [])){
+    if(!p || !p.id) continue;
+    try{
+      const raw = await storeRaw.get(playbookPrefix(ownerId)+p.id+":meta");
+      const m = raw ? JSON.parse(raw) : null;
+      if(m && (String(m.name || "").trim() || String(m.asin || "").trim() || String(m.site || "").trim())) return true;
+    }catch(e){}
+    try{
+      const note = await storeRaw.get(playbookPrefix(ownerId)+p.id+":note:1:plan");
+      if(note && String(note).trim()) return true;
+    }catch(e){}
+  }
+  return false;
+}
+
+function collectPlaybookKeys(fromId){
+  const from = playbookPrefix(fromId);
+  const keys = [];
+  const seen = {};
+  function collect(ls){
+    if(!ls) return;
+    try{
+      for(let i = 0; i < ls.length; i++){
+        const k = ls.key(i);
+        if(!k || k.indexOf(from) !== 0 || seen[k]) continue;
+        seen[k] = true;
+        keys.push(k);
+      }
+    }catch(e){}
+  }
+  try{ collect(localStorage); }catch(e){}
+  try{
+    if(window.parent && window.parent !== window) collect(window.parent.localStorage);
+  }catch(e){}
+  return keys;
+}
+
+async function copyPlaybookKeys(fromId, toId, overwrite){
+  if(!fromId || !toId || fromId === toId) return 0;
+  const from = playbookPrefix(fromId);
+  const to = playbookPrefix(toId);
+  const keys = collectPlaybookKeys(fromId);
+  let n = 0;
+  for(const k of keys){
+    const tail = k.slice(from.length);
+    if(tail === "index" || tail === "cloudSyncedAt") continue;
+    const v = await storeRaw.get(k);
+    if(v == null || v === "") continue;
+    const dest = to + tail;
+    if(!overwrite){
+      const existing = await storeRaw.get(dest);
+      if(existing != null && existing !== "") continue;
+    }
+    await storeRaw.set(dest, v);
+    n++;
+  }
+  return n;
+}
+
+async function mergeLocalPlaybooksIntoUser(toId){
+  if(!toId || String(toId).trim().toLowerCase() === "guest") return false;
+  const want = String(toId).trim().toLowerCase();
+  const owners = listLocalPlaybookOwners();
+  const sources = [];
+  const seen = {};
+  function addSource(id){
+    if(!id || id === toId || seen[id]) return;
+    seen[id] = true;
+    sources.push(id);
+  }
+  addSource("guest");
+  owners.forEach(function(id){
+    if(id === "guest") return;
+    if(String(id).trim().toLowerCase() === want) addSource(id);
+  });
+  let destIdx = await loadIndexFor(toId);
+  let destFilled = await ownerLooksFilled(toId, destIdx);
+  let moved = false;
+  for(const fromId of sources){
+    const srcIdx = await loadIndexFor(fromId);
+    if(!srcIdx.length) continue;
+    const srcFilled = await ownerLooksFilled(fromId, srcIdx);
+    const overwrite = !destFilled && srcFilled;
+    const copied = await copyPlaybookKeys(fromId, toId, overwrite);
+    if(copied) moved = true;
+    if(overwrite){
+      destIdx = srcIdx.slice(0, MAX_PLANS);
+      destFilled = srcFilled;
+      moved = true;
+    }else{
+      srcIdx.forEach(function(p){
+        if(!p || !p.id) return;
+        if(destIdx.some(function(d){ return d.id === p.id; })) return;
+        if(destIdx.length >= MAX_PLANS) return;
+        destIdx.push(p);
+        moved = true;
+      });
+    }
+  }
+  if(moved){
+    await storeRaw.set(playbookPrefix(toId)+"index", JSON.stringify(destIdx.slice(0, MAX_PLANS)));
+    await storeRaw.set(playbookPrefix(toId)+"updatedAt", String(Date.now()));
+  }
+  return moved;
+}
+
+function cloudHintState(text){
+  const t = String(text || "");
+  if(t.indexOf("已同步") >= 0 || t.indexOf("已拉取") >= 0 || t.indexOf("已上传") >= 0) return "ok";
+  if(t.indexOf("失败") >= 0 || t.indexOf("访客") >= 0) return "err";
+  if(t.indexOf("仅本机") >= 0 || t.indexOf("较新") >= 0 || t.indexOf("检测") >= 0 || t.indexOf("拉取中") >= 0 || t.indexOf("同步中") >= 0 || t.indexOf("上传") >= 0) return "warn";
+  return "";
+}
+function setCloudHint(text){
+  const state = cloudHintState(text);
+  ["cloudHint", "cloudHintDock"].forEach(function(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = text;
+    if(state) el.setAttribute("data-state", state);
+    else el.removeAttribute("data-state");
+  });
+}
+
+let cloudHydrating = false;
+let cloudTimer = null;
+let budgetTimer = null;
+let cloudHydrateTried = false;
+
+function fieldVal(id){
+  const n = document.getElementById(id);
+  return n ? n.value : "";
+}
+
+function parseMoneyInput(v){
+  const n = budgetNum(String(v == null ? "" : v).replace(/[$€£¥￥,\s]/g, ""));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function syncCasePriceToBudget(){
+  const n = parseMoneyInput(fieldVal("casePrice"));
+  const inp = document.getElementById("bk-price");
+  if(!inp || !Number.isFinite(n)) return;
+  if(String(inp.value) !== String(n)) inp.value = String(n);
+}
+
+function readBudgetForm(){
+  const board = document.getElementById("budgetBoard");
+  if(!board) return defaultBudget();
+  const keywords = [];
+  for(let i = 0; i < BUDGET_KW; i++){
+    keywords.push({
+      name: (document.getElementById("bk-name-"+i) || {}).value || "",
+      spr: (document.getElementById("bk-spr-"+i) || {}).value || "",
+      cpc: (document.getElementById("bk-cpc-"+i) || {}).value || "",
+      cvr: (document.getElementById("bk-cvr-"+i) || {}).value || "",
+      clicks: (function(){
+        const n = cvrPctToClicks((document.getElementById("bk-cvr-"+i) || {}).value);
+        return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : "";
+      })()
+    });
+  }
+  const weekTargets = [];
+  for(let w = 0; w < BUDGET_WK; w++){
+    weekTargets.push((document.getElementById("bw-"+w) || {}).value || "");
+  }
+  return {
+    n: keywords.filter(keywordComplete).length,
+    m: activeWeeks({ weekTargets }).length,
+    adStart: budgetNum(fieldVal("bk-start")),
+    adEnd: budgetNum(fieldVal("bk-end")),
+    k: budgetNum(fieldVal("bk-k")),
+    mode: fieldVal("bk-mode") || "MAX",
+    keywords, weekTargets,
+    price: fieldVal("bk-price"),
+    commission: fieldVal("bk-commission"),
+    discount: fieldVal("bk-discount"),
+    fba: fieldVal("bk-fba"),
+    cost: fieldVal("bk-cost"),
+    head: fieldVal("bk-head"),
+    vineQty: fieldVal("bv-qty"),
+    manQty: fieldVal("bm-qty"),
+    manFee: fieldVal("bm-fee"),
+    manRate: fieldVal("bm-rate")
+  };
+}
+
+function applyBudgetForm(data){
+  const d = hydrateBudget(data);
+  const set = (id, v) => { const n = document.getElementById(id); if(n) n.value = v == null ? "" : v; };
+  set("bk-start", d.adStart); set("bk-end", d.adEnd); set("bk-k", d.k);
+  set("bk-mode", d.mode || "MAX");
+  set("bk-price", d.price); set("bk-commission", d.commission);
+  set("bk-discount", d.discount); set("bk-fba", d.fba);
+  if(!String(fieldVal("bk-price") || "").trim()){
+    const fromCase = parseMoneyInput(fieldVal("casePrice"));
+    if(Number.isFinite(fromCase)) set("bk-price", fromCase);
+  }
+  if(budgetNum(d.price) > 0 && !String(fieldVal("casePrice") || "").trim()){
+    set("casePrice", d.price);
+  }
+  set("bk-cost", d.cost); set("bk-head", d.head);
+  set("bv-qty", d.vineQty); set("bm-qty", d.manQty); set("bm-fee", d.manFee);
+  const rate = Number(d.manRate);
+  set("bm-rate", d.manRate == null || d.manRate === "" || rate === 0.3 ? 1 : d.manRate);
+  d.keywords.forEach((kw, i) => {
+    set("bk-name-"+i, kw.name); set("bk-spr-"+i, kw.spr);
+    set("bk-cpc-"+i, kw.cpc);
+    let cvr = kw.cvr;
+    if((cvr == null || cvr === "") && budgetNum(kw.clicks) > 0) cvr = clicksToCvrPct(kw.clicks);
+    set("bk-cvr-"+i, cvr);
+  });
+  d.weekTargets.forEach((v, i) => set("bw-"+i, v));
+  refreshBudgetDisabled();
+  refreshBudgetClicks();
+  refreshBudgetNeed();
+  renderBudgetResult();
+}
+
+function refreshBudgetDisabled(){
+  for(let i = 0; i < BUDGET_KW; i++){
+    const row = document.getElementById("bk-row-"+i);
+    if(!row) continue;
+    row.classList.remove("is-off");
+    row.querySelectorAll("input").forEach(inp => { inp.disabled = false; });
+  }
+  for(let w = 0; w < BUDGET_WK; w++){
+    const inp = document.getElementById("bw-"+w);
+    if(!inp) continue;
+    inp.disabled = false;
+    const cell = inp.closest("td");
+    if(cell) cell.classList.remove("is-off");
+  }
+}
+
+
+function weekMark(n){
+  return n ? ("第" + n + "周") : "已填周次内还没有";
+}
+
+function extraHeaderFrom(d, paybackWeek){
+  const x = extraCosts(d);
+  const goodsNote = x.vineQty ? ("入组费 " + money(x.fee) + " + 送出货 " + money(x.vineGoods) + "（" + x.vineQty + " 件 × 成本/头程/尾程）") : "不参加就空着或填 0";
+  return {
+    vine: money(x.vineTotal),
+    manual: money(x.manTotal),
+    extra: money(x.extra),
+    extraProfit: arguments.length < 2 ? "—" : weekMark(paybackWeek),
+    extraVineLine: "Vine 入组 " + money(x.fee) + " + 货 " + money(x.vineGoods),
+    extraManLine: x.manQty ? ("手动 收入 " + money(x.manIncome) + " / 支出 " + money(x.manExpense)) : "手动 收入 $0.00 / 支出 $0.00",
+    vineHint: goodsNote,
+    manHint: x.manQty ? ("收入 " + x.manQty + "×单件毛利（已含产品成本）；支出只计售价×" + x.manRate + "+佣金，成本不再加一遍。净成本 " + money(x.manTotal)) : "不参加就空着或填 0",
+    extraProfitHint: "累计毛利盖住广告费 + 测评成本"
+  };
+}
+
+function setBudgetHeader(stats){
+  const map = {
+    budgetTotalNum: stats.total,
+    budgetUnitNum: stats.unit,
+    budgetCardNum: stats.card,
+    budgetProfitNum: stats.profit,
+    budgetVineNum: stats.vine,
+    budgetManNum: stats.manual,
+    budgetExtraNum: stats.extra,
+    budgetExtraProfitNum: stats.extraProfit
+  };
+  Object.keys(map).forEach(id => {
+    const n = document.getElementById(id);
+    if(n && map[id] != null) n.textContent = map[id];
+  });
+  const hints = {
+    budgetTotalHint: stats.totalHint || "",
+    budgetUnitHint: stats.unitHint || "",
+    budgetCardHint: stats.cardHint || "",
+    budgetProfitHint: stats.profitHint || "",
+    budgetVineHint: stats.vineHint || "",
+    budgetManHint: stats.manHint || "",
+    budgetExtraVineLine: stats.extraVineLine || "Vine 入组 $0.00 + 货 $0.00",
+    budgetExtraManLine: stats.extraManLine || "手动 收入 $0.00 / 支出 $0.00",
+    budgetExtraProfitHint: stats.extraProfitHint || ""
+  };
+  Object.keys(hints).forEach(id => {
+    const n = document.getElementById(id);
+    if(n) n.textContent = hints[id];
+  });
+}
+
+function renderBudgetResult(){
+  const box = document.getElementById("budgetResult");
+  if(!box) return;
+  const d = readBudgetForm();
+  const miss = validateBudget(d);
+  box.innerHTML = "";
+  box.appendChild(el("div","budget-sub","计算结果"));
+  const extraBits = extraHeaderFrom(d, null);
+  if(miss.length){
+    const unitOk = productReady(d);
+    const unit = unitMargin(d);
+    const sell = Math.max(0, num0(d.price)) * (budgetNum(d.discount) > 0 ? budgetNum(d.discount) : 1);
+    const rateTxt = unitOk && Number.isFinite(unit) && sell > 0
+      ? ("毛利率 " + ((unit / sell) * 100).toFixed(1) + "%")
+      : "";
+    setBudgetHeader(Object.assign({
+      total: "—",
+      unit: unitOk ? money(unit) : "—",
+      card: "—",
+      profit: "—",
+      totalHint: "还缺：" + miss.slice(0, 4).join("、") + (miss.length > 4 ? "…" : ""),
+      unitHint: unitOk ? (rateTxt || "售价扣佣金、折扣、尾程、产品成本、头程") : "售价扣佣金、折扣、尾程、产品成本、头程",
+      cardHint: "当周毛利盖住广告费，不用再垫信用卡",
+      profitHint: "累计毛利盖住累计广告费 + 测评成本"
+    }, extraBits));
+    const msg = el("div","budget-msg", "还没算出来。请先填：" + miss.slice(0, 6).join("、") + (miss.length > 6 ? "…" : ""));
+    box.appendChild(msg);
+    return;
+  }
+  const r = computeBudget(d);
+  const x = extraCosts(d);
+  const rateTxt = Number.isFinite(r.unitRate) ? ("毛利率 " + (r.unitRate * 100).toFixed(1) + "%") : "";
+  setBudgetHeader(Object.assign({
+    total: money(r.total),
+    unit: money(r.unit),
+    card: weekMark(r.coverWeek),
+    profit: weekMark(r.paybackWeek),
+    totalHint: "只统计你填了的周；空着的周不计入",
+    unitHint: rateTxt || "请核对成本和头程",
+    cardHint: r.coverWeek ? "从这周起当周毛利能盖住广告，不用再垫信用卡" : "已填周次内当周还要垫信用卡",
+    profitHint: r.paybackWeek ? "从这周起累计毛利盖住广告费 + Vine/手动测评" : "已填周次内累计尚未赢利"
+  }, extraHeaderFrom(d, r.paybackWeek)));
+  const kpis = el("div","budget-kpis");
+  [["总广告预算", money(r.total)], ["单件毛利", money(r.unit) + (rateTxt ? "（"+rateTxt+"）" : "")], ["不用垫信用卡", weekMark(r.coverWeek)], ["开始赢利", weekMark(r.paybackWeek)]].forEach((pair, i) => {
+    const card = el("div", i === 0 ? "budget-kpi is-hero" : "budget-kpi");
+    card.appendChild(el("b",null,pair[0]));
+    card.appendChild(el("span",null,pair[1]));
+    kpis.appendChild(card);
+  });
+  box.appendChild(kpis);
+
+  box.appendChild(el("div","budget-sub","按周花费"));
+  const tw = document.createElement("table");
+  tw.className = "budget-table";
+  tw.innerHTML = "<thead><tr><th>周次</th><th>目标订单</th><th>广告花费</th><th>当周毛利</th><th>当周净利</th><th>信用卡</th></tr></thead>";
+  const tbw = document.createElement("tbody");
+  r.weeks.forEach((slot, i) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(el("td",null, String(slot.week)));
+    tr.appendChild(el("td",null, String(slot.target)));
+    tr.appendChild(el("td",null, money(r.byWeek[i])));
+    tr.appendChild(el("td",null, money(r.weekProfit[i])));
+    tr.appendChild(el("td",null, money(r.weekNet[i])));
+    tr.appendChild(el("td",null, r.weekNet[i] >= 0 ? "不用垫" : "要垫"));
+    tbw.appendChild(tr);
+  });
+  tw.appendChild(tbw);
+  const weekScroll = el("div","budget-scroll");
+  weekScroll.appendChild(tw);
+  box.appendChild(weekScroll);
+
+  box.appendChild(el("div","budget-sub","按关键词花费"));
+  const tk = document.createElement("table");
+  tk.className = "budget-table";
+  tk.innerHTML = "<thead><tr><th>关键词</th><th>CVR</th><th>每单点击</th><th>CPA</th><th>广告花费</th></tr></thead>";
+  const tbk = document.createElement("tbody");
+  r.kws.forEach((kw, i) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(el("td",null, kw.name));
+    tr.appendChild(el("td",null, Number.isFinite(kw.cvr) ? (kw.cvr + "%") : "—"));
+    tr.appendChild(el("td",null, Number.isFinite(kw.clicks) ? kw.clicks.toFixed(2) : "—"));
+    tr.appendChild(el("td",null, money(kw.cpa)));
+    tr.appendChild(el("td",null, money(r.byKw[i])));
+    tbk.appendChild(tr);
+  });
+  tk.appendChild(tbk);
+  const kwResScroll = el("div","budget-scroll");
+  kwResScroll.appendChild(tk);
+  box.appendChild(kwResScroll);
+
+  box.appendChild(el("div","budget-sub","Vine / 手动测评拆分"));
+  const te = document.createElement("table");
+  te.className = "budget-table";
+  te.innerHTML = "<thead><tr><th>项目</th><th>数量</th><th>明细</th><th>金额</th></tr></thead>";
+  const teb = document.createElement("tbody");
+  [
+    ["Vine 入组费", String(x.vineQty), x.vineQty <= 0 ? "未参加" : (x.vineQty <= 2 ? "1–2 件免费" : (x.vineQty <= 10 ? "3–10 件 $75" : "11–30 件 $200")), money(x.fee)],
+    ["Vine 送出货", String(x.vineQty), x.vineQty + " 件 ×（产品成本 " + money(num0(d.cost)) + " + 头程 " + money(num0(d.head)) + " + 尾程 " + money(num0(d.fba)) + "）", money(x.vineGoods)],
+    ["Vine 合计（入组费+货）", String(x.vineQty), "不是只有 $200 入组费", money(x.vineTotal)],
+    ["手动收入", String(x.manQty), "件数 × 单件正常毛利（已扣尾程、产品成本、头程）", money(x.manIncome)],
+    ["手动支出", String(x.manQty), "件数 × 售价 × " + x.manRate + " + 件数 × 佣金；产品成本已在收入里扣过，这里不加", money(x.manExpense)],
+    ["手动净成本", String(x.manQty), "支出 − 收入，加进开始赢利", money(x.manTotal)],
+    ["测评合计", String(x.vineQty + x.manQty), "加进开始赢利", money(x.extra)]
+  ].forEach(row => {
+    const tr = document.createElement("tr");
+    row.forEach(cell => tr.appendChild(el("td",null, cell)));
+    teb.appendChild(tr);
+  });
+  te.appendChild(teb);
+  const teScroll = el("div","budget-scroll");
+  teScroll.appendChild(te);
+  box.appendChild(teScroll);
+}
+
+function refreshBudgetNeed(){
+  const board = document.getElementById("budgetBoard");
+  if(!board) return;
+  const d = readBudgetForm();
+  const hasKw = activeKeywords(d).length > 0;
+  const hasWeek = activeWeeks(d).length > 0;
+  board.querySelectorAll("input, select").forEach(inp => {
+    inp.classList.remove("need-empty");
+    const id = inp.id || "";
+    if(id.indexOf("bk-name-") === 0 || id.indexOf("bk-spr-") === 0 || id.indexOf("bk-cpc-") === 0 || id.indexOf("bk-cvr-") === 0){
+      const i = +id.split("-").pop();
+      const kw = d.keywords[i] || {};
+      if(!keywordStarted(kw)){
+        if(!hasKw && i === 0) inp.classList.add("need-empty");
+        return;
+      }
+      if(!keywordComplete(kw) && String(inp.value || "").trim() === "") inp.classList.add("need-empty");
+      return;
+    }
+    if(id.indexOf("bw-") === 0){
+      if(!hasWeek && id === "bw-0" && String(inp.value || "").trim() === "") inp.classList.add("need-empty");
+      return;
+    }
+    if(id === "bv-qty" || id === "bm-qty") return;
+    if(id === "bm-fee" || id === "bm-rate"){
+      if(qtyInt(d.manQty) > 0 && String(inp.value || "").trim() === "") inp.classList.add("need-empty");
+      return;
+    }
+    if(String(inp.value || "").trim() === "") inp.classList.add("need-empty");
+  });
+  refreshBudgetClicks();
+}
+
+function refreshBudgetClicks(){
+  for(let i = 0; i < BUDGET_KW; i++){
+    const out = document.getElementById("bk-clicks-"+i);
+    if(!out) continue;
+    const n = cvrPctToClicks((document.getElementById("bk-cvr-"+i) || {}).value);
+    out.textContent = Number.isFinite(n) ? n.toFixed(2) : "—";
+  }
+  refreshVineFee();
+}
+
+function refreshVineFee(){
+  const out = document.getElementById("bv-fee");
+  if(!out) return;
+  const qty = qtyInt((document.getElementById("bv-qty") || {}).value);
+  if(qty > 30){ out.textContent = "最多 30 件"; return; }
+  out.textContent = money(vineFeeUsd(qty));
+}
+
+function tipDot(text){
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "tip-dot";
+  b.dataset.tip = text;
+  b.setAttribute("aria-label", "新手说明");
+  return b;
+}
+
+function wrapTip(control, text){
+  const wrap = el("div","tip-wrap");
+  wrap.appendChild(control);
+  wrap.appendChild(tipDot(text));
+  return wrap;
+}
+
+function labeled(text){
+  const lab = document.createElement("label");
+  lab.appendChild(document.createTextNode(text));
+  lab.appendChild(el("span","need-tag","需填"));
+  return lab;
+}
+
+function field(label, id, attrs, tip, need){
+  const wrap = el("div","budget-field");
+  wrap.appendChild(need === false ? (function(){
+    const lab = document.createElement("label");
+    lab.textContent = label;
+    return lab;
+  })() : labeled(label));
+  const input = document.createElement(attrs.tag || "input");
+  input.id = id;
+  if(!attrs.tag) input.type = attrs.type || "number";
+  Object.keys(attrs).forEach(k => {
+    if(k === "tag" || k === "type" || k === "placeholder") return;
+    input.setAttribute(k, attrs[k]);
+  });
+  if(attrs.placeholder) input.placeholder = attrs.placeholder;
+  wrap.appendChild(wrapTip(input, tip));
+  return wrap;
+}
+
+function bindBudgetTips(board){
+  let pop = document.getElementById("budgetTipPop");
+  if(!pop){
+    pop = el("div","budget-tip-pop");
+    pop.id = "budgetTipPop";
+    document.body.appendChild(pop);
+  }
+  const show = (dot) => {
+    pop.textContent = dot.dataset.tip || "";
+    pop.classList.add("is-on");
+    const r = dot.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - 292));
+    let top = r.bottom + 8;
+    pop.style.left = left + "px";
+    pop.style.top = top + "px";
+    const box = pop.getBoundingClientRect();
+    if(box.bottom > window.innerHeight - 8){
+      pop.style.top = Math.max(8, r.top - box.height - 8) + "px";
+    }
+  };
+  const hide = () => pop.classList.remove("is-on");
+  board.addEventListener("mouseover", (e) => {
+    const d = e.target.closest(".tip-dot");
+    if(d) show(d);
+  });
+  board.addEventListener("mouseout", (e) => {
+    const d = e.target.closest(".tip-dot");
+    if(!d) return;
+    if(e.relatedTarget && d.contains(e.relatedTarget)) return;
+    hide();
+  });
+  board.addEventListener("focusin", (e) => {
+    const d = e.target.closest(".tip-dot");
+    if(d) show(d);
+  });
+  board.addEventListener("focusout", hide);
+  board.addEventListener("click", (e) => {
+    const d = e.target.closest(".tip-dot");
+    if(d){
+      e.preventDefault();
+      show(d);
+    }
+  });
+}
+
+function mountBudgetBoard(stepEl){
+  const board = el("div","budget-board");
+  board.id = "budgetBoard";
+  const head = el("div","budget-head");
+  head.appendChild(el("h3",null,"广告预算表（必填）"));
+  board.appendChild(head);
+  const legend = el("div","budget-legend");
+  legend.innerHTML = "<b>表头</b>：总广告预算、单件毛利、不用垫信用卡、开始赢利。下一行是 Vine / 手动测评。手动：收入=件数×正常毛利（已含产品成本），支出=件数×售价×拿货折扣（默认1，按售价全额）+佣金，成本不重复加。";
+  board.appendChild(legend);
+  const totalBar = el("div","budget-total-bar");
+  const stats = [
+    ["budgetTotalNum","总广告预算","budgetTotalHint","填完下方必填项后自动计算"],
+    ["budgetUnitNum","单件毛利","budgetUnitHint","售价扣佣金、折扣、尾程、产品成本、头程"],
+    ["budgetCardNum","不用垫信用卡","budgetCardHint","当周毛利盖住广告费的那一周起"],
+    ["budgetProfitNum","开始赢利","budgetProfitHint","累计毛利盖住累计广告费"]
+  ];
+  stats.forEach(row => {
+    const box = el("div","budget-stat");
+    box.appendChild(el("em",null,row[1]));
+    const num = document.createElement("strong");
+    num.id = row[0];
+    num.textContent = "—";
+    box.appendChild(num);
+    const hint = el("span",null,row[3]);
+    hint.id = row[2];
+    box.appendChild(hint);
+    totalBar.appendChild(box);
+  });
+  board.appendChild(totalBar);
+  const extraBar = el("div","budget-extra-bar");
+  [
+    ["budgetVineNum","Vine 成本","budgetVineHint","填数量后自动算：2件免费 / 10件$75 / 30件$200"],
+    ["budgetManNum","手动测评净成本","budgetManHint","收入已含产品成本；支出按售价全额+佣金"],
+    ["budgetExtraProfitNum","含测评后开始赢利","budgetExtraProfitHint","累计毛利盖住广告费 + 测评"]
+  ].forEach((row, i) => {
+    if(i === 2){
+      const sumBox = el("div","budget-stat");
+      sumBox.appendChild(el("em",null,"测评合计"));
+      const sumNum = document.createElement("strong");
+      sumNum.id = "budgetExtraNum";
+      sumNum.textContent = "—";
+      sumBox.appendChild(sumNum);
+      const split = el("div","budget-split");
+      const vineLine = el("span",null,"Vine 入组 $0.00 + 货 $0.00");
+      vineLine.id = "budgetExtraVineLine";
+      const manLine = el("span",null,"手动 收入 $0.00 / 支出 $0.00");
+      manLine.id = "budgetExtraManLine";
+      split.appendChild(vineLine);
+      split.appendChild(manLine);
+      sumBox.appendChild(split);
+      extraBar.appendChild(sumBox);
+    }
+    const box = el("div","budget-stat");
+    box.appendChild(el("em",null,row[1]));
+    const num = document.createElement("strong");
+    num.id = row[0];
+    num.textContent = "—";
+    box.appendChild(num);
+    const hint = el("span",null,row[3]);
+    hint.id = row[2];
+    box.appendChild(hint);
+    extraBar.appendChild(box);
+  });
+  board.appendChild(extraBar);
+
+  const TIPS = {
+    n: "这支出几个核心词。最多 8 个。填 3 就只填下面表格前 3 行。",
+    m: "这套广告计划跑几周。最多 13 周。填 8 就只填下面 W1～W8。",
+    start: "第 1 周广告订单大概占总订单多少。填 1 表示 100% 靠广告；填 0.8 表示 80%。推品初期通常很高。",
+    end: "后面自然流量起来后，广告还占总订单多少。长期稳态，常见 0.2～0.4。",
+    k: "广告占比从起始值降到稳定值有多快。数字越大，降得越快。不确定就先填 0.6。",
+    mode: "把各词「满载周目标」合成 listing 满载：MAX 取最大那个词；SUM 把几个词加起来。一般用 MAX。",
+    price: "这支 ASIN 的售价，单位美元。改这里或改页面顶部「售价」，表头单件毛利会马上重算。",
+    commission: "扣完亚马逊佣金后还剩多少。美国站大约 0.85（佣金约 15%）。",
+    discount: "促销后价格比例。不打折填 1；打九折填 0.9。",
+    fba: "每单 FBA 尾程派送费，单位美元。没有就填 0。",
+    cost: "产品采购成本，折成美元/件。运营必填；不确定先填工厂报价。",
+    head: "头程：从工厂运到 FBA 仓的单件运费（美元）。海运、空运都填到这里。没有就填 0。",
+    vineQty: "本次 Vine 计划送出件数，自己填。美国站：1–2 件入组费 $0，3–10 件 $75，11–30 件 $200。单次最多 30 件。不参加填 0。",
+    vineFee: "亚马逊 Vine 入组费，按件数自动套档，不用手填。",
+    manQty: "手动测评件数。收入按这些单的正常毛利算（毛利里已经扣了产品成本）。不参加填 0。",
+    manRate: "测评按售价的多少付钱。默认 1 表示支出 = 件数 × 售价。产品成本已在收入里算过，支出不再加成本。",
+    manFee: "每件另付给测评的佣金（美元）。没有填 0。支出 = 件数×售价×折扣 + 件数×佣金。",
+    name: "要投放的搜索词，例如 yoga mat。有几个填几个，空行不算，不必凑满 8 个。",
+    spr: "SPR：连续 N 天每天卖 N 单，这个词大概能上首页。例如填 8，表示大约每天 8 单。",
+    cpc: "假设每次点击多少美元。可先用广告后台或类目均价。",
+    cvr: "转化率 CVR。填 10 表示 10%（10 次点击出 1 单）。每单点击数 = 100 ÷ CVR%，不用手填。",
+    clicks: "由 CVR 自动算出：每单点击数 = 100 ÷ CVR%。例如 CVR 10% → 10 次点击出 1 单。CPA = CPC × 每单点击。",
+    week: "这一周整个 listing 计划卖多少单。只填你想规划的周，空着的周不计入总广告花费。"
+  };
+
+  const grid = el("div","budget-grid");
+  grid.appendChild(field("广告占比起始值（第1周）","bk-start",{min:"0",max:"1",step:"0.05",placeholder:"1=100%"}, TIPS.start));
+  grid.appendChild(field("广告占比稳定值","bk-end",{min:"0",max:"1",step:"0.05",placeholder:"如 0.3"}, TIPS.end));
+  grid.appendChild(field("衰减速度 k","bk-k",{min:"0.05",step:"0.1",placeholder:"如 0.6"}, TIPS.k));
+  const modeWrap = el("div","budget-field");
+  modeWrap.appendChild(labeled("listing 满载目标"));
+  const mode = document.createElement("select");
+  mode.id = "bk-mode";
+  mode.innerHTML = "<option value=\"MAX\">MAX（取各词满载最大值）</option><option value=\"SUM\">SUM（各词满载相加）</option>";
+  modeWrap.appendChild(wrapTip(mode, TIPS.mode));
+  grid.appendChild(modeWrap);
+  grid.appendChild(field("产品单价 $","bk-price",{min:"0",step:"0.01",placeholder:"必填"}, TIPS.price));
+  grid.appendChild(field("佣金后比例","bk-commission",{min:"0",max:"1",step:"0.01",placeholder:"如 0.85"}, TIPS.commission));
+  grid.appendChild(field("折扣率","bk-discount",{min:"0",max:"1",step:"0.01",placeholder:"不打折填 1"}, TIPS.discount));
+  grid.appendChild(field("尾程派送费 $","bk-fba",{min:"0",step:"0.01",placeholder:"必填"}, TIPS.fba));
+  grid.appendChild(field("产品成本 $","bk-cost",{min:"0",step:"0.01",placeholder:"采购成本"}, TIPS.cost));
+  grid.appendChild(field("头程 $","bk-head",{min:"0",step:"0.01",placeholder:"单件头程"}, TIPS.head));
+  board.appendChild(grid);
+
+  const extraTitle = el("div","budget-sub");
+  extraTitle.appendChild(document.createTextNode("Vine / 手动测评（选填，填数量就算成本）"));
+  board.appendChild(extraTitle);
+  const extraGrid = el("div","budget-grid");
+  extraGrid.appendChild(field("Vine 数量","bv-qty",{min:"0",max:"30",step:"1",placeholder:"0～30"}, TIPS.vineQty, false));
+  const feeWrap = el("div","budget-field");
+  const feeLab = document.createElement("label");
+  feeLab.textContent = "Vine 入组费（自动）";
+  feeWrap.appendChild(feeLab);
+  const feeAuto = el("span","budget-auto fee","$0.00");
+  feeAuto.id = "bv-fee";
+  feeWrap.appendChild(wrapTip(feeAuto, TIPS.vineFee));
+  extraGrid.appendChild(feeWrap);
+  extraGrid.appendChild(field("手动测评数量","bm-qty",{min:"0",step:"1",placeholder:"没有填 0"}, TIPS.manQty, false));
+  extraGrid.appendChild(field("手动拿货折扣","bm-rate",{min:"0",max:"1",step:"0.01",placeholder:"默认 1"}, TIPS.manRate, false));
+  extraGrid.appendChild(field("手动佣金 $/件","bm-fee",{min:"0",step:"0.01",placeholder:"产品外佣金"}, TIPS.manFee, false));
+  board.appendChild(extraGrid);
+
+  const kwTitle = el("div","budget-sub");
+  kwTitle.appendChild(document.createTextNode("关键词（有几个填几个，空行不算）"));
+  kwTitle.appendChild(el("span","need-tag","至少1个"));
+  board.appendChild(kwTitle);
+  const kt = document.createElement("table");
+  kt.className = "budget-table";
+  kt.innerHTML = "<thead><tr><th>#</th><th>关键词</th><th>SPR（单/天）</th><th>CPC $</th><th>CVR %</th><th>每单点击（自动）</th></tr></thead>";
+  const ktb = document.createElement("tbody");
+  const kwTips = {name: TIPS.name, spr: TIPS.spr, cpc: TIPS.cpc, cvr: TIPS.cvr};
+  const kwPh = {name:"有就填", spr:"如 8", cpc:"如 0.9", cvr:"如 10"};
+  for(let i = 0; i < BUDGET_KW; i++){
+    const tr = document.createElement("tr");
+    tr.id = "bk-row-"+i;
+    tr.appendChild(el("td",null,String(i+1)));
+    ["name","spr","cpc","cvr"].forEach(key => {
+      const td = document.createElement("td");
+      const inp = document.createElement("input");
+      inp.id = "bk-"+key+"-"+i;
+      inp.placeholder = kwPh[key];
+      if(key !== "name"){ inp.type = "number"; inp.min = "0"; inp.step = "0.01"; }
+      if(key === "cvr"){ inp.max = "100"; inp.step = "0.1"; }
+      td.appendChild(wrapTip(inp, kwTips[key]));
+      tr.appendChild(td);
+    });
+    const autoTd = document.createElement("td");
+    const auto = el("span","budget-auto","—");
+    auto.id = "bk-clicks-"+i;
+    autoTd.appendChild(wrapTip(auto, TIPS.clicks));
+    tr.appendChild(autoTd);
+    ktb.appendChild(tr);
+  }
+  kt.appendChild(ktb);
+  const kwScroll = el("div","budget-scroll");
+  kwScroll.appendChild(kt);
+  board.appendChild(kwScroll);
+
+  const weekTitle = el("div","budget-sub");
+  weekTitle.appendChild(document.createTextNode("每周 listing 目标总订单（只填要规划的周）"));
+  weekTitle.appendChild(el("span","need-tag","至少1周"));
+  board.appendChild(weekTitle);
+  const weekGrid = el("div","week-grid");
+  weekGrid.id = "bw-row";
+  for(let w = 0; w < BUDGET_WK; w++){
+    const wrap = el("div","budget-field");
+    const lab = document.createElement("label");
+    lab.textContent = "W" + (w + 1);
+    wrap.appendChild(lab);
+    const inp = document.createElement("input");
+    inp.id = "bw-"+w;
+    inp.type = "number"; inp.min = "0"; inp.step = "1";
+    inp.placeholder = "选填";
+    wrap.appendChild(wrapTip(inp, "第"+(w+1)+"周：" + TIPS.week));
+    weekGrid.appendChild(wrap);
+  }
+  board.appendChild(weekGrid);
+
+  const result = el("div");
+  result.id = "budgetResult";
+  board.appendChild(result);
+  stepEl.appendChild(board);
+  bindBudgetTips(board);
+  bindBudgetLive(board);
+}
+
+function bindBudgetLive(board){
+  if(!board || board.dataset.liveBound === "1") return;
+  board.dataset.liveBound = "1";
+  board.addEventListener("input", scheduleBudget);
+  board.addEventListener("change", scheduleBudget);
+  board.addEventListener("keyup", scheduleBudget);
+}
+
+async function saveBudget(){
+  if(!planId || !document.getElementById("budgetBoard")) return;
+  try{
+    await store.set("budget", JSON.stringify(readBudgetForm()));
+    await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(Date.now()));
+    scheduleCloudSave();
+  }catch(e){ console.error(e); }
+}
+
+function scheduleBudget(e){
+  try{
+    const id = e && e.target && e.target.id;
+    if(id === "casePrice") syncCasePriceToBudget();
+    refreshBudgetDisabled();
+    refreshBudgetClicks();
+    refreshBudgetNeed();
+    renderBudgetResult();
+  }catch(err){
+    console.error(err);
+  }
+  clearTimeout(budgetTimer);
+  budgetTimer = setTimeout(saveBudget, 400);
+}
+
+async function loadBudget(){
+  let data = defaultBudget();
+  try{
+    const raw = await store.get("budget");
+    if(raw) data = hydrateBudget(JSON.parse(raw));
+  }catch(e){}
+  applyBudgetForm(data);
+}
+
+function scopedFor(pid, key){
+  return playbookPrefix(getUserId())+pid+":"+key;
+}
+
+async function persistCurrentPlanLocal(){
+  if(!planId) return;
+  for(const s of STEPS){
+    if(trees[s.id]) await storeRaw.set(scoped("mmap:"+s.id), JSON.stringify(trees[s.id]));
+    for(const b of BRANCHES){
+      await storeRaw.set(scoped("note:"+s.id+":"+b.key), noteValue(s.id, b.key));
+    }
+  }
+  await store.set("meta", JSON.stringify(readCase()));
+  if(document.getElementById("budgetBoard")){
+    await store.set("budget", JSON.stringify(readBudgetForm()));
+  }
+}
+
+async function packCloudBlob(){
+  await persistCurrentPlanLocal();
+  const index = await loadIndex();
+  const last = await storeRaw.get(lastKey());
+  const plans = {};
+  const keep = (index || []).slice(0, MAX_PLANS);
+  for(const p of keep){
+    const mmap = {};
+    const notes = {};
+    for(const s of STEPS){
+      try{
+        const raw = await storeRaw.get(scopedFor(p.id, "mmap:"+s.id));
+        if(raw) mmap[s.id] = JSON.parse(raw);
+      }catch(e){}
+      notes[s.id] = {};
+      for(const b of BRANCHES){
+        try{ notes[s.id][b.key] = (await storeRaw.get(scopedFor(p.id, "note:"+s.id+":"+b.key))) || ""; }
+        catch(e){ notes[s.id][b.key] = ""; }
+      }
+    }
+    let meta = p;
+    let budget = null;
+    try{
+      const raw = await storeRaw.get(scopedFor(p.id, "meta"));
+      if(raw) meta = { ...p, ...JSON.parse(raw) };
+    }catch(e){}
+    try{
+      const raw = await storeRaw.get(scopedFor(p.id, "budget"));
+      if(raw) budget = JSON.parse(raw);
+    }catch(e){}
+    plans[p.id] = { meta, mmap, notes, budget };
+  }
+  return { index: keep, lastPlan: last || "", plans };
+}
+
+async function applyCloudBlob(blob){
+  if(!blob || !Array.isArray(blob.index)) return false;
+  cloudHydrating = true;
+  try{
+    await storeRaw.set(indexKey(), JSON.stringify(blob.index));
+    if(blob.lastPlan) await storeRaw.set(lastKey(), blob.lastPlan);
+    for(const p of blob.index){
+      const pack = blob.plans && blob.plans[p.id];
+      if(!pack) continue;
+      if(pack.meta) await storeRaw.set(scopedFor(p.id, "meta"), JSON.stringify(pack.meta));
+      if(pack.budget) await storeRaw.set(scopedFor(p.id, "budget"), JSON.stringify(pack.budget));
+      for(const s of STEPS){
+        if(pack.mmap){
+          if(pack.mmap[s.id] != null){
+            await storeRaw.set(scopedFor(p.id, "mmap:"+s.id), JSON.stringify(pack.mmap[s.id]));
+          }else{
+            await storeRaw.del(scopedFor(p.id, "mmap:"+s.id));
+          }
+        }
+        for(const b of BRANCHES){
+          const v = pack.notes && pack.notes[s.id] ? (pack.notes[s.id][b.key] || "") : "";
+          await storeRaw.set(scopedFor(p.id, "note:"+s.id+":"+b.key), v);
+        }
+      }
+    }
+  }finally{
+    cloudHydrating = false;
+  }
+  return true;
+}
+
+function scheduleCloudSave(){
+  if(cloudHydrating || isGuestUser(USER)) return;
+  const api = getCloudApi();
+  if(!api || typeof api.save !== "function") return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(() => { flushCloudSave(); }, 600);
+}
+
+async function flushCloudSave(){
+  if(cloudHydrating || isGuestUser(USER)) return false;
+  if(!cloudHydrateTried) return false;
+  const api = getCloudApi();
+  if(!api || typeof api.save !== "function") return false;
+  if(api.configured && !api.configured()){
+    setCloudHint("云端：未配置，仅本机");
+    return false;
+  }
+  setCloudHint("云端：同步中…");
+  try{
+    const saved = await api.save(getUserId(), await packCloudBlob());
+    if(saved && saved.skipped){
+      setCloudHint("云端：未写入（账号不匹配或访客）");
+      return false;
+    }
+    const stamp = String((saved && saved.updatedAt) || Date.now());
+    await storeRaw.set(playbookPrefix(getUserId())+"updatedAt", stamp);
+    await storeRaw.set(syncStampKey(), stamp);
+    setCloudHint("云端：已同步（本账号空间）");
+    return true;
+  }catch(e){
+    setCloudHint("云端：" + (e && e.message ? e.message : "同步失败"));
+    return false;
+  }
+}
+
+async function hydrateFromCloud(){
+  cloudHydrateTried = true;
+  if(isGuestUser(USER)){
+    setCloudHint("云端：访客仅本机，换账号看不到");
+    return;
+  }
+  const api = getCloudApi();
+  if(!api || typeof api.load !== "function"){
+    setCloudHint("云端：仅本机预览");
+    return;
+  }
+  if(api.configured && !api.configured()){
+    setCloudHint("云端：未配置，仅本机");
+    return;
+  }
+  setCloudHint("云端：拉取中…");
+  try{
+    const blob = await api.load(getUserId());
+    const localIdx = await loadIndex();
+    const localFilled = await ownerLooksFilled(getUserId(), localIdx);
+    const localStamp = Number(await storeRaw.get(playbookPrefix(getUserId())+"updatedAt")) || 0;
+    const cloudStamp = Number(blob && blob.updatedAt) || 0;
+    const cloudHas = !!(blob && Array.isArray(blob.index) && blob.index.length);
+    const cloudNamed = blobNamedCount(blob);
+    const localNamed = namedPlanCount(localIdx);
+    const preferCloud = cloudHas && (cloudNamed > localNamed || (!localFilled && cloudHas) || (cloudStamp >= localStamp && cloudNamed >= localNamed));
+
+    if(preferCloud){
+      await applyCloudBlob(blob);
+      await storeRaw.set(playbookPrefix(getUserId())+"updatedAt", String(cloudStamp || Date.now()));
+      await storeRaw.set(syncStampKey(), String(cloudStamp || Date.now()));
+      setCloudHint("云端：已拉取本账号空间");
+      return;
+    }
+    if(localFilled && !cloudHas){
+      setCloudHint("云端：本账号空间空着，正在上传本机…");
+      await flushCloudSave();
+      return;
+    }
+    if(localFilled && cloudHas && localStamp > cloudStamp && localNamed >= cloudNamed){
+      setCloudHint("云端：本机较新，正在上传…");
+      await flushCloudSave();
+      return;
+    }
+    if(cloudHas){
+      await applyCloudBlob(blob);
+      await storeRaw.set(playbookPrefix(getUserId())+"updatedAt", String(cloudStamp || Date.now()));
+      await storeRaw.set(syncStampKey(), String(cloudStamp || Date.now()));
+      setCloudHint("云端：已拉取本账号空间");
+      return;
+    }
+    setCloudHint("云端：本账号空间已就绪");
+  }catch(e){
+    setCloudHint("云端：拉取失败，用本机");
+  }
+}
+
+async function pullCloudToLocal(){
+  if(isGuestUser(USER)){
+    await playbookConfirm("请先用要查看的那个运营号登录。推品计划按人隔离，登自己的号看不到别人的。", { title: "还没登录", okLabel: "知道了" });
+    return;
+  }
+  const ok = await playbookConfirm(
+    "用云端「" + (USER && USER.name ? USER.name : getUserId()) + "」的计划覆盖这台电脑上的显示？\n\n只改这台电脑，不会改同事已经传上去的内容。",
+    { title: "从云端拉取", okLabel: "确定拉取" }
+  );
+  if(!ok) return;
+  const api = getCloudApi();
+  if(!api || typeof api.load !== "function"){
+    setCloudHint("云端：仅本机预览");
+    return;
+  }
+  cloudHydrateTried = true;
+  setCloudHint("云端：正在拉取…");
+  try{
+    const blob = await api.load(getUserId());
+    if(!blob || !Array.isArray(blob.index) || !blob.index.length){
+      setCloudHint("云端：这个账号还没有计划");
+      return;
+    }
+    await applyCloudBlob(blob);
+    const stamp = String(blob.updatedAt || Date.now());
+    await storeRaw.set(playbookPrefix(getUserId())+"updatedAt", stamp);
+    await storeRaw.set(syncStampKey(), stamp);
+    setCloudHint("云端：已拉取本账号空间");
+    planId = "";
+    const idx = await loadIndex();
+    refreshPlanSelect(idx);
+    if(idx[0]) await openPlan(idx[0].id);
+    else await createBlankPlan({ silent:true });
+  }catch(e){
+    setCloudHint("云端：" + (e && e.message ? e.message : "拉取失败"));
+  }
+}
+
+async function uploadLocalToCloud(){
+  if(isGuestUser(USER)){
+    await playbookConfirm("请先用运营账号登录。访客内容不会上云，换电脑也看不到。", { title: "还没登录", okLabel: "知道了" });
+    return;
+  }
+  const ok = await playbookConfirm(
+    "把这台电脑上「" + (USER && USER.name ? USER.name : getUserId()) + "」的推品计划上传到云端？\n\n会覆盖云端里这个账号现有的内容。请只在填过计划的那台电脑上点。",
+    { title: "上传本机到云端", okLabel: "确定上传" }
+  );
+  if(!ok) return;
+  cloudHydrateTried = true;
+  setCloudHint("云端：正在合并本机并上传…");
+  try{
+    await persistCurrentPlanLocal();
+    await mergeLocalPlaybooksIntoUser(getUserId());
+    const saved = await flushCloudSave();
+    if(saved) setCloudHint("云端：已上传本机（本账号空间）");
+  }catch(e){
+    setCloudHint("云端：" + (e && e.message ? e.message : "上传失败"));
+  }
+}
+
+function newPlanId(){
+  return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+function planLabel(p){
+  const asin = (p.asin || "").trim();
+  const name = (p.name || "").trim();
+  if(asin && name) return asin + " · " + name;
+  if(asin) return asin;
+  if(name) return name;
+  return "未命名产品";
+}
+
+function productLabel(p){
+  const name = (p && p.name || "").trim();
+  if(name) return name;
+  const asin = (p && p.asin || "").trim();
+  if(asin) return asin;
+  return "未命名产品";
+}
+
+function fillSelect(sel, items){
+  if(!sel) return;
+  sel.innerHTML = "";
+  if(!items.length){
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "还没有产品";
+    sel.appendChild(opt);
+    return;
+  }
+  items.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = productLabel(p);
+    if(p.id === planId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function readCase(){
+  return {
+    site: document.getElementById("caseSite").value,
+    asin: document.getElementById("caseAsin").value,
+    name: document.getElementById("caseName").value,
+    price: document.getElementById("casePrice").value
+  };
+}
+
+function applyCase(data){
+  document.getElementById("caseSite").value = data && data.site || "";
+  document.getElementById("caseAsin").value = data && data.asin || "";
+  document.getElementById("caseName").value = data && data.name || "";
+  document.getElementById("casePrice").value = data && data.price || "";
+}
+
+function setUrlPlan(id){
+  const u = new URL(location.href);
+  u.searchParams.delete("new");
+  if(id) u.searchParams.set("plan", id);
+  else u.searchParams.delete("plan");
+  history.replaceState({}, "", u.pathname + u.search + u.hash);
+}
+
+function blankLink(){
+  const u = new URL(location.href);
+  u.search = "?new=1";
+  u.hash = "";
+  return u.href;
+}
+
+async function loadIndex(){
+  try{
+    const raw = await storeRaw.get(indexKey());
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+
+async function saveIndex(list){
+  await storeRaw.set(indexKey(), JSON.stringify(list));
+  await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(Date.now()));
+  scheduleCloudSave();
+}
+
+async function touchPlanMeta(){
+  if(!planId) return;
+  const data = readCase();
+  const idx = await loadIndex();
+  const i = idx.findIndex(p => p.id === planId);
+  const meta = { id: planId, ...data, updated: Date.now() };
+  if(i >= 0) idx[i] = { ...idx[i], ...meta };
+  else if(idx.length < MAX_PLANS) idx.unshift(meta);
+  await saveIndex(idx);
+  await storeRaw.set(lastKey(), planId);
+  await store.set("meta", JSON.stringify(data));
+  refreshPlanSelect(idx);
+}
+
+function refreshPlanSelect(list){
+  const items = list || [];
+  refreshingSelect = true;
+  fillSelect(document.getElementById("planSelect"), items);
+  fillSelect(document.getElementById("caseNameSelect"), items);
+  refreshingSelect = false;
+  const whoText = "运营：" + (USER && USER.name ? USER.name : "访客") + " · " + items.length + "/" + MAX_PLANS;
+  ["whoLabel", "whoLabelDock"].forEach(function(id){
+    const who = document.getElementById(id);
+    if(who) who.textContent = whoText;
+  });
+  const addBtn = document.getElementById("newPlanBtn");
+  if(addBtn) addBtn.disabled = items.length >= MAX_PLANS;
+}
+
+async function resetCurrentTrees(){
+  for(const s of STEPS){
+    trees[s.id] = defaultTree(s);
+    renderMap(s.id);
+    showPage(s.id, "plan");
+    await clearStepNotes(s.id);
+  }
+}
+
+async function createBlankPlan(opts){
+  const idx = await loadIndex();
+  if(idx.length >= MAX_PLANS){
+    alert("每人最多保存 5 个产品。请先在「产品简称」下拉里选一个，或删除不用的产品。");
+    return false;
+  }
+  let name = "";
+  if(idx.length > 0 && !(opts && opts.silent)){
+    const suggested = "产品" + (idx.length + 1);
+    const typed = prompt("给新产品起个简称，之后可在「产品简称」下拉里切换", suggested);
+    if(typed === null) return false;
+    name = typed.trim() || suggested;
+  }
+  planId = newPlanId();
+  applyCase({ site:"", asin:"", name:name, price:"" });
+  await resetCurrentTrees();
+  applyBudgetForm(defaultBudget());
+  await store.set("budget", JSON.stringify(defaultBudget()));
+  const meta = { id: planId, site:"", asin:"", name:name, price:"", updated: Date.now() };
+  idx.unshift(meta);
+  await saveIndex(idx);
+  await storeRaw.set(lastKey(), planId);
+  setUrlPlan(planId);
+  refreshPlanSelect(idx);
+  return true;
+}
+
+async function deleteCurrentPlan(){
+  if(!planId) return;
+  const idx = await loadIndex();
+  const hit = idx.find(p => p.id === planId);
+  const label = productLabel(hit || readCase());
+  if(!confirm("删除产品「" + label + "」？导图和笔记也会删掉，不能恢复。")) return;
+  const id = planId;
+  for(const s of STEPS){
+    await storeRaw.del(scopedFor(id, "mmap:"+s.id));
+    for(const b of BRANCHES){
+      await storeRaw.del(scopedFor(id, "note:"+s.id+":"+b.key));
+    }
+  }
+  await storeRaw.del(scopedFor(id, "meta"));
+  await storeRaw.del(scopedFor(id, "budget"));
+  const next = idx.filter(p => p.id !== id);
+  await saveIndex(next);
+  if(next[0]) await openPlan(next[0].id);
+  else await createBlankPlan({ silent:true });
+}
+
+async function openPlan(id){
+  planId = id;
+  setUrlPlan(id);
+  await storeRaw.set(lastKey(), id);
+  try{
+    const raw = await store.get("meta");
+    if(raw) applyCase(JSON.parse(raw));
+    else {
+      const idx = await loadIndex();
+      const hit = idx.find(p => p.id === id);
+      applyCase(hit || {});
+    }
+  }catch(e){ applyCase({}); }
+  await loadStepsData();
+  refreshPlanSelect(await loadIndex());
+}
+
+const trees = {};
+const saveTimers = {};
+let selected = {step:null, branch:null, id:null};
+
+function el(tag, cls, text){
+  const e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+
+function findNode(list, id){
+  for(const n of list){
+    if(n.id === id) return {node:n, list};
+    if(n.children && n.children.length){
+      const hit = findNode(n.children, id);
+      if(hit) return hit;
+    }
+  }
+  return null;
+}
+
+function renderCard(stepId, branchKey, node){
+  const card = el("div","mm-card");
+  card.dataset.id = node.id;
+  card.dataset.branch = branchKey;
+  card.dataset.step = stepId;
+
+  const row = el("div","mm-card-row");
+  const text = el("div","mm-text");
+  text.contentEditable = "true";
+  text.spellcheck = false;
+  text.dataset.ph = "写下这支品的计划…";
+  text.textContent = node.text || "";
+  const x = el("button","mm-x","×");
+  x.type = "button";
+  x.title = "删除";
+  row.appendChild(text);
+  row.appendChild(x);
+  card.appendChild(row);
+
+  const kids = el("div","mm-kids");
+  (node.children || []).forEach(ch => kids.appendChild(renderCard(stepId, branchKey, ch)));
+  card.appendChild(kids);
+  return card;
+}
+
+function renderMap(stepId){
+  const tree = trees[stepId];
+  BRANCHES.forEach(b => {
+    const list = document.getElementById("list-"+stepId+"-"+b.key);
+    list.innerHTML = "";
+    tree[b.key].children.forEach(n => list.appendChild(renderCard(stepId, b.key, n)));
+  });
+}
+
+function renderSteps(){
+  const main = document.getElementById("main");
+  let lastPhase = null;
+  STEPS.forEach(s => {
+    if(s.phase !== lastPhase){
+      const stepsInPhase = STEPS.filter(x => x.phase === s.phase);
+      const banner = el("div","phase-banner");
+      banner.appendChild(el("div","phase-banner-num","0"+s.phase));
+      const bText = el("div");
+      bText.appendChild(el("div","phase-banner-title", s.phaseName));
+      bText.appendChild(el("div","phase-banner-sub", stepsInPhase.map(x=>x.title).join(" · ")));
+      banner.appendChild(bText);
+      main.appendChild(banner);
+      lastPhase = s.phase;
+    }
+
+    const step = el("section","step");
+    step.id = "step-"+s.id;
+
+    const head = el("div","step-head");
+    head.appendChild(el("div","badge","0"+s.id));
+    const headText = el("div");
+    headText.appendChild(el("div","phase-tag", s.phaseName+" · "+s.tag));
+    headText.appendChild(el("h2",null, s.title));
+    const hd = el("div","handoff", s.handoff);
+    headText.appendChild(hd);
+    head.appendChild(headText);
+    step.appendChild(head);
+
+    const body = el("div","step-body");
+    const brief = el("div","brief");
+
+    const whyBlock = el("div","block");
+    whyBlock.appendChild(el("span","block-label label-why","为什么这么做"));
+    const whyP = el("div");
+    s.why.forEach(t => whyP.appendChild(el("p",null,t)));
+    whyBlock.appendChild(whyP);
+    brief.appendChild(whyBlock);
+
+    const howBlock = el("div","block");
+    howBlock.appendChild(el("span","block-label label-how","具体怎么做"));
+    const ul = el("ul");
+    s.how.forEach(t => ul.appendChild(el("li",null,t)));
+    howBlock.appendChild(ul);
+    brief.appendChild(howBlock);
+
+    const outBlock = el("div","block");
+    outBlock.appendChild(el("span","block-label label-out","本步交付物"));
+    outBlock.appendChild(el("div","deliver", s.deliver));
+    brief.appendChild(outBlock);
+
+    const backupBlock = el("div","block");
+    backupBlock.appendChild(el("span","block-label label-backup","备用方案 · "+s.backupLabel));
+    const backupBox = el("div","backup-box");
+    backupBox.appendChild(el("p",null,s.backup));
+    backupBlock.appendChild(backupBox);
+    brief.appendChild(backupBlock);
+
+    body.appendChild(brief);
+
+    const notes = el("div","notes");
+    notes.dataset.step = s.id;
+    const nHead = el("div","notes-head");
+    nHead.appendChild(el("div","notes-title","推品图"));
+    const status = el("div","save-status");
+    status.id = "status-"+s.id;
+    nHead.appendChild(status);
+    notes.appendChild(nHead);
+
+    const rootWrap = el("div","mm-root-wrap");
+    rootWrap.appendChild(el("div","mm-root", s.title));
+    notes.appendChild(rootWrap);
+
+    const tabs = el("div","page-tabs");
+    BRANCHES.forEach((b, i) => {
+      const tab = el("button","page-tab "+b.key+(i===0?" is-on":""), b.label);
+      tab.type = "button";
+      tab.dataset.page = b.key;
+      tab.dataset.step = s.id;
+      tabs.appendChild(tab);
+    });
+    notes.appendChild(tabs);
+
+    BRANCHES.forEach((b, i) => {
+      const panel = el("div","page-panel"+(i===0?" is-on":""));
+      panel.dataset.page = b.key;
+      panel.dataset.step = s.id;
+
+      const cols = el("div","mm-cols");
+      const col = el("div","mm-col "+b.key);
+      const h = el("div","mm-col-h");
+      h.appendChild(el("span",null,b.label+"节点"));
+      const add = el("button","mm-add","+");
+      add.type = "button";
+      add.dataset.add = b.key;
+      add.dataset.step = s.id;
+      add.title = "添加节点";
+      h.appendChild(add);
+      col.appendChild(h);
+      const list = el("div","mm-list");
+      list.id = "list-"+s.id+"-"+b.key;
+      col.appendChild(list);
+      cols.appendChild(col);
+      panel.appendChild(cols);
+      panel.appendChild(el("div","mm-hint","本页只改「"+b.label+"」· 回车加同级 · Tab 加子节点"));
+
+      const pad = el("div","notes-pad");
+      const ta = document.createElement("textarea");
+      ta.id = "note-"+s.id+"-"+b.key;
+      ta.placeholder = b.ph;
+      pad.appendChild(ta);
+      panel.appendChild(pad);
+      notes.appendChild(panel);
+    });
+
+    const nFoot = el("div","notes-foot");
+    const resetOne = el("button","chip-status","恢复本步模板");
+    resetOne.dataset.reset = s.id;
+    nFoot.appendChild(resetOne);
+    notes.appendChild(nFoot);
+
+    body.appendChild(notes);
+    step.appendChild(body);
+    if(s.id === 9) mountBudgetBoard(step);
+    main.appendChild(step);
+  });
+}
+
+function flashSaved(stepId, msg){
+  const elStatus = document.getElementById("status-"+stepId);
+  if(!elStatus) return;
+  elStatus.textContent = msg;
+  if(msg === "已保存"){
+    setTimeout(()=>{ if(elStatus.textContent === "已保存") elStatus.textContent = ""; }, 1200);
+  }
+}
+
+function scheduleSave(stepId){
+  flashSaved(stepId, "保存中…");
+  clearTimeout(saveTimers[stepId]);
+  saveTimers[stepId] = setTimeout(()=> saveTree(stepId), 500);
+}
+
+async function saveTree(stepId){
+  try{
+    await store.set("mmap:"+stepId, JSON.stringify(trees[stepId]));
+    flashSaved(stepId, "已保存");
+    await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(Date.now()));
+    scheduleCloudSave();
+  }catch(e){
+    flashSaved(stepId, "保存失败");
+    console.error(e);
+  }
+}
+
+async function saveNote(stepId, branchKey, value){
+  try{
+    await store.set("note:"+stepId+":"+branchKey, value);
+    flashSaved(stepId, "已保存");
+    refreshPageDots(stepId);
+    await storeRaw.set("user:"+getUserId()+":hs-playbook:updatedAt", String(Date.now()));
+    scheduleCloudSave();
+  }catch(e){
+    flashSaved(stepId, "保存失败");
+    console.error(e);
+  }
+}
+
+function noteValue(stepId, key){
+  const ta = document.getElementById("note-"+stepId+"-"+key);
+  return ta ? ta.value : "";
+}
+
+function setNoteValue(stepId, key, value){
+  const ta = document.getElementById("note-"+stepId+"-"+key);
+  if(ta) ta.value = value || "";
+}
+
+function showPage(stepId, key){
+  const notes = document.querySelector('.notes[data-step="'+stepId+'"]');
+  if(!notes) return;
+  notes.querySelectorAll(".page-tab").forEach(t => t.classList.toggle("is-on", t.dataset.page === key));
+  notes.querySelectorAll(".page-panel").forEach(p => p.classList.toggle("is-on", p.dataset.page === key));
+}
+
+function refreshPageDots(stepId){
+  BRANCHES.forEach(b => {
+    const tab = document.querySelector('.page-tab[data-step="'+stepId+'"][data-page="'+b.key+'"]');
+    if(tab) tab.classList.toggle("has-text", !!(noteValue(stepId, b.key).trim()));
+  });
+  const filled = BRANCHES.some(b => noteValue(stepId, b.key).trim());
+  updateNavCheck(stepId, filled ? "done" : "todo");
+}
+
+async function clearStepNotes(stepId){
+  for(const b of BRANCHES){
+    setNoteValue(stepId, b.key, "");
+    try{ await store.del("note:"+stepId+":"+b.key); }catch(e){}
+  }
+  try{ await store.del("note:"+stepId); }catch(e){}
+  refreshPageDots(stepId);
+}
+
+async function loadStepNotes(stepId){
+  let legacy = "";
+  try{ legacy = (await store.get("note:"+stepId)) || ""; }catch(e){}
+  for(const b of BRANCHES){
+    let val = "";
+    try{ val = (await store.get("note:"+stepId+":"+b.key)) || ""; }catch(e){}
+    if(!val && b.key === "plan" && legacy) val = legacy;
+    setNoteValue(stepId, b.key, val);
+  }
+  refreshPageDots(stepId);
+}
+
+function addChild(stepId, branchKey, parentId){
+  const tree = trees[stepId];
+  const node = {id: uid(), text:"", children:[]};
+  if(!parentId){
+    tree[branchKey].children.push(node);
+  }else{
+    const hit = findNode(tree[branchKey].children, parentId);
+    if(!hit) return;
+    hit.node.children = hit.node.children || [];
+    hit.node.children.push(node);
+  }
+  renderMap(stepId);
+  selected = {step:stepId, branch:branchKey, id:node.id};
+  const card = document.querySelector('.mm-card[data-id="'+node.id+'"]');
+  if(card){
+    card.classList.add("is-sel");
+    const t = card.querySelector(".mm-text");
+    t.focus();
+  }
+  scheduleSave(stepId);
+}
+
+function addSibling(stepId, branchKey, nodeId){
+  const tree = trees[stepId];
+  const hit = findNode(tree[branchKey].children, nodeId);
+  if(!hit) return;
+  const node = {id: uid(), text:"", children:[]};
+  const idx = hit.list.indexOf(hit.node);
+  hit.list.splice(idx+1, 0, node);
+  renderMap(stepId);
+  selected = {step:stepId, branch:branchKey, id:node.id};
+  const card = document.querySelector('.mm-card[data-id="'+node.id+'"]');
+  if(card){
+    card.classList.add("is-sel");
+    card.querySelector(".mm-text").focus();
+  }
+  scheduleSave(stepId);
+}
+
+function removeNode(stepId, branchKey, nodeId){
+  const tree = trees[stepId];
+  const hit = findNode(tree[branchKey].children, nodeId);
+  if(!hit) return;
+  const idx = hit.list.indexOf(hit.node);
+  hit.list.splice(idx, 1);
+  selected = {step:null, branch:null, id:null};
+  renderMap(stepId);
+  scheduleSave(stepId);
+}
+
+function updateNavCheck(stepId, status){
+  const link = document.querySelector('nav.steps a[data-step="'+stepId+'"]');
+  if(link) link.classList.toggle("done", status === "done");
+}
+
+function nodeListText(nodes, prefix){
+  let lines = [];
+  (nodes || []).forEach(n => {
+    const t = (n.text || "").trim();
+    if(t) lines.push(prefix + t);
+    if(n.children && n.children.length){
+      lines = lines.concat(nodeListText(n.children, prefix + "  "));
+    }
+  });
+  return lines;
+}
+
+function caseLine(){
+  const site = document.getElementById("caseSite").value.trim();
+  const asin = document.getElementById("caseAsin").value.trim();
+  const name = document.getElementById("caseName").value.trim();
+  const price = document.getElementById("casePrice").value.trim();
+  return [site && ("站点 "+site), asin && ("ASIN "+asin), name && name, price && ("售价 "+price)].filter(Boolean).join(" · ");
+}
+
+function buildMarkdown(){
+  const head = caseLine();
+  let md = "# 亚马逊推品计划\n\n";
+  if(head) md += "> "+head+"\n\n";
+  STEPS.forEach(s => {
+    const t = trees[s.id];
+    md += "## 0"+s.id+" "+s.title+"\n\n";
+    BRANCHES.forEach(b => {
+      md += "### "+b.label+"\n";
+      const lines = nodeListText(t[b.key].children, "- ");
+      md += (lines.length ? lines.join("\n") : "- （空）") + "\n\n";
+      const note = noteValue(s.id, b.key).trim();
+      if(note) md += note.split("\n").map(line => "  "+line).join("\n") + "\n\n";
+    });
+  });
+  return md;
+}
+
+function openMaster(){
+  const meta = document.getElementById("masterMeta");
+  meta.textContent = caseLine() || "九步方案 / 可能异常 / 备用方案，三页互不覆盖。";
+  const body = document.getElementById("masterBody");
+  body.innerHTML = "";
+  STEPS.forEach(s => {
+    const wrap = el("div","master-step");
+    wrap.appendChild(el("h4",null, "0"+s.id+"  "+s.title));
+    const grid = el("div","master-grid");
+    BRANCHES.forEach(b => {
+      const col = el("div","master-col "+b.key);
+      col.appendChild(el("b",null,b.label));
+      const ul = el("ul");
+      const lines = nodeListText(trees[s.id][b.key].children, "");
+      if(!lines.length) ul.appendChild(el("li",null,"（空）"));
+      else lines.forEach(t => ul.appendChild(el("li",null,t.trim())));
+      col.appendChild(ul);
+      const note = noteValue(s.id, b.key).trim();
+      if(note){
+        const p = el("p",null,note);
+        p.style.margin = "8px 0 0";
+        p.style.whiteSpace = "pre-wrap";
+        col.appendChild(p);
+      }
+      grid.appendChild(col);
+    });
+    wrap.appendChild(grid);
+    body.appendChild(wrap);
+  });
+  document.getElementById("masterModal").classList.add("open");
+}
+
+function exportPlan(){
+  const md = buildMarkdown();
+  const blob = new Blob([md], {type:"text/markdown;charset=utf-8"});
+  const a = document.createElement("a");
+  const asin = (document.getElementById("caseAsin").value || "asin").replace(/[^\w-]/g,"");
+  a.href = URL.createObjectURL(blob);
+  a.download = "推品计划-"+asin+".md";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function esc(s){
+  return String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+function exportPdf(){
+  const who = USER.name || USER.id;
+  const head = caseLine() || "空白计划";
+  let body = "";
+  STEPS.forEach(s => {
+    body += "<section><h2>0"+s.id+" "+esc(s.title)+"</h2>";
+    body += "<div class='grid'>";
+    BRANCHES.forEach(b => {
+      const lines = nodeListText(trees[s.id][b.key].children, "");
+      body += "<div class='col "+b.key+"'><h3>"+esc(b.label)+"</h3><ul>";
+      if(!lines.length) body += "<li>（空）</li>";
+      else lines.forEach(t => { body += "<li>"+esc(t.trim())+"</li>"; });
+      body += "</ul></div>";
+    });
+    body += "</div>";
+    BRANCHES.forEach(b => {
+      const note = noteValue(s.id, b.key).trim();
+      if(note) body += "<div class='note'><h3>"+esc(b.label)+" · 手写</h3><pre>"+esc(note)+"</pre></div>";
+    });
+    body += "</section>";
+  });
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>推品计划 ${esc(head)}</title>
+<style>
+  @page{ size:A4; margin:16mm 14mm; }
+  body{ font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#1c2438; font-size:12px; line-height:1.65; }
+  h1{ font-size:20px; margin:0 0 6px; }
+  .meta{ color:#6b7280; margin:0 0 18px; }
+  section{ break-inside:avoid; margin:0 0 18px; padding-bottom:12px; border-bottom:1px solid #e4dcc6; }
+  h2{ font-size:15px; margin:0 0 8px; }
+  h3{ font-size:12px; margin:0 0 6px; letter-spacing:.06em; }
+  .grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .col{ background:#faf6ec; padding:8px 10px; border-radius:4px; }
+  .col.plan h3{ color:#3d5a80; } .col.risk h3{ color:#a5352b; } .col.fix h3{ color:#4f7a4f; }
+  ul{ margin:0; padding-left:16px; }
+  .note pre{ white-space:pre-wrap; font-family:inherit; margin:0; background:#fffdf8; padding:8px; border:1px solid #e4dcc6; }
+  .foot{ margin-top:20px; color:#6b7280; font-size:11px; }
+</style></head><body>
+<h1>泓森拓创 · 亚马逊推品计划</h1>
+<p class="meta">运营：${esc(who)} · ${esc(head)}</p>
+${body}
+<p class="foot">导出时间 ${esc(new Date().toLocaleString("zh-CN"))} · 仅该运营可见的计划副本</p>
+</body></html>`;
+  const w = window.open("", "_blank");
+  if(!w){
+    alert("浏览器拦截了弹窗，请允许后重试，或用系统打印保存为 PDF。");
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { try{ w.print(); }catch(e){} }, 250);
+}
+
+function buildBackup(){
+  const steps = {};
+  STEPS.forEach(s => {
+    const notes = {};
+    BRANCHES.forEach(b => { notes[b.key] = noteValue(s.id, b.key); });
+    steps[s.id] = { mmap: trees[s.id], notes };
+  });
+  return {
+    version: 2,
+    kind: "hongsen-growth-playbook",
+    owner: USER,
+    meta: readCase(),
+    budget: readBudgetForm(),
+    steps
+  };
+}
+
+function exportBackup(){
+  const raw = JSON.stringify(buildBackup(), null, 2);
+  const blob = new Blob([raw], {type:"application/json;charset=utf-8"});
+  const a = document.createElement("a");
+  const asin = (document.getElementById("caseAsin").value || "plan").replace(/[^\w-]/g,"");
+  a.href = URL.createObjectURL(blob);
+  a.download = "推品计划-"+asin+"-"+USER.id+".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function importBackup(data){
+  if(!data || data.kind !== "hongsen-growth-playbook" || !data.steps){
+    alert("不是有效的推品计划备份文件。");
+    return;
+  }
+  const ok = await createBlankPlan();
+  if(!ok) return;
+  applyCase(data.meta || {});
+  for(const s of STEPS){
+    const pack = data.steps[s.id];
+    if(!pack) continue;
+    if(pack.mmap && pack.mmap.plan && pack.mmap.risk && pack.mmap.fix){
+      trees[s.id] = pack.mmap;
+      renderMap(s.id);
+      await store.set("mmap:"+s.id, JSON.stringify(trees[s.id]));
+    }
+    const notes = pack.notes || {};
+    if(!pack.notes && pack.note) notes.plan = pack.note;
+    for(const b of BRANCHES){
+      const val = notes[b.key] || "";
+      setNoteValue(s.id, b.key, val);
+      await store.set("note:"+s.id+":"+b.key, val);
+    }
+    showPage(s.id, "plan");
+    refreshPageDots(s.id);
+  }
+  applyBudgetForm(data.budget || defaultBudget());
+  await saveBudget();
+  await touchPlanMeta();
+}
+
+function attachMapEvents(){
+  document.getElementById("main").addEventListener("click", (e) => {
+    const tab = e.target.closest(".page-tab");
+    if(tab){
+      showPage(+tab.dataset.step, tab.dataset.page);
+      return;
+    }
+    const add = e.target.closest("[data-add]");
+    if(add){
+      const stepId = +add.dataset.step;
+      const branch = add.dataset.add;
+      const parentId = (selected.step === stepId && selected.branch === branch) ? selected.id : null;
+      addChild(stepId, branch, parentId);
+      return;
+    }
+    const reset = e.target.closest("[data-reset]");
+    if(reset){
+      const stepId = +reset.dataset.reset;
+      const step = STEPS.find(s => s.id === stepId);
+      if(!confirm("恢复第 "+stepId+" 步的默认节点？已填写的内容会替换成模板。")) return;
+      trees[stepId] = defaultTree(step);
+      renderMap(stepId);
+      scheduleSave(stepId);
+      return;
+    }
+    const x = e.target.closest(".mm-x");
+    if(x){
+      const card = x.closest(".mm-card");
+      removeNode(+card.dataset.step, card.dataset.branch, card.dataset.id);
+      return;
+    }
+    const card = e.target.closest(".mm-card");
+    document.querySelectorAll(".mm-card.is-sel").forEach(c => c.classList.remove("is-sel"));
+    if(card){
+      card.classList.add("is-sel");
+      selected = {step:+card.dataset.step, branch:card.dataset.branch, id:card.dataset.id};
+    }else{
+      selected = {step:null, branch:null, id:null};
+    }
+  });
+
+  document.getElementById("main").addEventListener("input", (e) => {
+    const text = e.target.closest(".mm-text");
+    if(!text) return;
+    const card = text.closest(".mm-card");
+    const stepId = +card.dataset.step;
+    const hit = findNode(trees[stepId][card.dataset.branch].children, card.dataset.id);
+    if(hit) hit.node.text = text.textContent;
+    scheduleSave(stepId);
+  });
+
+  document.getElementById("main").addEventListener("paste", (e) => {
+    if(!e.target.closest(".mm-text")) return;
+    e.preventDefault();
+    const t = (e.clipboardData || window.clipboardData).getData("text/plain");
+    document.execCommand("insertText", false, t.replace(/\s+/g," ").trim());
+  });
+
+  document.getElementById("main").addEventListener("keydown", (e) => {
+    const text = e.target.closest(".mm-text");
+    if(!text) return;
+    const card = text.closest(".mm-card");
+    const stepId = +card.dataset.step;
+    const branch = card.dataset.branch;
+    const id = card.dataset.id;
+    if(e.key === "Enter" && !e.shiftKey){
+      e.preventDefault();
+      addSibling(stepId, branch, id);
+    }else if(e.key === "Tab"){
+      e.preventDefault();
+      addChild(stepId, branch, id);
+    }else if(e.key === "Backspace" && text.textContent === "" && !e.repeat){
+      const hit = findNode(trees[stepId][branch].children, id);
+      if(hit && hit.list.length > 0){
+        e.preventDefault();
+        removeNode(stepId, branch, id);
+      }
+    }
+  });
+}
+
+function playbookConfirm(message, opts){
+  opts = opts || {};
+  return new Promise(function(resolve){
+    try{
+      if(window.parent && window.parent !== window && typeof window.parent.opsConfirm === "function"){
+        window.parent.opsConfirm(message).then(resolve);
+        return;
+      }
+    }catch(e){}
+    const modal = document.getElementById("confirmModal");
+    const title = document.getElementById("confirmTitle");
+    const msg = document.getElementById("confirmMsg");
+    const okBtn = document.getElementById("confirmOk");
+    const cancelBtn = document.getElementById("confirmCancel");
+    if(!modal || !okBtn || !cancelBtn){
+      resolve(window.confirm(String(message || "确定？")));
+      return;
+    }
+    title.textContent = opts.title || "请确认";
+    msg.textContent = message;
+    okBtn.textContent = opts.okLabel || "确定";
+    function finish(ok){
+      modal.classList.remove("open");
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      modal.removeEventListener("click", onBackdrop);
+      document.removeEventListener("keydown", onKey);
+      resolve(ok);
+    }
+    function onOk(){ finish(true); }
+    function onCancel(){ finish(false); }
+    function onBackdrop(e){ if(e.target.id === "confirmModal") finish(false); }
+    function onKey(e){ if(e.key === "Escape") finish(false); }
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    modal.addEventListener("click", onBackdrop);
+    document.addEventListener("keydown", onKey);
+    modal.classList.add("open");
+    cancelBtn.focus();
+  });
+}
+
+function attachHandlers(){
+  attachMapEvents();
+
+  STEPS.forEach(s => {
+    BRANCHES.forEach(b => {
+      const ta = document.getElementById("note-"+s.id+"-"+b.key);
+      if(!ta) return;
+      ta.addEventListener("input", () => {
+        flashSaved(s.id, "保存中…");
+        clearTimeout(saveTimers["note"+s.id+b.key]);
+        saveTimers["note"+s.id+b.key] = setTimeout(() => saveNote(s.id, b.key, ta.value), 600);
+      });
+    });
+  });
+
+  const pullBtn = document.getElementById("pullCloudBtn");
+  if(pullBtn) pullBtn.addEventListener("click", function(){ pullCloudToLocal(); });
+  const uploadBtn = document.getElementById("uploadLocalBtn");
+  if(uploadBtn) uploadBtn.addEventListener("click", function(){ uploadLocalToCloud(); });
+
+  document.getElementById("resetBtn").addEventListener("click", async () => {
+    const label = planLabel(readCase()) || "当前这份空白计划";
+    const ok = await playbookConfirm(
+      "确定清空「" + label + "」吗？\n\n九步导图和笔记都会清掉，不能恢复。只清这一份，其他计划和同事的数据都不受影响。",
+      { title: "清空当前计划", okLabel: "确定清空" }
+    );
+    if(!ok) return;
+    for(const s of STEPS){
+      trees[s.id] = defaultTree(s);
+      renderMap(s.id);
+      try{ await store.del("mmap:"+s.id); }catch(e){}
+      await clearStepNotes(s.id);
+      showPage(s.id, "plan");
+    }
+  });
+
+  ["caseSite","caseAsin","caseName","casePrice"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+      if(id === "casePrice") scheduleBudget();
+      clearTimeout(saveTimers.meta);
+      saveTimers.meta = setTimeout(() => touchPlanMeta(), 400);
+    });
+  });
+
+  document.getElementById("planSelect").addEventListener("change", async (e) => {
+    const id = e.target.value;
+    if(refreshingSelect || !id || id === planId) return;
+    await persistCurrentPlanLocal();
+    await openPlan(id);
+  });
+  document.getElementById("caseNameSelect").addEventListener("change", async (e) => {
+    const id = e.target.value;
+    if(refreshingSelect || !id || id === planId) return;
+    await persistCurrentPlanLocal();
+    await openPlan(id);
+  });
+  document.getElementById("newPlanBtn").addEventListener("click", async () => {
+    await createBlankPlan();
+  });
+  document.getElementById("deletePlanBtn").addEventListener("click", async () => {
+    await deleteCurrentPlan();
+  });
+  document.getElementById("pdfBtn").addEventListener("click", exportPdf);
+  document.getElementById("exportJsonBtn").addEventListener("click", exportBackup);
+  document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
+  document.getElementById("importFile").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if(!file) return;
+    try{
+      const data = JSON.parse(await file.text());
+      await importBackup(data);
+    }catch(err){
+      alert("导入失败：文件不是 JSON 备份。");
+    }
+  });
+
+  document.getElementById("masterBtn").addEventListener("click", openMaster);
+  document.getElementById("masterExport").addEventListener("click", exportPlan);
+  document.getElementById("masterClose").addEventListener("click", () => {
+    document.getElementById("masterModal").classList.remove("open");
+  });
+  document.getElementById("masterModal").addEventListener("click", (e) => {
+    if(e.target.id === "masterModal") e.target.classList.remove("open");
+  });
+
+  const links = document.querySelectorAll("nav.steps a");
+  const sections = STEPS.map(s => document.getElementById("step-"+s.id));
+  const obs = new IntersectionObserver((entries) => {
+    const vis = entries.filter(en => en.isIntersecting).sort((a,b)=> b.intersectionRatio - a.intersectionRatio)[0];
+    if(!vis) return;
+    links.forEach(l => l.classList.remove("is-current"));
+    const active = document.querySelector('nav.steps a[data-step="'+vis.target.id.split("-")[1]+'"]');
+    if(active) active.classList.add("is-current");
+  }, {rootMargin:"-40% 0px -50% 0px", threshold:[0.1,0.25,0.5]});
+  sections.forEach(sec => {
+    if(sec instanceof Element) obs.observe(sec);
+  });
+
+  const board = document.getElementById("budgetBoard");
+  bindBudgetLive(board);
+}
+
+async function loadStepsData(){
+  for(const s of STEPS){
+    trees[s.id] = defaultTree(s);
+    try{
+      const raw = await store.get("mmap:"+s.id);
+      if(raw){
+        const parsed = JSON.parse(raw);
+        if(parsed && parsed.plan && parsed.risk && parsed.fix) trees[s.id] = parsed;
+      }
+    }catch(e){}
+    renderMap(s.id);
+    await loadStepNotes(s.id);
+    showPage(s.id, "plan");
+  }
+  await loadBudget();
+}
+
+function paintWhoLabel(){
+  const text = "运营：" + (USER && USER.name ? USER.name : "访客");
+  ["whoLabel", "whoLabelDock"].forEach(function(id){
+    const who = document.getElementById(id);
+    if(who) who.textContent = text;
+  });
+}
+function applyPlaybookUser(next){
+  let incoming = next && (next.id || next.name)
+    ? { id: String(next.id || next.name), name: String(next.name || next.id) }
+    : readPlaybookUser();
+  if(isGuestUser(incoming)){
+    const live = readPlaybookUser();
+    if(!isGuestUser(live)) incoming = live;
+  }
+  const prevId = getUserId();
+  USER = incoming;
+  if(prevId === getUserId()) return;
+  planId = "";
+  paintWhoLabel();
+  loadAll();
+}
+let loadGen = 0;
+async function loadAll(){
+  const gen = ++loadGen;
+  await waitForPlaybookUser();
+  if(gen !== loadGen) return;
+  paintWhoLabel();
+  if(!isGuestUser(USER)){
+    const moved = await mergeLocalPlaybooksIntoUser(getUserId());
+    if(gen !== loadGen) return;
+    if(moved) setCloudHint("云端：已合并本机草稿，准备上传…");
+  }
+  await hydrateFromCloud();
+  if(gen !== loadGen) return;
+
+  const params = new URLSearchParams(location.search);
+  const wantNew = params.get("new") === "1";
+  const wantPlan = params.get("plan");
+  let idx = await loadIndex();
+  if(gen !== loadGen) return;
+
+  if(wantNew){
+    const ok = await createBlankPlan();
+    if(!ok){
+      const last = await storeRaw.get(lastKey());
+      if(last && idx.some(p => p.id === last)) await openPlan(last);
+      else if(idx[0]) await openPlan(idx[0].id);
+    }
+    return;
+  }
+
+  if(wantPlan && idx.some(p => p.id === wantPlan)){
+    await openPlan(wantPlan);
+    return;
+  }
+
+  const last = await storeRaw.get(lastKey());
+  if(last && idx.some(p => p.id === last)){
+    await openPlan(last);
+    return;
+  }
+  if(idx[0]){
+    await openPlan(idx[0].id);
+    return;
+  }
+  await createBlankPlan({ silent:true });
+}
+
+if(window.parent !== window) document.body.classList.add("embedded");
+renderSteps();
+attachHandlers();
+window.addEventListener("message", function(ev){
+  const d = ev && ev.data;
+  if(d && d.type === "ops-user-changed") applyPlaybookUser(d.user);
+});
+window.addEventListener("focus", function(){ applyPlaybookUser(readPlaybookUser()); });
+document.addEventListener("visibilitychange", function(){
+  if(document.hidden){
+    if(cloudTimer){ clearTimeout(cloudTimer); cloudTimer = null; }
+    flushCloudSave();
+    return;
+  }
+  applyPlaybookUser(readPlaybookUser());
+});
+window.addEventListener("pagehide", function(){
+  if(cloudTimer){ clearTimeout(cloudTimer); cloudTimer = null; }
+  flushCloudSave();
+});
+setInterval(function(){ applyPlaybookUser(readPlaybookUser()); }, 2000);
+loadAll();
+</script>
+</body>
+</html>

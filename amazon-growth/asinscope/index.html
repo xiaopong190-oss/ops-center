@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>完整竞品分析 · 西柚运营</title>
+<meta name="description" content="和调用台共用接口证据的完整竞品分析。结论、权重、任务历史只留在本页。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍊</text></svg>">
+<link rel="stylesheet" href="assets/style.css?v=20260913-guide1">
+</head>
+<body>
+<a class="skip" href="#workspace">跳到工作区</a>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="brand">
+      <div class="eyebrow">Xiyou MCP · Amazon Ops</div>
+      <h1>完整竞品分析</h1>
+      <nav class="app-switch" aria-label="工具切换">
+        <a href="/">运营调用台</a>
+        <a href="/asinscope/" class="on" aria-current="page">完整竞品分析</a>
+        <a href="/watchlist/">监控清单</a>
+        <a href="/launch-plan/">推品计划</a>
+        <a href="/keywords/">关键词库</a>
+      </nav>
+    </div>
+    <button type="button" class="conn off" id="connBar" title="连接组在调用台">
+      <span class="dot"></span><span>网关未通</span>
+    </button>
+    <div class="mast-actions">
+      <button class="btn mini" id="themeBtn" type="button" title="切换浅色 / 深色 / 跟随系统">自动</button>
+      <button class="btn" id="onlyCacheBtn" type="button">仅用已有数据</button>
+      <button class="btn btn-primary" id="cfgBtn" type="button">分析配置</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="workspace">
+  <section class="usage-guide" aria-labelledby="usage-title">
+    <h2 id="usage-title">使用说明</h2>
+    <p><b>设置对象：</b>填写目标 ASIN 和站点；需要横向比较时，再添加最多 5 个竞品 ASIN。</p>
+    <p><b>选择深度：</b>快速、标准、深度对应不同取数范围；可先看缓存命中，或选择“仅用已有数据”。</p>
+    <p><b>阅读报告：</b>九章报告会区分证据、判断与数据边界；缺失字段显示数据不足，不写成零。</p>
+  </section>
+  <div class="cols">
+
+    <aside class="rail">
+      <section class="panel">
+        <div class="panel-hd">
+          <h2>参数</h2>
+          <div class="panel-tools">
+            <button class="btn mini" id="clearBtn" type="button">清空</button>
+          </div>
+        </div>
+        <div class="panel-bd">
+          <div class="field need" id="f-asin">
+            <label for="asin">目标 ASIN</label>
+            <input id="asin" placeholder="B0XXXXXXXX" maxlength="10" autocomplete="off">
+          </div>
+          <div class="field" id="f-site">
+            <label for="site">站点</label>
+            <select id="site">
+              <option>US</option><option>UK</option><option>DE</option><option>JP</option>
+              <option>FR</option><option>IT</option><option>ES</option><option>CA</option>
+              <option>MX</option><option>AU</option><option>IN</option><option>NL</option><option>SE</option>
+            </select>
+          </div>
+          <div class="field" id="f-asins">
+            <label for="cmp">对比 ASIN（回车添加，最多 5 个）</label>
+            <input id="cmp" placeholder="B0XXXXXXXX" autocomplete="off">
+            <div class="cmp-chips" id="cmpList"></div>
+          </div>
+          <div class="row2">
+            <div class="field" id="f-from"><label for="from">起始日期</label><input id="from" type="date"></div>
+            <div class="field" id="f-to"><label for="to">结束日期</label><input id="to" type="date"></div>
+          </div>
+        </div>
+      </section>
+
+      <details class="panel tips tips-fold">
+        <summary>取数纪律</summary>
+        <div class="panel-bd">
+          <p><b>共享证据。</b>和调用台走同一本机网关。打开页面不会取数；先看缓存命中，再决定是否补口。</p>
+          <p><b>本页边界。</b>结论、权重、任务历史只留在本页，不会写回调用台场景。</p>
+          <p><b>缺字段。</b>没跑过的接口写数据不足，不补零。日快照条数不是改版次数。</p>
+        </div>
+      </details>
+    </aside>
+
+    <div class="main">
+      <section class="panel run" id="runWrap">
+        <div id="runPanel">
+          <div class="run-hd">
+            <div>
+              <div class="run-mod">完整竞品 · 九章规则</div>
+              <h2 class="run-t">完整竞品分析</h2>
+              <p class="run-g">和调用台共用接口证据。结论、权重、任务历史只留在本页，互不影响。</p>
+            </div>
+            <div class="run-actions">
+              <div class="modes" role="group" aria-label="分析深度">
+                <button type="button" data-mode="quick">快速</button>
+                <button type="button" class="on" data-mode="standard">标准</button>
+                <button type="button" data-mode="deep">深度</button>
+              </div>
+              <button class="btn btn-primary btn-analyze" id="runBtn" type="button">开始分析</button>
+            </div>
+          </div>
+          <p class="stepline" id="cost">打开页面不会调用 MCP。先看缓存命中，再决定是否取数。</p>
+        </div>
+      </section>
+
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-report" aria-selected="true" aria-controls="reportView" data-view="report">分析报告</button>
+        <button class="tab" role="tab" id="tab-history" aria-selected="false" aria-controls="historyView" data-view="history">任务历史</button>
+      </div>
+
+      <div id="reportView" role="tabpanel" aria-labelledby="tab-report">
+        <div class="empty-box" id="emptyBox">
+          <p class="empty">填好左侧目标 ASIN 后点开始分析。</p>
+          <p class="hint">选中「仅用已有数据」时，只读缓存，不会发起新的 MCP 调用。</p>
+        </div>
+        <div id="reportBody" hidden>
+          <div class="report-metrics" id="cards"></div>
+          <div class="layout">
+            <nav class="chap-nav panel" id="nav" aria-label="章节"></nav>
+            <div id="sections"></div>
+          </div>
+        </div>
+      </div>
+
+      <section class="hist panel" id="historyView" hidden role="tabpanel" aria-labelledby="tab-history">
+        <div class="panel-hd"><h2>本工具任务历史</h2></div>
+        <div class="panel-bd">
+          <p class="hint">存在 asinscope 自己的浏览器存储。回到调用台或刷新那边，不会丢掉这里的报告。</p>
+          <div id="history"></div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>本页只读共享证据网关。数据版权与准确性归西柚 / 卖家精灵。连接组在运营调用台设置，密钥不会出现在本页。</p>
+  </div>
+</footer>
+
+<div class="modal" id="cfg" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-label="分析配置">
+    <div class="modal-hd">
+      <h2>本工具权重与阈值</h2>
+      <button class="btn mini" id="cfgClose" type="button">关闭</button>
+    </div>
+    <div class="modal-bd">
+      <p class="note">这些数字只影响本页归因，不会写进共享证据，也不会改调用台场景。</p>
+      <div class="field"><label for="w-ads">广告权重</label><input id="w-ads" type="number"></div>
+      <div class="field"><label for="w-keyword">关键词权重</label><input id="w-keyword" type="number"></div>
+      <div class="field"><label for="w-price">价格权重</label><input id="w-price" type="number"></div>
+      <div class="field"><label for="w-listing">Listing 权重</label><input id="w-listing" type="number"></div>
+      <div class="field"><label for="t-price">价格动作阈值 %</label><input id="t-price" type="number"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="cfgSave" type="button">保存配置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="assets/mcp-client.js?v=20260912-ui1"></script>
+<script src="assets/analyze.js?v=20260912-ui1"></script>
+<script src="assets/app.js?v=20260912-ui1"></script>
+</body>
+</html>

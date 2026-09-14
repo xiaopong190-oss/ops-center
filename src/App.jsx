@@ -6,6 +6,7 @@ import { AgentsPanel } from "./AgentsModule.jsx";
 import { KnowledgePanel, KeywordPanel } from "./KnowledgeModule.jsx";
 import { HomePanel } from "./HomeModule.jsx";
 import { KpiPanel } from "./KpiModule.jsx";
+import { AmazonGrowthPanel } from "./OperationsHubModule.jsx";
 import { GlobalSettingsModal, ChangePasswordModal, OwnerField, getStaffRole, RoleBadge, getStaffNames, STAFF_ROLE_OPTIONS, ROLE_COLORS, getSuperPassword, getPersonLoginCode, getLoginStaff, fetchGlobalConfigFromCloud, loadGlobalConfig } from "./GlobalConfig.jsx";
 import { UserContext, useCurrentUser } from "./context/UserContext.jsx";
 import { getCurrentUser, setCurrentUser, clearCurrentUser, useSharedList } from "./utils/storage.js";
@@ -211,6 +212,7 @@ function TasksPanel({ active = true }) {
 const TABS = [
   { key: "home", label: "首页", icon: "home" },
   { key: "tasks", label: "任务跟进", icon: "tasks" },
+  { key: "amazon-growth", label: "亚马逊增长", icon: "keywords" },
   { key: "logistics", label: "物流头程", icon: "logistics" },
   { key: "production", label: "精品生产", icon: "production" },
   { key: "kpi", label: "考核", icon: "kpi" },
@@ -413,7 +415,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
     setTab(key);
     setNavOpen(false);
   };
-  const showCloudBar = tab !== "home" && tab !== "knowledge" && tab !== "keywords";
+  const showCloudBar = tab !== "home" && tab !== "knowledge" && tab !== "keywords" && tab !== "amazon-growth";
   const css = {
     "--bg": dark ? "#0d0d0d" : "#F4F7FE",
     "--card": dark ? "#1a1a1a" : "#FFFFFF",
@@ -469,10 +471,11 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           </div>
         </header>
 
-        <main className="ops-content" style={{ maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" ? 1280 : 960 }}>
+        <main className="ops-content" style={{ maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" || tab === "amazon-growth" ? 1280 : 960 }}>
           {showCloudBar && <GlobalCloudBar />}
           <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
+          <div style={{ display: tab === "amazon-growth" ? "block" : "none" }}><AmazonGrowthPanel /></div>
           <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
           <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
           <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>

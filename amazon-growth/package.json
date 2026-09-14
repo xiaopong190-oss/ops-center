@@ -1,0 +1,15 @@
+{
+  "name": "xiyou-amz-console",
+  "version": "1.0.0",
+  "private": true,
+  "description": "亚马逊运营调用台：44 个西柚接口、19 个卖家精灵补充接口与 31 条专业作业流",
+  "scripts": {
+    "start": "node proxy/server.js",
+    "dev": "node proxy/server.js",
+    "test": "node tests/adversarial.cjs && node tests/connections.cjs && node tests/local-report.cjs && node tests/visual-report.cjs && node tests/gateway.cjs && node tests/asinscope.cjs && node tests/watchlist.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

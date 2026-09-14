@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>西柚数据调用台 · 亚马逊运营</title>
+<meta name="description" content="44 个西柚接口加 19 个卖家精灵补充接口，编排成 31 条亚马逊运营作业流。">
+<script>
+  (function () {
+    var p = new URLSearchParams(location.search);
+    window.OPS_IS_SUPER = p.get("opsRole") === "super";
+    document.documentElement.setAttribute("data-ops-role", window.OPS_IS_SUPER ? "super" : "operator");
+    addEventListener("DOMContentLoaded", function () {
+      document.querySelectorAll(".app-switch a").forEach(function (a) {
+        var u = new URL(a.getAttribute("href"), location.origin);
+        ["embedded", "opsUser", "opsName", "opsRole"].forEach(function (k) { if (p.has(k)) u.searchParams.set(k, p.get(k)); });
+        a.href = u.pathname + u.search;
+      });
+    });
+  })();
+</script>
+<style>
+  html:not([data-ops-role="super"]) #connBar,
+  html:not([data-ops-role="super"]) #openSettings,
+  html:not([data-ops-role="super"]) #openConnections,
+  html:not([data-ops-role="super"]) #settings,
+  html:not([data-ops-role="super"]) #connectionsModal { display:none !important; }
+</style>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍊</text></svg>">
+<link rel="stylesheet" href="assets/style.css?v=20260913-guide1">
+</head>
+<body>
+<a class="skip" href="#workspace">跳到工作区</a>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="brand">
+      <div class="eyebrow">Xiyou MCP · Amazon Ops</div>
+      <h1>西柚数据调用台</h1>
+      <nav class="app-switch" aria-label="工具切换">
+        <a href="/" class="on" aria-current="page">运营调用台</a>
+        <a href="/asinscope/">完整竞品分析</a>
+        <a href="/watchlist/">监控清单</a>
+        <a href="/launch-plan/">推品计划</a>
+        <a href="/keywords/">关键词库</a>
+      </nav>
+    </div>
+    <button type="button" class="conn off" id="connBar" title="打开连接设置">
+      <span class="dot"></span><span>未连接</span>
+    </button>
+    <div class="mast-actions">
+      <button class="btn mini" id="themeBtn" type="button" title="切换浅色 / 深色 / 跟随系统">自动</button>
+      <button class="btn" id="openSettings" type="button">设置</button>
+      <button class="btn btn-primary" id="openConnections" type="button">连接组</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="workspace">
+  <section class="usage-guide" aria-labelledby="usage-title">
+    <h2 id="usage-title">使用说明</h2>
+    <p><b>选择作业：</b>先从右侧选择一个运营场景，系统会自动保留该场景所需参数。</p>
+    <p><b>填写与运行：</b>填写主 ASIN、站点、关键词或日期等必需信息，再检查连接组并开始调用。</p>
+    <p><b>查看结果：</b>报告基于西柚与卖家精灵返回的数据生成；空结果按数据不足处理，不补造结论。</p>
+  </section>
+  <div class="cols">
+
+    <!-- ============ 左栏：参数 ============ -->
+    <aside class="rail">
+      <section class="panel">
+        <div class="panel-hd">
+          <h2>参数</h2>
+          <div class="panel-tools">
+            <label class="more-toggle"><input type="checkbox" id="showAllParams"> 全部参数</label>
+            <button class="btn mini" id="clearBtn" type="button">清空</button>
+          </div>
+        </div>
+        <div class="panel-bd">
+          <div class="field" id="f-site">
+            <label for="p-site">站点</label>
+            <select id="p-site">
+              <option>US</option><option>UK</option><option>DE</option><option>JP</option>
+              <option>FR</option><option>IT</option><option>ES</option><option>CA</option>
+              <option>MX</option><option>AU</option><option>IN</option><option>NL</option><option>SE</option>
+            </select>
+          </div>
+          <div class="field" id="f-asin">
+            <label for="p-asin">主 ASIN</label>
+            <input id="p-asin" placeholder="B0XXXXXXXX" autocomplete="off">
+          </div>
+          <div class="field" id="f-asins">
+            <label for="p-asins">对比 ASIN（逗号分隔，≤20）</label>
+            <textarea id="p-asins" placeholder="B0AAA…, B0BBB…, B0CCC…"></textarea>
+          </div>
+          <div class="field" id="f-keyword">
+            <label for="p-kw">关键词（逗号或换行分隔，≤8）</label>
+            <textarea id="p-kw" placeholder="electric kettle, gooseneck electric kettle"></textarea>
+          </div>
+          <div class="field" id="f-category">
+            <label for="p-cat">类目 / 品类词</label>
+            <input id="p-cat" placeholder="类目名或用于搜索类目的品类词" autocomplete="off">
+          </div>
+          <div class="field" id="f-brand">
+            <label for="p-brand">品牌</label>
+            <input id="p-brand" placeholder="Brand" autocomplete="off">
+          </div>
+          <div class="field" id="f-correlationType">
+            <label for="p-correlation">关键词相关性</label>
+            <select id="p-correlation"><option value="high">高相关（默认）</option><option value="medium">中相关</option><option value="low">低相关</option></select>
+          </div>
+          <div class="row2">
+            <div class="field" id="f-from"><label for="p-from">起始日期</label><input id="p-from" type="date"></div>
+            <div class="field" id="f-to"><label for="p-to">结束日期</label><input id="p-to" type="date"></div>
+          </div>
+        </div>
+      </section>
+
+      <details class="panel tips tips-fold">
+        <summary>取数纪律</summary>
+        <div class="panel-bd">
+          <p><b>数据性质。</b>流量得分是相对值不是曝光量，订单量为模型推算，反查词随抓取批次浮动。跨接口对不上时以趋势方向为准。</p>
+          <p><b>类目前置。</b>所有 <code>get_category_*</code> 会先跑 <code>search_market_insight_categories</code> 和 <code>generate_category_insight_resource</code>，返回里的 category_id / resource_id 会自动带进后续步骤。</p>
+          <p><b>接口限制。</b>广告放映机仅 US / UK / DE；多 ASIN 对比上限 20 个；关键词最多 8 个，用逗号、分号或换行分开，词面空格保留；小时级排名按单日返回。填多个词时，每个词会各跑一遍关键词接口。</p>
+        </div>
+      </details>
+    </aside>
+
+    <!-- ============ 右栏 ============ -->
+    <div class="main">
+      <section class="panel run" id="runWrap">
+        <div id="runPanel">
+          <div class="empty-box">
+            <p class="empty">从下方选一个作业场景。</p>
+            <p class="hint">选中后，左侧会只留下这个场景需要的参数。</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-scenes" aria-selected="true" aria-controls="scenes" data-view="scenes">作业场景 · 31</button>
+        <button class="tab" role="tab" id="tab-tools" aria-selected="false" aria-controls="tools" data-view="tools">接口速查 · 63</button>
+      </div>
+      <div class="finder" id="sceneFinder">
+        <label class="sr-only" for="sceneQ">搜索场景</label>
+        <input id="sceneQ" type="search" placeholder="搜索场景、目标或接口名" autocomplete="off">
+        <div class="modchips" id="modChips"></div>
+      </div>
+      <div class="finder" id="toolFinder" hidden>
+        <label class="sr-only" for="toolQ">搜索接口</label>
+        <input id="toolQ" type="search" placeholder="搜索接口名或说明" autocomplete="off">
+      </div>
+
+      <div id="scenes" role="tabpanel" aria-labelledby="tab-scenes"></div>
+      <div id="tools" hidden role="tabpanel" aria-labelledby="tab-tools"></div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>本页只是西柚 MCP 的调用外壳，数据版权与准确性归西柚。密钥保存在你自己的浏览器 localStorage 或代理服务的环境变量里，不会上传到本仓库。</p>
+  </div>
+</footer>
+
+<!-- ============ 设置弹层 ============ -->
+<div class="modal" id="settings" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-label="连接设置">
+    <div class="modal-hd">
+      <h2>连接设置</h2>
+      <button class="btn mini" id="s-close">关闭</button>
+    </div>
+    <div class="modal-bd">
+
+      <div class="field">
+        <label for="s-mode">接入模式</label>
+        <select id="s-mode">
+          <option value="proxy">经代理（推荐，绕开 CORS、密钥留在服务端）</option>
+          <option value="direct">浏览器直连 MCP 端点</option>
+        </select>
+      </div>
+
+      <p class="note" id="proxyNote">代理模式请在服务端配置 MCP_ENDPOINT 和密钥，下面的 MCP 端点留空。请从 http://localhost:8787 打开本地页面。部署版还须配置 PROXY_TOKEN，并填写访问令牌。</p>
+      <div class="field"><label for="s-token">代理访问令牌</label><input id="s-token" type="password" autocomplete="off" placeholder="服务端 PROXY_TOKEN；本地未配置可留空"></div>
+      <p class="note warn" id="directNote" hidden>直连模式下密钥会出现在浏览器请求里，且对方服务器必须允许跨域（CORS）。仅建议本机自用。</p>
+
+      <div class="field" id="row-proxy">
+        <label for="s-proxy">代理地址</label>
+        <input id="s-proxy" placeholder="http://localhost:8787 或 https://your-proxy.vercel.app">
+      </div>
+
+      <div class="field">
+        <label for="s-endpoint">MCP 端点 URL</label>
+        <input id="s-endpoint" placeholder="https://mcp.example.com/mcp">
+      </div>
+
+      <div class="field">
+        <label for="s-key">MCP 密钥</label>
+        <input id="s-key" type="password" placeholder="西柚给的 API Key / Token">
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="s-authheader">鉴权 Header</label>
+          <input id="s-authheader" placeholder="Authorization">
+        </div>
+        <div class="field">
+          <label for="s-authprefix">前缀</label>
+          <input id="s-authprefix" placeholder="Bearer ">
+        </div>
+      </div>
+      <p class="hint">若西柚用的是 <code>X-Api-Key: xxx</code> 这类写法，把 Header 改成 <code>X-Api-Key</code>、前缀清空即可。</p>
+
+      <hr>
+
+      <div class="field">
+        <label for="s-anthropic">LLM API Key（AI 分析用）</label>
+        <input id="s-anthropic" type="password" placeholder="服务端已配置时可留空">
+      </div>
+      <div class="field">
+        <label for="s-model">LLM 分析模型</label>
+        <input id="s-model" placeholder="claude-sonnet-4-6">
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" id="s-test">测试连接</button>
+        <button class="btn btn-primary" id="s-save">保存</button>
+      </div>
+      <p class="s-result" id="s-result"></p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="report-stage" id="reportStage" hidden role="dialog" aria-modal="true" aria-label="分析报告">
+  <div class="report-stage-bar">
+    <div class="report-stage-brand">西柚数据调用台</div>
+    <div class="report-stage-actions">
+      <button class="btn mini" id="printReportBtn">打印</button>
+      <button class="btn mini" id="closeReportBtn">关闭</button>
+    </div>
+  </div>
+  <article class="analysis report-doc" id="reportDoc"></article>
+</div>
+<div class="modal" id="connectionsModal" hidden>
+  <div class="modal-box connections-box"><div class="modal-hd"><h2>MCP 连接组与执行顺序</h2><button class="btn mini" id="closeConnections">关闭</button></div><div class="modal-bd">
+    <p class="note">同平台按顺序接力。额度不足或限流时切换备用；超时不会自动重发。</p>
+    <div id="connectionList"></div><button class="btn" id="connectionTestAll">测试全部已启用连接</button>
+    <details><summary>添加 / 编辑连接</summary><div class="panel-bd"><div class="row2"><label>平台<select id="connectionProvider"><option value="xiyou">西柚</option><option value="sellersprite">卖家精灵</option></select></label><label>名称<input id="connectionName"></label></div><label>MCP 地址<input id="connectionEndpoint" type="password" autocomplete="off"></label><label>密钥<input id="connectionKey" type="password" autocomplete="new-password"></label><div class="row2"><label>鉴权 Header<input id="connectionHeader" value="Authorization"></label><label>前缀<input id="connectionPrefix" value="Bearer "></label></div><button class="btn btn-primary" id="connectionSave">保存连接</button> <button class="btn" id="connectionNew">新建</button></div></details>
+    <details><summary>场景补充步骤</summary><div class="panel-bd"><label>作业场景<select id="planScene"></select></label><div id="planList"></div><label>连接<select id="planConnections"></select></label><button class="btn" id="planLoadTools">加载接口</button><label>接口<select id="planTool"></select></label><div id="planArgs"></div><button class="btn btn-primary" id="planAdd">追加步骤</button></div></details>
+    <p id="connectionMessage" role="status"></p>
+  </div></div>
+</div>
+
+<script src="assets/data.js?v=20260912-breakout"></script>
+<script src="assets/mcp.js?v=20260912-s12"></script>
+<script src="assets/pool.js?v=20260912-s12"></script>
+<script src="assets/connections-ui.js?v=20260913-admin1"></script>
+<script src="assets/claude.js?v=20260912-s12"></script>
+<script src="assets/report.js?v=20260912-s12"></script>
+<script src="assets/scene-reports.js?v=20260912-breakout"></script>
+<script src="assets/app.js?v=20260913-admin1"></script>
+</body>
+</html>

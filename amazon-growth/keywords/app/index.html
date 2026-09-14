@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>根系 · 关键词库分析台</title>
+  <link rel="stylesheet" href="styles.css?v=8">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><strong>根系 Rootline</strong><small>关键词库分析台</small></div>
+      <nav id="nav">
+        <button class="nav-item active" data-view="quality">优质关键词 <span id="nav-quality">0</span></button>
+        <button class="nav-item" data-view="roots">词根分析 <span id="nav-roots">0</span></button>
+        <button class="nav-item" data-view="quality-roots">优质词根 <span id="nav-quality-roots">0</span></button>
+        <button class="nav-item" data-view="library">关键词库 <span id="nav-library">0</span></button>
+        <button class="nav-item" data-view="traffic">流量结构</button>
+        <button class="nav-item" data-view="dispersion">分散 Broad <span id="nav-dispersion">0</span></button>
+        <button class="nav-item" data-view="dimensions">五维流量结构</button>
+        <button class="nav-item" data-view="excluded">排除与待验证 <span id="nav-excluded">0</span></button>
+      </nav>
+    </aside>
+    <main>
+      <header class="topbar">
+        <label>自身 ASIN<input id="ownAsin" maxlength="10" value="B0D4X9K2QW"></label>
+        <label>产品阶段<select id="productStage"><option value="new">新品（无自身数据）</option><option value="existing">老品（上传 SQP 报告）</option></select></label>
+        <label>产品类型<select id="productType"><option value="non-standard">非标品</option><option value="semi-standard">半标品</option><option value="standard">标品</option></select></label>
+        <label id="accountFileField" hidden>Amazon SQP 报告（可多选）<input id="accountFile" type="file" multiple accept=".csv,.json,.xlsx,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+        <label id="adFileField" hidden>广告搜索词报告<input id="adFile" type="file" accept=".csv,.json,.xlsx,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+        <label>竞品 ASIN 1<input class="competitor" maxlength="10" value="B0C7Y1AB2X"></label>
+        <label>竞品 ASIN 2<input class="competitor" maxlength="10" value="B0C7Y1AB3X"></label>
+        <label>竞品 ASIN 3<input class="competitor" maxlength="10" value="B0C7Y1AB4X"></label>
+        <label>站点<select id="marketplace"><option>US</option><option>UK</option><option>DE</option><option>JP</option></select></label>
+        <label>数据来源<select id="source"><option value="mock">演示数据</option><option value="mcp">卖家精灵 MCP</option><option value="import">导入 CSV / JSON</option></select></label>
+        <label id="fileField" hidden>数据文件（可多选）<input id="dataFile" type="file" multiple accept=".csv,.json,.xlsx,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+        <label id="cacheField" hidden><span>缓存设置</span><span><input id="useMcpCache" type="checkbox" checked> 优先使用 7 天缓存</span></label>
+        <label>目标 ACOS %（可选）<input id="targetAcos" type="number" min="0" step="0.1" placeholder="例如 30"></label>
+        <label>允许 CPA（可选）<input id="allowableCpa" type="number" min="0" step="0.01" placeholder="用于Broad盈利校验"></label>
+        <button id="run" class="run">运行分析 →</button>
+      </header>
+      <div id="notice" class="notice">准备就绪。演示数据不会上传或保存。</div>
+      <section id="summary" class="kpis" aria-label="分析摘要"></section>
+      <section class="quality-note" id="ai-panel">
+        <strong>AI 策略解读</strong>
+        <button id="explain" class="run" disabled>生成 AI 解读</button>
+        <div id="ai-output">请先运行规则分析。AI 仅解释结果，不参与指标计算或关键词入选。</div>
+      </section>
+      <section class="view active" id="quality"><div class="head"><div><h1>优质关键词</h1><p>反选频次、市场转化代理与竞争度综合筛选</p></div></div><div class="panel"><div id="quality-table"></div></div></section>
+      <section class="view" id="roots"><div class="head"><div><h1>词根分析</h1><p>按市场搜索量份额汇总</p></div></div><div class="panel"><div id="roots-table"></div></div></section>
+      <section class="view" id="quality-roots"><div class="head"><div><h1>优质词根清单</h1><p>排名前3、意向指数≥1且至少包含一个优质关键词</p></div></div><div class="panel"><div id="quality-roots-table"></div></div></section>
+      <section class="view" id="library"><div class="head"><div><h1>竞品主关键词库</h1><p>竞品反查合并去重后的完整数据</p></div></div><div class="panel"><div id="library-table"></div></div></section>
+      <section class="view" id="traffic"><div class="head"><div><h1>流量结构</h1><p>断层比与 Top5/10/20 累积份额</p></div></div><div id="traffic-content"></div></section>
+      <section class="view" id="dispersion"><div class="head"><div><h1>分散类目 Broad 最优对象</h1><p>寻找最值得宽泛覆盖的独立投放词根；与Exact最优词、Phrase最优词根并列</p></div></div><div id="dispersion-content"></div></section>
+      <section class="quality-note"><strong>Broad 独立判断</strong><div id="broad-content">运行分析后显示。Broad只用于受控拓词，不参与正式集中度与Phrase词根排名。</div></section>
+      <section class="view" id="dimensions"><div class="head"><div><h1>五维流量结构</h1><p>核心词、同义词、规格词、替代词、互补词</p></div></div><div class="panel"><div id="dimensions-table"></div></div></section>
+      <section class="view" id="excluded"><div class="head"><div><h1>排除与待验证</h1><p>只判断是否进入关键词库，不代表直接设置广告否定</p></div></div><div class="panel"><div id="excluded-table"></div></div></section>
+      <section class="quality-note"><strong>数据质量</strong><div id="limitations">尚未运行分析。</div></section>
+      <section class="quality-note"><strong>规则自评</strong><div id="self-assessment">尚未运行分析。</div></section>
+    </main>
+  </div>
+  <script src="vendor/exceljs.min.js?v=1"></script>
+  <script src="app.js?v=17" type="module"></script>
+</body>
+</html>

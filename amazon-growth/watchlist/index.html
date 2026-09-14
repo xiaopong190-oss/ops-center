@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>监控清单 · 西柚运营</title>
+<meta name="description" content="独立监控清单：按名单调用西柚与卖家精灵的监控相关接口，结论只留在本页。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍊</text></svg>">
+<link rel="stylesheet" href="assets/style.css?v=20260913-board1">
+</head>
+<body>
+<a class="skip" href="#workspace">跳到工作区</a>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="brand">
+      <div class="eyebrow">Xiyou MCP · Amazon Ops</div>
+      <h1>监控清单</h1>
+      <nav class="app-switch" aria-label="工具切换">
+        <a href="/">运营调用台</a>
+        <a href="/asinscope/">完整竞品分析</a>
+        <a href="/watchlist/" class="on" aria-current="page">监控清单</a>
+        <a href="/launch-plan/">推品计划</a>
+        <a href="/keywords/">关键词库</a>
+      </nav>
+    </div>
+    <button type="button" class="conn off" id="connBar" title="连接组在调用台">
+      <span class="dot"></span><span>网关未通</span>
+    </button>
+    <div class="mast-actions">
+      <button class="btn mini" id="themeBtn" type="button" title="切换浅色 / 深色 / 跟随系统">自动</button>
+      <button class="btn" id="onlyCacheBtn" type="button">仅用已有数据</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="workspace">
+  <section class="usage-guide" aria-labelledby="usage-title">
+    <h2 id="usage-title">使用说明</h2>
+    <p><b>建立清单：</b>最多 5 条品线，每条写类目和该类目主链接。同类目对照写在该行下面，不要把 5 个不同类目塞进同一组对照。</p>
+    <p><b>开始监控：</b>共享站点和最长一个月的窗口。两条及以上先出看板，点卡片再看该行完整日记；不跨类目比 BSR 或词覆盖。</p>
+    <p><b>判断动作：</b>只核验该行动作后 3–7 日的变化；空结果表示未提供，不等同于调用失败。</p>
+  </section>
+  <div class="cols">
+
+    <aside class="rail">
+      <section class="panel">
+        <div class="panel-hd">
+          <h2>监控清单</h2>
+          <div class="panel-tools">
+            <button class="btn mini" id="clearBtn" type="button">清空</button>
+          </div>
+        </div>
+        <div class="panel-bd">
+          <div class="field listrow">
+            <label for="listSel">已完成的清单</label>
+            <select id="listSel"></select>
+            <p class="hint" id="listStatus">还没有完成的期报。先填品线主 ASIN，点开始监控，跑完再写入清单。</p>
+            <input id="listName" maxlength="80" placeholder="跑完后输入名称，写入本期快照">
+            <div class="listbtns">
+              <button class="btn mini" id="listSave" type="button">写入清单</button>
+              <button class="btn mini" id="listDel" type="button">删除</button>
+              <button class="btn mini" id="listExport" type="button">导出</button>
+              <button class="btn mini" id="listImport" type="button">导入</button>
+              <input type="file" id="listFile" accept="application/json,.json" hidden>
+            </div>
+          </div>
+          <div class="field" id="f-site">
+            <label for="site">站点</label>
+            <select id="site">
+              <option>US</option><option>UK</option><option>DE</option><option>JP</option>
+              <option>FR</option><option>IT</option><option>ES</option><option>CA</option>
+              <option>MX</option><option>AU</option><option>IN</option><option>NL</option><option>SE</option>
+            </select>
+          </div>
+          <div class="field need" id="f-asins">
+            <label>品线（最多 5 条不同类目主链接）</label>
+            <div class="lane-list" id="laneBox"></div>
+            <p class="hint" id="asinHint">一行一个类目。对照只写同类目，不要把电热水壶和咖啡机放进同一行。</p>
+            <div class="testlinks" id="testLinks">
+              <span>示例：</span>
+              <button type="button" class="btn mini" id="loadTest">填入两条测试品线</button>
+              <button type="button" class="btn mini" id="loadPreview">打开虚拟界面</button>
+              <a href="https://www.amazon.com/dp/B0GH78L65N" target="_blank" rel="noopener">B0GH78L65N</a>
+              <a href="https://www.amazon.com/dp/B0BNVHR71X" target="_blank" rel="noopener">B0BNVHR71X</a>
+            </div>
+          </div>
+          <div class="field" id="f-keyword">
+            <label for="keywords">核心词（仅 1 条品线时用，≤3）</label>
+            <textarea id="keywords" placeholder="electric kettle, gooseneck kettle"></textarea>
+          </div>
+          <div class="row2 need" id="f-dates">
+            <div class="field"><label for="from">起始日期</label><input id="from" type="date" required></div>
+            <div class="field"><label for="to">结束日期</label><input id="to" type="date" required></div>
+          </div>
+          <div class="periodbtns" role="group" aria-label="对照周期">
+            <button type="button" class="btn mini" data-span="7">近 7 天</button>
+            <button type="button" class="btn mini" data-span="14">近 14 天</button>
+            <button type="button" class="btn mini" data-span="30">近 30 天</button>
+          </div>
+          <p class="hint" id="dateHint">窗口必填，最多一个月。超过 31 天会收到结束日前 31 天。≥7 天才按周期对照。</p>
+          <label class="checkline"><input type="checkbox" id="savePeriod" checked> 保存本期数据到清单</label>
+          <p class="hint">勾选后，跑完这一期才写入清单。不勾选只看报告，不占档案；仍可用「写入清单」补存。</p>
+        </div>
+      </section>
+
+      <details class="panel tips tips-fold">
+        <summary>取数纪律</summary>
+        <div class="panel-bd">
+          <p><b>相关接口。</b>每条主链接拉西柚商品、订单、流量、价格、改版、广告、BSR、词表；卖家精灵补 Keepa、优惠、销量趋势、出单词、评论、竞品关系和关联流量。只有 1 条品线且填了核心词才拉词位。多品线不做跨类目词对照。</p>
+          <p><b>共享证据。</b>和调用台、竞品分析走同一网关。打开页面不会取数。</p>
+          <p><b>本页边界。</b>清单、报告和任务历史只留在本页。调用台左栏不再管清单。</p>
+        </div>
+      </details>
+    </aside>
+
+    <div class="main">
+      <section class="panel run" id="runWrap">
+        <div id="runPanel">
+          <div class="run-hd">
+            <div>
+              <div class="run-mod">品线看板 · 每日定点</div>
+              <h2 class="run-t">监控清单</h2>
+              <p class="run-g">一条品线盯一个类目主链接。两条及以上先出看板，点卡片打开该行完整日记，不把 5 份长报告叠在一页。不跨类目比 BSR。本页不会自动出报。</p>
+            </div>
+            <div class="run-actions">
+              <button class="btn btn-primary btn-analyze" id="runBtn" type="button">开始监控</button>
+            </div>
+          </div>
+          <p class="stepline" id="cost">打开页面不会调用 MCP。先看缓存命中，再决定是否取数。</p>
+        </div>
+      </section>
+
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-report" aria-selected="true" aria-controls="reportView" data-view="report">周期报告</button>
+        <button class="tab" role="tab" id="tab-history" aria-selected="false" aria-controls="historyView" data-view="history">任务历史</button>
+      </div>
+
+      <div id="reportView" role="tabpanel" aria-labelledby="tab-report">
+        <div class="empty-box" id="emptyBox">
+          <p class="empty">先填至少一条品线的主 ASIN，再点开始监控。跑完的这一期才会写入清单。</p>
+          <p class="hint">先设最多一个月的窗口。空结果记数据不足。勾选「保存本期数据」才会写入清单。</p>
+        </div>
+        <div id="reportBody" hidden>
+          <div class="report-metrics" id="cards"></div>
+          <div class="layout">
+            <nav class="chap-nav panel" id="nav" aria-label="章节"></nav>
+            <div id="sections"></div>
+          </div>
+        </div>
+      </div>
+
+      <section class="hist panel" id="historyView" hidden role="tabpanel" aria-labelledby="tab-history">
+        <div class="panel-hd"><h2>本工具任务历史</h2></div>
+        <div class="panel-bd">
+          <p class="hint">这里是当前清单的各期快照。没有写入清单的旧报告仍可在下面回看。</p>
+          <div id="history"></div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>本页只读共享证据网关。数据版权与准确性归西柚 / 卖家精灵。连接组在运营调用台设置，密钥不会出现在本页。</p>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="assets/mcp-client.js?v=20260913-board1"></script>
+<script src="assets/analyze.js?v=20260913-board1"></script>
+<script src="assets/app.js?v=20260913-board1"></script>
+</body>
+</html>

@@ -18,6 +18,9 @@ gist-config.local.js
 gist-secrets.local.json
 deploy/dingtalk.local.json
 src/cloud-sync-config.secret.js
+amazon-growth/proxy/connections.private.json
+amazon-growth/proxy/runtime.log
+amazon-growth/.env
 
 # 编辑器
 .idea

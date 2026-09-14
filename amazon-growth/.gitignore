@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+*.log
+.vercel
+proxy/connections.private.json
+proxy/evidence-cache.json
+proxy/evidence-cache.json.tmp
+proxy/runtime.log
+proxy/runtime-error.log
+proxy/runtime.pid

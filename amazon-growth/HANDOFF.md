@@ -1,6 +1,18 @@
 # Codex / Cursor 协作状态
 
-更新时间：2026-09-12
+更新时间：2026-09-14
+
+## Codex 换号接力（2026-09-14）
+
+- 正式仓库：`D:\systemDir\Desktop\Hubstudio\新建环境3\ops-center-release`，GitHub `xiaopong190-oss/ops-center`，`main` 已与远端同步；最近发布提交为 `80c5f18`。
+- 本地入口：主平台 `http://127.0.0.1:5174/`；自包含正式版开发入口 `http://127.0.0.1:5175/`；正式版 Amazon Growth 服务 `http://127.0.0.1:8791/`。
+- 已完成：一级菜单“亚马逊增长”及运营调用、完整竞品、监控清单、推品计划、关键词库框架；各页面有使用说明；MCP/LLM 管理入口只在超级管理员界面显示。
+- 卖家精灵：正式版连接组已有“卖家精灵（原关键词平台）”，实测连接成功，识别 44 个接口。密钥只在 `proxy/connections.private.json` 加密保存，该文件被 Git 忽略，禁止提交或打印。
+- 旧平台 `http://127.0.0.1:8787/` 的连接组已确认存在：西柚 A、西柚 B、西柚 C、卖家精灵 A；3 个西柚均指向 `mcp.xydc.com`，都有 Bearer 密钥。旧加密文件受 Windows DPAPI 当前用户保护，当前 Codex 执行身份无法直接解密，但旧运行进程仍可调用。
+- 西柚待办：把旧平台的西柚 A/B/C 安全迁移到正式版管理员连接组并逐一执行 `tools/list` 测试。不要要求用户重新整理连接；优先在原 Windows 登录身份下转存，且不得把 Token 写入源码、日志、Git 或聊天。
+- LLM：前端默认模型名为 `claude-sonnet-4-6`，服务端目前只实现 Anthropic Messages API；因 `ANTHROPIC_API_KEY` 未配置，当前实际没有可调用的 LLM。Cloudflare AI 与通用 OpenAI-compatible LLM 尚未接线。
+- 权限边界：当前已实现超级管理员的前端可见性与点击保护；上线前仍应把连接管理 API 从 `X-Connection-Admin: 1` 升级成服务端会话/RBAC 校验，不要把现状描述成生产级安全鉴权。
+- 接手第一步：先读本节，再请求 `GET http://127.0.0.1:8787/api/connections` 与 `GET http://127.0.0.1:8791/api/connections`（管理 Header）核对状态；不要覆盖已有正式版卖家精灵连接。
 
 Cursor 每次开工先读本文件，做完后只改「最近完成 / 验证结果 / 下一步」。Codex 验收时也只读本文件和点名文件，不要重新扫整个项目。
 

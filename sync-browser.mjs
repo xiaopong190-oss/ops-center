@@ -231,6 +231,9 @@ const app = fs.readFileSync(path.join(dir, "App.jsx"), "utf8");
 const sharedEnd = app.indexOf("// ─── TASK MODULE");
 const appBrowser =
   "// LogisticsModule.browser.jsx loads storage + GlobalConfig first.\n\n" +
+  fs.readFileSync(path.join(dir, "OperationsHubModule.jsx"), "utf8")
+    .replace(/^import .+\r?\n/gm, "")
+    .replace(/^export /gm, "") + "\n\n" +
   app.slice(sharedEnd)
     .replace(/^import .+\r?\n/gm, "")
     .replace(/^export default function App/m, "function App")

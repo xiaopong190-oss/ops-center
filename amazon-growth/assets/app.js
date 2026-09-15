@@ -426,16 +426,21 @@
     $$(".field").forEach(f => { f.classList.remove("need"); f.classList.remove("miss"); });
     syncFieldVisibility(scene);
     if (!scene) return;
-    requiredFieldIds(scene).forEach(id => { const el = $("#" + id); if (el) el.classList.add("need"); });
     (miss || []).forEach(id => { const el = $("#" + id); if (el) el.classList.add("miss"); });
-    if ((miss || []).indexOf("f-from") >= 0) { const t = $("#f-to"); if (t) t.classList.add("miss"); }
   }
   function missingFor(scene) {
     const miss = [];
     const validDate = v => /^\d{4}-\d{2}-\d{2}$/.test(v || "") && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0,10) === v;
     const needs = sceneNeedKeys(scene);
     needs.forEach(n => {
-      if (n === "date") { if (!validDate(state.form.dateFrom) || !validDate(state.form.dateTo) || state.form.dateFrom > state.form.dateTo) miss.push("f-from"); return; }
+      if (n === "date") {
+        const fromOk = validDate(state.form.dateFrom);
+        const toOk = validDate(state.form.dateTo);
+        if (!fromOk) miss.push("f-from");
+        if (!toOk) miss.push("f-to");
+        if (fromOk && toOk && state.form.dateFrom > state.form.dateTo) miss.push("f-from", "f-to");
+        return;
+      }
       const key = NEED2FORM[n];
       if (key && !state.form[key]) miss.push("f-" + key);
       if (key === "asin" && state.form.asin && !/^[A-Z0-9]{10}$/i.test(state.form.asin)) miss.push("f-asin");
@@ -839,7 +844,6 @@
     }
 
     const miss = missingFor(s);
-    const needKeys = sceneNeedKeys(s);
     const run = state.run;
     const canAnalyze = !state.busy && !state.analyzing && run && run.steps.some(x => x.status === "ok");
     const stepCounts = run ? run.steps.reduce((a, x) => { a[x.status] = (a[x.status] || 0) + 1; return a; }, {}) : null;
@@ -871,9 +875,8 @@
       </div>
       ${run && run.savedAt ? `<p class="savedline">已保存 · ${esc(new Date(run.savedAt).toLocaleString())}</p>` : ""}
       ${run && run.lastFailedNote ? `<p class="warnline on">最近一次重跑失败，已保留本次成功结果。原因：${esc(run.lastFailedNote)}。西柚周额度用尽时请勿反复重跑。</p>` : ""}
-      <p class="needline">本场景必填 ${needKeys.map(n => `<span class="chip need">${esc(window.NEEDLABEL[n] || n)}</span>`).join("")}</p>
       <p class="stepline">${esc(stepLine)}</p>
-      ${miss.length ? `<p class="warnline on">请检查高对比必填项：ASIN 应为 10 位字母数字、对比最多 20 个；关键词用逗号/分号/换行分隔最多 8 个（词面空格保留）；日期须完整且开始日不晚于结束日。</p>` : ""}
+      ${miss.length ? `<p class="needline is-missing"><strong>必填项未完成：</strong>请填写或修正左侧红框字段，填写有效后提醒会自动隐藏。</p>` : ""}
       ${!canAnalyze && run ? `<p class="hint">至少有 1 步成功后才能生成报告。</p>` : ""}
       <div class="steps">${stepsHtml}</div>
       <div class="analysis-bar">

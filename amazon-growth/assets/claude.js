@@ -175,7 +175,15 @@
 
   async function report(cfg, scene, form, steps) {
     const replay = steps.find(s => s.tool === 'get_keyword_advertising_replay' && s.status === 'ok');
-    if (!replay) return localReport(scene, form, steps);
+    if (!replay) {
+      try { return await analyze(cfg, scene, form, steps); }
+      catch (e) {
+        const fallback = localReport(scene, form, steps);
+        fallback.llmWarning = String(e && e.message || e);
+        fallback.text += '\n\n### LLM 提醒\n- ' + fallback.llmWarning.replace(/[\r\n]+/g, ' ') + '\n- 已自动保留本地规则报告；若 Cloudflare AI 额度或能力不足，请在 Worker 配置 ANTHROPIC_API_KEY。';
+        return fallback;
+      }
+    }
     const cells = new Map(), hours = new Set(), regular = new Map();
     const safe = v => String(v == null ? '未知' : v).replace(/[|\r\n]/g, ' ');
     const unpack = v => {
@@ -245,5 +253,5 @@
     return {text:lines.join('\n')};
   }
 
-  window.Analyst = { report: report, analyze: (cfg,scene,form,steps)=>Promise.resolve(localReport(scene,form,steps)), buildPrompt: buildPrompt, md: md };
+  window.Analyst = { report: report, analyze: analyze, localReport: localReport, buildPrompt: buildPrompt, md: md };
 })();

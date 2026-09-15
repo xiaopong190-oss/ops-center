@@ -3,6 +3,7 @@ import evidenceModule from '../amazon-growth/gateway/evidence.js';
 import {analyzeRequest} from './keyword/server/services/analyze.js';
 
 const enc = new TextEncoder();
+const CF_LLM_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const origins = new Set(['https://xiaopong190-oss.github.io']);
 const shared = new Set(['agents.json','global-config.json','kpi-monthly.json','lingxing-sku-db.json','logistics.json','production.json','tasks.json','tools-links.json']);
 const fail = (status, message) => { throw Object.assign(new Error(message), {status}); };
@@ -17,6 +18,35 @@ async function matches(value, stored) { return !!stored && await passwordHash(St
 async function get(env,key) { const row=await env.DB.prepare('SELECT value FROM records WHERE key=?').bind(key).first();return row?JSON.parse(row.value):null; }
 async function put(env,key,value) { await env.DB.prepare('INSERT INTO records(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(value)).run(); }
 async function body(req) { const text=await req.text();if(text.length>3000000)fail(413,'请求过大');try{return JSON.parse(text);}catch{fail(400,'无效 JSON');} }
+function llmText(value) {
+  if(typeof value==='string')return value;
+  if(typeof value?.response==='string')return value.response;
+  if(typeof value?.result?.response==='string')return value.result.response;
+  if(Array.isArray(value?.choices))return value.choices.map(x=>x?.message?.content||x?.text||'').filter(Boolean).join('\n');
+  return '';
+}
+async function cloudflareFirstClaude(payload,env) {
+  const messages=[];
+  if(payload?.system)messages.push({role:'system',content:String(payload.system)});
+  for(const m of Array.isArray(payload?.messages)?payload.messages:[])if(m&&['user','assistant','system'].includes(m.role))messages.push({role:m.role,content:typeof m.content==='string'?m.content:JSON.stringify(m.content)});
+  if(!messages.length)fail(400,'LLM 消息为空');
+  let cfError='';
+  if(env.AI){
+    try{
+      const result=await env.AI.run(CF_LLM_MODEL,{messages,max_tokens:Math.min(Number(payload.max_tokens)||4000,4000),temperature:0.2});
+      const text=llmText(result);
+      if(text)return {content:[{type:'text',text}],model:CF_LLM_MODEL,usage:result?.usage||{},provider:'cloudflare'};
+      cfError='Cloudflare AI 返回空结果';
+    }catch(e){cfError=String(e?.message||e||'Cloudflare AI 调用失败').slice(0,300);}
+  }else cfError='Cloudflare AI 未绑定';
+  if(env.ANTHROPIC_API_KEY){
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify(payload),redirect:'manual',signal:AbortSignal.timeout(60000)});
+    const data=await r.json().catch(()=>({}));
+    if(r.ok)return {...data,provider:'anthropic',cloudflareFallbackReason:cfError};
+    fail(r.status,'Cloudflare AI 不可用，Anthropic 也失败：'+(data?.error?.message||r.statusText));
+  }
+  fail(503,'Cloudflare AI 额度或能力不足：'+cfError+'。请在 Worker 配置 ANTHROPIC_API_KEY 作为备用 LLM API。');
+}
 async function quota(env,key,max,seconds) {
   const bucket=key+':'+Math.floor(Date.now()/1000/seconds);
   const row=await env.DB.prepare('INSERT INTO limits(key,count,expires) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count').bind(bucket,Date.now()+seconds*1000).first();
@@ -84,7 +114,7 @@ async function secureConfig(input,prev) {
 }
 async function handle(req,env) {
   const url=new URL(req.url),p=url.pathname;
-  if(p==='/ops-api/health')return json({ok:true,version:'cloud-v1'});
+  if(p==='/ops-api/health')return json({ok:true,version:'cloud-v2',cloudflareAiConfigured:!!env.AI,anthropicConfigured:!!env.ANTHROPIC_API_KEY});
   if(p==='/ops-api/bootstrap') {
     if(!env.BOOTSTRAP_TOKEN||req.headers.get('Authorization')!==`Bearer ${env.BOOTSTRAP_TOKEN}`)fail(403,'禁止访问');
     if(await get(env,'global-config.json'))fail(409,'已初始化，禁止覆盖');
@@ -146,7 +176,7 @@ async function handle(req,env) {
   }
   if(p.startsWith('/api/')){
     const u=await session(req,env);
-    if(p==='/api/health')return json({ok:true,mcpEndpointConfigured:(await connections(env)).length>0,anthropicConfigured:!!env.ANTHROPIC_API_KEY});
+    if(p==='/api/health')return json({ok:true,mcpEndpointConfigured:(await connections(env)).length>0,cloudflareAiConfigured:!!env.AI,anthropicConfigured:!!env.ANTHROPIC_API_KEY});
     const list=await connections(env);
     if(p==='/api/pool')return json({connections:list.filter(c=>c.enabled).map(c=>({id:c.id,provider:c.provider,enabled:true,name:c.provider==='xiyou'?'西柚数据':'卖家精灵数据'}))});
     if(p==='/api/connections'){
@@ -200,7 +230,7 @@ async function handle(req,env) {
       if(p.endsWith('/publish')||p.endsWith('/put'))return json({stored:0,skipped:b.items?.length||1,reasons:['云端只缓存经认证的上游调用，请继续使用本地历史']});
       if(p.endsWith('/export'))return json({refs:[]});
     }
-    if(p==='/api/claude')fail(503,'LLM API Key 尚未配置；可使用本地规则报告');
+    if(p==='/api/claude'&&req.method==='POST')return json(await cloudflareFirstClaude(await body(req),env));
     fail(404,'接口不存在');
   }
   if(p.startsWith('/ops-api/'))fail(404,'接口不存在');

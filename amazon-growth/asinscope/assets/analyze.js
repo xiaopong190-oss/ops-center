@@ -540,7 +540,7 @@
 
   function packArgs(form, id, extra) {
     const site = (form && form.site) || "US";
-    return Object.assign({ marketplace: site, site: site, asin: id, asins: [id] }, extra || {});
+    return Object.assign({ marketplace: site, site: site, country: site, country_code: site, asin: id, asins: [id] }, extra || {});
   }
 
   function planRequests(form) {

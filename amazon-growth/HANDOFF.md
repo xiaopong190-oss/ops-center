@@ -35,6 +35,8 @@ Cursor 每次开工先读本文件，做完后只改「最近完成 / 验证结�
 
 ## 最近完成
 
+- 运营调用台现支持只填 ASIN 自动定位叶子类目：先读 `get_asin_bsr_trends.categoryTree` 的最后一层非 root 节点，再进入原类目前置链。完整竞品请求显式带 `country/country_code`，避免线上通用适配差异导致空数据。真实 ASIN 已验证西柚商品/订单/流量/BSR/变体及卖家精灵 Keepa/优惠/评论 8 条路径。
+- LLM 改为 Cloudflare Workers AI 优先，绑定 `env.AI`，默认 `@cf/meta/llama-3.3-70b-instruct-fp8-fast`；Cloudflare 失败时才调 Anthropic。若两者都不可用，页面保留本地规则报告并明确提醒配置 `ANTHROPIC_API_KEY`。Worker 版本 `92b6636d-bf8f-409b-8c06-3576472843a3`。
 - 云端亚马逊增长 HTTP 502 已修复：Cloudflare Workers 不支持 `fetch` 的 `redirect: 'error'`，两条 MCP 代理路径改为不自动跟跳且 Worker 支持的 `redirect: 'manual'`。线上已验证西柚 C、卖家精灵 A、西柚 B 初始化均为 HTTP 200；旧“西柚 A”密钥已过期（HTTP 401），保留等待管理员更新或停用。Worker 版本 `5e5ae7dd-f554-49ed-864e-c4ce6b0976ae`。
 - 监控清单：空结果不再堆进「取数失败」卡片，改成可展开的「空结果 / 接口报错」。窗口必填、最多一个月（去掉近 90 天，超 31 天收到结束日前）。新增「保存本期数据到清单」勾选，不勾只出报告不占档案。未动 asinscope。硬刷新 `?v=20260912-wl7`。
 - 监控清单报告改成主 ASIN 每日定点档案，不是九章竞品分析。五章：每日定点 / 主动与被动 / 周期有效动作 / 可学习与不可复制 / 对照（可选只计数）。动作后 3–7 日叶子 BSR 改善才算有效；改 Listing、降价、优惠可学，广告只核验不复制花费。日表「优惠」是当天有没有券；主动「优惠」只算出券（从无到有）。未动 asinscope。硬刷新 `?v=20260912-wl6`。

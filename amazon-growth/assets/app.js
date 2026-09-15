@@ -451,6 +451,47 @@
     return miss;
   }
 
+  function categoryFromAsinPayload(data) {
+    const root = data && data.data !== undefined ? data.data : data;
+    const trees = [];
+    const walk = (v, depth) => {
+      if (!v || depth > 6) return;
+      if (Array.isArray(v)) { v.slice(0, 100).forEach(x => walk(x, depth + 1)); return; }
+      if (typeof v !== "object") return;
+      if (Array.isArray(v.categoryTree)) trees.push(v.categoryTree);
+      Object.keys(v).forEach(k => { if (["data","entities","result","items","asin","asinDetail"].indexOf(k) >= 0) walk(v[k], depth + 1); });
+    };
+    walk(root, 0);
+    for (const tree of trees) {
+      const rows = tree.filter(x => x && (x.name || x.categoryName));
+      const leaf = rows.filter(x => x.root !== true).slice(-1)[0] || rows.slice(-1)[0];
+      const name = leaf && (leaf.name || leaf.categoryName);
+      if (name) return typeof name === "string" ? name : (name.original || name.translated || name.value || "");
+    }
+    const one = Array.isArray(root && root.entities) ? root.entities[0] : root;
+    const name = one && (one.categoryName || one.category || one.bsrCategory);
+    return typeof name === "string" ? name : (name && (name.original || name.translated || name.value)) || "";
+  }
+
+  async function autoFillCategoryFromAsin() {
+    const form = state.form;
+    if (form.category || !/^[A-Z0-9]{10}$/i.test(form.asin || "")) return !!form.category;
+    const tool = "get_asin_bsr_trends", meta = window.TOOL[tool];
+    if (!state.client || !state.client.schemas || !state.client.schemas[tool]) return false;
+    try {
+      const args = window.Mcp.buildArgs(tool, meta, form, state.client.schemas[tool], {});
+      const r = await state.client.call(tool, args, {form});
+      const name = categoryFromAsinPayload(r.data);
+      if (!name) return false;
+      form.category = String(name).trim().slice(0, 100);
+      const input = $("#f-category input") || $("#f-category");
+      if (input) input.value = form.category;
+      save();
+      toast("已根据 ASIN 自动定位类目：" + form.category);
+      return true;
+    } catch (_) { return false; }
+  }
+
   function quotaHaltMessage(err) {
     const msg = String((err && err.message) || err || "");
     if (window.ConnectionPool && window.ConnectionPool.certain({ message: msg })) return true;
@@ -1103,18 +1144,22 @@
     const s = state.scene;
     if (!s) return;
     readForm();
-    if (missingFor(s).length) { renderRunPanel(); toast("还有必填参数没填", "err"); return; }
+    let miss = missingFor(s);
+    const onlyAutoCategory = miss.length && miss.every(id => id === "f-category") && /^[A-Z0-9]{10}$/i.test(state.form.asin || "");
+    if (miss.length && !onlyAutoCategory) { renderRunPanel(); toast("还有必填参数没填", "err"); return; }
 
     state.busy = true;
-    const form = Object.assign({}, state.form);
+    let form = Object.assign({}, state.form);
     let shouldReport = false;
     try {
     try {
       if (!state.connected) await ensureClient();
       else if (state.client && window.ConnectionPool && state.client instanceof window.ConnectionPool.Pool) await state.client.connect();
       renderConnBar(state.client && state.client.entries ? { server: { name: (state.client.entries[state.client.index] || {}).name }, tools: state.serverTools || [] } : null);
+      if (onlyAutoCategory && !await autoFillCategoryFromAsin()) { toast("该 ASIN 未返回可识别类目，请手动填写品类词", "err"); return; }
     } catch (e) { toast("连接失败：" + e.message, "err"); renderConnBar(); return; }
 
+    form = Object.assign({}, state.form);
     const prior = state.run && state.run.sceneId === s.id && state.run.steps.some(x => x.status === "ok")
       ? cloneRun(state.run) : null;
 

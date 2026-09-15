@@ -161,7 +161,7 @@ function unwrap(result) {
 class McpSession {
   constructor(connection, fetchImpl) {
     this.connection = connection;
-    this.fetchImpl = fetchImpl || fetch;
+    this.fetchImpl = fetchImpl || ((...args) => fetch(...args));
     this.sessionId = null;
     this.id = 0;
     this.tools = null;
@@ -196,7 +196,7 @@ class McpSession {
       });
       text = await upstream.text();
     } catch (e) {
-      throw Error('上游响应未确认，请核验本次是否已执行；未自动重试。');
+      throw Object.assign(Error('上游响应未确认，请核验本次是否已执行；未自动重试。'), { cause: e });
     }
     const sid = upstream.headers.get('mcp-session-id') || upstream.headers.get('Mcp-Session-Id');
     if (sid) this.sessionId = sid;

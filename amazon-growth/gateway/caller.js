@@ -189,7 +189,9 @@ class McpSession {
         method: 'POST',
         headers: this.headers(),
         body: JSON.stringify(body),
-        redirect: 'error',
+        // Cloudflare Workers does not implement redirect: 'error'. Manual keeps
+        // redirects visible as 3xx responses without forwarding credentials.
+        redirect: 'manual',
         signal: AbortSignal.timeout(60000)
       });
       text = await upstream.text();

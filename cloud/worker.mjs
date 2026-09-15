@@ -180,7 +180,7 @@ async function handle(req,env) {
       await quota(env,'mcp:'+u.id,500,86400);
       const headers={'Content-Type':'application/json',Accept:'application/json, text/event-stream',[c.authHeader]:c.authPrefix+c.key};
       for(const h of ['Mcp-Session-Id','MCP-Protocol-Version'])if(req.headers.get(h))headers[h]=req.headers.get(h);
-      const r=await fetch(c.endpoint,{method:'POST',headers,body:JSON.stringify(b),redirect:'error',signal:AbortSignal.timeout(60000)});
+      const r=await fetch(c.endpoint,{method:'POST',headers,body:JSON.stringify(b),redirect:'manual',signal:AbortSignal.timeout(60000)});
       return new Response(r.body,{status:r.status,headers:{'Content-Type':r.headers.get('Content-Type')||'application/json','Mcp-Session-Id':r.headers.get('Mcp-Session-Id')||'','Cache-Control':'no-store'}});
     }
     if(p.startsWith('/api/evidence/')){
@@ -212,7 +212,10 @@ export default {async fetch(req,env){
   const origin=req.headers.get('Origin'),own=new URL(req.url).origin;
   if(origin&&!origins.has(origin)&&origin!==own)return json({error:'来源不允许'},403);
   let r;
-  try{r=req.method==='OPTIONS'?new Response(null,{status:204}):await handle(req,env);}catch(e){r=json({error:e.status?e.message:'服务请求失败，请稍后重试'},e.status||502);}
+  try{r=req.method==='OPTIONS'?new Response(null,{status:204}):await handle(req,env);}catch(e){
+    console.error('request_failed',new URL(req.url).pathname,e?.name||'Error',e?.message||String(e));
+    r=json({error:e.status?e.message:'服务请求失败，请稍后重试'},e.status||502);
+  }
   const headers=new Headers(r.headers);if(origin)headers.set('Access-Control-Allow-Origin',origin);
   headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');headers.set('Access-Control-Allow-Headers','Content-Type,Authorization,X-Connection-Id,X-Connection-Admin,X-Proxy-Token,X-Evidence-Client,Mcp-Session-Id,MCP-Protocol-Version');headers.set('Access-Control-Expose-Headers','Mcp-Session-Id');
   headers.set('X-Content-Type-Options','nosniff');

@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-09-14T03:27:42.043Z",
+  "updatedAt": "2026-09-15T03:29:10.547Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How Amazon is helping after back-to-back earthquakes in Venezuela",
+      "link": "https://www.aboutamazon.com/news/community/amazon-response-venezuela-earthquakes-2026?utm_source=rss",
+      "pubDate": "Mon, 14 Sep 2026 19:01:00 GMT",
+      "date": "9/14",
+      "summary": "Amazon is supporting nonprofits on the ground and delivering relief supplies after devastating quakes hit northern Venezuela.",
+      "category": "Community"
+    },
     {
       "title": "Amazon's water conservation and replenishment efforts around the world",
       "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "9/10",
       "summary": "The agreement extends the largest commercial contract in Arianespace history and supports investment and innovation across Europe.",
       "category": "Amazon Leo"
-    },
-    {
-      "title": "Investing more than $230 million in higher pay and expanded benefits for Whole Foods Market team members",
-      "link": "https://www.aboutamazon.com/news/workplace/whole-foods-market-pay-benefits-expansion?utm_source=rss",
-      "pubDate": "Thu, 10 Sep 2026 17:00:08 GMT",
-      "date": "9/10",
-      "summary": "More than 100,000 U.S. Whole Foods Market team members will soon gain access to Amazon's comprehensive benefits.",
-      "category": "Workplace"
     }
   ]
 }

@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-09-15T03:29:10.547Z",
+  "updatedAt": "2026-09-16T03:25:01.378Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "How Amazon is helping after back-to-back earthquakes in Venezuela",
-      "link": "https://www.aboutamazon.com/news/community/amazon-response-venezuela-earthquakes-2026?utm_source=rss",
-      "pubDate": "Mon, 14 Sep 2026 19:01:00 GMT",
-      "date": "9/14",
-      "summary": "Amazon is supporting nonprofits on the ground and delivering relief supplies after devastating quakes hit northern Venezuela.",
-      "category": "Community"
-    },
-    {
       "title": "Amazon's water conservation and replenishment efforts around the world",
       "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
-      "pubDate": "Fri, 11 Sep 2026 16:34:00 GMT",
-      "date": "9/11",
+      "pubDate": "Tue, 15 Sep 2026 11:13:00 GMT",
+      "date": "9/15",
       "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
       "category": "Sustainability"
     },
     {
-      "title": "Amazon Leo adds 6 new Arianespace launches, expanding its launch partnership",
-      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-arianespace-new-launches?utm_source=rss",
-      "pubDate": "Thu, 10 Sep 2026 19:26:06 GMT",
-      "date": "9/10",
-      "summary": "The agreement extends the largest commercial contract in Arianespace history and supports investment and innovation across Europe.",
-      "category": "Amazon Leo"
+      "title": "Prime Big Deal Days regresa del 6 al 7 de octubre: Esto es lo que puedes esperar",
+      "link": "https://www.aboutamazon.com/news/retail/amazon-prime-big-deals-day-2026-cuando-octubre-6-7?utm_source=rss",
+      "pubDate": "Tue, 15 Sep 2026 04:30:40 GMT",
+      "date": "9/15",
+      "summary": "A partir del 6 de octubre, los miembros Prime pueden comprar 48 horas de ofertas exclusivas en más de 35 categorías, además de nuevas formas",
+      "category": "Retail"
+    },
+    {
+      "title": "Prime Big Deal Days 2026: Early deals you can shop right now",
+      "link": "https://www.aboutamazon.com/news/retail/prime-big-deal-days-2026-best-deals-amazon?utm_source=rss",
+      "pubDate": "Tue, 15 Sep 2026 04:30:23 GMT",
+      "date": "9/15",
+      "summary": "Prime members can start saving ahead of Prime Big Deal Days 2026, returning October 6–7, with deals on devices, Kindle, Amazon Music, and mo",
+      "category": "Retail"
     }
   ]
 }

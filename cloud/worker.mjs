@@ -1,9 +1,9 @@
 import callerModule from '../amazon-growth/gateway/caller.js';
+import llmModule from '../amazon-growth/gateway/llm.cjs';
 import evidenceModule from '../amazon-growth/gateway/evidence.js';
 import {analyzeRequest} from './keyword/server/services/analyze.js';
 
 const enc = new TextEncoder();
-const CF_LLM_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const origins = new Set(['https://xiaopong190-oss.github.io']);
 const shared = new Set(['agents.json','global-config.json','kpi-monthly.json','lingxing-sku-db.json','logistics.json','production.json','tasks.json','tools-links.json']);
 const fail = (status, message) => { throw Object.assign(new Error(message), {status}); };
@@ -18,35 +18,6 @@ async function matches(value, stored) { return !!stored && await passwordHash(St
 async function get(env,key) { const row=await env.DB.prepare('SELECT value FROM records WHERE key=?').bind(key).first();return row?JSON.parse(row.value):null; }
 async function put(env,key,value) { await env.DB.prepare('INSERT INTO records(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(value)).run(); }
 async function body(req) { const text=await req.text();if(text.length>3000000)fail(413,'请求过大');try{return JSON.parse(text);}catch{fail(400,'无效 JSON');} }
-function llmText(value) {
-  if(typeof value==='string')return value;
-  if(typeof value?.response==='string')return value.response;
-  if(typeof value?.result?.response==='string')return value.result.response;
-  if(Array.isArray(value?.choices))return value.choices.map(x=>x?.message?.content||x?.text||'').filter(Boolean).join('\n');
-  return '';
-}
-async function cloudflareFirstClaude(payload,env) {
-  const messages=[];
-  if(payload?.system)messages.push({role:'system',content:String(payload.system)});
-  for(const m of Array.isArray(payload?.messages)?payload.messages:[])if(m&&['user','assistant','system'].includes(m.role))messages.push({role:m.role,content:typeof m.content==='string'?m.content:JSON.stringify(m.content)});
-  if(!messages.length)fail(400,'LLM 消息为空');
-  let cfError='';
-  if(env.AI){
-    try{
-      const result=await env.AI.run(CF_LLM_MODEL,{messages,max_tokens:Math.min(Number(payload.max_tokens)||4000,4000),temperature:0.2});
-      const text=llmText(result);
-      if(text)return {content:[{type:'text',text}],model:CF_LLM_MODEL,usage:result?.usage||{},provider:'cloudflare'};
-      cfError='Cloudflare AI 返回空结果';
-    }catch(e){cfError=String(e?.message||e||'Cloudflare AI 调用失败').slice(0,300);}
-  }else cfError='Cloudflare AI 未绑定';
-  if(env.ANTHROPIC_API_KEY){
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify(payload),redirect:'manual',signal:AbortSignal.timeout(60000)});
-    const data=await r.json().catch(()=>({}));
-    if(r.ok)return {...data,provider:'anthropic',cloudflareFallbackReason:cfError};
-    fail(r.status,'Cloudflare AI 不可用，Anthropic 也失败：'+(data?.error?.message||r.statusText));
-  }
-  fail(503,'Cloudflare AI 额度或能力不足：'+cfError+'。请在 Worker 配置 ANTHROPIC_API_KEY 作为备用 LLM API。');
-}
 async function quota(env,key,max,seconds) {
   const bucket=key+':'+Math.floor(Date.now()/1000/seconds);
   const row=await env.DB.prepare('INSERT INTO limits(key,count,expires) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count').bind(bucket,Date.now()+seconds*1000).first();
@@ -230,7 +201,7 @@ async function handle(req,env) {
       if(p.endsWith('/publish')||p.endsWith('/put'))return json({stored:0,skipped:b.items?.length||1,reasons:['云端只缓存经认证的上游调用，请继续使用本地历史']});
       if(p.endsWith('/export'))return json({refs:[]});
     }
-    if(p==='/api/claude'&&req.method==='POST')return json(await cloudflareFirstClaude(await body(req),env));
+    if(p==='/api/claude'&&req.method==='POST')return json(await llmModule.generate(await body(req),env,req.headers.get('X-LLM-Key')||req.headers.get('X-Anthropic-Key')||''));
     fail(404,'接口不存在');
   }
   if(p.startsWith('/ops-api/'))fail(404,'接口不存在');
@@ -247,7 +218,7 @@ export default {async fetch(req,env){
     r=json({error:e.status?e.message:'服务请求失败，请稍后重试'},e.status||502);
   }
   const headers=new Headers(r.headers);if(origin)headers.set('Access-Control-Allow-Origin',origin);
-  headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');headers.set('Access-Control-Allow-Headers','Content-Type,Authorization,X-Connection-Id,X-Connection-Admin,X-Proxy-Token,X-Evidence-Client,Mcp-Session-Id,MCP-Protocol-Version');headers.set('Access-Control-Expose-Headers','Mcp-Session-Id');
+  headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');headers.set('Access-Control-Allow-Headers','Content-Type,Authorization,X-LLM-Key,X-Anthropic-Key,X-Connection-Id,X-Connection-Admin,X-Proxy-Token,X-Evidence-Client,Mcp-Session-Id,MCP-Protocol-Version');headers.set('Access-Control-Expose-Headers','Mcp-Session-Id');
   headers.set('X-Content-Type-Options','nosniff');
   return new Response(r.body,{status:r.status,headers});
 }};

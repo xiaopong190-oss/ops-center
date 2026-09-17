@@ -124,29 +124,16 @@ async function handleMcp(req, res, selected) {
 
 /* ---------------- /api/claude ---------------- */
 async function handleClaude(req, res) {
-  const key = req.headers["x-anthropic-key"] || process.env.ANTHROPIC_API_KEY;
-  if (!key) return fail(res, 500, "未配置 Anthropic 密钥：设置 ANTHROPIC_API_KEY 环境变量，或在页面设置里填。");
-  const body = await readBody(req);
-  let upstream, text;
+  const raw = await readBody(req);
+  let payload;
+  try { payload = JSON.parse(raw); if (!payload || Array.isArray(payload)) throw Error(); }
+  catch { return fail(res,400,'请求体必须是 JSON 对象'); }
   try {
-    upstream = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      redirect: "error",
-      signal: AbortSignal.timeout(60000),
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01"
-      },
-      body
-    });
-    text = await upstream.text();
-  } catch (e) {
-    return fail(res, 502, "无法连接 Anthropic API：" + e.message);
-  }
-  gateway.applyCors(req, res);
-  res.writeHead(upstream.status, { "Content-Type": "application/json; charset=utf-8" });
-  res.end(text);
+    const data = await require('../gateway/llm.cjs').generate(payload,process.env,req.headers['x-llm-key']||req.headers['x-anthropic-key']||'');
+    gateway.applyCors(req,res);
+    res.writeHead(200,{'Content-Type':'application/json; charset=utf-8'});
+    res.end(JSON.stringify(data));
+  } catch(e) { return fail(res,e.status||502,e.message); }
 }
 
 /* ---------------- 静态文件 ---------------- */
@@ -161,7 +148,7 @@ function serveStatic(req, res, urlPath) {
   }
   const file = path.join(ROOT, rel.replace(/^\//, "").replace(/\//g, path.sep));
   const allowed = ["/index.html", "/assets/app.js", "/assets/mcp.js", "/assets/pool.js", "/assets/connections-ui.js", "/assets/claude.js", "/assets/report.js", "/assets/scene-reports.js", "/assets/data.js", "/assets/style.css"];
-  if (!allowed.includes(rel)) return fail(res, 403, "禁止访问");
+  if (!allowed.includes(rel) && rel !== '/assets/llm-settings.js') return fail(res, 403, "禁止访问");
   try {
     const relative = path.relative(ROOT, fs.realpathSync(file));
     if (relative.startsWith("..") || path.isAbsolute(relative)) return fail(res, 403, "禁止访问");

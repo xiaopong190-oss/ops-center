@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node proxy/server.js",
     "dev": "node proxy/server.js",
-    "test": "node tests/adversarial.cjs && node tests/connections.cjs && node tests/local-report.cjs && node tests/visual-report.cjs && node tests/gateway.cjs && node tests/asinscope.cjs && node tests/watchlist.cjs"
+    "test": "node tests/adversarial.cjs && node tests/connections.cjs && node tests/local-report.cjs && node tests/visual-report.cjs && node tests/gateway.cjs && node tests/asinscope.cjs && node tests/watchlist.cjs && node tests/llm.cjs"
   },
   "engines": {
     "node": ">=18"

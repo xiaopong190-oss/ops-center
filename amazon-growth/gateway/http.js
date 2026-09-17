@@ -14,7 +14,7 @@ function createGateway({ store, caller, origins }) {
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers',
-      'Content-Type, Accept, Mcp-Session-Id, X-Mcp-Endpoint, X-Mcp-Key, X-Anthropic-Key, X-Proxy-Token, X-Connection-Id, X-Connection-Admin, X-Evidence-Client');
+      'Content-Type, Accept, Mcp-Session-Id, X-Mcp-Endpoint, X-Mcp-Key, X-Anthropic-Key, X-LLM-Key, X-Proxy-Token, X-Connection-Id, X-Connection-Admin, X-Evidence-Client');
     res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
     return !origin || !!echoed;
   }

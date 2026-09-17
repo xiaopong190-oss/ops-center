@@ -1398,6 +1398,14 @@
         state.run.reportHistory.push({id:"report_" + Date.now(),createdAt:state.run.reportGeneratedAt || state.run.savedAt || Date.now(),text:state.run.analysis,visualReport:state.run.visualReport || null});
       }
       const result = await window.Analyst.report(state.cfg, state.scene, state.run.form || state.form, state.run.steps);
+      try {
+        const ai = await window.Analyst.analyze(state.cfg, state.scene, state.run.form || state.form, state.run.steps);
+        result.text += '\n\n### AI 分析（' + ai.provider + ' / ' + ai.model + '）\n' + ai.text;
+        result.aiProvider = ai.provider;
+        result.aiModel = ai.model;
+      } catch (e) {
+        result.text += '\n\n### AI 提醒\n' + String(e.message || e) + '\n已保留数据报告，可在「AI 设置」中检查密钥、额度或更换服务后重试。';
+      }
       state.run.analysis = result.text;
       state.run.visualReport = result;
       state.run.reportGeneratedAt = Date.now();
@@ -1452,8 +1460,6 @@
     $("#s-key").value = c.apiKey;
     $("#s-authheader").value = c.authHeader;
     $("#s-authprefix").value = c.authPrefix;
-    $("#s-anthropic").value = c.anthropicKey;
-    $("#s-model").value = c.model;
     syncModeUI();
     $("#settings").hidden = false;
     const first = $("#s-mode");
@@ -1476,8 +1482,8 @@
       apiKey: $("#s-key").value.trim(),
       authHeader: $("#s-authheader").value.trim() || "Authorization",
       authPrefix: $("#s-authprefix").value,
-      anthropicKey: $("#s-anthropic").value.trim(),
-      model: $("#s-model").value.trim() || "claude-sonnet-4-6"
+      anthropicKey: state.cfg.anthropicKey || '',
+      model: state.cfg.model || ''
     };
     save();
     state.connected = false; state.serverTools = null; state.client = null;
@@ -1497,7 +1503,7 @@
       mode: $("#s-mode").value, proxy: $("#s-proxy").value.trim(), endpoint: $("#s-endpoint").value.trim(),
       proxyToken: $("#s-token").value.trim(),
       apiKey: $("#s-key").value.trim(), authHeader: $("#s-authheader").value.trim() || "Authorization",
-      authPrefix: $("#s-authprefix").value, anthropicKey: $("#s-anthropic").value.trim(), model: $("#s-model").value.trim()
+      authPrefix: $("#s-authprefix").value, anthropicKey: before.anthropicKey || '', model: before.model || ''
     };
     try {
       const info = await ensureClient();

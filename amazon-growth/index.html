@@ -49,6 +49,7 @@
       <span class="dot"></span><span>未连接</span>
     </button>
     <div class="mast-actions">
+      <button class="btn" id="llmSettings" type="button">AI 设置</button>
       <button class="btn mini" id="themeBtn" type="button" title="切换浅色 / 深色 / 跟随系统">自动</button>
       <button class="btn" id="openSettings" type="button">设置</button>
       <button class="btn btn-primary" id="openConnections" type="button">连接组</button>
@@ -213,14 +214,7 @@
 
       <hr>
 
-      <div class="field">
-        <label for="s-anthropic">LLM API Key（AI 分析用）</label>
-        <input id="s-anthropic" type="password" placeholder="服务端已配置时可留空">
-      </div>
-      <div class="field">
-        <label for="s-model">LLM 分析模型</label>
-        <input id="s-model" placeholder="claude-sonnet-4-6">
-      </div>
+      <p class="hint">选择模型服务、填写 API Key，请使用页头的「AI 设置」。</p>
 
       <div class="modal-actions">
         <button class="btn" id="s-test">测试连接</button>
@@ -256,9 +250,10 @@
 <script src="assets/mcp.js?v=20260912-s12"></script>
 <script src="assets/pool.js?v=20260912-s12"></script>
 <script src="assets/connections-ui.js?v=20260913-admin1"></script>
-<script src="assets/claude.js?v=20260914-cfai1"></script>
+<script src="assets/llm-settings.js?v=20260917-ai1"></script>
+<script src="assets/claude.js?v=20260917-ai1"></script>
 <script src="assets/report.js?v=20260912-s12"></script>
 <script src="assets/scene-reports.js?v=20260912-breakout"></script>
-<script src="assets/app.js?v=20260915-required1"></script>
+<script src="assets/app.js?v=20260917-ai1"></script>
 </body>
 </html>

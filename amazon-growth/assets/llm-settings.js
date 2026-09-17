@@ -27,7 +27,7 @@
       const headers={'Content-Type':'application/json'};if(keys[provider])headers['X-LLM-Key']=keys[provider];
       const legacy=read(localStorage,'xiyou-console-v1').cfg||{};if(legacy.proxyToken)headers['X-Proxy-Token']=legacy.proxyToken;
       const base=(legacy.proxy||location.origin).replace(/\/$/,'');
-      const response=await fetch(base+'/api/claude',{method:'POST',headers,body:JSON.stringify({provider,model:draft[provider]?.model||undefined,max_tokens:256,messages:[{role:'user',content:'Reply with OK.'}]}),signal:AbortSignal.timeout(70000)});
+      const response=await fetch(base+'/api/claude',{method:'POST',headers,body:JSON.stringify({provider,model:draft[provider]?.model||undefined,max_tokens:256,messages:[{role:'user',content:'Reply with OK.'}]}),signal:AbortSignal.timeout(150000)});
       const data=await response.json();if(!response.ok)throw Error(typeof data.error==='string'?data.error:'测试失败（HTTP '+response.status+'）');
       el('status').textContent='连接成功：'+data.provider+' / '+data.model;
     }catch(e){el('status').textContent=e.message||'连接失败';}finally{el('test').disabled=false;}

@@ -5,7 +5,7 @@ const providers = {
 };
 const cfModel='@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 function fail(status,message){throw Object.assign(new Error(message),{status});}
-async function generate(payload, env={}, key='', fetcher=(...args)=>fetch(...args)) {
+async function generate(payload, env={}, key='', fetcher=(...args)=>fetch(...args), sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))) {
   const provider=payload.provider||'auto';
   if(!['auto','cloudflare',...Object.keys(providers)].includes(provider))fail(400,'不支持的 AI 服务');
   if(!Array.isArray(payload.messages)||!payload.messages.length)fail(400,'LLM 消息为空');
@@ -35,10 +35,19 @@ async function generate(payload, env={}, key='', fetcher=(...args)=>fetch(...arg
     request={model,messages:payload.messages,max_tokens,...(payload.system?{system:payload.system}:{})};
   }else headers.Authorization='Bearer '+key;
   let response;
-  try{response=await fetcher(spec.url,{method:'POST',headers,body:JSON.stringify(request),redirect:'manual',signal:AbortSignal.timeout(60000)});}
-  catch{fail(502,provider+' 连接失败或超时，请稍后重试。');}
+  const retryable=new Set([408,429,500,502,503,504]);
+  for(let attempt=0;attempt<3;attempt++){
+    try{response=await fetcher(spec.url,{method:'POST',headers,body:JSON.stringify(request),redirect:'manual',signal:AbortSignal.timeout(45000)});}
+    catch{
+      if(attempt===2)fail(502,provider+' 连接失败或超时，已自动重试 3 次，请稍后再试。');
+      await sleep(700*Math.pow(2,attempt)+Math.floor(Math.random()*250));continue;
+    }
+    if(response.ok||!retryable.has(response.status)||attempt===2)break;
+    const retryAfter=Math.min(5000,Math.max(0,Number(response.headers.get('retry-after'))*1000||0));
+    await sleep(retryAfter||700*Math.pow(2,attempt)+Math.floor(Math.random()*250));
+  }
   if(!response.ok){
-    const hint=response.status===401||response.status===403?'密钥无效或无访问权限':response.status===429?'额度不足或请求过于频繁':response.status===404?'模型不存在，请检查模型名称':'请求失败，请检查模型和账户状态';
+    const hint=response.status===401||response.status===403?'密钥无效或无访问权限':response.status===429?'额度不足或请求过于频繁，已自动重试 3 次':response.status===503?'服务临时繁忙或不可用，已自动重试 3 次，请稍后再试':response.status===404?'模型不存在，请检查模型名称':'服务暂时异常，已自动重试 3 次，请稍后再试';
     fail(response.status>=400?response.status:502,provider+'：'+hint+'（HTTP '+response.status+'）');
   }
   const data=await response.json().catch(()=>null);

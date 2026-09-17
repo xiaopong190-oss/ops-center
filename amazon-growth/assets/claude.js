@@ -101,7 +101,7 @@
     }
 
     if (cfg.mode !== 'proxy' && payload.provider !== 'anthropic') throw new Error('请使用代理模式调用所选 AI 服务。');
-    const res = await fetch(url, { method: "POST", headers: headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(70000) });
+    const res = await fetch(url, { method: "POST", headers: headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(150000) });
     const text = await res.text();
     if (!res.ok) throw new Error("HTTP " + res.status + " — " + text.slice(0, 500));
     const json = JSON.parse(text);

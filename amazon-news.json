@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-09-17T03:30:30.295Z",
+  "updatedAt": "2026-09-18T03:16:32.257Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon is giving every US employee a discount on groceries",
-      "link": "https://www.aboutamazon.com/news/workplace/amazon-us-employee-grocery-discount?utm_source=rss",
-      "pubDate": "Wed, 16 Sep 2026 13:59:42 GMT",
-      "date": "9/16",
-      "summary": "All U.S. employees will receive 10% off eligible purchases online and 20% off in Whole Foods Market stores, with no cap on savings.",
-      "category": "Workplace"
+      "title": "What AWS's chief AI and technology officer told employees about the future of AI",
+      "link": "https://www.aboutamazon.com/news/aws/aws-cto-future-of-ai?utm_source=rss",
+      "pubDate": "Thu, 17 Sep 2026 22:40:57 GMT",
+      "date": "9/17",
+      "summary": "At the AWS Global Meeting, Matt Wood drew a parallel between AI today and cloud's early days—and brought a live demo to prove the future is ",
+      "category": "AWS"
     },
     {
-      "title": "Amazon raises minimum starting pay for full-time core operations employees to $20/hour, with average pay reaching nearly $24/hour",
-      "link": "https://www.aboutamazon.com/news/workplace/amazon-raises-minimum-starting-pay-adds-grocery-banking-benefits?utm_source=rss",
-      "pubDate": "Wed, 16 Sep 2026 13:00:07 GMT",
-      "date": "9/16",
-      "summary": "Amazon invests more than $1.5 billion in higher pay for U.S. core operations employees, alongside new benefits designed to help our teammate",
-      "category": "Workplace"
+      "title": "Watch the trailer for 'Perfect Liars,' the adaptation of the hit novel coming to Prime Video November 20",
+      "link": "https://www.aboutamazon.com/news/entertainment/perfect-liars-prime-video?utm_source=rss",
+      "pubDate": "Thu, 17 Sep 2026 16:00:17 GMT",
+      "date": "9/17",
+      "summary": "This thriller set in an elite university is based on author Alex Mírez's captivating Wattpad novel.",
+      "category": "Entertainment"
     },
     {
-      "title": "What is the Amazon Influencer Program? Your questions answered.",
-      "link": "https://www.aboutamazon.com/news/retail/how-amazon-influencer-program-works?utm_source=rss",
-      "pubDate": "Wed, 16 Sep 2026 13:00:05 GMT",
-      "date": "9/16",
-      "summary": "The program helps social media creators earn revenue by recommending products they love to their followers.",
-      "category": "Innovation at Amazon"
+      "title": "How to read books for free with Prime: Amazon First Reads and Amazon Original Stories",
+      "link": "https://www.aboutamazon.com/news/books-and-authors/prime-reading-free-books-benefits?utm_source=rss",
+      "pubDate": "Thu, 17 Sep 2026 16:00:00 GMT",
+      "date": "9/17",
+      "summary": "Prime members get instant access to short stories from best-selling authors through Amazon Original Stories, plus a Kindle book each month w",
+      "category": "Books and authors"
     }
   ]
 }

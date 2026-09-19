@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-09-18T03:16:32.257Z",
+  "updatedAt": "2026-09-19T03:12:46.376Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon highlights investments in satellite connectivity, responsible AI, and sustainability at UN General Assembly",
+      "link": "https://www.aboutamazon.com/news/policy-news-views/united-nations-general-assembly-2026-amazon-ai-sustainability?utm_source=rss",
+      "pubDate": "Fri, 18 Sep 2026 16:42:11 GMT",
+      "date": "9/18",
+      "summary": "From satellite internet in South Africa to 42 gigawatts of clean energy, Amazon's Chief Global Affairs Officer shares how the company is inv",
+      "category": "Policy news &amp; views"
+    },
     {
       "title": "What AWS's chief AI and technology officer told employees about the future of AI",
       "link": "https://www.aboutamazon.com/news/aws/aws-cto-future-of-ai?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "9/17",
       "summary": "This thriller set in an elite university is based on author Alex Mírez's captivating Wattpad novel.",
       "category": "Entertainment"
-    },
-    {
-      "title": "How to read books for free with Prime: Amazon First Reads and Amazon Original Stories",
-      "link": "https://www.aboutamazon.com/news/books-and-authors/prime-reading-free-books-benefits?utm_source=rss",
-      "pubDate": "Thu, 17 Sep 2026 16:00:00 GMT",
-      "date": "9/17",
-      "summary": "Prime members get instant access to short stories from best-selling authors through Amazon Original Stories, plus a Kindle book each month w",
-      "category": "Books and authors"
     }
   ]
 }

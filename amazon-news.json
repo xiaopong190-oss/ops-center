@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-09-21T03:24:38.194Z",
+  "updatedAt": "2026-09-22T03:23:41.117Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon highlights investments in satellite connectivity, responsible AI, and sustainability at UN General Assembly",
-      "link": "https://www.aboutamazon.com/news/policy-news-views/united-nations-general-assembly-2026-amazon-ai-sustainability?utm_source=rss",
-      "pubDate": "Fri, 18 Sep 2026 16:42:11 GMT",
-      "date": "9/18",
-      "summary": "From satellite internet in South Africa to 42 gigawatts of clean energy, Amazon's Chief Global Affairs Officer shares how the company is inv",
-      "category": "Policy news &amp; views"
+      "title": "Amazon’s carbon-free energy projects contribute $11 billion to US GDP, support nearly 22,000 jobs in local communities",
+      "link": "https://www.aboutamazon.com/news/sustainability/amazon-carbon-free-energy-economic-impact-study-2026?utm_source=rss",
+      "pubDate": "Mon, 21 Sep 2026 19:00:05 GMT",
+      "date": "9/21",
+      "summary": "Amazon's solar, wind, nuclear, and battery storage investments drove economic growth across the U.S. from 2023 through 2025, per an Oxford E",
+      "category": "Sustainability"
     },
     {
-      "title": "What AWS's chief AI and technology officer told employees about the future of AI",
-      "link": "https://www.aboutamazon.com/news/aws/aws-cto-future-of-ai?utm_source=rss",
-      "pubDate": "Thu, 17 Sep 2026 22:40:57 GMT",
-      "date": "9/17",
-      "summary": "At the AWS Global Meeting, Matt Wood drew a parallel between AI today and cloud's early days—and brought a live demo to prove the future is ",
-      "category": "AWS"
+      "title": "How Amazon and Prime make everyday life more affordable for American families",
+      "link": "https://www.aboutamazon.com/news/retail/amazon-prime-affordable-everyday-savings?utm_source=rss",
+      "pubDate": "Mon, 21 Sep 2026 15:00:18 GMT",
+      "date": "9/21",
+      "summary": "Amazon and Prime deliver billions in savings every year—averaging over $1,000 per customer for 100+ million customers—through everyday low p",
+      "category": "Retail"
     },
     {
-      "title": "Watch the trailer for 'Perfect Liars,' the adaptation of the hit novel coming to Prime Video November 20",
-      "link": "https://www.aboutamazon.com/news/entertainment/perfect-liars-prime-video?utm_source=rss",
-      "pubDate": "Thu, 17 Sep 2026 16:00:17 GMT",
-      "date": "9/17",
-      "summary": "This thriller set in an elite university is based on author Alex Mírez's captivating Wattpad novel.",
-      "category": "Entertainment"
+      "title": "Amazon invests another $1.9 billion in the Delivery Service Partner program, launching new safety initiatives and AI-powered technology",
+      "link": "https://www.aboutamazon.com/news/transportation/amazon-dsp-program-investment-2026?utm_source=rss",
+      "pubDate": "Mon, 21 Sep 2026 13:00:22 GMT",
+      "date": "9/21",
+      "summary": "Amazon has invested $21.7 billion to support DSPs and their Delivery Associates throughout the eight-year program history.",
+      "category": "Transportation"
     }
   ]
 }

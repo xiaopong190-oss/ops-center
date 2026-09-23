@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-09-22T03:23:41.117Z",
+  "updatedAt": "2026-09-23T03:24:44.652Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon’s carbon-free energy projects contribute $11 billion to US GDP, support nearly 22,000 jobs in local communities",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-carbon-free-energy-economic-impact-study-2026?utm_source=rss",
-      "pubDate": "Mon, 21 Sep 2026 19:00:05 GMT",
-      "date": "9/21",
-      "summary": "Amazon's solar, wind, nuclear, and battery storage investments drove economic growth across the U.S. from 2023 through 2025, per an Oxford E",
-      "category": "Sustainability"
+      "title": "Inside a decade of Amazon chip design, built workload by workload",
+      "link": "https://www.aboutamazon.com/news/innovation-at-amazon/peter-desantis-amazon-ai-chips-design?utm_source=rss",
+      "pubDate": "Tue, 22 Sep 2026 18:42:38 GMT",
+      "date": "9/22",
+      "summary": "At AI Infra Summit, Amazon SVP Peter DeSantis explained how real customer workloads guided every generation of Amazon's chips, from Nitro to",
+      "category": "Innovation at Amazon"
     },
     {
-      "title": "How Amazon and Prime make everyday life more affordable for American families",
-      "link": "https://www.aboutamazon.com/news/retail/amazon-prime-affordable-everyday-savings?utm_source=rss",
-      "pubDate": "Mon, 21 Sep 2026 15:00:18 GMT",
-      "date": "9/21",
-      "summary": "Amazon and Prime deliver billions in savings every year—averaging over $1,000 per customer for 100+ million customers—through everyday low p",
-      "category": "Retail"
+      "title": "Amazon joins global coalition to advance AI education and digital skills for students",
+      "link": "https://www.aboutamazon.com/news/policy-news-views/amazon-joins-global-coalition-ai-education-digital-skills?utm_source=rss",
+      "pubDate": "Tue, 22 Sep 2026 18:14:17 GMT",
+      "date": "9/22",
+      "summary": "Amazon is supporting First Lady Melania Trump's Fostering the Future Together coalition to give young people access to AI-powered learning t",
+      "category": "Policy news &amp; views"
     },
     {
-      "title": "Amazon invests another $1.9 billion in the Delivery Service Partner program, launching new safety initiatives and AI-powered technology",
-      "link": "https://www.aboutamazon.com/news/transportation/amazon-dsp-program-investment-2026?utm_source=rss",
-      "pubDate": "Mon, 21 Sep 2026 13:00:22 GMT",
-      "date": "9/21",
-      "summary": "Amazon has invested $21.7 billion to support DSPs and their Delivery Associates throughout the eight-year program history.",
-      "category": "Transportation"
+      "title": "AWS becomes first cloud provider approved for NATO RESTRICTED workloads across all member nations",
+      "link": "https://www.aboutamazon.com/news/aws/aws-first-cloud-provider-nato-restricted-workloads?utm_source=rss",
+      "pubDate": "Tue, 22 Sep 2026 15:45:09 GMT",
+      "date": "9/22",
+      "summary": "AWS is the first cloud provider to have its cloud capabilities approved for use by all NATO member nations when handling information at the ",
+      "category": "AWS"
     }
   ]
 }

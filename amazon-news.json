@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-09-23T03:24:44.652Z",
+  "updatedAt": "2026-09-24T03:14:02.094Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Inside a decade of Amazon chip design, built workload by workload",
-      "link": "https://www.aboutamazon.com/news/innovation-at-amazon/peter-desantis-amazon-ai-chips-design?utm_source=rss",
-      "pubDate": "Tue, 22 Sep 2026 18:42:38 GMT",
-      "date": "9/22",
-      "summary": "At AI Infra Summit, Amazon SVP Peter DeSantis explained how real customer workloads guided every generation of Amazon's chips, from Nitro to",
+      "title": "Bee Private Compute: How Bee keeps your conversations private",
+      "link": "https://www.aboutamazon.com/news/devices/bee-private-compute-data-protection?utm_source=rss",
+      "pubDate": "Wed, 23 Sep 2026 22:30:07 GMT",
+      "date": "9/23",
+      "summary": "Bee doesn't store your audio and encrypts transcripts, summaries, and to-dos with keys only you control. Learn how Bee Private Compute prote",
+      "category": "Devices"
+    },
+    {
+      "title": "Amazon now offers nearly 30,000 pickup locations across the US",
+      "link": "https://www.aboutamazon.com/news/retail/amazon-pickup-locations-expansion?utm_source=rss",
+      "pubDate": "Wed, 23 Sep 2026 13:00:12 GMT",
+      "date": "9/23",
+      "summary": "Customers are on track to collect more than 100 million packages from Amazon pickup locations this year.",
+      "category": "Retail"
+    },
+    {
+      "title": "Amazon gives sellers an even smarter Seller Assistant and a new plugin for Amazon Quick and Anthropic’s Claude",
+      "link": "https://www.aboutamazon.com/news/innovation-at-amazon/seller-assistant-plugin-amazon-quick-claude?utm_source=rss",
+      "pubDate": "Wed, 23 Sep 2026 13:00:08 GMT",
+      "date": "9/23",
+      "summary": "Sellers can now automate routine tasks 24/7 with Seller Assistant and bring their Amazon data and Seller Central insights into the AI tools ",
       "category": "Innovation at Amazon"
-    },
-    {
-      "title": "Amazon joins global coalition to advance AI education and digital skills for students",
-      "link": "https://www.aboutamazon.com/news/policy-news-views/amazon-joins-global-coalition-ai-education-digital-skills?utm_source=rss",
-      "pubDate": "Tue, 22 Sep 2026 18:14:17 GMT",
-      "date": "9/22",
-      "summary": "Amazon is supporting First Lady Melania Trump's Fostering the Future Together coalition to give young people access to AI-powered learning t",
-      "category": "Policy news &amp; views"
-    },
-    {
-      "title": "AWS becomes first cloud provider approved for NATO RESTRICTED workloads across all member nations",
-      "link": "https://www.aboutamazon.com/news/aws/aws-first-cloud-provider-nato-restricted-workloads?utm_source=rss",
-      "pubDate": "Tue, 22 Sep 2026 15:45:09 GMT",
-      "date": "9/22",
-      "summary": "AWS is the first cloud provider to have its cloud capabilities approved for use by all NATO member nations when handling information at the ",
-      "category": "AWS"
     }
   ]
 }

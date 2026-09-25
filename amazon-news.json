@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-09-24T03:14:02.094Z",
+  "updatedAt": "2026-09-25T03:31:49.116Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Bee Private Compute: How Bee keeps your conversations private",
-      "link": "https://www.aboutamazon.com/news/devices/bee-private-compute-data-protection?utm_source=rss",
-      "pubDate": "Wed, 23 Sep 2026 22:30:07 GMT",
-      "date": "9/23",
-      "summary": "Bee doesn't store your audio and encrypts transcripts, summaries, and to-dos with keys only you control. Learn how Bee Private Compute prote",
-      "category": "Devices"
+      "title": "Sellers can now manage sales across Amazon, eBay, Shopify, TikTok, and Walmart from Seller Central",
+      "link": "https://www.aboutamazon.com/news/small-business/amazon-seller-central-multichannel-selling-tools?utm_source=rss",
+      "pubDate": "Thu, 24 Sep 2026 13:00:11 GMT",
+      "date": "9/24",
+      "summary": "Multichannel selling tools are a new offering in Amazon’s Seller Central that connect orders, listings, and analytics across other channels,",
+      "category": "Small business"
     },
     {
-      "title": "Amazon now offers nearly 30,000 pickup locations across the US",
-      "link": "https://www.aboutamazon.com/news/retail/amazon-pickup-locations-expansion?utm_source=rss",
-      "pubDate": "Wed, 23 Sep 2026 13:00:12 GMT",
-      "date": "9/23",
-      "summary": "Customers are on track to collect more than 100 million packages from Amazon pickup locations this year.",
-      "category": "Retail"
-    },
-    {
-      "title": "Amazon gives sellers an even smarter Seller Assistant and a new plugin for Amazon Quick and Anthropic’s Claude",
-      "link": "https://www.aboutamazon.com/news/innovation-at-amazon/seller-assistant-plugin-amazon-quick-claude?utm_source=rss",
-      "pubDate": "Wed, 23 Sep 2026 13:00:08 GMT",
-      "date": "9/23",
-      "summary": "Sellers can now automate routine tasks 24/7 with Seller Assistant and bring their Amazon data and Seller Central insights into the AI tools ",
+      "title": "Amazon announces new tools and services to help sellers go global from day one",
+      "link": "https://www.aboutamazon.com/news/innovation-at-amazon/amazon-sellers-global-expansion-tools?utm_source=rss",
+      "pubDate": "Thu, 24 Sep 2026 13:00:05 GMT",
+      "date": "9/24",
+      "summary": "Only 30% of Amazon sellers list in more than one country. New capabilities spanning compliance, logistics, and the selling experience are de",
       "category": "Innovation at Amazon"
+    },
+    {
+      "title": "Merchants can now add fast, free Prime delivery to their own websites and save up to 25% on fulfillment fees with Amazon Supply Chain Services",
+      "link": "https://www.aboutamazon.com/news/retail/amazon-mcf-prime-delivery-merchant-websites?utm_source=rss",
+      "pubDate": "Thu, 24 Sep 2026 09:58:21 GMT",
+      "date": "9/24",
+      "summary": "Amazon Supply Chain Services customers who enroll in Multichannel Fulfillment, along with merchants already using MCF, can now add the Prime",
+      "category": "Retail"
     }
   ]
 }

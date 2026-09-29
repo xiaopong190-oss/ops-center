@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-09-28T03:45:09.402Z",
+  "updatedAt": "2026-09-29T04:20:04.494Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Michael Bublé and Drew Scott strive for hockey glory in Prime Video docuseries 'Hometown Giants,' coming October 16",
+      "link": "https://www.aboutamazon.com/news/entertainment/hometown-giants-hockey-michael-buble-drew-scott-prime-video?utm_source=rss",
+      "pubDate": "Mon, 28 Sep 2026 18:30:10 GMT",
+      "date": "9/28",
+      "summary": "Watch the trailer for the new Prime Video series about Vancouver Giants junior hockey players chasing NHL dreams.",
+      "category": "Entertainment"
+    },
+    {
+      "title": "How to stream Shakira's Madrid concert, exclusively with Amazon Music",
+      "link": "https://www.aboutamazon.com/news/entertainment/shakira-livestream-amazon-music-prime-video?utm_source=rss",
+      "pubDate": "Mon, 28 Sep 2026 08:00:19 GMT",
+      "date": "9/28",
+      "summary": "Shakira's October 3 Madrid performance as part of her 'Las Mujeres Ya No Lloran' world tour will stream live exclusively via Amazon.",
+      "category": "Entertainment"
+    },
     {
       "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
       "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "9/25",
       "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
       "category": "AWS"
-    },
-    {
-      "title": "Sellers can now manage sales across Amazon, eBay, Shopify, TikTok, and Walmart from Seller Central",
-      "link": "https://www.aboutamazon.com/news/small-business/amazon-seller-central-multichannel-selling-tools?utm_source=rss",
-      "pubDate": "Thu, 24 Sep 2026 13:00:11 GMT",
-      "date": "9/24",
-      "summary": "Multichannel selling tools are a new offering in Amazon’s Seller Central that connect orders, listings, and analytics across other channels,",
-      "category": "Small business"
-    },
-    {
-      "title": "Amazon announces new tools and services to help sellers go global from day one",
-      "link": "https://www.aboutamazon.com/news/innovation-at-amazon/amazon-sellers-global-expansion-tools?utm_source=rss",
-      "pubDate": "Thu, 24 Sep 2026 13:00:05 GMT",
-      "date": "9/24",
-      "summary": "Only 30% of Amazon sellers list in more than one country. New capabilities spanning compliance, logistics, and the selling experience are de",
-      "category": "Innovation at Amazon"
     }
   ]
 }

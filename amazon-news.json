@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-09-29T04:20:04.494Z",
+  "updatedAt": "2026-09-30T04:03:40.430Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "'Spider-Man: Brand New Day' is coming to Prime Video October 6. Here's how to watch.",
+      "link": "https://www.aboutamazon.com/news/entertainment/how-to-watch-spider-man-movie-series-prime-video?utm_source=rss",
+      "pubDate": "Tue, 29 Sep 2026 16:01:06 GMT",
+      "date": "9/29",
+      "summary": "From Tom Holland, Andrew Garfield, and Tobey Maguire to the animated films and series, you can buy or rent the full ‘Spider-Man’ catalog on ",
+      "category": "Entertainment"
+    },
     {
       "title": "Michael Bublé and Drew Scott strive for hockey glory in Prime Video docuseries 'Hometown Giants,' coming October 16",
       "link": "https://www.aboutamazon.com/news/entertainment/hometown-giants-hockey-michael-buble-drew-scott-prime-video?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "9/28",
       "summary": "Shakira's October 3 Madrid performance as part of her 'Las Mujeres Ya No Lloran' world tour will stream live exclusively via Amazon.",
       "category": "Entertainment"
-    },
-    {
-      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Fri, 25 Sep 2026 18:03:00 GMT",
-      "date": "9/25",
-      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
-      "category": "AWS"
     }
   ]
 }

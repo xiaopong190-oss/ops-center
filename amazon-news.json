@@ -1,30 +1,30 @@
 {
-  "updatedAt": "2026-10-01T04:15:29.392Z",
+  "updatedAt": "2026-10-02T04:08:39.779Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
       "title": "Amazon in the community: Service, community, and commitment at HQ2",
       "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
-      "pubDate": "Wed, 30 Sep 2026 18:41:00 GMT",
-      "date": "9/30",
+      "pubDate": "Thu, 01 Oct 2026 21:44:00 GMT",
+      "date": "10/1",
       "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
       "category": "Community"
     },
     {
-      "title": "Amazon's water conservation and replenishment efforts around the world",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-water-conservation-replenishment-sustainability?utm_source=rss",
-      "pubDate": "Wed, 30 Sep 2026 13:06:00 GMT",
-      "date": "9/30",
-      "summary": "Get the latest updates on how we’re reducing our water footprint and investing in innovations to address water scarcity.",
-      "category": "Sustainability"
+      "title": "5 ways Amazon is investing in New Jersey",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-new-jersey-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Thu, 01 Oct 2026 15:29:41 GMT",
+      "date": "10/1",
+      "summary": "Amazon's investments are boosting the Garden State's economy while creating opportunities for New Jersey residents.",
+      "category": "Community"
     },
     {
-      "title": "Arnold Schwarzenegger is Santa in Prime Video's 'The Man with the Bag' teaser trailer, coming this Christmas",
-      "link": "https://www.aboutamazon.com/news/entertainment/the-man-with-the-bag-arnold-schwarzenegger-christmas-movie-prime-video?utm_source=rss",
-      "pubDate": "Wed, 30 Sep 2026 13:00:29 GMT",
-      "date": "9/30",
-      "summary": "Schwarzenegger stars alongside Alan Ritchson in this holiday heist movie premiering on Prime Video December 2.",
+      "title": "What’s new on Prime Video in October 2026, including ‘Carrie,’ ‘The Terminal List,’ and NBA games",
+      "link": "https://www.aboutamazon.com/news/entertainment/prime-video-october-films-shows-sports-2026?utm_source=rss",
+      "pubDate": "Thu, 01 Oct 2026 13:15:32 GMT",
+      "date": "10/1",
+      "summary": "Prime Video’s October lineup also features new originals like ‘Masterplan’ and ‘Apocalypse Z 2.’",
       "category": "Entertainment"
     }
   ]

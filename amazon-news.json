@@ -1,30 +1,30 @@
 {
-  "updatedAt": "2026-10-05T04:08:55.692Z",
+  "updatedAt": "2026-10-06T04:57:46.134Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "The race our nation can’t afford to lose, plus a new commitment from us and a fresh set of community investments",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-data-centers-built-together?utm_source=rss",
-      "pubDate": "Fri, 02 Oct 2026 08:55:14 GMT",
-      "date": "10/2",
-      "summary": "",
-      "category": "Company news"
-    },
-    {
-      "title": "How Amazon is helping communities impacted by the Nepal flash floods",
-      "link": "https://www.aboutamazon.com/news/community/nepal-floods-amazon-disaster-relief?utm_source=rss",
-      "pubDate": "Fri, 02 Oct 2026 08:34:00 GMT",
-      "date": "10/2",
-      "summary": "Amazon is working with aid organizations to help communities recover following flooding and landslides along the Nepal border.",
+      "title": "5 ways Amazon is investing in Connecticut",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-connecticut-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Mon, 05 Oct 2026 16:44:55 GMT",
+      "date": "10/5",
+      "summary": "Amazon's investments are boosting the Constitution State's economy while creating opportunities for Connecticut residents.",
       "category": "Community"
     },
     {
-      "title": "Amazon in the community: Service, community, and commitment at HQ2",
-      "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
-      "pubDate": "Thu, 01 Oct 2026 21:44:00 GMT",
-      "date": "10/1",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
+      "title": "Inside the AWS lab that makes everything you do online feel effortless",
+      "link": "https://www.aboutamazon.com/stories/inside-aws-networking-lab-cupertino?utm_source=rss",
+      "pubDate": "Mon, 05 Oct 2026 15:37:49 GMT",
+      "date": "10/5",
+      "summary": "In a nondescript building in Cupertino, California, a team of engineers is quietly designing the networking technology that keeps the modern",
+      "category": "AWS"
+    },
+    {
+      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
+      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
+      "pubDate": "Mon, 05 Oct 2026 15:26:00 GMT",
+      "date": "10/5",
+      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
       "category": "Community"
     }
   ]

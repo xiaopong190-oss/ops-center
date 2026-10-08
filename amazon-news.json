@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-10-07T04:24:37.670Z",
+  "updatedAt": "2026-10-08T04:35:44.931Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Tue, 06 Oct 2026 18:00:00 GMT",
-      "date": "10/6",
-      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
-      "category": "AWS"
-    },
-    {
       "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
       "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
-      "pubDate": "Tue, 06 Oct 2026 16:47:00 GMT",
-      "date": "10/6",
+      "pubDate": "Wed, 07 Oct 2026 22:05:00 GMT",
+      "date": "10/7",
       "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
       "category": "Community"
     },
     {
-      "title": "5 ways Amazon is investing in Massachusetts",
-      "link": "https://www.aboutamazon.com/news/community/amazon-investment-massachusetts-jobs-infrastructure-small-business?utm_source=rss",
-      "pubDate": "Tue, 06 Oct 2026 15:58:11 GMT",
-      "date": "10/6",
-      "summary": "Amazon's investments are boosting the Bay State's economy while creating opportunities for those who call Massachusetts home.",
-      "category": "Community"
+      "title": "'Clarkson's Farm' special 'Jeremy Grows a Car' coming to Prime Video in 2027",
+      "link": "https://www.aboutamazon.com/news/entertainment/clarksons-farm-special-jeremy-grows-a-car-prime-video?utm_source=rss",
+      "pubDate": "Wed, 07 Oct 2026 18:00:06 GMT",
+      "date": "10/7",
+      "summary": "Jeremy Clarkson is going back to his automotive roots by building his own car using produce from his farm.",
+      "category": "Entertainment"
+    },
+    {
+      "title": "Ring ends smart lock anxiety with a lock you can recharge by hand",
+      "link": "https://www.aboutamazon.com/news/devices/ring-smart-lock-battery-recharge?utm_source=rss",
+      "pubDate": "Wed, 07 Oct 2026 13:55:11 GMT",
+      "date": "10/7",
+      "summary": "Ring's first-ever smart lock eliminates the need for a key with a built-in power dial and four ways in.",
+      "category": "Devices"
     }
   ]
 }

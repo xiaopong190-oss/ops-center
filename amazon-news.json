@@ -1,30 +1,30 @@
 {
-  "updatedAt": "2026-10-08T04:35:44.931Z",
+  "updatedAt": "2026-10-09T04:39:01.774Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
-      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
-      "pubDate": "Wed, 07 Oct 2026 22:05:00 GMT",
-      "date": "10/7",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
-      "category": "Community"
+      "title": "From zero to 1,000: How Amazon Leo built one of the world's largest satellite production lines",
+      "link": "https://www.aboutamazon.com/stories/how-amazon-leo-builds-satellites?utm_source=rss",
+      "pubDate": "Thu, 08 Oct 2026 16:01:58 GMT",
+      "date": "10/8",
+      "summary": "Amazon has built more than 1,000 satellites for its growing constellation—and it's just getting started.",
+      "category": "Amazon Leo"
     },
     {
-      "title": "'Clarkson's Farm' special 'Jeremy Grows a Car' coming to Prime Video in 2027",
-      "link": "https://www.aboutamazon.com/news/entertainment/clarksons-farm-special-jeremy-grows-a-car-prime-video?utm_source=rss",
-      "pubDate": "Wed, 07 Oct 2026 18:00:06 GMT",
-      "date": "10/7",
-      "summary": "Jeremy Clarkson is going back to his automotive roots by building his own car using produce from his farm.",
-      "category": "Entertainment"
+      "title": "How AWS is helping companies build physical AI machines that think",
+      "link": "https://www.aboutamazon.com/news/aws/aws-physical-ai-toolchain-build-intelligent-machines?utm_source=rss",
+      "pubDate": "Thu, 08 Oct 2026 13:00:13 GMT",
+      "date": "10/8",
+      "summary": "Amazon launched the Physical AI Toolchain on AWS, an open-source stack that helps manufacturers build machines that perceive, reason, and ac",
+      "category": "AWS"
     },
     {
-      "title": "Ring ends smart lock anxiety with a lock you can recharge by hand",
-      "link": "https://www.aboutamazon.com/news/devices/ring-smart-lock-battery-recharge?utm_source=rss",
-      "pubDate": "Wed, 07 Oct 2026 13:55:11 GMT",
-      "date": "10/7",
-      "summary": "Ring's first-ever smart lock eliminates the need for a key with a built-in power dial and four ways in.",
+      "title": "Amazon announces an all-new family of tablets designed just for kids",
+      "link": "https://www.aboutamazon.com/news/devices/new-amazon-kids-tablets?utm_source=rss",
+      "pubDate": "Thu, 08 Oct 2026 12:55:18 GMT",
+      "date": "10/8",
+      "summary": "New Amazon Kids Tablets available in two models for younger and older kids",
       "category": "Devices"
     }
   ]

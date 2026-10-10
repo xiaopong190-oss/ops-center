@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-10-09T04:39:01.774Z",
+  "updatedAt": "2026-10-10T04:24:52.604Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Watch the teaser trailer for ‘Bloodaxe,’ the epic Viking drama coming to Prime Video January 20, 2027",
+      "link": "https://www.aboutamazon.com/news/entertainment/bloodaxe-vikings-prime-video?utm_source=rss",
+      "pubDate": "Fri, 09 Oct 2026 18:15:34 GMT",
+      "date": "10/9",
+      "summary": "The highly anticipated new series is helmed by the creator of ‘Vikings’ and has already been renewed for a second season.",
+      "category": "Entertainment"
+    },
+    {
+      "title": "'Love Me Love Me 3,' the next sequel in the hit romantic drama series, coming to Prime Video",
+      "link": "https://www.aboutamazon.com/news/entertainment/love-me-love-me-3-prime-video?utm_source=rss",
+      "pubDate": "Fri, 09 Oct 2026 13:56:06 GMT",
+      "date": "10/9",
+      "summary": "The third film will continue the young adult saga based on Stefania S.'s international best-selling novels.",
+      "category": "Entertainment"
+    },
     {
       "title": "From zero to 1,000: How Amazon Leo built one of the world's largest satellite production lines",
       "link": "https://www.aboutamazon.com/stories/how-amazon-leo-builds-satellites?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "10/8",
       "summary": "Amazon has built more than 1,000 satellites for its growing constellation—and it's just getting started.",
       "category": "Amazon Leo"
-    },
-    {
-      "title": "How AWS is helping companies build physical AI machines that think",
-      "link": "https://www.aboutamazon.com/news/aws/aws-physical-ai-toolchain-build-intelligent-machines?utm_source=rss",
-      "pubDate": "Thu, 08 Oct 2026 13:00:13 GMT",
-      "date": "10/8",
-      "summary": "Amazon launched the Physical AI Toolchain on AWS, an open-source stack that helps manufacturers build machines that perceive, reason, and ac",
-      "category": "AWS"
-    },
-    {
-      "title": "Amazon announces an all-new family of tablets designed just for kids",
-      "link": "https://www.aboutamazon.com/news/devices/new-amazon-kids-tablets?utm_source=rss",
-      "pubDate": "Thu, 08 Oct 2026 12:55:18 GMT",
-      "date": "10/8",
-      "summary": "New Amazon Kids Tablets available in two models for younger and older kids",
-      "category": "Devices"
     }
   ]
 }

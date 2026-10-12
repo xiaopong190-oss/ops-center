@@ -41,10 +41,11 @@ transact = function(change) {
   return followupOriginalTransaction(change ? current => {
     const user = requireFollowupUser();
     const result = change(current);
-    const existing = new Set(current.events.map(event => event.id));
-    for (const event of result.next.events) if (!existing.has(event.id)) {
-      // Imported historical events keep their original operator.
-      if (event.action === '导入备份') { event.actor = user.name; event.actor_id = user.id; }
+    // Backup import prepends one new audit event per product. Keep every older imported event untouched.
+    if (!current.products.length && !current.events.length && result.next.events[0]?.action === '导入备份') {
+      for (const event of result.next.events.slice(0, result.next.products.length)) {
+        if (event.action === '导入备份') { event.actor = user.name; event.actor_id = user.id; }
+      }
     }
     return result;
   } : null);

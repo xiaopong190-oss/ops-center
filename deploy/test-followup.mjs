@@ -110,3 +110,29 @@ await assert.rejects(right.window.eval('api')('/api/workbench',{kind:'product',b
 assert.equal(shared.data.products.length,1,'missing cloud must not silently save locally');
 left.window.close();right.window.close();
 console.log('PASS: two browsers share saves, startup ignores local records, missing cloud rejects saves');
+const scopeDom=page();await pause();const sw=scopeDom.window;
+sw.setOpsFollowupContext(context);
+const sp=await sw.eval('api')('/api/workbench',{kind:'product',body:{name:'范围测试',sku:'SCOPE',operating:'待上架'}});
+const sa=await sw.eval('api')('/api/workbench',{kind:'operation',productId:sp.id,body:{owner:'运营甲',account:'A',store:'店铺',site:'UK',status:'待上架'}});
+const sb=await sw.eval('api')('/api/workbench',{kind:'operation',productId:sp.id,body:{owner:'运营甲',account:'B',store:'店铺',site:'UK',status:'待上架'}});
+await sw.eval('load')();
+sw.eval('data.records').push(...['task','shipment','cost','campaign'].flatMap(kind=>[
+{id:kind+'A',kind,product_id:sp.id,body:{title:kind+'ONLY_A',operationId:sa.id}},
+{id:kind+'B',kind,product_id:sp.id,body:{title:kind+'ONLY_B',operationId:sb.id}}]));
+sw.eval('selected='+JSON.stringify(sp.id)+';selectedAssignment='+JSON.stringify(sa.id));
+for(const kind of ['task','shipment','cost','campaign']) {
+ sw.eval('tab='+JSON.stringify(kind)+';renderDrawer()');
+ const html=sw.document.querySelector('.detail-content').textContent;
+ assert.ok(html.includes(kind+'ONLY_A'));assert.ok(!html.includes(kind+'ONLY_B'));
+}
+sw.eval("tab='history';renderDrawer()");
+assert.ok(sw.document.querySelector('.detail-content').textContent.includes('→ A'));
+assert.ok(!sw.document.querySelector('.detail-content').textContent.includes('→ B'));
+sw.eval("open('shipment')");
+assert.equal(sw.document.querySelector('[name="operationId"]').value,sa.id);
+assert.equal(sw.document.querySelector('[name="operationId"]').required,true);
+scopeDom.window.close();
+console.log('PASS: same shop/site different accounts isolate all detail tabs and history; new records inherit exact assignment');
+
+
+

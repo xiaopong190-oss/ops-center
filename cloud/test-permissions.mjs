@@ -43,4 +43,12 @@ assert.equal(updated.status,200);assert.equal(updated.data.data.events[0].actor,
 assert.equal((await call('/ops-api/followup',null,admin)).data.data.products[0].body.name,'Changed by operator');
 assert.equal((await call('/ops-api/followup',{revision:updated.data.revision,data:{products:[],records:[],events:[]}},two)).status,400);
 console.log('PASS cloud shared admin upload, second-account read/edit, audit identity, stale revision rejection, no destructive overwrite');
+const merged = await call('/ops-api/followup',{revision:updated.data.revision,merge:true,data:{products:[{id:'operator-product',version:1,body:{name:'Operator product',sku:'OP-01'}}],records:[],events:[]}},two);
+assert.equal(merged.status,200);assert.equal(merged.data.data.products.length,2);
+const covered = await call('/ops-api/followup',{revision:merged.data.revision,merge:true,data:{products:[{...product,body:{...product.body,name:'Manager correction'}}],records:[],events:[]}},admin);
+assert.equal(covered.status,200);assert.equal(covered.data.data.products.length,2);
+assert.equal(covered.data.data.products.find(p=>p.id==='shared-product').body.name,'Manager correction');
+assert.ok(covered.data.data.events.some(e=>e.action==='上传并覆盖记录'&&JSON.parse(e.before).name==='Changed by operator'));
+assert.ok(covered.data.data.events.some(e=>e.actor==='TestTwo'));
+console.log('PASS operator merge into existing workspace, manager overwrite, other products preserved, before/after audit retained');
 sql.close();

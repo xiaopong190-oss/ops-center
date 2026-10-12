@@ -17,6 +17,7 @@ applyChange = function(current, input) {
   const user = requireFollowupUser();
   const rows = input.kind === 'product' ? current.products : current.records;
   const previous = rows.find(row => row.id === input.id);
+  if (previous) input = {...input,version:previous.version};
   const assignment = current.records.find(row => row.id === input.body?.operationId && !row.deleted_at && row.kind === 'operation' && row.product_id === (input.productId || previous?.product_id));
   const product = current.products.find(row => row.id === (input.productId || previous?.product_id));
   const body = { ...input.body };
@@ -60,13 +61,17 @@ let followupCloudIdentity = '';
 async function followupPersistence(change) {
   const request = opsFollowupContext.cloudRequest;
   if (!request) return followupOriginalTransaction(change);
+  for (let attempt = 0; attempt < 4; attempt++) {
   const snapshot = await request('/ops-api/followup');
   followupCloudSnapshot = snapshot;
   if (!change) return snapshot.data;
   const changed = change(snapshot.data);
-  const saved = await request('/ops-api/followup', {revision:snapshot.revision,data:changed.next});
+  let saved;
+  try { saved = await request('/ops-api/followup', {revision:snapshot.revision,data:changed.next}); }
+  catch (error) { if (attempt < 3 && /其它人员已更新/.test(error.message)) continue; throw error; }
   followupCloudSnapshot = saved;
   return changed.result;
+  }
 }
 transact = function(change) {
   if (change) requireFollowupUser();
@@ -183,7 +188,7 @@ window.setOpsFollowupContext = function(context) {
 };
 function updateCloudMigration() {
   let button = document.getElementById('upload-local-followup');
-  const available = opsFollowupContext.cloudRequest && opsFollowupContext.user?.auth === 'super' && followupLocalSnapshot?.products.length;
+  const available = opsFollowupContext.cloudRequest && followupCanWrite() && followupLocalSnapshot?.products.length;
   if (!available) { button?.remove(); return; }
   if (!button) {
     button = document.createElement('button'); button.id = 'upload-local-followup'; button.className = 'quiet';
@@ -191,15 +196,17 @@ function updateCloudMigration() {
     button.addEventListener('click', async () => {
       try {
         requireFollowupUser();
-        const cloud = await opsFollowupContext.cloudRequest('/ops-api/followup');
-        if (cloud.data.products.length || cloud.data.records.length || cloud.data.events.length) throw Error('云端已有记录，不能覆盖。请保留本机备份并处理合并。');
-        followupCloudSnapshot = await opsFollowupContext.cloudRequest('/ops-api/followup', {revision:cloud.revision,data:followupLocalSnapshot,migrate:true});
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const cloud = await opsFollowupContext.cloudRequest('/ops-api/followup');
+          try { followupCloudSnapshot = await opsFollowupContext.cloudRequest('/ops-api/followup', {revision:cloud.revision,data:followupLocalSnapshot,merge:true}); break; }
+          catch (error) { if (attempt < 3 && /其它人员已更新/.test(error.message)) continue; throw error; }
+        }
         await load(); toast('本机记录已上传，其它帐号刷新即可查看。'); updateCloudMigration();
       } catch (error) { toast(error.message, true); }
     });
   }
-  button.textContent = '上传本机记录到共享云端（' + followupLocalSnapshot.products.length + '款）';
-  button.disabled = Boolean(followupCloudSnapshot?.data.products.length || followupCloudSnapshot?.data.events.length);
+  button.textContent = '上传本机产品（合并共享，' + followupLocalSnapshot.products.length + '款）';
+  button.disabled = !followupCanWrite();
 }
 const followupLocalStorageLabel = updateStorageLabel;
 updateStorageLabel = function() {
@@ -212,6 +219,22 @@ setInterval(() => {
 }, 30000);
 // Guard backup import before the legacy document listener can read a file or mutate storage.
 document.addEventListener('change', e => {
+  if (e.target.id === 'backup-file' && opsFollowupContext.cloudRequest && e.target.files?.[0]) {
+    e.stopImmediatePropagation();
+    const file = e.target.files[0];
+    (async () => {
+      requireFollowupUser();
+      if (file.size > 3000000) throw Error('单次上传请小于3MB');
+      const uploaded = validateBackup(JSON.parse(await file.text()));
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const snapshot = await opsFollowupContext.cloudRequest('/ops-api/followup');
+        try { await opsFollowupContext.cloudRequest('/ops-api/followup', {revision:snapshot.revision,data:uploaded,merge:true}); break; }
+        catch (error) { if (attempt < 3 && /其它人员已更新/.test(error.message)) continue; throw error; }
+      }
+      await load(); toast('产品已合并上传，已有记录的覆盖修改已记录到历史。');
+    })().catch(error => toast(error.message, true)).finally(() => { e.target.value = ''; });
+    return;
+  }
   if (e.target.id === 'backup-file' && !followupCanWrite()) {
     e.stopImmediatePropagation();
     e.target.value = '';

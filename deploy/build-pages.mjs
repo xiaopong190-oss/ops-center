@@ -60,6 +60,7 @@ function getCiGistSecrets() {
   return null;
 }
 
+run("node deploy/build-followup-page.mjs");
 console.log("==> sync browser jsx");
 run("node sync-browser.mjs");
 

@@ -15,6 +15,24 @@ function requireFollowupUser() {
 const followupOriginalChange = applyChange;
 applyChange = function(current, input) {
   const user = requireFollowupUser();
+  const rows = input.kind === 'product' ? current.products : current.records;
+  const previous = rows.find(row => row.id === input.id);
+  const assignment = current.records.find(row => row.id === input.body?.operationId && !row.deleted_at && row.kind === 'operation' && row.product_id === (input.productId || previous?.product_id));
+  const product = current.products.find(row => row.id === (input.productId || previous?.product_id));
+  const body = { ...input.body };
+  if (!body.owner && !previous) body.owner = assignment?.body.owner || product?.body.owner || user.name;
+  if (assignment) {
+    if (!body.account) body.account = assignment.body.store || '';
+    if (!body.site) body.site = assignment.body.site || '';
+  }
+  if (input.kind === 'product') {
+    body.stage ||= productFields.find(field => field[0] === 'stage')[3][0];
+    body.health ||= '正常';
+  }
+  const changed = Object.keys(body).filter(key => JSON.stringify(body[key] ?? '') !== JSON.stringify(previous?.body[key] ?? ''));
+  const fields = input.kind === 'product' ? productFields : configs[input.kind];
+  const summary = previous ? '更新：' + changed.map(key => fields.find(field => field[0] === key)?.[1] || key).join('、') : '新建' + kindName[input.kind];
+  input = { ...input, body, reason: input.reason?.trim() || summary || '保存记录' };
   if (input.body?.owner && !opsFollowupContext.staff.some(s => s.name === input.body.owner)) {
     throw Error('请从运营中心员工名单重新选择负责人。');
   }
@@ -82,7 +100,59 @@ function updateFollowupPersonnel() {
     select.dataset.staffSignature = signature;
   });
   document.querySelectorAll('[data-new],#import-backup,#save').forEach(el => { el.disabled = !followupCanWrite(); });
+  simplifyFollowupForm();
 }
+function simplifyFollowupForm() {
+  const form = document.getElementById('record-form');
+  if (!form || !modal || modal.kind === 'delete') return;
+  if (!form.dataset.simplified) {
+    form.dataset.simplified = 'true';
+    form.querySelector('[name="actor"]')?.closest('label')?.setAttribute('hidden', '');
+    const reason = form.querySelector('[name="reason"]');
+    if (reason) { reason.required = false; reason.placeholder = '特殊调整可补充说明，常规变更自动记录'; reason.closest('label').querySelector('span').textContent = '补充说明（选填）'; }
+    const grid = form.querySelector('.form-grid');
+    const details = document.createElement('details');
+    details.className = 'wide';
+    details.innerHTML = '<summary style="cursor:pointer;padding:10px 0">更多信息（选填）</summary><div class="form-grid"></div>';
+    const extra = details.querySelector('div');
+    const optional = ['purpose','issue','stage','health','title','account','site','executedAt','firstLegStatus','reason'];
+    // Keep record titles visible; only the optional duty title on assignments is folded.
+    for (const label of [...grid.children]) {
+      const field = label.querySelector('[name]');
+      if (field && optional.includes(field.name) && (field.name !== 'title' || modal.kind === 'operation')) extra.append(label);
+    }
+    if (extra.children.length) grid.append(details);
+    const owner = form.querySelector('[name="owner"]');
+    if (owner && !owner.value && !modal.row) {
+      const assignment = data.records.find(row => row.id === form.querySelector('[name="operationId"]')?.value);
+      const product = data.products.find(row => row.id === selected);
+      const name = assignment?.body.owner || product?.body.owner || opsFollowupContext.user?.name;
+      if ([...owner.options].some(option => option.value === name)) owner.value = name;
+    }
+    for (const name of ['stage','health']) {
+      const field = form.querySelector('[name="' + name + '"]');
+      if (field && !field.value && !modal.row) field.selectedIndex = 1;
+    }
+    const note = form.querySelector('.form-note');
+    if (note) note.textContent = '操作人、时间和字段变更自动记录；负责人默认沿用已有分工，可调整。完成验证需提供结果和证据。';
+  }
+  if (modal.kind === 'product') {
+    const done = form.querySelector('[name="operating"]')?.value === '已完成';
+    for (const name of ['result','evidence']) { const label = form.querySelector('[name="' + name + '"]')?.closest('label'); if (label) label.hidden = !done; }
+  }
+}
+document.addEventListener('change', e => {
+  if (e.target.name === 'operating') simplifyFollowupForm();
+  if (e.target.name === 'operationId') {
+    const assignment = data.records.find(row => row.id === e.target.value && row.kind === 'operation');
+    if (!assignment) return;
+    const form = document.getElementById('record-form');
+    for (const [key, value] of [['owner',assignment.body.owner],['account',assignment.body.store],['site',assignment.body.site]]) {
+      const field = form?.querySelector('[name="' + key + '"]');
+      if (field) field.value = value || '';
+    }
+  }
+});
 window.setOpsFollowupContext = function(context) {
   opsFollowupContext = context;
   updateFollowupPersonnel();

@@ -54,9 +54,23 @@ applyDeletion = function(current, input) {
   return result;
 };
 const followupOriginalTransaction = transact;
+let followupCloudSnapshot = null;
+let followupLocalSnapshot = null;
+let followupCloudIdentity = '';
+async function followupPersistence(change) {
+  const request = opsFollowupContext.cloudRequest;
+  if (!request) return followupOriginalTransaction(change);
+  const snapshot = await request('/ops-api/followup');
+  followupCloudSnapshot = snapshot;
+  if (!change) return snapshot.data;
+  const changed = change(snapshot.data);
+  const saved = await request('/ops-api/followup', {revision:snapshot.revision,data:changed.next});
+  followupCloudSnapshot = saved;
+  return changed.result;
+}
 transact = function(change) {
   if (change) requireFollowupUser();
-  return followupOriginalTransaction(change ? current => {
+  return followupPersistence(change ? current => {
     const user = requireFollowupUser();
     const result = change(current);
     // Backup import prepends one new audit event per product. Keep every older imported event untouched.
@@ -156,7 +170,46 @@ document.addEventListener('change', e => {
 window.setOpsFollowupContext = function(context) {
   opsFollowupContext = context;
   updateFollowupPersonnel();
+  const identity = context.cloudRequest ? context.user?.id : '';
+  if (identity && identity !== followupCloudIdentity) {
+    followupCloudIdentity = identity;
+    data = freshData(); render();
+    (async () => {
+      followupLocalSnapshot = await followupOriginalTransaction(null);
+      await load();
+      updateCloudMigration();
+    })().catch(error => toast(error.message, true));
+  }
 };
+function updateCloudMigration() {
+  let button = document.getElementById('upload-local-followup');
+  const available = opsFollowupContext.cloudRequest && opsFollowupContext.user?.auth === 'super' && followupLocalSnapshot?.products.length;
+  if (!available) { button?.remove(); return; }
+  if (!button) {
+    button = document.createElement('button'); button.id = 'upload-local-followup'; button.className = 'quiet';
+    document.getElementById('export-backup').before(button);
+    button.addEventListener('click', async () => {
+      try {
+        requireFollowupUser();
+        const cloud = await opsFollowupContext.cloudRequest('/ops-api/followup');
+        if (cloud.data.products.length || cloud.data.records.length || cloud.data.events.length) throw Error('云端已有记录，不能覆盖。请保留本机备份并处理合并。');
+        followupCloudSnapshot = await opsFollowupContext.cloudRequest('/ops-api/followup', {revision:cloud.revision,data:followupLocalSnapshot,migrate:true});
+        await load(); toast('本机记录已上传，其它帐号刷新即可查看。'); updateCloudMigration();
+      } catch (error) { toast(error.message, true); }
+    });
+  }
+  button.textContent = '上传本机记录到共享云端（' + followupLocalSnapshot.products.length + '款）';
+  button.disabled = Boolean(followupCloudSnapshot?.data.products.length || followupCloudSnapshot?.data.events.length);
+}
+const followupLocalStorageLabel = updateStorageLabel;
+updateStorageLabel = function() {
+  if (!opsFollowupContext.cloudRequest) return followupLocalStorageLabel();
+  const label = document.getElementById('storage-label');
+  if (label) label.textContent = 'Cloudflare共享 · 所有帐号读取同一份新品记录';
+};
+setInterval(() => {
+  if (opsFollowupContext.cloudRequest && !modal && !busy) load().then(updateCloudMigration);
+}, 30000);
 // Guard backup import before the legacy document listener can read a file or mutate storage.
 document.addEventListener('change', e => {
   if (e.target.id === 'backup-file' && !followupCanWrite()) {

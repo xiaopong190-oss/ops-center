@@ -1,4 +1,5 @@
 import callerModule from '../amazon-growth/gateway/caller.js';
+import {followup} from './followup.mjs';
 import evidenceModule from '../amazon-growth/gateway/evidence.js';
 import {analyzeRequest} from './keyword/server/services/analyze.js';
 
@@ -84,6 +85,7 @@ async function secureConfig(input,prev) {
 }
 async function handle(req,env) {
   const url=new URL(req.url),p=url.pathname;
+  if(p === '/ops-api/followup') return followup(req, env, await session(req, env));
   if(p==='/ops-api/health')return json({ok:true,version:'cloud-v1'});
   if(p==='/ops-api/bootstrap') {
     if(!env.BOOTSTRAP_TOKEN||req.headers.get('Authorization')!==`Bearer ${env.BOOTSTRAP_TOKEN}`)fail(403,'禁止访问');

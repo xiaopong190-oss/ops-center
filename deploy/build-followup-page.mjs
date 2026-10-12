@@ -6,6 +6,7 @@ html = html.replace('indexedDB.open(STORE_NAME, 1)', "indexedDB.open('ops-new-pr
 html = html.replaceAll('操作人由手动填写', '操作人使用运营中心当前登录帐号').replaceAll('请先填写右上角操作人。', '请先在运营中心登录。');
 const bridge = fs.readFileSync(new URL('src/new-product-followup-bridge.js', root), 'utf8');
 const marketRows = fs.readFileSync(new URL('src/followup-market-rows.js', root), 'utf8');
+const assignmentScope = fs.readFileSync(new URL('src/followup-assignment-scope.js', root), 'utf8');
 // Basic creation should not require repeating planning notes at every level.
 html = html.replace("['name','sku','owner','stage','operating','health','purpose','issue','next','due']", "['name','sku','owner','stage','operating','health']")
   .replace("['owner','status','purpose','issue','next','due','target']", "['owner','status']")
@@ -14,6 +15,8 @@ html = html.replace("['owner','store','site'].every", "['owner','account','store
 // Do not launch a local read before the parent publishes its authenticated cloud context.
 html = html.replace("$('#actor').value=safeActor();load();", "$('#actor').value=safeActor();render();updateStorageLabel();");
 html = html.replace("toast('已保存，本次变更已记入时间线')", "toast(opsFollowupContext.cloudRequest ? '已保存到共享库，其它帐号可刷新查看' : '已保存到本机，本次变更已记入时间线')");
-html = html.replace('</body>', '<script>' + bridge + '\n' + marketRows + '</script></body>');
+html = html.replace('rs=data.records.filter(r=>r.product_id===p.id&&r.kind===tab)', 'rs=assignmentScopedRows(data.records.filter(r=>r.product_id===p.id&&r.kind===tab))');
+html = html.replace("tab==='history'?timeline(p.id)", "tab==='history'?assignmentScopedHistory(p.id)");
+html = html.replace('</body>', '<script>' + bridge + '\n' + marketRows + '\n' + assignmentScope + '</script></body>');
 fs.writeFileSync(new URL('src/NewProductFollowupDocument.js', root), 'export const NEW_PRODUCT_FOLLOWUP_HTML = ' + JSON.stringify(html) + ';\n');
 console.log('Built production followup document (empty by default)');

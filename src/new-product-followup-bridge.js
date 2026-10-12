@@ -21,6 +21,7 @@ applyChange = function(current, input) {
   const assignment = current.records.find(row => row.id === input.body?.operationId && !row.deleted_at && row.kind === 'operation' && row.product_id === (input.productId || previous?.product_id));
   const product = current.products.find(row => row.id === (input.productId || previous?.product_id));
   const body = { ...input.body };
+  if (opsFollowupContext.requireCloud && ['task','shipment','cost','campaign','optimization'].includes(input.kind) && !assignment) throw Error('请先建立或选择该产品的帐号 / 店铺 / 站点分工。');
   if (!body.owner && !previous) body.owner = assignment?.body.owner || product?.body.owner || user.name;
   if (assignment) {
     if (!body.account) body.account = assignment.body.account || assignment.body.store || '';
@@ -44,7 +45,10 @@ applyChange = function(current, input) {
     if (pending) throw Error('请先完成或验证该产品的运营分工、任务、推广和优化事项。');
   }
   const result = followupOriginalChange(current, { ...input, actor: user.name });
-  if (result.next.events[0]) result.next.events[0].actor_id = user.id;
+  if (result.next.events[0]) {
+    result.next.events[0].actor_id = user.id;
+    result.next.events[0].operation_id = input.kind === 'operation' ? result.result.id : body.operationId || null;
+  }
   return result;
 };
 const followupOriginalDeletion = applyDeletion;
@@ -52,6 +56,10 @@ applyDeletion = function(current, input) {
   const user = requireFollowupUser();
   const result = followupOriginalDeletion(current, { ...input, actor: user.name });
   if (result.next.events[0]) result.next.events[0].actor_id = user.id;
+  if (result.next.events[0]) {
+    const row = current.records.find(row=>row.id===input.id);
+    result.next.events[0].operation_id = input.kind === 'operation' ? input.id : row?.body.operationId || null;
+  }
   return result;
 };
 const followupOriginalTransaction = transact;

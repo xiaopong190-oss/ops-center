@@ -1,0 +1,13 @@
+{
+  "name": "new-product-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "setup": "npm ci --prefix work/qa",
+    "build": "node work/build-offline.mjs && node work/build-complex-preview.mjs && node work/sync-entry.mjs",
+    "test": "node work/qa-suite.mjs && node work/test-offline.mjs && node work/write-qa-report.mjs"
+  }
+}

@@ -1,0 +1,469 @@
+{
+  "executedAt": "2026-10-12T02:46:17.371Z",
+  "environment": "Node.js + jsdom DOM + fake-indexeddb; file-origin; no real browser visual QA",
+  "pass": 92,
+  "fail": 0,
+  "total": 92,
+  "results": [
+    {
+      "group": "功能",
+      "name": "空白空间与持久化模式可正确初始化",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "复杂示例通过真实按钮一次完整写入",
+      "status": "PASS"
+    },
+    {
+      "group": "边界",
+      "name": "重复加载复杂示例不产生重复或部分数据",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "示例覆盖逾期、异常、超预算、零与未填写",
+      "status": "PASS"
+    },
+    {
+      "group": "路由/导航",
+      "name": "总览导航呈现正确页面",
+      "status": "PASS"
+    },
+    {
+      "group": "路由/导航",
+      "name": "产品导航呈现正确页面",
+      "status": "PASS"
+    },
+    {
+      "group": "路由/导航",
+      "name": "优化方案导航呈现正确页面",
+      "status": "PASS"
+    },
+    {
+      "group": "路由/导航",
+      "name": "产品负责运营导航呈现正确页面",
+      "status": "PASS"
+    },
+    {
+      "group": "路由/导航",
+      "name": "团队工作台导航呈现正确页面",
+      "status": "PASS"
+    },
+    {
+      "group": "路由/导航",
+      "name": "待办跟进导航呈现正确页面",
+      "status": "PASS"
+    },
+    {
+      "group": "路由/导航",
+      "name": "验证中心导航呈现正确页面",
+      "status": "PASS"
+    },
+    {
+      "group": "路由/导航",
+      "name": "变更记录导航呈现正确页面",
+      "status": "PASS"
+    },
+    {
+      "group": "路由/导航",
+      "name": "产品详情六个页签可往返",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "按运营筛选、个人工作台及返回全部",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "真实新建产品表单保存及重渲染",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 name 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 sku 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 owner 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 stage 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 operating 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 health 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 purpose 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 issue 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 next 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "产品必填字段 due 拒绝空值且不落库",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "未知选项被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "非法日期被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "空白姓名被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "过长字段被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "边界/对抗",
+      "name": "负金额被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "边界/对抗",
+      "name": "布尔金额被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "边界/对抗",
+      "name": "字符串金额被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "边界/对抗",
+      "name": "过大金额被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "边界",
+      "name": "NaN与Infinity由校验拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "边界",
+      "name": "quantity不能填写小数",
+      "status": "PASS"
+    },
+    {
+      "group": "边界",
+      "name": "orders不能填写小数",
+      "status": "PASS"
+    },
+    {
+      "group": "回归",
+      "name": "零金额和空金额保持不同",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "SKU大小写、空白与全角重复被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "真实更新表单记录前后值、时间、操作人和原因",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "旧版本写入冲突不覆盖资料也不增加历史",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "缺少操作人被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "过长操作人被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "缺少原因被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "输入",
+      "name": "过长原因被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "task完成必须有结果和证据",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "campaign完成必须有结果和证据",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "签收必须有实际到货日期和凭证",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "危险或无效证据 javascript:alert(1) 被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "危险或无效证据 data:text/html,test 被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "危险或无效证据 file:///C:/test 被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "危险或无效证据 https:// 被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "边界",
+      "name": "到货与推广结束日期不能倒置",
+      "status": "PASS"
+    },
+    {
+      "group": "回归",
+      "name": "运营状态更新不会覆盖其他运营或产品整体状态",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "跨产品运营关联不能保存",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "分工快捷创建自动填运营和关联分工",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "重复运营分工被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "边界",
+      "name": "连续提交表单只生成一条产品和一条历史",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "备份导出按钮生成下载文件",
+      "status": "PASS"
+    },
+    {
+      "group": "回归",
+      "name": "完整备份可通过校验并保留关联和历史",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "损坏备份 bad-id 不可导入",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "损坏备份 orphan 不可导入",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "损坏备份 duplicate-event 不可导入",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "损坏备份 bad-version 不可导入",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "真实文件导入事件在空空间恢复全部资料并新增导入历史",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "现有空间拒绝导入覆盖且保留原数据",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "超大文件和损坏JSON的文件输入事件被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "HTML载荷作为文本显示，不形成脚本或事件节点",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "IndexedDB串行事务避免并发丢失更新",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "批量导入失败时不留下半份示例",
+      "status": "PASS"
+    },
+    {
+      "group": "回归",
+      "name": "刷新/重新打开同一存储后记录仍在",
+      "status": "PASS"
+    },
+    {
+      "group": "边界",
+      "name": "存储被禁止时明确提示仅本次页面",
+      "status": "PASS"
+    },
+    {
+      "group": "边界",
+      "name": "空搜索结果有提示且可以恢复",
+      "status": "PASS"
+    },
+    {
+      "group": "边界",
+      "name": "无产品关联/不支持的接口操作被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "异常和进行中状态可在DOM中高亮显示",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "开始执行按钮正确更新任务状态",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "完成按钮要求结果与证据，填入后通过验证",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "删除按钮隐藏记录并保留原数据、原因及历史",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "旧版本、空原因和已删除记录的修改被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "关联分工不能直接删除以免留下孤立关联",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "删除产品同时归档关联记录并保留可校验备份",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "完成运营分工不能绕过证据验证",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "优化阶段选项用于已确认销售产品",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "优化方案包含动作、基准、目标和关联跟进进度",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "优化方案快捷跟进自动填负责人、目标和方案关联",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "优化方案完成必须提交实际值、结论与证据",
+      "status": "PASS"
+    },
+    {
+      "group": "对抗",
+      "name": "优化跨产品关联和有关联跟进的方案删除被拒绝",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "按产品分配运营可省略职责店铺站点",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "头程状态保存显示高亮及旧记录兼容",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "总览逐产品显示头程及正在执行动作",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "同产品多帐号站点动作与执行时间独立保存",
+      "status": "PASS"
+    },
+    {
+      "group": "功能",
+      "name": "产品父行仅一条且帐号站点子行合并并可收起",
+      "status": "PASS"
+    },
+    {
+      "group": "回归",
+      "name": "所有页面和页签无未捕获脚本异常",
+      "status": "PASS"
+    }
+  ]
+}

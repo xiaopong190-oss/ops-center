@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+const root=new URL('../outputs/',import.meta.url);
+let html=fs.readFileSync(new URL('产品跟进工作台-独立完整版.html',root),'utf8');
+html=html.replace("let memoryData = freshData(), storageMode = 'loading';","let memoryData = applyBatch(freshData(),complexDemoInputs(today()),'示例操作人','复杂示例展示，仅供体验').next, storageMode = 'session';");
+const start=html.indexOf('const storageReady = new Promise(resolve => {');
+const end=html.indexOf('function safeActor(value)',start);
+if(start<0||end<0)throw Error('Cannot find preview storage boundary');
+html=html.slice(0,start)+'const storageReady = Promise.resolve(null);\n'+html.slice(end);
+html=html.replace("storageMode==='persistent'?'本机保存 · 建议定期导出备份':'仅本次页面 · 关闭前请导出备份'","'复杂示例预览 · 修改仅本次页面'");
+html=html.replace("$('#actor').value=safeActor();load();","$('#actor').value='示例操作人';load();");
+html=html.replace('<title>新产品工作台</title>','<title>新产品工作台 · 复杂示例预览</title>');
+html=html.replace('<div id="notice" aria-live="polite"></div>','<div class="verification-note">复杂示例空间 · 6款产品 / 5位运营 / 12项分工。可查看和修改，本页修改仅保留到关闭或刷新。<a href="产品跟进工作台-独立完整版.html">返回业务工作台 ↗</a></div><div id="notice" aria-live="polite"></div>');
+for(const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);
+fs.writeFileSync(new URL('产品跟进工作台-复杂示例预览.html',root),html);
+console.log('Complex preview generated; isolated from persistent business database.');

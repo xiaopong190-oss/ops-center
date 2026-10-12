@@ -85,3 +85,28 @@ assert.equal((await w.eval('api')('/api/workbench')).products.length, 2, 'persis
 assert.deepEqual(errors, [], 'document scripts load without errors');
 dom.window.close();
 console.log('PASS: empty start, no samples, shared staff, readonly actor, identity audit, staff removal, readonly permissions, persistent reopen');
+// Separate browser instances must use the same remote snapshot, even with existing local records.
+const left = page(), right = page();
+let shared = {revision:0,data:{products:[],records:[],events:[]}};
+const cloudRequest = async (path, input) => {
+  assert.equal(path, '/ops-api/followup');
+  if (input) {
+    if (input.revision !== shared.revision) throw Error('其它人员已更新');
+    shared = {revision:shared.revision+1,data:structuredClone(input.data)};
+  }
+  return structuredClone(shared);
+};
+await pause();
+left.window.setOpsFollowupContext({...context,requireCloud:true,active:true,cloudRequest});
+right.window.setOpsFollowupContext({...context,user:{id:'user-2',name:'物流乙'},requireCloud:true,active:true,cloudRequest});
+await pause();
+assert.equal(left.window.eval('data.products.length'),0,'local data must not overwrite cloud');
+await left.window.eval('api')('/api/workbench',{kind:'product',body:{name:'跨电脑产品',sku:'CLOUD-01',operating:'待上架'}});
+await right.window.eval('load')();
+assert.equal(right.window.eval('data.products[0].body.name'),'跨电脑产品');
+assert.match(right.window.document.querySelector('#storage-label').textContent,/版本 1/);
+right.window.setOpsFollowupContext({...context,requireCloud:true});
+await assert.rejects(right.window.eval('api')('/api/workbench',{kind:'product',body:product}),/共享连接未加载/);
+assert.equal(shared.data.products.length,1,'missing cloud must not silently save locally');
+left.window.close();right.window.close();
+console.log('PASS: two browsers share saves, startup ignores local records, missing cloud rejects saves');

@@ -177,6 +177,10 @@ let prodBrowser = toBrowser(prodMerged, { exportName: "ProductionPanel", stripUt
 prodBrowser = prodBrowser.replace("// ─── PRODUCTION MODULE", prodGanttBrowser + "\n// ─── PRODUCTION MODULE");
 fs.writeFileSync(path.join(dir, "ProductionModule.browser.jsx"), prodBrowser);
 
+const followupDoc = fs.readFileSync(path.join(dir, "NewProductFollowupDocument.js"), "utf8").replace("export const", "const");
+const followupPanel = fs.readFileSync(path.join(dir, "NewProductFollowupModule.jsx"), "utf8");
+fs.writeFileSync(path.join(dir, "NewProductFollowupModule.browser.jsx"), followupDoc + "\n" + toBrowser(followupPanel, { exportName: "NewProductFollowupPanel" }));
+
 const tools = fs.readFileSync(path.join(dir, "ToolsModule.jsx"), "utf8");
 fs.writeFileSync(
   path.join(dir, "ToolsModule.browser.jsx"),

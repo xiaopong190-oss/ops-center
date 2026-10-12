@@ -298,6 +298,7 @@ const TABS = [
   { key: "tasks", label: "任务跟进", icon: "tasks" },
   { key: "amazon-growth", label: "亚马逊增长", icon: "keywords" },
   { key: "logistics", label: "物流头程", icon: "logistics" },
+  { key: "new-product-followup", label: "新品跟进", icon: "production" },
   { key: "production", label: "精品生产", icon: "production" },
   { key: "kpi", label: "考核", icon: "kpi" },
   { key: "tools", label: "工具", icon: "tools" },
@@ -562,12 +563,13 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           </div>
         </header>
 
-        <main className="ops-content" style={{ maxWidth: tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" || tab === "amazon-growth" ? 1280 : 960 }}>
+        <main className="ops-content" style={{ maxWidth: tab === "new-product-followup" || tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" || tab === "amazon-growth" ? 1280 : 960 }}>
           {showCloudBar && <GlobalCloudBar />}
           <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
           <div style={{ display: tab === "amazon-growth" ? "block" : "none" }}><AmazonGrowthPanel /></div>
           <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
+          <div style={{ display: tab === "new-product-followup" ? "block" : "none" }}><NewProductFollowupPanel active={tab === "new-product-followup"} /></div>
           <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
           <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
           <div style={{ display: tab === "knowledge" ? "block" : "none" }}><KnowledgePanel active={tab === "knowledge"} /></div>

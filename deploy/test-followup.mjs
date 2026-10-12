@@ -1,0 +1,61 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { randomUUID } from 'node:crypto';
+import { NEW_PRODUCT_FOLLOWUP_HTML } from '../src/NewProductFollowupDocument.js';
+const require = createRequire(new URL('../modules/new-product-followup/work/qa/package.json', import.meta.url));
+const { JSDOM, VirtualConsole } = require('jsdom');
+const { IDBFactory } = require('fake-indexeddb');
+const db = new IDBFactory();
+const errors = [];
+const pause = () => new Promise(resolve => setTimeout(resolve, 30));
+function page() {
+  const console = new VirtualConsole();
+  console.on('jsdomError', error => errors.push(error.message));
+  return new JSDOM(NEW_PRODUCT_FOLLOWUP_HTML, {
+    url: 'https://example.test/ops-center/', runScripts: 'dangerously', virtualConsole: console,
+    beforeParse(window) {
+      window.structuredClone = structuredClone;
+      window.indexedDB = db;
+      window.crypto.randomUUID = randomUUID;
+    },
+  });
+}
+let dom = page();
+await pause();
+let w = dom.window;
+assert.equal(w.eval('data.products.length'), 0, 'formal page starts empty');
+assert.equal(w.document.querySelector('#complex-demo'), null);
+assert.equal(w.document.querySelector('#demo'), null);
+assert.throws(() => w.eval('transact(current => ({next:current}))'), /编辑权限/);
+const context = { staff: [{name:'运营甲',role:'运营'},{name:'物流乙',role:'物流'}], user: {id:'user-1',name:'运营甲'}, canEdit:true };
+w.setOpsFollowupContext(context);
+w.eval("open('product')");
+await pause();
+assert.equal(w.document.querySelector('[name="owner"]').tagName, 'SELECT');
+assert.equal(w.document.querySelector('[name="owner"]').options.length, 3);
+assert.equal(w.document.querySelector('[name="actor"]').readOnly, true);
+assert.equal(w.document.querySelector('#actor').value, '运营甲');
+const product = {name:'正式产品',sku:'TEST-01',owner:'物流乙',stage:'已上架',operating:'测款中',health:'正常',purpose:'验证',issue:'跟进',next:'到货检查',due:'2026-12-01'};
+const saved = await w.eval('api')('/api/workbench', {kind:'product',body:product,actor:'伪造操作人',reason:'测试新建'});
+let snapshot = await w.eval('api')('/api/workbench');
+assert.equal(snapshot.events[0].actor, '运营甲');
+assert.equal(snapshot.events[0].actor_id, 'user-1');
+w.setOpsFollowupContext({...context,user:{id:'user-2',name:'物流乙'}});
+await w.eval('api')('/api/workbench', {kind:'product',id:saved.id,version:1,body:{...product,next:'入仓检查'},actor:'伪造',reason:'更新'});
+snapshot = await w.eval('api')('/api/workbench');
+assert.equal(snapshot.events[0].actor, '物流乙');
+assert.equal(snapshot.events[1].actor, '运营甲');
+await assert.rejects(w.eval('api')('/api/workbench', {kind:'product',id:saved.id,version:2,body:{...product,operating:'已完成'},reason:'完成'}), /完成结论/);
+await w.eval('api')('/api/workbench', {kind:'product',id:saved.id,version:2,body:{...product,operating:'已完成',result:'已完成验证',evidence:'https://example.test/report'},reason:'完成'});
+w.setOpsFollowupContext({...context,staff:[{name:'运营甲',role:'运营'}]});
+assert.match(w.document.querySelector('[name="owner"]').textContent, /运营甲/);
+await assert.rejects(w.eval('api')('/api/workbench', {kind:'product',body:{...product,sku:'TEST-02'},reason:'检查移除人员'}), /重新选择负责人/);
+w.setOpsFollowupContext({...context,canEdit:false});
+assert.equal(w.document.querySelector('[data-new]').disabled, true);
+await assert.rejects(w.eval('api')('/api/workbench', {kind:'product',body:product,reason:'只读'}), /编辑权限/);
+dom.window.close();
+dom = page(); await pause(); w = dom.window;
+assert.equal((await w.eval('api')('/api/workbench')).products.length, 1, 'persisted across reopen, no samples added');
+assert.deepEqual(errors, [], 'document scripts load without errors');
+dom.window.close();
+console.log('PASS: empty start, no samples, shared staff, readonly actor, identity audit, staff removal, readonly permissions, persistent reopen');

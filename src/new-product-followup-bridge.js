@@ -45,6 +45,11 @@ applyChange = function(current, input) {
     if (pending) throw Error('请先完成或验证该产品的运营分工、任务、推广和优化事项。');
   }
   const result = followupOriginalChange(current, { ...input, actor: user.name });
+  if (input.kind === 'shipment' && previous?.body.evidence) {
+    const savedRow = result.next.records.find(row=>row.id===result.result.id);
+    savedRow.body.evidence = previous.body.evidence;
+    result.next.events[0].after = JSON.stringify(savedRow.body);
+  }
   if (result.next.events[0]) {
     result.next.events[0].actor_id = user.id;
     result.next.events[0].operation_id = input.kind === 'operation' ? result.result.id : body.operationId || null;

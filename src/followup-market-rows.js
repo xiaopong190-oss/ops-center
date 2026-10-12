@@ -25,7 +25,7 @@ marketChildren = function(pid) {
     const actions = assignment
       ? '<button type="button" class="text-button" data-market-update="' + esc(assignment.id) + '">更新此店铺进度</button><button type="button" class="text-button" data-market-task="' + esc(assignment.id) + '">＋ 添加此店铺跟进</button>'
       : group.rows.map(row => '<button type="button" class="text-button" data-market-record="' + esc(row.id) + '">关联 / 更新：' + esc(row.body.title || kindName[row.kind]) + '</button>').join('');
-    return '<div class="market-child" style="display:grid;grid-template-columns:2fr 1fr 1.5fr 1.2fr;gap:16px;padding:16px;border-bottom:1px solid #e5eaf2"><div><strong>' + esc(label) + '</strong><div>' + actions + '</div></div><div>' + esc(assignment?.body.owner || '按记录负责人') + '<br>' + esc(assignment?.body.status || '待关联') + '</div><div>' + (active.map(row => esc(row.body.title) + '<br><small>' + esc(row.body.executedAt?.replace('T',' ') || '未填写执行时间') + '</small>').join('<br>') || '暂无执行中的动作') + (assignment?.body.next ? '<br>下一步：' + esc(assignment.body.next) : '') + '</div><div>' + logistics.map(row => esc(row.body.firstLegStatus || row.body.status)).join('、') + '<br>下次跟进：' + esc(dated[0] || '待安排') + '</div></div>';
+    return '<div class="market-child" style="display:grid;grid-template-columns:2fr 1fr 1.5fr 1.2fr;gap:16px;padding:16px;border-bottom:1px solid #e5eaf2"><div><strong>' + esc(label) + '</strong><div>' + actions + '</div></div><div>' + esc(assignment?.body.owner || '按记录负责人') + '<br>' + esc(assignment?.body.status || '待关联') + '</div><div>' + (active.map(row => esc(row.body.title) + '<br><small>' + esc(row.body.executedAt?.replace('T',' ') || '未填写执行时间') + '</small>').join('<br>') || '暂无执行中的动作') + (assignment?.body.next ? '<br>下一步：' + esc(assignment.body.next) : '') + '</div><div>' + logistics.map(row => esc(row.body.title) + ' · ' + esc(row.body.quantity ?? '待填') + '件 · ' + esc(row.body.location || row.body.firstLegStatus || row.body.status)).join('、') + '<br>下次跟进：' + esc(dated[0] || '待安排') + '</div></div>';
   }).join('');
   return '<div style="padding:12px 24px"><button type="button" class="quiet" data-market-add="' + esc(pid) + '">＋ 添加帐号 / 店铺 / 站点</button>' + (markup || '<p class="muted">尚未添加店铺，添加后各店铺独立更新进度。</p>') + '</div>';
 };
@@ -47,3 +47,4 @@ document.addEventListener('click', e => {
     form.querySelector('[name="site"]').value = row.body.site || '';
   } else open(row.kind, row);
 });
+

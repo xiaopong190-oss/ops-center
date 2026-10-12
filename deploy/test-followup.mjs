@@ -136,3 +136,17 @@ console.log('PASS: same shop/site different accounts isolate all detail tabs and
 
 
 
+const simpleLogistics=page();await pause();const lw=simpleLogistics.window;lw.setOpsFollowupContext(context);
+const lp=await lw.eval('api')('/api/workbench',{kind:'product',body:{name:'简洁物流测试',sku:'SHIP-SIMPLE',operating:'待上架'}});
+lw.eval('selected='+JSON.stringify(lp.id)+";open('shipment')");
+assert.equal(lw.document.querySelector('[name="evidence"]'),null);
+assert.ok(lw.document.querySelector('[name="tracking"]').closest('details'));
+assert.equal(lw.document.querySelector('[name="location"]').closest('details'),null);
+assert.equal(lw.document.querySelector('[name="quantity"]').required,true);
+await lw.eval('api')('/api/workbench',{kind:'shipment',productId:lp.id,body:{title:'第二批',quantity:500,location:'英国仓库',status:'已签收',owner:'运营甲'}});
+await lw.eval('load')();
+const shipment=lw.eval('data.records').find(row=>row.kind==='shipment');
+const logisticsCard=lw.eval('record')(shipment);
+assert.ok(logisticsCard.includes('英国仓库'));assert.ok(logisticsCard.includes('500'));
+assert.ok(!logisticsCard.includes('验证证据'));
+simpleLogistics.window.close();console.log('PASS: minimal signed shipment without evidence or arrival date, quantity/location card, optional details');

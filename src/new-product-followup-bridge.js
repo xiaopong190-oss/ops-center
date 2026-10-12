@@ -45,7 +45,7 @@ applyChange = function(current, input) {
     if (pending) throw Error('请先完成或验证该产品的运营分工、任务、推广和优化事项。');
   }
   const result = followupOriginalChange(current, { ...input, actor: user.name });
-  if (input.kind === 'shipment' && previous?.body.evidence) {
+  if (['shipment','cost','campaign'].includes(input.kind) && previous?.body.evidence) {
     const savedRow = result.next.records.find(row=>row.id===result.result.id);
     savedRow.body.evidence = previous.body.evidence;
     result.next.events[0].after = JSON.stringify(savedRow.body);

@@ -8,6 +8,7 @@ const bridge = fs.readFileSync(new URL('src/new-product-followup-bridge.js', roo
 const marketRows = fs.readFileSync(new URL('src/followup-market-rows.js', root), 'utf8');
 const assignmentScope = fs.readFileSync(new URL('src/followup-assignment-scope.js', root), 'utf8');
 const logisticsSimple = fs.readFileSync(new URL('src/followup-logistics-simple.js', root), 'utf8');
+const costPromotionSimple = fs.readFileSync(new URL('src/followup-cost-promotion-simple.js', root), 'utf8');
 // Basic creation should not require repeating planning notes at every level.
 html = html.replace("['name','sku','owner','stage','operating','health','purpose','issue','next','due']", "['name','sku','owner','stage','operating','health']")
   .replace("['owner','status','purpose','issue','next','due','target']", "['owner','status']")
@@ -19,6 +20,9 @@ html = html.replace("toast('已保存，本次变更已记入时间线')", "toas
 html = html.replace('rs=data.records.filter(r=>r.product_id===p.id&&r.kind===tab)', 'rs=assignmentScopedRows(data.records.filter(r=>r.product_id===p.id&&r.kind===tab))');
 html = html.replace("tab==='history'?timeline(p.id)", "tab==='history'?assignmentScopedHistory(p.id)");
 html = html.replace("if(kind==='shipment'&&out.status==='已签收'&&(!out.arrived||!out.evidence))throw Error('已签收需填写实际到货日及物流凭证链接');", "if(kind==='shipment'&&(out.quantity===null||out.quantity===undefined||out.quantity===''))throw Error('请填写发货数量');");
-html = html.replace('</body>', '<script>' + bridge + '\n' + marketRows + '\n' + logisticsSimple + '\n' + assignmentScope + '</script></body>');
+html = html.replace("['title','owner','channel','target','status']", "['title','owner','channel','status']");
+html = html.replace("(kind==='campaign'&&out.status==='已完成')", 'false');
+html = html.replace('  return out;', "  if(kind==='cost'&&out.actual==='')throw Error('请填写成本金额');return out;");
+html = html.replace('</body>', '<script>' + bridge + '\n' + marketRows + '\n' + logisticsSimple + '\n' + costPromotionSimple + '\n' + assignmentScope + '</script></body>');
 fs.writeFileSync(new URL('src/NewProductFollowupDocument.js', root), 'export const NEW_PRODUCT_FOLLOWUP_HTML = ' + JSON.stringify(html) + ';\n');
 console.log('Built production followup document (empty by default)');

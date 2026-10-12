@@ -22,7 +22,7 @@ applyChange = function(current, input) {
   const body = { ...input.body };
   if (!body.owner && !previous) body.owner = assignment?.body.owner || product?.body.owner || user.name;
   if (assignment) {
-    if (!body.account) body.account = assignment.body.store || '';
+    if (!body.account) body.account = assignment.body.account || assignment.body.store || '';
     if (!body.site) body.site = assignment.body.site || '';
   }
   if (input.kind === 'product') {
@@ -119,7 +119,7 @@ function simplifyFollowupForm() {
     // Keep record titles visible; only the optional duty title on assignments is folded.
     for (const label of [...grid.children]) {
       const field = label.querySelector('[name]');
-      if (field && optional.includes(field.name) && (field.name !== 'title' || modal.kind === 'operation')) extra.append(label);
+      if (field && optional.includes(field.name) && (field.name !== 'title' || modal.kind === 'operation') && !(modal.kind === 'operation' && ['account','site'].includes(field.name))) extra.append(label);
     }
     if (extra.children.length) grid.append(details);
     const owner = form.querySelector('[name="owner"]');
@@ -147,7 +147,7 @@ document.addEventListener('change', e => {
     const assignment = data.records.find(row => row.id === e.target.value && row.kind === 'operation');
     if (!assignment) return;
     const form = document.getElementById('record-form');
-    for (const [key, value] of [['owner',assignment.body.owner],['account',assignment.body.store],['site',assignment.body.site]]) {
+    for (const [key, value] of [['owner',assignment.body.owner],['account',assignment.body.account || assignment.body.store],['site',assignment.body.site]]) {
       const field = form?.querySelector('[name="' + key + '"]');
       if (field) field.value = value || '';
     }

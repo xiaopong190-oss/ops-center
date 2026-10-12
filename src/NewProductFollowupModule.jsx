@@ -20,4 +20,3 @@ export function NewProductFollowupPanel({ active }) {
     <iframe ref={frame} onLoad={publish} srcDoc={NEW_PRODUCT_FOLLOWUP_HTML} title="新品跟进" style={{ flex: 1, width: "100%", border: "1px solid var(--border)", borderRadius: 12, background: "white" }} />
   </section>;
 }
-

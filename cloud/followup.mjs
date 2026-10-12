@@ -11,8 +11,24 @@ export async function followup(req, env, user) {
   if (text.length > 3000000) reject(413, '记录过大，请拆分数据');
   let input; try { input = JSON.parse(text); } catch { reject(400, '无效数据'); }
   if (input.revision !== current.revision) reject(409, '其它人员已更新，请刷新后重试；本次修改未覆盖云端');
-  const data = input.data;
+  let data = input.data;
   if (!data || !['products', 'records', 'events'].every(name => Array.isArray(data[name]))) reject(400, '数据格式错误');
+  if (input.merge) {
+    const uploaded = data;
+    data = structuredClone(current.data);
+    const changedProducts = new Set();
+    for (const collection of ['products', 'records']) for (const row of uploaded[collection]) {
+      const index = data[collection].findIndex(old => old.id === row.id);
+      const previous = index >= 0 ? data[collection][index] : null;
+      if (previous && JSON.stringify(previous.body) === JSON.stringify(row.body) && Boolean(previous.deleted_at) === Boolean(row.deleted_at)) continue;
+      const next = {...row, version:(previous?.version || 0) + 1, updated_at:new Date().toISOString()};
+      if (index >= 0) data[collection][index] = next; else data[collection].push(next);
+      const pid = collection === 'products' ? row.id : row.product_id;
+      changedProducts.add(pid);
+      data.events.unshift({id:crypto.randomUUID(),product_id:pid,actor:user.name,actor_id:user.id,action:previous?'上传并覆盖记录':'上传新记录',reason:'合并本机产品，保留其它成员记录',before:previous?JSON.stringify(previous.body):null,after:JSON.stringify(row.body),created_at:new Date().toISOString()});
+    }
+    for (const event of uploaded.events) if (!data.events.some(old => old.id === event.id)) data.events.push({...event,actor:user.name,actor_id:user.id,reason:'上传历史记录；原操作人：'+String(event.actor || '')+'；'+String(event.reason || '')});
+  }
   if (input.migrate) {
     if (user.auth !== 'super') reject(403, '仅超级管理员可上传旧本机数据');
     if (current.data.products.length || current.data.records.length || current.data.events.length) reject(409, '云端已有记录，禁止覆盖导入');

@@ -133,6 +133,7 @@ console.log("==> private records are served by authenticated Worker; no public s
 
 const staticFiles = [
   "cloud-client.js",
+  "app.version.txt",
   "app.html",
   "gist-config.js",
   "logo.svg",

@@ -11,6 +11,9 @@ html = html.replace("['name','sku','owner','stage','operating','health','purpose
   .replace("['owner','status','purpose','issue','next','due','target']", "['owner','status']")
   .replace("['title','owner','due','target','status']", "['title','owner','due','status']");
 html = html.replace("['owner','store','site'].every", "['owner','account','store','site'].every");
+// Do not launch a local read before the parent publishes its authenticated cloud context.
+html = html.replace("$('#actor').value=safeActor();load();", "$('#actor').value=safeActor();render();updateStorageLabel();");
+html = html.replace("toast('已保存，本次变更已记入时间线')", "toast(opsFollowupContext.cloudRequest ? '已保存到共享库，其它帐号可刷新查看' : '已保存到本机，本次变更已记入时间线')");
 html = html.replace('</body>', '<script>' + bridge + '\n' + marketRows + '</script></body>');
 fs.writeFileSync(new URL('src/NewProductFollowupDocument.js', root), 'export const NEW_PRODUCT_FOLLOWUP_HTML = ' + JSON.stringify(html) + ';\n');
 console.log('Built production followup document (empty by default)');

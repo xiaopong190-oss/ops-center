@@ -58,8 +58,24 @@ const followupOriginalTransaction = transact;
 let followupCloudSnapshot = null;
 let followupLocalSnapshot = null;
 let followupCloudIdentity = '';
+let followupLoadSequence = 0;
+load = async function() {
+  const sequence = ++followupLoadSequence;
+  try {
+    const snapshot = await api('/api/workbench');
+    if (sequence !== followupLoadSequence) return;
+    data = {...snapshot,products:snapshot.products.filter(r=>!r.deleted_at).map(p=>({...p,body:{...p.body,stage:optimizationStage(p.body.stage)}})),records:snapshot.records.filter(r=>!r.deleted_at)};
+    render(); updateStorageLabel();
+  } catch (error) {
+    if (sequence !== followupLoadSequence) return;
+    const label = document.getElementById('storage-label');
+    if (label) label.textContent = '共享同步失败：' + error.message + '（当前显示可能是旧数据）';
+    toast(error.message, true);
+  }
+};
 async function followupPersistence(change) {
   const request = opsFollowupContext.cloudRequest;
+  if (!request && opsFollowupContext.requireCloud) throw Error('共享连接未加载，未保存。请刷新运营中心后重试。');
   if (!request) return followupOriginalTransaction(change);
   for (let attempt = 0; attempt < 4; attempt++) {
   const snapshot = await request('/ops-api/followup');
@@ -173,6 +189,7 @@ document.addEventListener('change', e => {
   }
 });
 window.setOpsFollowupContext = function(context) {
+  const wasActive = opsFollowupContext.active;
   opsFollowupContext = context;
   updateFollowupPersonnel();
   const identity = context.cloudRequest ? context.user?.id : '';
@@ -184,6 +201,8 @@ window.setOpsFollowupContext = function(context) {
       await load();
       updateCloudMigration();
     })().catch(error => toast(error.message, true));
+  } else if (context.active && !wasActive && identity && !modal && !busy) {
+    load().then(updateCloudMigration);
   }
 };
 function updateCloudMigration() {
@@ -212,7 +231,9 @@ const followupLocalStorageLabel = updateStorageLabel;
 updateStorageLabel = function() {
   if (!opsFollowupContext.cloudRequest) return followupLocalStorageLabel();
   const label = document.getElementById('storage-label');
-  if (label) label.textContent = 'Cloudflare共享 · 所有帐号读取同一份新品记录';
+  if (label) label.textContent = followupCloudSnapshot
+    ? 'Cloudflare共享 · 版本 ' + followupCloudSnapshot.revision + ' · 共' + data.products.length + '款 · 同步于 ' + new Date().toLocaleTimeString('zh-CN')
+    : '正在连接Cloudflare共享库…';
 };
 setInterval(() => {
   if (opsFollowupContext.cloudRequest && !modal && !busy) load().then(updateCloudMigration);

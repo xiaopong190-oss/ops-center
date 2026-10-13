@@ -1,14 +1,22 @@
 {
-  "updatedAt": "2026-10-12T04:25:10.459Z",
+  "updatedAt": "2026-10-13T05:33:03.178Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
+      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
+      "pubDate": "Mon, 12 Oct 2026 16:29:00 GMT",
+      "date": "10/12",
+      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
+      "category": "Community"
+    },
     {
       "title": "Watch the teaser trailer for ‘Bloodaxe,’ the epic Viking drama coming to Prime Video January 20, 2027",
       "link": "https://www.aboutamazon.com/news/entertainment/bloodaxe-vikings-prime-video?utm_source=rss",
       "pubDate": "Fri, 09 Oct 2026 18:15:34 GMT",
       "date": "10/9",
-      "summary": "The highly anticipated new series is helmed by the creator of ‘Vikings’ and has already been renewed for a second season.",
+      "summary": "The highly anticipated new series, which has been renewed for Season 2, is helmed by Michael Hirst (creator of ‘Vikings’) and Horatio Hirst.",
       "category": "Entertainment"
     },
     {
@@ -18,14 +26,6 @@
       "date": "10/9",
       "summary": "The third film will continue the young adult saga based on Stefania S.'s international best-selling novels.",
       "category": "Entertainment"
-    },
-    {
-      "title": "From zero to 1,000: How Amazon Leo built one of the world's largest satellite production lines",
-      "link": "https://www.aboutamazon.com/stories/how-amazon-leo-builds-satellites?utm_source=rss",
-      "pubDate": "Thu, 08 Oct 2026 16:01:58 GMT",
-      "date": "10/8",
-      "summary": "Amazon has built more than 1,000 satellites for its growing constellation—and it's just getting started.",
-      "category": "Amazon Leo"
     }
   ]
 }

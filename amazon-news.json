@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-10-14T03:36:15.718Z",
+  "updatedAt": "2026-10-15T03:16:53.399Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
-      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
-      "pubDate": "Tue, 13 Oct 2026 17:58:00 GMT",
-      "date": "10/13",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
-      "category": "Community"
-    },
-    {
-      "title": "How Amazon supported communities impacted by the Colombia earthquake",
-      "link": "https://www.aboutamazon.com/news/community/colombia-earthquake-amazon-disaster-relief?utm_source=rss",
-      "pubDate": "Tue, 13 Oct 2026 16:28:00 GMT",
-      "date": "10/13",
-      "summary": "Amazon donated emergency supplies, rallied over 150 volunteers, and partnered with five organizations to support earthquake recovery.",
-      "category": "Community"
-    },
-    {
-      "title": "Watch the teaser trailer for ‘Bloodaxe,’ the epic Viking drama coming to Prime Video January 20, 2027",
-      "link": "https://www.aboutamazon.com/news/entertainment/bloodaxe-vikings-prime-video?utm_source=rss",
-      "pubDate": "Fri, 09 Oct 2026 18:15:34 GMT",
-      "date": "10/9",
-      "summary": "The highly anticipated new series, which has been renewed for Season 2, is helmed by Michael Hirst (creator of ‘Vikings’) and Horatio Hirst.",
+      "title": "Watch the trailer for ‘The Greatest,’ the Muhammad Ali series coming to Prime Video November 4",
+      "link": "https://www.aboutamazon.com/news/entertainment/the-greatest-muhammad-ali-prime-video?utm_source=rss",
+      "pubDate": "Wed, 14 Oct 2026 15:00:06 GMT",
+      "date": "10/14",
+      "summary": "The biopic is the first authorized scripted series about the boxing champion, humanitarian, and global icon.",
       "category": "Entertainment"
+    },
+    {
+      "title": "Amazon’s Holiday Beauty Event is back for its sixth year—score up to 30% off across beauty categories",
+      "link": "https://www.aboutamazon.com/news/retail/amazon-holiday-beauty-event-2026?utm_source=rss",
+      "pubDate": "Wed, 14 Oct 2026 13:00:05 GMT",
+      "date": "10/14",
+      "summary": "Shop thousands of deals across everyday favorites and prestige brands like Armani, Dyson, Tarte, Clinique, and ELEMIS Skincare, along with a",
+      "category": "Retail"
+    },
+    {
+      "title": "How Amazon’s $100 million Right Now Climate Fund is protecting and restoring nature around the world",
+      "link": "https://www.aboutamazon.com/news/sustainability/right-now-climate-fund?utm_source=rss",
+      "pubDate": "Wed, 14 Oct 2026 08:04:00 GMT",
+      "date": "10/14",
+      "summary": "Get the latest on how the fund is investing in nature-based climate projects across more than 15 countries.",
+      "category": "Sustainability"
     }
   ]
 }

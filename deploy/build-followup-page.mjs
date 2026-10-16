@@ -4,12 +4,14 @@ let html = fs.readFileSync(new URL('modules/new-product-followup/index.html', ro
 // Separate production storage from the legacy standalone page; backup format stays compatible.
 html = html.replace('indexedDB.open(STORE_NAME, 1)', "indexedDB.open('ops-new-product-followup-v1', 1)");
 html = html.replaceAll('操作人由手动填写', '操作人使用运营中心当前登录帐号').replaceAll('请先填写右上角操作人。', '请先在运营中心登录。');
+html = html.replaceAll('团队管理 · 本机版', '团队协作 · 共享版');
 const bridge = fs.readFileSync(new URL('src/new-product-followup-bridge.js', root), 'utf8');
 const marketRows = fs.readFileSync(new URL('src/followup-market-rows.js', root), 'utf8');
 const assignmentScope = fs.readFileSync(new URL('src/followup-assignment-scope.js', root), 'utf8');
 const logisticsSimple = fs.readFileSync(new URL('src/followup-logistics-simple.js', root), 'utf8');
 const costPromotionSimple = fs.readFileSync(new URL('src/followup-cost-promotion-simple.js', root), 'utf8');
 const dualOverview = fs.readFileSync(new URL('src/followup-dual-overview.js', root), 'utf8');
+const consistentEntry = fs.readFileSync(new URL('src/followup-consistent-entry.js', root), 'utf8');
 const supplyOverview = fs.readFileSync(new URL('src/followup-supply-overview.js', root), 'utf8');
 // Basic creation should not require repeating planning notes at every level.
 html = html.replace("['name','sku','owner','stage','operating','health','purpose','issue','next','due']", "['name','sku','owner','stage','operating','health']")
@@ -25,7 +27,7 @@ html = html.replace("if(kind==='shipment'&&out.status==='已签收'&&(!out.arriv
 html = html.replace("['title','owner','channel','target','status']", "['title','owner','channel','status']");
 html = html.replace("(kind==='campaign'&&out.status==='已完成')", 'false');
 html = html.replace('  return out;', "  if(kind==='cost'&&out.actual==='')throw Error('请填写成本金额');return out;");
-html = html.replace('</body>', '<script>' + bridge + '\n' + marketRows + '\n' + logisticsSimple + '\n' + costPromotionSimple + '\n' + assignmentScope + '\n' + supplyOverview + '\n' + dualOverview + '</script></body>');
+html = html.replace('</body>', '<script>' + bridge + '\n' + marketRows + '\n' + logisticsSimple + '\n' + costPromotionSimple + '\n' + assignmentScope + '\n' + supplyOverview + '\n' + dualOverview + '\n' + consistentEntry + '</script></body>');
 fs.writeFileSync(new URL('src/NewProductFollowupDocument.js', root), 'export const NEW_PRODUCT_FOLLOWUP_HTML = ' + JSON.stringify(html) + ';\n');
 console.log('Built production followup document (empty by default)');
 

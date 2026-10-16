@@ -193,3 +193,17 @@ const addShipment=dw.document.querySelector('[data-overview-shipment]');
 if(addShipment){const id=addShipment.dataset.overviewShipment;addShipment.click();assert.equal(dw.document.querySelector('[name="operationId"]').value,id);}
 assert.ok(!dw.document.querySelector('#content').textContent.includes('演示数据'));
 dualPage.window.close();console.log('PASS: approved dual overview, SKU displayed once per group, real shared data, switching tabs and assignment-bound add');
+// page() uses fake-indexeddb; no network or cloudRequest is supplied to this isolated test.
+const consistentPage=page();await pause();const cw=consistentPage.window;cw.setOpsFollowupContext(context);
+const isolatedProduct=await cw.eval('api')('/api/workbench',{kind:'product',body:{name:'隔离入口测试',sku:'ISOLATED-ENTRY',operating:'待上架'}});
+const isolatedAssignment=await cw.eval('api')('/api/workbench',{kind:'operation',productId:isolatedProduct.id,body:{owner:'运营甲',account:'测试帐号',site:'US',status:'待上架',issue:'隔离测试问题',due:'2020-01-01'}});
+await cw.eval('load')();
+assert.ok(cw.document.querySelector('#overview-alerts').textContent.includes('隔离测试问题'));
+assert.ok(cw.document.querySelector('#overview-alerts').textContent.includes('已逾期'));
+assert.ok(cw.document.querySelector('#overview-sync'));
+const unified=[...cw.document.querySelectorAll('#operations-overview [data-overview-entry]')].find(b=>b.dataset.overviewEntry===isolatedAssignment.id);assert.ok(unified);unified.click();
+assert.equal(cw.document.querySelector('#drawer-assignment').value,isolatedAssignment.id);
+cw.eval('open')('operation',cw.eval('allAssignments()').find(a=>a.id===isolatedAssignment.id));
+assert.equal(cw.document.querySelector('[name="issue"]').closest('details'),null);
+assert.ok(cw.document.querySelector('#record-form .verification-note').textContent.includes('ISOLATED-ENTRY'));
+consistentPage.window.close();console.log('PASS isolated fake-indexeddb: issue/overdue alerts, prominent sync, unified entry, visible issue fields and SKU context');

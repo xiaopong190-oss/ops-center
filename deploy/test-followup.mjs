@@ -207,3 +207,16 @@ cw.eval('open')('operation',cw.eval('allAssignments()').find(a=>a.id===isolatedA
 assert.equal(cw.document.querySelector('[name="issue"]').closest('details'),null);
 assert.ok(cw.document.querySelector('#record-form .verification-note').textContent.includes('ISOLATED-ENTRY'));
 consistentPage.window.close();console.log('PASS isolated fake-indexeddb: issue/overdue alerts, prominent sync, unified entry, visible issue fields and SKU context');
+const calculatedPage=page();await pause();const kw=calculatedPage.window;kw.setOpsFollowupContext(context);
+const kp=await kw.eval('api')('/api/workbench',{kind:'product',body:{name:'隔离成本计算测试',sku:'CALC-ONLY',operating:'待上架'}});
+const calcInput={title:'第一批头程',costMode:'按单价计算',unitPrice:10.25,quantity:100,freightMode:'单件物流费',freightFee:2.15,status:'未付'};
+const kr=await kw.eval('api')('/api/workbench',{kind:'cost',productId:kp.id,body:{...calcInput,actual:1}});
+await kw.eval('load')();let krow=kw.eval('data.records').find(r=>r.id===kr.id);assert.equal(krow.body.actual,1240);
+await kw.eval('api')('/api/workbench',{kind:'cost',id:kr.id,productId:kp.id,body:{...calcInput,freightMode:'整批物流费',freightFee:200}});
+await kw.eval('load')();krow=kw.eval('data.records').find(r=>r.id===kr.id);assert.equal(krow.body.actual,1225);
+await assert.rejects(kw.eval('api')('/api/workbench',{kind:'cost',productId:kp.id,body:{...calcInput,quantity:0}}),/数量/);
+await assert.rejects(kw.eval('api')('/api/workbench',{kind:'cost',productId:kp.id,body:{...calcInput,unitPrice:-1}}),/单价/);
+kw.eval('open')('cost',krow);assert.equal(kw.document.querySelector('[name="actual"]').readOnly,true);
+const qty=kw.document.querySelector('[name="quantity"]');qty.value='200';qty.dispatchEvent(new kw.Event('input',{bubbles:true}));assert.equal(kw.document.querySelector('[name="actual"]').value,'2250.00');
+const legacy=await kw.eval('api')('/api/workbench',{kind:'cost',productId:kp.id,body:{title:'旧直接金额',actual:99,status:'未付'}});await kw.eval('load')();kw.eval('open')('cost',kw.eval('data.records').find(r=>r.id===legacy.id));assert.equal(kw.document.querySelector('[name="actual"]').readOnly,false);assert.equal(kw.document.querySelector('[name="actual"]').value,'99');
+calculatedPage.window.close();console.log('PASS isolated: unit/batch freight, tampered total recalculated, quantity/negative validation, live preview, legacy amount preserved');

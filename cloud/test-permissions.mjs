@@ -51,4 +51,12 @@ assert.equal(covered.data.data.products.find(p=>p.id==='shared-product').body.na
 assert.ok(covered.data.data.events.some(e=>e.action==='上传并覆盖记录'&&JSON.parse(e.before).name==='Changed by operator'));
 assert.ok(covered.data.data.events.some(e=>e.actor==='TestTwo'));
 console.log('PASS operator merge into existing workspace, manager overwrite, other products preserved, before/after audit retained');
+// Synthetic in-memory database only: reject inconsistent derived cost totals.
+const costData=structuredClone(covered.data.data);
+costData.records.push({id:'isolated-calculated-cost',version:1,kind:'cost',product_id:'shared-product',body:{title:'Synthetic cost',costMode:'按单价计算',unitPrice:10,quantity:100,freightMode:'单件物流费',freightFee:2,actual:1}});
+assert.equal((await call('/ops-api/followup',{revision:covered.data.revision,data:costData},two)).status,400);
+costData.records[0].body.actual=1200;
+assert.equal((await call('/ops-api/followup',{revision:covered.data.revision,data:costData},two)).status,200);
+console.log('PASS isolated cloud: reject mismatched cost total and accept calculated unit freight total');
 sql.close();
+

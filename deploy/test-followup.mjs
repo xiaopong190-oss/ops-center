@@ -180,3 +180,16 @@ vw.eval("ownerFilter='运营甲';render()");const filteredSupply=vw.document.que
 assert.ok(filteredSupply.includes('420件'));assert.ok(!filteredSupply.includes('170件'));
 vw.eval("search='不存在的产品';render()");assert.ok(!vw.document.querySelector('#supply-overview').textContent.includes('Camera计划测试'));
 supplyPage.window.close();console.log('PASS: overview supply chain, per-account shipping and launch, shared source data, owner/search filters, no automatic stock deduction');
+const dualPage=page();await pause();const dw=dualPage.window;dw.setOpsFollowupContext(context);await dw.eval('load')();
+assert.equal(dw.document.querySelector('#operations-overview').classList.contains('dual-hidden'),false);
+assert.equal(dw.document.querySelector('#supply-overview').classList.contains('dual-hidden'),true);
+assert.equal(dw.document.querySelectorAll('#operations-overview [data-sku="SUPPLY"]').length,1);
+assert.equal(dw.document.querySelectorAll('#supply-overview [data-sku="SUPPLY"]').length,1);
+assert.equal(dw.document.querySelector('#operations-overview').textContent.split('Camera计划测试').length-1,1);
+dw.document.querySelector('[data-overview-mode="logistics"]').click();
+assert.equal(dw.document.querySelector('#supply-overview').classList.contains('dual-hidden'),false);
+assert.equal(dw.document.querySelector('#operations-overview').classList.contains('dual-hidden'),true);
+const addShipment=dw.document.querySelector('[data-overview-shipment]');
+if(addShipment){const id=addShipment.dataset.overviewShipment;addShipment.click();assert.equal(dw.document.querySelector('[name="operationId"]').value,id);}
+assert.ok(!dw.document.querySelector('#content').textContent.includes('演示数据'));
+dualPage.window.close();console.log('PASS: approved dual overview, SKU displayed once per group, real shared data, switching tabs and assignment-bound add');

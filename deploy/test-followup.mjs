@@ -167,3 +167,16 @@ await pw.eval('load')();const campaign=pw.eval('data.records').find(row=>row.id=
 assert.ok(pw.eval('record')(campaign).includes('复盘关键词'));
 assert.ok(!pw.eval('record')(campaign).includes('ROAS'));
 progressPage.window.close();console.log('PASS: simple cost amount, no evidence, promotion completion without proof/target, next step and optional metrics');
+const supplyPage=page();await pause();const vw=supplyPage.window;vw.setOpsFollowupContext(context);
+const vp=await vw.eval('api')('/api/workbench',{kind:'product',body:{name:'Camera计划测试',sku:'SUPPLY',operating:'待上架',stock:500,leadDays:15,nextBatchQty:300,nextBatchNote:'第二批备货'}});
+const va=await vw.eval('api')('/api/workbench',{kind:'operation',productId:vp.id,body:{owner:'运营甲',account:'帐号A',store:'店铺',site:'US',status:'待上架',launchWindow:'11月第1周'}});
+const vb=await vw.eval('api')('/api/workbench',{kind:'operation',productId:vp.id,body:{owner:'物流乙',account:'帐号B',store:'店铺',site:'UK',status:'待上架',launchWindow:'11月初'}});
+await vw.eval('api')('/api/workbench',{kind:'shipment',productId:vp.id,body:{title:'US第一批',quantity:420,status:'运输中',location:'海上',operationId:va.id,due:'2026-11-01'}});
+await vw.eval('api')('/api/workbench',{kind:'shipment',productId:vp.id,body:{title:'UK第一批',quantity:170,status:'已签收',location:'英国仓',operationId:vb.id}});
+await vw.eval('load')();const supplyText=vw.document.querySelector('#supply-overview').textContent;
+for(const value of ['500件','15天','420件','170件','海上','英国仓','300件','11月第1周','11月初','2026-11-01'])assert.ok(supplyText.includes(value),value);
+assert.equal(vw.eval('data.products').find(p=>p.id===vp.id).body.stock,500,'logistics does not silently decrement manual stock');
+vw.eval("ownerFilter='运营甲';render()");const filteredSupply=vw.document.querySelector('#supply-overview').textContent;
+assert.ok(filteredSupply.includes('420件'));assert.ok(!filteredSupply.includes('170件'));
+vw.eval("search='不存在的产品';render()");assert.ok(!vw.document.querySelector('#supply-overview').textContent.includes('Camera计划测试'));
+supplyPage.window.close();console.log('PASS: overview supply chain, per-account shipping and launch, shared source data, owner/search filters, no automatic stock deduction');

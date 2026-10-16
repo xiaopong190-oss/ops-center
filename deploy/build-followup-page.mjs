@@ -13,6 +13,7 @@ const costPromotionSimple = fs.readFileSync(new URL('src/followup-cost-promotion
 const dualOverview = fs.readFileSync(new URL('src/followup-dual-overview.js', root), 'utf8');
 const consistentEntry = fs.readFileSync(new URL('src/followup-consistent-entry.js', root), 'utf8');
 const costCalculation = fs.readFileSync(new URL('src/followup-cost-calculation.js', root), 'utf8').replace('export function', 'function');
+const siteCostSummary = fs.readFileSync(new URL('src/followup-site-cost-summary.js', root), 'utf8');
 const costForm = fs.readFileSync(new URL('src/followup-cost-form.js', root), 'utf8');
 const supplyOverview = fs.readFileSync(new URL('src/followup-supply-overview.js', root), 'utf8');
 // Basic creation should not require repeating planning notes at every level.
@@ -29,7 +30,8 @@ html = html.replace("if(kind==='shipment'&&out.status==='已签收'&&(!out.arriv
 html = html.replace("['title','owner','channel','target','status']", "['title','owner','channel','status']");
 html = html.replace("(kind==='campaign'&&out.status==='已完成')", 'false');
 html = html.replace('  return out;', "  if(kind==='cost'&&out.actual==='')throw Error('请填写成本金额');return out;");
-html = html.replace('</body>', '<script>' + costCalculation + '\n' + bridge + '\n' + marketRows + '\n' + logisticsSimple + '\n' + costPromotionSimple + '\n' + assignmentScope + '\n' + supplyOverview + '\n' + dualOverview + '\n' + consistentEntry + '\n' + costForm + '</script></body>');
+html = html.replace('</body>', '<script>' + costCalculation + '\n' + bridge + '\n' + marketRows + '\n' + logisticsSimple + '\n' + costPromotionSimple + '\n' + assignmentScope + '\n' + supplyOverview + '\n' + dualOverview + '\n' + consistentEntry + '\n' + costForm + '\n' + siteCostSummary + '</script></body>');
 fs.writeFileSync(new URL('src/NewProductFollowupDocument.js', root), 'export const NEW_PRODUCT_FOLLOWUP_HTML = ' + JSON.stringify(html) + ';\n');
 console.log('Built production followup document (empty by default)');
+
 

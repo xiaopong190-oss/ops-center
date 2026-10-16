@@ -1,6 +1,7 @@
 // Shared deterministic cost calculation for the form, save path, and cloud validation.
 export function calculateFollowupCost(body) {
-  if (body.costMode !== '按单价计算') return null;
+  const hasInputs = ['unitPrice','quantity','freightFee'].some(key=>typeof body[key]==='number');
+  if (body.costMode !== '按单价计算' && !hasInputs) return null;
   const cents = (value,label) => {
     if(typeof value!=='number'||!Number.isFinite(value)||value<0)throw Error('请填写有效的'+label);
     const result=Math.round(value*100);

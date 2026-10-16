@@ -155,7 +155,7 @@ const pp=await pw.eval('api')('/api/workbench',{kind:'product',body:{name:'成�
 pw.eval('selected='+JSON.stringify(pp.id)+";open('cost')");
 assert.equal(pw.document.querySelector('[name="evidence"]'),null);
 assert.ok(pw.document.querySelector('[name="budget"]').closest('details'));
-assert.equal(pw.document.querySelector('[name="actual"]').required,true);
+assert.equal(pw.document.querySelector('[name="actual"]').readOnly,true);
 await pw.eval('api')('/api/workbench',{kind:'cost',productId:pp.id,body:{title:'第一批采购',actual:500,status:'已付'}});
 await assert.rejects(pw.eval('api')('/api/workbench',{kind:'cost',productId:pp.id,body:{title:'漏填金额',status:'未付'}}),/成本金额/);
 pw.eval("open('campaign')");
@@ -220,3 +220,16 @@ kw.eval('open')('cost',krow);assert.equal(kw.document.querySelector('[name="actu
 const qty=kw.document.querySelector('[name="quantity"]');qty.value='200';qty.dispatchEvent(new kw.Event('input',{bubbles:true}));assert.equal(kw.document.querySelector('[name="actual"]').value,'2250.00');
 const legacy=await kw.eval('api')('/api/workbench',{kind:'cost',productId:kp.id,body:{title:'旧直接金额',actual:99,status:'未付'}});await kw.eval('load')();kw.eval('open')('cost',kw.eval('data.records').find(r=>r.id===legacy.id));assert.equal(kw.document.querySelector('[name="actual"]').readOnly,false);assert.equal(kw.document.querySelector('[name="actual"]').value,'99');
 calculatedPage.window.close();console.log('PASS isolated: unit/batch freight, tampered total recalculated, quantity/negative validation, live preview, legacy amount preserved');
+
+// Isolated site aggregation and screenshot regression: mixed mode must still calculate.
+const sitePage=page();await pause();const swc=sitePage.window;swc.setOpsFollowupContext(context);
+const scp=await swc.eval('api')('/api/workbench',{kind:'product',body:{name:'隔离站点成本',sku:'SITE-COST-TEST',operating:'待上架'}});
+const sca=await swc.eval('api')('/api/workbench',{kind:'operation',productId:scp.id,body:{owner:'运营甲',account:'A',site:'US',status:'待上架'}});
+const scb=await swc.eval('api')('/api/workbench',{kind:'operation',productId:scp.id,body:{owner:'运营甲',account:'B',site:'UK',status:'待上架'}});
+const scc=await swc.eval('api')('/api/workbench',{kind:'cost',productId:scp.id,body:{title:'头程计算',operationId:sca.id,account:'错误帐号',site:'错误站点',costMode:'直接填写金额',unitPrice:49,quantity:270,freightMode:'单件物流费',freightFee:10,status:'已付'}});
+await swc.eval('load')();const costSaved=swc.eval('data.records').find(r=>r.id===scc.id);assert.equal(costSaved.body.actual,15930);assert.equal(costSaved.body.costMode,'按单价计算');assert.equal(costSaved.body.site,'US');assert.equal(costSaved.body.account,'A');
+assert.equal(swc.eval('assignmentCostSummary')(sca.id).head,15930);assert.equal(swc.eval('assignmentCostSummary')(scb.id).head,0);
+assert.ok(swc.document.querySelector('[data-cost-assignment="'+sca.id+'"]').textContent.includes('15,930'));
+swc.eval('open')('cost',costSaved);assert.equal(swc.document.querySelector('[name="actual"]').required,false);assert.equal(swc.document.querySelector('[name="actual"]').value,'15930.00');
+const mode=swc.document.querySelector('[name="costMode"]');mode.value='直接填写金额';mode.dispatchEvent(new swc.Event('change',{bubbles:true}));assert.equal(swc.document.querySelector('[name="unitPrice"]').closest('label').style.getPropertyValue('display'),'none');
+sitePage.window.close();console.log('PASS isolated: screenshot mixed mode calculates, site fields authoritative, per-assignment totals never leak, manual mode hides calculation inputs');

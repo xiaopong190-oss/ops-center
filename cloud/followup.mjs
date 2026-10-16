@@ -1,3 +1,4 @@
+import {calculateFollowupCost} from '../src/followup-cost-calculation.js';
 const key = '_new-product-followup';
 const empty = () => ({ products: [], records: [], events: [] });
 const reject = (status, message) => { throw Object.assign(new Error(message), { status }); };
@@ -40,6 +41,10 @@ export async function followup(req, env, user) {
   }
   const products = new Set(data.products.map(row => row.id));
   for (const row of data.records) {
+    if(row.kind==='cost'&&!row.deleted_at){
+      let calculated;try{calculated=calculateFollowupCost(row.body);}catch(error){reject(400,error.message);}
+      if(calculated&&row.body.actual!==calculated.total)reject(400,'头程成本与单价、物流费、数量不一致，请重新保存');
+    }
     if (!products.has(row.product_id) || !['operation','task','shipment','cost','campaign','optimization'].includes(row.kind)) reject(400, '关联产品或记录类型无效');
     if (row.body.operationId && !data.records.some(a => a.id === row.body.operationId && a.kind === 'operation' && a.product_id === row.product_id)) reject(400, '运营分工关联无效');
   }

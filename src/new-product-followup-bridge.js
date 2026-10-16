@@ -21,6 +21,7 @@ applyChange = function(current, input) {
   const assignment = current.records.find(row => row.id === input.body?.operationId && !row.deleted_at && row.kind === 'operation' && row.product_id === (input.productId || previous?.product_id));
   const product = current.products.find(row => row.id === (input.productId || previous?.product_id));
   const body = { ...input.body };
+  if(input.kind==='cost') { const calculated=calculateFollowupCost(body);if(calculated)body.actual=calculated.total; }
   if (opsFollowupContext.requireCloud && ['task','shipment','cost','campaign','optimization'].includes(input.kind) && !assignment) throw Error('请先建立或选择该产品的帐号 / 店铺 / 站点分工。');
   if (!body.owner && !previous) body.owner = assignment?.body.owner || product?.body.owner || user.name;
   if (assignment) {

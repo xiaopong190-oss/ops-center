@@ -9,6 +9,7 @@ const marketRows = fs.readFileSync(new URL('src/followup-market-rows.js', root),
 const assignmentScope = fs.readFileSync(new URL('src/followup-assignment-scope.js', root), 'utf8');
 const logisticsSimple = fs.readFileSync(new URL('src/followup-logistics-simple.js', root), 'utf8');
 const costPromotionSimple = fs.readFileSync(new URL('src/followup-cost-promotion-simple.js', root), 'utf8');
+const supplyOverview = fs.readFileSync(new URL('src/followup-supply-overview.js', root), 'utf8');
 // Basic creation should not require repeating planning notes at every level.
 html = html.replace("['name','sku','owner','stage','operating','health','purpose','issue','next','due']", "['name','sku','owner','stage','operating','health']")
   .replace("['owner','status','purpose','issue','next','due','target']", "['owner','status']")
@@ -23,6 +24,6 @@ html = html.replace("if(kind==='shipment'&&out.status==='已签收'&&(!out.arriv
 html = html.replace("['title','owner','channel','target','status']", "['title','owner','channel','status']");
 html = html.replace("(kind==='campaign'&&out.status==='已完成')", 'false');
 html = html.replace('  return out;', "  if(kind==='cost'&&out.actual==='')throw Error('请填写成本金额');return out;");
-html = html.replace('</body>', '<script>' + bridge + '\n' + marketRows + '\n' + logisticsSimple + '\n' + costPromotionSimple + '\n' + assignmentScope + '</script></body>');
+html = html.replace('</body>', '<script>' + bridge + '\n' + marketRows + '\n' + logisticsSimple + '\n' + costPromotionSimple + '\n' + assignmentScope + '\n' + supplyOverview + '</script></body>');
 fs.writeFileSync(new URL('src/NewProductFollowupDocument.js', root), 'export const NEW_PRODUCT_FOLLOWUP_HTML = ' + JSON.stringify(html) + ';\n');
 console.log('Built production followup document (empty by default)');

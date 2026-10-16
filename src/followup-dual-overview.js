@@ -11,14 +11,14 @@ function overviewOperations(products){return products.map(p=>{
  const model=assignmentOverviewModel(a),related=model.records;
  const active=model.actions;
  const next=model.next;
- return '<tr><td><strong>'+esc(marketIdentity(a))+'</strong></td><td>'+badge(a.body.status||p.body.operating)+'</td><td class="dual-issue">'+esc(model.issues.join('；')||'暂无已记录的问题')+'</td><td>'+ (active.length?active.map(r=>'<div class="dual-action">'+esc(r.body.title)+' · '+esc(r.body.status)+'</div>').join(''):'<span class="muted">尚未安排进行中的动作</span>')+'<small>下一步：'+esc(next||'待安排')+'</small></td><td>'+esc(a.body.owner)+'<small>'+esc(a.body.due||'跟进时间待安排')+'</small></td><td><button class="text-button" data-market-update="'+esc(a.id)+'">更新进展 ›</button><br><button class="text-button" data-assignment-open="'+esc(a.id)+'">查看动作 ›</button></td></tr>';
+ return '<tr><td><strong data-site-assignment="'+esc(a.id)+'">'+esc(marketIdentity(a))+'</strong></td><td>'+badge(a.body.status||p.body.operating)+'</td><td class="dual-issue">'+esc(model.issues.join('；')||'暂无已记录的问题')+'</td><td>'+ (active.length?active.map(r=>'<div class="dual-action">'+esc(r.body.title)+' · '+esc(r.body.status)+'</div>').join(''):'<span class="muted">尚未安排进行中的动作</span>')+'<small>下一步：'+esc(next||'待安排')+'</small></td><td>'+esc(a.body.owner)+'<small>'+esc(a.body.due||'跟进时间待安排')+'</small></td><td><button class="text-button" data-market-update="'+esc(a.id)+'">更新进展 ›</button><br><button class="text-button" data-assignment-open="'+esc(a.id)+'">查看动作 ›</button></td></tr>';
  }).join(''):'<tr><td colspan="6" class="muted">尚未建立帐号 / 站点分工 <button class="text-button" data-market-add="'+esc(p.id)+'">＋ 添加分工</button></td></tr>');
  }).join('');}
 function overviewLogistics(products){return products.map(p=>{
  const b=p.body,assignments=overviewAssignments(p);
  let rows=assignments.map(a=>{
  const ships=supplyShipments(p.id,a.id);
- return (ships.length?ships:[null]).map(s=>'<tr><td><strong>'+esc(marketIdentity(a))+'</strong><small>'+esc(a.body.owner)+'</small></td><td>'+(s?esc(s.body.title)+'<br><strong>'+overviewValue(s.body.quantity,'件')+'</strong>':'<span class="muted">尚未发货</span>')+'</td><td>'+(s?badge(s.body.status)+'<small>'+esc(s.body.location||s.body.firstLegStatus||'位置待更新')+'</small>':'待安排')+'</td><td>'+(s?esc((s.body.status==='已签收'?s.body.arrived:s.body.due)||'待填写'):'待安排')+'</td><td>'+esc(a.body.launchWindow||'待安排')+'</td><td><button class="text-button" '+(s?'data-edit="'+esc(s.id)+'"':'data-overview-shipment="'+esc(a.id)+'"')+'>'+(s?'更新物流':'添加物流')+' ›</button><br><button class="text-button" data-market-update="'+esc(a.id)+'">更新起量</button></td></tr>').join('');
+ return (ships.length?ships:[null]).map(s=>'<tr><td><strong data-site-assignment="'+esc(a.id)+'">'+esc(marketIdentity(a))+'</strong><small>'+esc(a.body.owner)+'</small></td><td>'+(s?esc(s.body.title)+'<br><strong>'+overviewValue(s.body.quantity,'件')+'</strong>':'<span class="muted">尚未发货</span>')+'</td><td>'+(s?badge(s.body.status)+'<small>'+esc(s.body.location||s.body.firstLegStatus||'位置待更新')+'</small>':'待安排')+'</td><td>'+(s?esc((s.body.status==='已签收'?s.body.arrived:s.body.due)||'待填写'):'待安排')+'</td><td>'+esc(a.body.launchWindow||'待安排')+'</td><td><button class="text-button" '+(s?'data-edit="'+esc(s.id)+'"':'data-overview-shipment="'+esc(a.id)+'"')+'>'+(s?'更新物流':'添加物流')+' ›</button><br><button class="text-button" data-market-update="'+esc(a.id)+'">更新起量</button></td></tr>').join('');
  }).join('');
  const unlinked=supplyShipments(p.id).filter(s=>!allAssignments().some(a=>a.id===s.body.operationId)&&inOperatorScope(s));
  rows+=unlinked.map(s=>'<tr><td class="dual-issue">待关联帐号 / 站点</td><td>'+esc(s.body.title)+'<br>'+overviewValue(s.body.quantity,'件')+'</td><td>'+esc(s.body.location||s.body.firstLegStatus||s.body.status)+'</td><td>'+esc(s.body.due||'待填写')+'</td><td>待关联</td><td><button class="text-button" data-edit="'+esc(s.id)+'">关联 / 更新</button></td></tr>').join('');
@@ -38,4 +38,5 @@ document.addEventListener('click',e=>{
  if(b.dataset.overviewMode){overviewMode=b.dataset.overviewMode;render();}
  if(b.dataset.overviewShipment){const a=allAssignments().find(a=>a.id===b.dataset.overviewShipment);if(a){selected=a.product_id;selectedAssignment=a.id;open('shipment');}}
 });
+
 

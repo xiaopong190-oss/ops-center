@@ -9,10 +9,11 @@ function siteCostMarkup(a){const summary=assignmentCostSummary(a.id);return '<di
 for(const key of ['overviewOperations','overviewLogistics']){
  const original=key==='overviewOperations'?overviewOperations:overviewLogistics;
  const wrapper=products=>{let html=original(products);for(const p of products)for(const a of overviewAssignments(p)){
-  const marker='<strong>'+esc(marketIdentity(a))+'</strong>';
+  const marker='<strong data-site-assignment="'+esc(a.id)+'">'+esc(marketIdentity(a))+'</strong>';
   html=html.split(marker).join(marker+siteCostMarkup(a));
  }return html;};
  if(key==='overviewOperations')overviewOperations=wrapper;else overviewLogistics=wrapper;
 }
 document.addEventListener('click',event=>{const b=event.target.closest('[data-site-cost]');if(!b)return;const a=allAssignments().find(a=>a.id===b.dataset.siteCost);if(a){selected=a.product_id;selectedAssignment=a.id;tab='cost';renderDrawer();}});
+
 

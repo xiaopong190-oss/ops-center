@@ -41,7 +41,8 @@ export async function followup(req, env, user) {
   }
   const products = new Set(data.products.map(row => row.id));
   for (const row of data.records) {
-    if(row.kind==='cost'&&!row.deleted_at){
+    const previousCost=current.data.records.find(previous=>previous.id===row.id);
+    if(row.kind==='cost'&&!row.deleted_at&&(!previousCost||JSON.stringify(previousCost.body)!==JSON.stringify(row.body))){
       let calculated;try{calculated=calculateFollowupCost(row.body);}catch(error){reject(400,error.message);}
       if(calculated&&row.body.actual!==calculated.total)reject(400,'头程成本与单价、物流费、数量不一致，请重新保存');
     }

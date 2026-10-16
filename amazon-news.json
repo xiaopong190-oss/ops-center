@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-10-15T03:16:53.399Z",
+  "updatedAt": "2026-10-16T03:12:39.694Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon will share its Q3 2026 earnings on October 29",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-earnings-q3-2026-report?utm_source=rss",
+      "pubDate": "Thu, 15 Oct 2026 20:14:12 GMT",
+      "date": "10/15",
+      "summary": "On October 29, Amazon is set to hold a conference call to discuss its Q3 2026 financial results.",
+      "category": "Company news"
+    },
+    {
+      "title": "Amazon introduces 2 new AI products from Bee: Bee Frontier and Bee Eclipse",
+      "link": "https://www.aboutamazon.com/news/devices/amazon-personal-ai-bee-frontier-bee-eclipse?utm_source=rss",
+      "pubDate": "Thu, 15 Oct 2026 11:55:24 GMT",
+      "date": "10/15",
+      "summary": "Bee expands its ambient AI family with two personal AI devices designed to remember the moments that matter most, plus new integrations with",
+      "category": "Devices"
+    },
     {
       "title": "Watch the trailer for ‘The Greatest,’ the Muhammad Ali series coming to Prime Video November 4",
       "link": "https://www.aboutamazon.com/news/entertainment/the-greatest-muhammad-ali-prime-video?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "10/14",
       "summary": "The biopic is the first authorized scripted series about the boxing champion, humanitarian, and global icon.",
       "category": "Entertainment"
-    },
-    {
-      "title": "Amazon’s Holiday Beauty Event is back for its sixth year—score up to 30% off across beauty categories",
-      "link": "https://www.aboutamazon.com/news/retail/amazon-holiday-beauty-event-2026?utm_source=rss",
-      "pubDate": "Wed, 14 Oct 2026 13:00:05 GMT",
-      "date": "10/14",
-      "summary": "Shop thousands of deals across everyday favorites and prestige brands like Armani, Dyson, Tarte, Clinique, and ELEMIS Skincare, along with a",
-      "category": "Retail"
-    },
-    {
-      "title": "How Amazon’s $100 million Right Now Climate Fund is protecting and restoring nature around the world",
-      "link": "https://www.aboutamazon.com/news/sustainability/right-now-climate-fund?utm_source=rss",
-      "pubDate": "Wed, 14 Oct 2026 08:04:00 GMT",
-      "date": "10/14",
-      "summary": "Get the latest on how the fund is investing in nature-based climate projects across more than 15 countries.",
-      "category": "Sustainability"
     }
   ]
 }

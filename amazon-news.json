@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-10-16T03:12:39.694Z",
+  "updatedAt": "2026-10-17T03:03:40.460Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Fri, 16 Oct 2026 21:12:00 GMT",
+      "date": "10/16",
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
+    },
     {
       "title": "Amazon will share its Q3 2026 earnings on October 29",
       "link": "https://www.aboutamazon.com/news/company-news/amazon-earnings-q3-2026-report?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "10/15",
       "summary": "Bee expands its ambient AI family with two personal AI devices designed to remember the moments that matter most, plus new integrations with",
       "category": "Devices"
-    },
-    {
-      "title": "Watch the trailer for ‘The Greatest,’ the Muhammad Ali series coming to Prime Video November 4",
-      "link": "https://www.aboutamazon.com/news/entertainment/the-greatest-muhammad-ali-prime-video?utm_source=rss",
-      "pubDate": "Wed, 14 Oct 2026 15:00:06 GMT",
-      "date": "10/14",
-      "summary": "The biopic is the first authorized scripted series about the boxing champion, humanitarian, and global icon.",
-      "category": "Entertainment"
     }
   ]
 }

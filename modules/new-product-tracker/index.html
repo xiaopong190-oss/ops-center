@@ -948,9 +948,18 @@ function reviews(l,s){
    ${rowForm('reviews.bad','<select class="in w-s" name="star" aria-label="星级"><option>1</option><option>2</option><option>3</option></select>'+dateIn('date')+'<input class="in" name="issue" placeholder="买家反映的问题" required aria-label="问题"><input class="in" name="action" placeholder="处理动作" aria-label="处理动作">','登记差评')}</div>`;
 }
 
-function perfEconIssue(e){
-  for(const [key] of ECON){const value=e[key];if(value==null||value==='')continue;const percent=['commission','unsellable','targetMargin'].includes(key);if(!num(value)||Math.abs(value)>Number.MAX_SAFE_INTEGER||value<0||key==='price'&&value===0||percent&&value>100)return percent?'比例必须在 0% 到 100% 之间':'成本或售价无效，请核对数值';}return '';
+const PERF_UNIT_AMOUNT_MAX=1000000;
+function perfFieldIssue(key,value){
+  const label=ECON.find(([k])=>k===key)?.[1]||'成本字段';
+  if(!ECON.some(([k])=>k===key))return '无效成本字段';
+  if(value==null||value==='')return '';
+  const percent=['commission','unsellable','targetMargin'].includes(key);
+  if(!num(value))return label+'：请输入有效数字';
+  if(percent&&(value<0||value>100))return label+'：只允许 0%–100%';
+  if(!percent&&(value<0||key==='price'&&value===0||value>PERF_UNIT_AMOUNT_MAX))return label+'：'+(key==='price'?'必须大于 0，且不超过':'只允许 0–')+'1,000,000 元 / 件';
+  return '';
 }
+function perfEconIssue(e){for(const [key] of ECON){const issue=perfFieldIssue(key,e[key]);if(issue)return issue;}return '';}
 function perfPreviewEcon(e,baseline={}){
   const out={...e};for(const [key] of ECON)if(perfEconIssue({[key]:e[key]})){
     const old=baseline[key];out[key]=num(old)&&!perfEconIssue({[key]:old})?old:['commission','unsellable','targetMargin'].includes(key)?(num(e[key])?Math.max(0,Math.min(100,e[key])):0):key==='price'?null:0;
@@ -1008,12 +1017,15 @@ function perfView(l,editorsOnly=false,previewOnly=false){
     wf=`<div class="wf">${rows.map(([n,a,b,v,col,cls])=>`<div class="wf-r ${cls}"><span>${n}</span><span class="b"><i style="left:${pos(Math.min(a,b)).toFixed(1)}%;width:${Math.max(0.5,Math.abs(pos(b)-pos(a))).toFixed(1)}%;background:${col};opacity:${col==='var(--bad)'&&!cls?.6:1}"></i></span><span class="v ${v<0&&cls?'neg':''}">${v<0?'-':''}${money2(Math.abs(v))}</span></div>`).join('')}</div>
     <p class="hint">单件试算售价取${num(e.price)?'上方输入值':'所选周期实际均价'}；经营汇总与左侧保本分析仍按所选周期实际均价计算。 退货件按退回佣金 80%、FBA 配送费不退、不可再售部分损失采购成本和头程来算。${ue.missing.length?`<span style="color:var(--warn)">还没填：${ue.missing.join('、')}，结果会偏高。</span>`:''}</p>`;
   }
+  if(trialUE&&num(e.targetMargin)&&e.targetMargin/100>trialUE.unit/trialUE.price)wf+='<p class="note" role="status">经营提醒：目标净利率高于当前单件广告前利润率；按当前售价、成本及退货率，即使不投广告也无法达到。请调整售价、成本或目标。此提醒不阻止保存，也不隐藏亏损。</p>';
   if(econIssue)wf='<p class="note" role="alert">'+esc(econIssue)+'；图表继续显示预览，异常比例暂按 0–100% 边界值计算，异常金额暂按 0（售价用实际均价）；异常值未保存。当前图示不可再售比例 '+trialEcon.unsellable+'%。</p>'+wf;
   h+=`<div class="two"> 
     <div class="panel"><h2>一个 CPA 要几件利润来养</h2><div data-perf-break-even>${be}</div></div>
     <div class="panel"><h2>单件利润测算</h2>
       <div class="facts">${ECON.map(([k,n])=>{const ah=k==='head'?shipAvgHead(l.id):null;
-        return fact(k==='price'?'售价（单件试算）':n,inp(l,'econ.'+k,{type:'number',kind:'num',ph:num(ah)?'留空用货件均值 '+ah.toFixed(2):''}));}).join('')}</div><div data-perf-unit aria-live="polite">${wf}</div></div>
+        const percent=['commission','unsellable','targetMargin'].includes(k);
+        const field=inp(l,'econ.'+k,{type:'number',kind:'num',ph:num(ah)?'留空用货件均值 '+ah.toFixed(2):''}).replace(' step="any"',' min="'+'0'+'" max="'+(percent?'100':PERF_UNIT_AMOUNT_MAX)+'" aria-describedby="'+(k==='unsellable'?'perf-unsellable-help':'perf-econ-help')+'" step="any"');
+        return fact(k==='price'?'售价（单件试算）':k==='unsellable'?'退货中不可再售 %':n,field+(k==='unsellable'?'<span class="hint" id="perf-unsellable-help">占退回商品的比例，不是退货率。0＝全部可再售；20＝20% 不能再售；100＝全部不能再售。按实际质检结果填写。</span>':''));}).join('')}</div><p class="hint" id="perf-econ-help">输入范围：佣金、退货中不可再售比例、目标净利率均为 0%–100%；售价须大于 0，单件售价及各项成本上限为 1,000,000 元（防误输保护），成本不能为负。成本超过售价可正常测算亏损。退货率由周期数据的退货件数 ÷ 销售件数计算。</p><div data-perf-unit aria-live="polite">${wf}</div></div>
   </div>`;
 
   // trend
@@ -1060,9 +1072,10 @@ function perfReadInputs(link){
   for(const input of app.querySelectorAll('[data-f^="econ."]')){
     const key=input.dataset.f.slice(5);if(!ECON.some(([k])=>k===key)){error='无效成本字段';break;}
     const value=input.value===''?null:Number(input.value),percent=['commission','unsellable','targetMargin'].includes(key);
-    const invalid=input.validity.badInput||value!==null&&(!num(value)||Math.abs(value)>Number.MAX_SAFE_INTEGER||value<0||key==='price'&&value===0||percent&&value>100);
+    const issue=perfFieldIssue(key,input.validity.badInput?NaN:value),invalid=Boolean(issue);
+    input.setCustomValidity(issue);
     input.setAttribute('aria-invalid',String(Boolean(invalid)));
-    if(invalid)error=percent?'比例必须在 0% 到 100% 之间':'请输入有效非负数；售价必须大于 0，数值不能超出安全计算范围';
+    if(invalid)error=issue;
     econ[key]=value;
   }
   const preview={...link,econ:perfPreviewEcon(econ,link.econ)};

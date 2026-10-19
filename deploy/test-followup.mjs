@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
-import { NEW_PRODUCT_FOLLOWUP_HTML } from '../src/NewProductFollowupDocument.js';
+import { LEGACY_PRODUCT_FOLLOWUP_HTML as NEW_PRODUCT_FOLLOWUP_HTML } from '../src/NewProductFollowupLegacyDocument.js';
 const require = createRequire(new URL('../modules/new-product-followup/work/qa/package.json', import.meta.url));
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { IDBFactory } = require('fake-indexeddb');

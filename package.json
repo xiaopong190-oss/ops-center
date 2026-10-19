@@ -14,7 +14,8 @@
     "dingtalk:digest:dry": "node deploy/dingtalk-daily-digest.mjs --dry-run",
     "dingtalk:digest:force": "node deploy/dingtalk-daily-digest.mjs --force",
     "prebuild": "node deploy/build-followup-page.mjs",
-    "test:followup": "node deploy/test-followup.mjs"
+    "test:followup": "node deploy/test-followup.mjs",
+    "test:regression": "node deploy/test-regression.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

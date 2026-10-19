@@ -71,7 +71,6 @@ function trackerStatus(message) {
 window.setOpsFollowupContext = async function(context) {
   const previous = trackerContext;
   trackerContext = context;
-  document.getElementById('ops-workspace-menu-style')?.remove();
   if(previous.user?.id!==context.user?.id)trackerAdapter?.clear();
   state.me = context.user ? {id:context.user.id,isOwner:!!context.canEdit} : null;
   if (context.user) state.names[context.user.id] = context.user.name;

@@ -412,6 +412,12 @@ function LoginScreen({ onSuccess, dark }) {
   );
 }
 
+function WorkspaceFullscreenIcon({ restore = false }) {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <path d={restore ? 'M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6' : 'M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6'} />
+  </svg>;
+}
+
 function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel, onLogout }) {
   const currentUser = useCurrentUser();
   const isSuper = currentUser?.auth === AUTH_ROLE_SUPER || currentUser?.role === AUTH_ROLE_SUPER;
@@ -419,16 +425,17 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
   const [navOpen, setNavOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenNotice, setFullscreenNotice] = useState('');
+  const browserIsFullscreen = () => Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+  const leaveFullscreen = async () => {
+    setIsFullscreen(false);setFullscreenNotice('');
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    try { if (browserIsFullscreen() && exit) await exit.call(document); } catch { /* Browser Escape may already have exited. */ }
+  };
+
   useEffect(() => {
     const documents = new Set();
     const onKey = event => {
-      if (event.key === 'Escape') {
-        setIsFullscreen(false);setFullscreenNotice('');
-        const exit = document.exitFullscreen || document.webkitExitFullscreen;
-        if ((document.fullscreenElement || document.webkitFullscreenElement) && exit) {
-          try { Promise.resolve(exit.call(document)).catch(() => {}); } catch { /* Native Escape may already have exited. */ }
-        }
-      }
+      if (event.key === 'Escape') void leaveFullscreen();
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyF' && !event.repeat) {
         event.preventDefault();
         void toggleFullscreen();
@@ -444,7 +451,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
     };
     const onFrameLoad = event => { if (event.target?.tagName === 'IFRAME') bindFrame(event.target); };
     const syncBrowserFullscreen = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement || document.webkitFullscreenElement));
+      setIsFullscreen(browserIsFullscreen());
       setFullscreenNotice('');
     };
     document.addEventListener('fullscreenchange', syncBrowserFullscreen);
@@ -460,14 +467,9 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
     };
   }, [isFullscreen]);
   const toggleFullscreen = async () => {
-    setNavOpen(false);setFullscreenNotice('');
-    const nativeActive = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
-    if (isFullscreen || nativeActive) {
-      const exit = document.exitFullscreen || document.webkitExitFullscreen;
-      try { if (nativeActive && exit) await exit.call(document); } catch { /* Keep the workspace restore available. */ }
-      setIsFullscreen(false);
-      return;
-    }
+    setNavOpen(false);
+    if (isFullscreen || browserIsFullscreen()) return leaveFullscreen();
+    setFullscreenNotice('');
     setIsFullscreen(true);
     const root = document.documentElement;
     const enter = root.requestFullscreen || root.webkitRequestFullscreen;
@@ -529,7 +531,6 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
 
       <style>{`
         .ops-workspace-max{position:fixed!important;inset:0;z-index:1000;display:block!important;overflow:hidden;background:var(--bg)}
-        .ops-workspace-max>.ops-sidebar,.ops-workspace-max>.ops-sidebar-backdrop,.ops-workspace-max>.ops-main>.ops-topbar{display:none!important}
         .ops-workspace-max>.ops-main{width:100%;height:100dvh;margin:0!important;min-width:0}
         .ops-workspace-max .ops-content{position:absolute;inset:0;width:100%;max-width:none!important;margin:0!important;padding:48px 8px 8px!important;overflow:auto;box-sizing:border-box}
         .ops-workspace-controls{position:absolute;top:6px;right:8px;z-index:40;display:flex;align-items:center;gap:8px;padding:3px 5px;background:var(--card);border:1px solid var(--border);border-radius:9px;box-shadow:var(--shadow-card)}
@@ -542,7 +543,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
         {fullscreenNotice && <span role="status" style={{fontSize:12,color:"var(--tm)"}}>{fullscreenNotice}</span>}
         {showCloudBar && <GlobalCloudBar />}
         <button type="button" className="ops-btn" onClick={toggleFullscreen} title="恢复工作区（Esc）" aria-label="恢复工作区" style={{width:32,height:32,justifyContent:'center'}}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6" /></svg>
+          <WorkspaceFullscreenIcon restore />
         </button>
       </div>}
       <div className="ops-main">
@@ -555,9 +556,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
             <button type="button" className="ops-btn" onClick={toggleFullscreen} aria-pressed={isFullscreen}
               aria-label={isFullscreen ? '恢复工作区' : '最大化中间工作区'} title={isFullscreen ? '恢复工作区（Esc）' : '工作区最大化（Ctrl+Shift+F）'}
               style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:32,height:32,padding:0}}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                <path d={isFullscreen ? 'M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6' : 'M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6'} />
-              </svg>
+              <WorkspaceFullscreenIcon restore={isFullscreen} />
             </button>
             <span className="ops-topbar-user" style={{ fontSize: 12, color: "var(--tm)", fontWeight: 600, padding: "0 4px" }}>
               {isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}`}
@@ -572,7 +571,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
           <div style={{ display: tab === "amazon-growth" ? "block" : "none" }}><AmazonGrowthPanel /></div>
           <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
-          <div style={{ display: tab === "new-product-followup" ? "block" : "none" }}><NewProductFollowupPanel active={tab === "new-product-followup"} workspaceMaximized={isFullscreen} /></div>
+          <div style={{ display: tab === "new-product-followup" ? "block" : "none" }}><NewProductFollowupPanel active={tab === "new-product-followup"} /></div>
           <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
           <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
           <div style={{ display: tab === "knowledge" ? "block" : "none" }}><KnowledgePanel active={tab === "knowledge"} /></div>

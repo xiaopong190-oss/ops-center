@@ -15,6 +15,7 @@ const suites=[
   'deploy/test-classic-perf-ui.mjs',
   'deploy/test-perf-live-input.mjs',
   'deploy/test-perf-linked-analysis.mjs',
+  'deploy/test-perf-latest-period.mjs',
 ];
 for(const suite of suites){
   console.log('\nRunning '+suite);

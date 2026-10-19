@@ -13,6 +13,9 @@ const suites=[
   'deploy/test-workspace-maximize.mjs',
   'deploy/test-perf-intelligence.mjs',
   'deploy/test-perf-intelligence-ui.mjs',
+  'deploy/test-perf-adversarial.mjs',
+  'deploy/test-perf-adversarial-ui.mjs',
+  'deploy/test-followup-adversarial.mjs',
 ];
 for(const suite of suites){
   console.log('\nRunning '+suite);

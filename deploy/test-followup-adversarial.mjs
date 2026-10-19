@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {uploadFollowup,PART_BYTES,MAX_BYTES,FOLLOWUP_KEY} from '../cloud/followup-storage.mjs';
+import {createTrackerCloudDb} from '../src/tracker-cloud-adapter.js';
+import {applyTrackerOperations} from '../src/tracker-drafts.js';
+let passed=0;const failures=[];
+async function test(name,fn){try{await fn();passed++;}catch(error){failures.push(name+': '+error.message);}}
+const user={id:'A',name:'Operator A',canEdit:true};
+const initial={revision:7,data:{products:[],records:[],events:[],trackerV1:{schema:1,docs:{'links/test':{sku:'TEST',econ:{cogs:20}}}}}};
+function client({backup=async()=>{},conflict=false}={}){let posts=0,gets=0;const context={user,canEdit:true,cloudRequest:async(path,payload)=>{assert.equal(path,'/ops-api/followup');if(!payload){gets++;return structuredClone(initial);}posts++;if(conflict)throw Error('其它人员已更新');return {revision:8,data:payload.data};}};const db=createTrackerCloudDb({context:()=>context,backup:async(...args)=>backup(context,...args),notify:()=>{}});return {db,context,posts:()=>posts,gets:()=>gets};}
+for(const key of ['__proto__','constructor','prototype'])await test('prototype update rejected '+key,async()=>{const before=JSON.stringify(initial);const value=JSON.parse('{"econ":{"'+key+'":{"polluted":true}}}');assert.throws(()=>applyTrackerOperations(initial.data.trackerV1.docs,[{id:'x',type:'update',path:'links/test',value}],user),/无效字段/);assert.equal({}.polluted,undefined);assert.equal(JSON.stringify(initial),before);});
+for(const path of ['../test','perf/test/../x','__proto__/x','links/'])await test('invalid record path '+path,async()=>{assert.throws(()=>applyTrackerOperations(initial.data.trackerV1.docs,[{id:'x',type:'update',path,value:{sku:'ATTACK'}}],user),/路径无效/);});
+await test('backup failure prevents any write',async()=>{const t=client({backup:async()=>{throw Error('backup failed');}});await assert.rejects(t.db.doc('links/test').update({sku:'NEW'}),/backup failed/);assert.equal(t.posts(),0);});
+await test('identity change during backup prevents any write',async()=>{const t=client({backup:async ctx=>{ctx.user={id:'B',name:'Operator B'};}});await assert.rejects(t.db.doc('links/test').update({sku:'NEW'}),/身份|帐号|登录/);assert.equal(t.posts(),0);});
+await test('permission removal during backup prevents any write',async()=>{const t=client({backup:async ctx=>{ctx.canEdit=false;}});await assert.rejects(t.db.doc('links/test').update({sku:'NEW'}),/权限/);assert.equal(t.posts(),0);});
+await test('persistent conflict exhausts bounded retries without overwrite',async()=>{const t=client({conflict:true});await assert.rejects(t.db.doc('links/test').update({sku:'NEW'}),/其它人员已更新/);assert.equal(t.posts(),4);assert.equal(t.gets(),4);assert.equal(initial.data.trackerV1.docs['links/test'].sku,'TEST');});
+const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE records(key TEXT PRIMARY KEY,value TEXT NOT NULL)');sql.prepare('INSERT INTO records VALUES(?,?)').run(FOLLOWUP_KEY,JSON.stringify(initial));
+const env={DB:{prepare(text){let args=[];return {bind(...a){args=a;return this;},async first(){return sql.prepare(text).get(...args)||null;},async all(){return {results:sql.prepare(text).all(...args)};},async run(){return sql.prepare(text).run(...args);}};}}};
+let commits=0;const call=(body,who=user)=>uploadFollowup(new Request('https://example.test/ops-api/followup/upload',{method:'POST',body:JSON.stringify(body)}),env,who,async()=>{commits++;return Response.json({ok:true});});
+const start={action:'start',id:crypto.randomUUID(),bytes:2,count:1,sha256:'0'.repeat(64)};
+for(const patch of [{bytes:0},{bytes:-1},{bytes:MAX_BYTES+1,count:33},{bytes:2.5},{bytes:MAX_BYTES,count:31},{count:0},{sha256:'g'.repeat(64)},{id:'../escape'}])await test('upload manifest boundary '+JSON.stringify(patch),()=>assert.rejects(call({...start,...patch}),e=>e.status===400));
+await test('upload maximum 16MiB metadata accepted, missing chunks cannot commit',async()=>{const id=crypto.randomUUID();assert.equal((await call({...start,id,bytes:MAX_BYTES,count:MAX_BYTES/PART_BYTES})).status,200);await assert.rejects(call({action:'commit',id}),e=>e.status===409);});
+await call(start);
+for(const part of [{index:-1,content:'e30='},{index:1,content:'e30='},{index:.5,content:'e30='},{index:0,content:'e30'},{index:0,content:'e30==='},{index:0,content:'YWJj'},{index:0,content:'*bad*'}])await test('malformed chunk '+JSON.stringify(part),()=>assert.rejects(call({action:'part',id:start.id,...part}),e=>e.status===400));
+await test('oversized upload request body rejected',()=>assert.rejects(call({action:'part',id:start.id,index:0,content:'A'.repeat(750001)}),e=>e.status===413));
+await test('read-only upload denied',()=>assert.rejects(call(start,{...user,canEdit:false}),e=>e.status===403));
+await test('foreign operator cannot replace chunks',()=>assert.rejects(call({action:'part',id:start.id,index:0,content:'e30='},{...user,id:'B'}),e=>e.status===403));
+await test('duplicate chunk idempotent, changed content rejected',async()=>{const part={action:'part',id:start.id,index:0,content:'e30='};await call(part);await call(part);await assert.rejects(call({...part,content:'W10='}),e=>e.status===409);});
+await test('tampered digest cannot commit',()=>assert.rejects(call({action:'commit',id:start.id}),e=>e.status===400));
+await test('all rejected uploads preserve live root',async()=>{assert.equal(commits,0);assert.equal(sql.prepare('SELECT value FROM records WHERE key=?').get(FOLLOWUP_KEY).value,JSON.stringify(initial));});
+sql.close();console.log(JSON.stringify({passed,failed:failures.length,failures},null,2));if(failures.length)process.exitCode=1;

@@ -88,6 +88,9 @@ export function createTrackerCloudDb({context, backup, notify, onError}) {
         const send = request(), current = await send('/ops-api/followup');
         if (context().user?.id !== userId) throw Error('登录身份已变化，未保存');
         await backup(current, userId); // Failure prevents a cloud write.
+        // Backups are asynchronous: recheck authorization after that boundary.
+        if (context().user?.id !== userId) throw Error('登录身份已变化，未保存');
+        if (!context().canEdit) throw Error('当前用户没有编辑权限，未保存');
         const next = structuredClone(current.data), visible = projectTracker(next);
         const changed = change(visible,next);
         if(changed.noop){install(current);return changed.result;}

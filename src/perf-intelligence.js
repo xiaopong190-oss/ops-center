@@ -5,11 +5,12 @@ perfHealth=function(link){
   const recs=rangeRecs(perfOf(link.id),'4w');if(!recs.length)return perfClassicHealth(link);
   const c=perfCalc(link,recs),analysis=analyzePerformance(link,recs,c);
   if(!analysis.profitReady)return {tone:'wait',label:'数据待补齐',sub:analysis.missingCosts.length?'待填 '+analysis.missingCosts.join('、'):'请核对周期数据与统计口径',c};
+  if(c.net===0)return {tone:'wait',label:'当前保本',sub:'广告前利润恰好覆盖广告花费',c};
   return perfClassicHealth(link);
 };
 const perfPresentation=new Map();
 let perfMounted=null,perfResize=null,perfD3Loading=null;
-const perfComplete=(rows,keys)=>rows.length>0&&rows.every(row=>keys.every(key=>num(row[key])));
+const perfComplete=(rows,keys)=>rows.length>0&&rows.every(row=>keys.every(key=>num(row[key])&&row[key]>=0&&row[key]<=Number.MAX_SAFE_INTEGER));
 function perfPresentationFor(link,c){
   const key=link.id+'|'+state.range,signature=JSON.stringify([c.price,c.S.adSpend,c.S.units,c.retRate,link.econ,c.ue?.head]);
   let ui=perfPresentation.get(key);
@@ -42,11 +43,12 @@ function perfBridge(link,c,ready){
 }
 function perfChartData(link,recs){
   return recs.filter(row=>typeof row.from==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(row.from)&&Number.isFinite(Date.parse(row.from))&&new Date(row.from).toISOString().slice(0,10)===row.from).map(row=>{
-    const c=perfCalc(link,[row]),ready=analyzePerformance(link,[row],c).profitReady;
+    const c=perfCalc(link,[row]),check=analyzePerformance(link,[row],c),ready=check.profitReady;
+    const metricReady=check.numericSafe&&!check.invalid;
     return {row,x:Date.parse(row.from+'T00:00:00Z'),c,
-      net:ready?c.net:null,tacos:perfComplete([row],['adSpend','sales'])?c.tacos:null,
-      cvr:perfComplete([row],['units','sessions'])?c.cvr:null,ret:perfComplete([row],['returns','units'])?c.retRate:null,
-      cpa:perfComplete([row],['adSpend','adOrders'])?c.cpa:null,beTacos:ready?c.beTacos:null,beCpa:ready?c.beCpa:null};
+      net:ready?c.net:null,tacos:metricReady&&perfComplete([row],['adSpend','sales'])?c.tacos:null,
+      cvr:metricReady&&perfComplete([row],['units','sessions'])?c.cvr:null,ret:metricReady&&perfComplete([row],['returns','units'])?c.retRate:null,
+      cpa:metricReady&&perfComplete([row],['adSpend','adOrders'])?c.cpa:null,beTacos:ready?c.beTacos:null,beCpa:ready?c.beCpa:null};
   });
 }
 function perfSeries(metric){
@@ -55,6 +57,10 @@ function perfSeries(metric){
   return [{key:metric,label:({net:'净利润',cvr:'CVR',ret:'退货率'})[metric]||'净利润'}];
 }
 const perfMetricFormat=(metric,value)=>metric==='net'||metric==='cpa'?money2(value):pct(value,2);
+function perfFallbackChart(link,points,metric,series){
+  if(!series.length)return '<p class="perf-empty">已隐藏全部曲线，点击图例可恢复。</p>';
+  return points.length?chartSVG({labels:points.map(point=>short(point.row.from)),series:series.map(item=>({kind:metric==='net'?'bar':'line',ref:item.ref,vals:points.map(point=>point[item.key])})),axis:metric==='net'||metric==='cpa'?axMoney:axPct,aria:'经营趋势（周期数据）',tips:points.map(point=>tipFor(link,point.row))}):'<p class="perf-empty">还没有可绘制的周期。录入第一期后，趋势与保本线会在这里呈现。</p>';
+}
 function perfPeriodDetail(point){
   if(!point)return '暂无可查看的周期';
   return `<span>实际周期 ${esc(point.row.from)} — ${esc(point.row.to||point.row.from)}</span><span class="perf-period-values"><span>销售额 ${point.c.has.sales?moneyS(point.c.S.sales):'—'}</span><span>广告 ${point.c.has.adSpend?moneyS(point.c.S.adSpend):'—'}</span><span>净利润 ${num(point.net)?moneyS(point.net):'数据待补齐'}</span></span>`;
@@ -67,10 +73,10 @@ perfView=function(link){
   const issue=analysis.issues[0]||{kind:'data',title:'当前周期尚无可测算订单',detail:'请确认售价、订单件数及统计日期。',target:'records',action:'核对数据'};
   const button=(key,title)=>`<button type="button" data-act="metric" data-v="${key}" aria-pressed="${metric===key}">${title}</button>`;
   const card=(label,value,detail,key)=>`<${key?'button type="button" data-act="metric" data-v="'+key+'"':'div'} class="perf-stat"><span class="perf-label">${label}</span><span class="perf-value">${value}</span><span class="perf-context">${detail}</span></${key?'button':'div'}>`;
-  const classic=document.createElement('template');classic.innerHTML=perfClassicView(link);
+  const classic=document.createElement('template');classic.innerHTML=perfClassicView(link,true);
   const costEditor=classic.content.querySelector('.two > .panel:nth-child(2)')?.outerHTML||'';
   const recordsEditor=classic.content.lastElementChild?.outerHTML||'';
-  const fallback=points.length?chartSVG({labels:points.map(point=>short(point.row.from)),series:series.map(item=>({kind:metric==='net'?'bar':'line',ref:item.ref,vals:points.map(point=>point[item.key])})),axis:metric==='net'||metric==='cpa'?axMoney:axPct,aria:'经营趋势（周期数据）',tips:points.map(point=>tipFor(link,point.row))}):'<p class="perf-empty">还没有可绘制的周期。录入第一期后，趋势与保本线会在这里呈现。</p>';
+  const fallback=perfFallbackChart(link,points,metric,series.filter(item=>!ui.hidden.has(item.key)));
   const budgetMax=Math.max(c.preAd||0,c.S.adSpend||0,1)*1.12;
   const slider=(key,label,min,max,step,value)=>`<label class="perf-slider"><span>${label}<output data-perf-output="${key}">${key==='returns'?value.toFixed(1)+'%':(value>0?'+':'')+value+'%'}</output></span><input type="range" data-perf-sim="${key}" min="${min}" max="${max}" step="${step}" value="${value}" ${analysis.profitReady?'':'disabled'} aria-label="${label}"></label>`;
   return `<div id="perf-intelligence-root" class="perf-intelligent" data-link-id="${esc(link.id)}">
@@ -108,10 +114,12 @@ function perfSelectPoint(root,id){
   root.querySelector('[data-perf-period-detail]').innerHTML=perfPeriodDetail(point);
 }
 function perfDrawChart(root){
-  if(!root?.isConnected||!window.d3)return;
+  if(!root?.isConnected)return;
   const ctx=perfActiveContext(root);if(!ctx)return;
   const host=root.querySelector('[data-perf-chart]'),d3=window.d3,metric=state.metric,allSeries=perfSeries(metric),series=allSeries.filter(item=>!ctx.ui.hidden.has(item.key));
-  const points=ctx.points;if(!points.length)return;
+  const points=ctx.points;
+  if(!d3){host.innerHTML=perfFallbackChart(ctx.link,points,metric,series)+'<div class="perf-tooltip" role="tooltip" hidden></div>';return;}
+  if(!points.length)return;
   const values=series.flatMap(item=>points.map(point=>point[item.key])).filter(num);
   const existingTooltip=host.querySelector('.perf-tooltip');if(existingTooltip)existingTooltip.hidden=true;
   for(const node of [...host.children])if(!node.classList.contains('perf-tooltip'))node.remove();

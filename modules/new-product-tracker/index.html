@@ -387,7 +387,7 @@ const monday=s=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()-((d.getDa
 const pct=(x,d)=>num(x)?(x*100).toFixed(d==null?1:d)+'%':'—';
 const money2=n=>num(n)?'¥'+n.toFixed(2):'—';
 const moneyS=n=>num(n)?(n<0?'-':'')+money(Math.abs(n)):'—';
-function perfOf(id){return state.perf.filter(r=>r.linkId===id).sort((a,b)=>(a.from||'').localeCompare(b.from||''));}
+function perfOf(id){return state.perf.filter(r=>r.linkId===id).sort((a,b)=>String(a.from||'').localeCompare(String(b.from||'')));}
 function rangeRecs(recs,range){if(range==='all')return recs;const cut=addDays(TODAY,range==='12w'?-84:-28);return recs.filter(r=>(r.to||r.from||'')>=cut);}
 function unitEcon(l,price,rr){
   const e=Object.assign({},l.econ);const z=v=>num(v)?v:0;
@@ -427,10 +427,12 @@ function perfHealth(l){
   return{tone:'done',label:'盈利 '+moneyS(c.net),sub,c};
 }
 function niceTicks(lo,hi,n){
-  const raw=(hi-lo)/n;const e=Math.pow(10,Math.floor(Math.log10(raw)));const f=raw/e;
+  const raw=(hi-lo)/n;if(!num(raw)||raw<=0)return [lo,hi];const e=Math.pow(10,Math.floor(Math.log10(raw)));const f=raw/e;
   const step=(f<=1?1:f<=2?2:f<=5?5:10)*e;const out=[];
-  for(let t=Math.floor(lo/step)*step;t<=Math.ceil(hi/step)*step+step/2;t+=step)out.push(parseFloat(t.toPrecision(12)));
-  return out;
+  if(!num(step)||step<=0)return [lo,hi];
+  const start=Math.floor(lo/step)*step,end=Math.ceil(hi/step)*step+step/2;
+  for(let i=0;i<32;i++){const t=start+i*step;if(!num(t)||t>end)break;const rounded=parseFloat(t.toPrecision(12));if(out.at(-1)===rounded)break;out.push(rounded);}
+  return out.length>=2?out:[lo,hi];
 }
 function chartSVG(o){
   const W=720,H=230,L=60,R=14,T=14,B=26;const n=o.labels.length;
@@ -458,6 +460,7 @@ function tipFor(l,r){const c=perfCalc(l,[r]);
   return `${r.from} ~ ${r.to||''}\n销售额 ${moneyS(c.S.sales)} · ${c.S.units} 件\n净利润 ${moneyS(c.net)}\nTACoS ${pct(c.tacos)} · 保本 ${pct(c.beTacos)}\nCPA ${money2(c.cpa)} · CVR ${pct(c.cvr)}\n退货率 ${pct(c.retRate)}`;}
 function norm(id,raw){
   const d=merge(defaults(),raw||{});d.id=id;
+  for(const key of ['logistics','content','promo','reviews','econ'])if(!isObj(d[key]))d[key]=defaults()[key];
   const st=Array.isArray(d.logistics.steps)?d.logistics.steps:[];
   d.logistics.steps=STEPS.map((_,i)=>merge({status:'wait',date:''},st[i]||{}));
   ['checks','logs'].forEach(k=>{if(!Array.isArray(d.logistics[k]))d.logistics[k]=[];});
@@ -945,7 +948,7 @@ function reviews(l,s){
    ${rowForm('reviews.bad','<select class="in w-s" name="star" aria-label="星级"><option>1</option><option>2</option><option>3</option></select>'+dateIn('date')+'<input class="in" name="issue" placeholder="买家反映的问题" required aria-label="问题"><input class="in" name="action" placeholder="处理动作" aria-label="处理动作">','登记差评')}</div>`;
 }
 
-function perfView(l){
+function perfView(l,editorsOnly=false){
   const all=perfOf(l.id);const recs=rangeRecs(all,state.range);const c=perfCalc(l,recs);const S=c.S;const ue=c.ue;const e=l.econ;
   const seg=(items,cur,act,label)=>`<div class="seg" role="group" aria-label="${label}">${items.map(([k,t])=>`<button data-act="${act}" data-v="${k}" class="${cur===k?'on':''}" aria-pressed="${cur===k}">${t}</button>`).join('')}</div>`;
   const kpi=(k,v,nt,cls,vcls)=>`<div class="kpi"><span class="k">${k}</span><span class="v ${vcls||''}">${v}</span><span class="n ${cls||''}">${nt}</span></div>`;
@@ -962,7 +965,8 @@ function perfView(l){
    </div>`:`<p class="hint">${all.length?'这个时间范围内没有记录，换「全部」看看。':'还没有经营数据。在下方「周期数据」里按周录入访客、订单、销售额、广告和退货，再把单件成本填好，就能算出 CPA、保本 TACoS 和净利润。'}</p>`}</div>`;
 
   // CPA & break-even
-  let be;
+  let be='';
+  if(!editorsOnly){
   if(!ue)be='<p class="note">需要售价才能测算：录入带销售额的周期数据，或在右侧填「售价」。</p>';
   else if(ue.unit<=0)be=`<p class="note">单件广告前利润是 <b class="neg">${money2(ue.unit)}</b>，还没投广告就已经亏了。先看右侧哪一项成本最大，调价或降成本。</p>`;
   else{
@@ -979,9 +983,10 @@ function perfView(l){
        <div class="gauge" role="img" aria-label="TACoS ${pct(c.tacos)}，保本 ${pct(c.beTacos)}"><i style="width:${num(c.tacos)?Math.min(100,c.tacos/mx*100):0}%;background:${tacosCls==='bad'?'var(--bad)':tacosCls==='warn'?'var(--warn)':'var(--accent)'}"></i><s style="left:${Math.min(100,c.beTacos/mx*100)}%" title="保本线"></s></div></div>
       <p class="note">保本 TACoS = 单件广告前利润 ÷ 售价 = ${money2(ue.unit)} ÷ ${money2(ue.price)} = <b>${pct(c.beTacos)}</b>。${gap!=null?(gap>=0?`当前 TACoS ${pct(c.tacos)}，还有 <b class="pos">${(gap*100).toFixed(1)}</b> 个百分点空间。`:`当前 TACoS ${pct(c.tacos)}，超出 <b class="neg">${(-gap*100).toFixed(1)}</b> 个百分点。`):''}${tm>0?`想留 ${(tm*100).toFixed(0)}% 净利率，TACoS 要压到 <b>${pct(c.beTacos-tm)}</b> 以内${c.beTacos-tm<=0?'（目前做不到，需要先提高单件利润）':''}。`:''}</p>`;
   }
+  }
   // waterfall
   let wf='';
-  if(ue){
+  if(ue&&!editorsOnly){
     const lo=Math.min(0,ue.unit,ue.kept),span=ue.price-lo;const pos=v=>(v-lo)/span*100;
     const rows=[];let run=ue.price;
     rows.push(['售价',0,ue.price,ue.price,'var(--accent)','']);
@@ -1000,6 +1005,7 @@ function perfView(l){
   </div>`;
 
   // trend
+  if(!editorsOnly){
   const R=recs.filter(r=>r.from);const m=state.metric;
   let series=[],axis=axPct,legend='';
   const cs=R.map(r=>perfCalc(l,[r]));
@@ -1011,9 +1017,13 @@ function perfView(l){
   h+=`<div class="panel"><div class="ph"><h2>趋势</h2>${seg(METRICS,m,'metric','指标')}</div>
     ${R.length?`<div class="lg">${legend}</div>`+chartSVG({labels:R.map(r=>short(r.from)),series,axis,aria:(METRICS.find(x=>x[0]===m)||['',''])[1]+' 趋势',tips:R.map(r=>tipFor(l,r))}):'<p class="hint">录入周期数据后显示趋势。</p>'}</div>`;
 
+  }
   // records
   const last=all[all.length-1];
-  const nf=last?addDays(last.to||last.from,1):monday(addDays(TODAY,-7));const nt=addDays(nf,6);
+  const validPeriodDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
+  const fallbackDate=monday(addDays(TODAY,-7)),lastDate=last&&(last.to||last.from);
+  const suggested=validPeriodDate(lastDate)?addDays(lastDate,1):fallbackDate;
+  const nf=validPeriodDate(suggested)&&validPeriodDate(addDays(suggested,6))?suggested:fallbackDate,nt=addDays(nf,6);
   const rowsDesc=all.slice().reverse();
   h+=`<div class="panel"><div class="ph"><h2>周期数据</h2><span class="hint">建议每周一录上一周（周一到周日）。金额统一按人民币。</span></div>
    <div class="scrollx"><table class="tbl ptbl"><thead><tr><th>起始</th><th>结束</th>${PF.map(k=>`<th>${PF_NAME[k]}</th>`).join('')}<th class="c">CVR</th><th class="c">退货率</th><th class="c">CPA</th><th class="c">TACoS</th><th class="c">保本 TACoS</th><th class="c">净利润</th><th><span hidden>删除</span></th></tr></thead><tbody>

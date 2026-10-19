@@ -5,7 +5,7 @@ import { canCurrentUserEdit, userWantsAutoShare } from "./utils/storage.js";
 import { useCloudSyncPage } from "./GlobalCloudSync.jsx";
 import { NEW_PRODUCT_FOLLOWUP_HTML } from "./NewProductFollowupDocument.js";
 
-export function NewProductFollowupPanel({ active }) {
+export function NewProductFollowupPanel({ active, workspaceMaximized = false }) {
   const frame = useRef(null);
   const [legacy,setLegacy] = useState(false);
   const [syncState,setSyncState] = useState({isDirty:false});
@@ -18,6 +18,7 @@ export function NewProductFollowupPanel({ active }) {
     canEdit: !legacy && canCurrentUserEdit(user),
     requireCloud: true,
     active,
+    workspaceMaximized,
     cloudRequest: window.OpsCloud?.request,
     autoShare:userWantsAutoShare(user),
     onSyncState:setSyncState,

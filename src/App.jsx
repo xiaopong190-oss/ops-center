@@ -473,7 +473,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
   return (
     <div className={`ops-app${dark ? " ops-theme-dark" : " ops-theme-light"}${isFullscreen ? " ops-workspace-max" : ""}`} style={css}>
       {navOpen && !isFullscreen && <div className="ops-sidebar-backdrop" onClick={() => setNavOpen(false)} />}
-      <aside className={`ops-sidebar${navOpen ? " ops-sidebar-open" : ""}`}>
+      <aside hidden={isFullscreen} style={{display:isFullscreen ? "none" : undefined}} className={`ops-sidebar${navOpen ? " ops-sidebar-open" : ""}`}>
         <div className="ops-sidebar-brand">
           <BrandLogo size={32} />
           <div>
@@ -511,10 +511,12 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
       `}</style>
       {isFullscreen && <div className="ops-workspace-controls">
         {showCloudBar && <GlobalCloudBar />}
-        <button type="button" className="ops-btn" onClick={toggleFullscreen} title="恢复工作区（Esc）">恢复工作区 · Esc</button>
+        <button type="button" className="ops-btn" onClick={toggleFullscreen} title="恢复工作区（Esc）" aria-label="恢复工作区" style={{width:32,height:32,justifyContent:'center'}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6" /></svg>
+        </button>
       </div>}
       <div className="ops-main">
-        <header className="ops-topbar">
+        <header hidden={isFullscreen} style={{display:isFullscreen ? "none" : undefined}} className="ops-topbar">
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <button type="button" className="ops-nav-toggle ops-btn" onClick={() => setNavOpen(v => !v)} aria-label="打开菜单">菜单</button>
             <div className="ops-topbar-title">{TAB_TITLES[tab] || "运营中心"}</div>
@@ -522,11 +524,10 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           <div className="ops-topbar-actions">
             <button type="button" className="ops-btn" onClick={toggleFullscreen} aria-pressed={isFullscreen}
               aria-label={isFullscreen ? '恢复工作区' : '最大化中间工作区'} title={isFullscreen ? '恢复工作区（Esc）' : '工作区最大化（Ctrl+Shift+F）'}
-              style={{display:'inline-flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}>
+              style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:32,height:32,padding:0}}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                 <path d={isFullscreen ? 'M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6' : 'M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6'} />
               </svg>
-              {isFullscreen ? '恢复工作区' : '工作区最大化'}
             </button>
             <span className="ops-topbar-user" style={{ fontSize: 12, color: "var(--tm)", fontWeight: 600, padding: "0 4px" }}>
               {isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}`}
@@ -541,7 +542,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
           <div style={{ display: tab === "amazon-growth" ? "block" : "none" }}><AmazonGrowthPanel /></div>
           <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
-          <div style={{ display: tab === "new-product-followup" ? "block" : "none" }}><NewProductFollowupPanel active={tab === "new-product-followup"} /></div>
+          <div style={{ display: tab === "new-product-followup" ? "block" : "none" }}><NewProductFollowupPanel active={tab === "new-product-followup"} workspaceMaximized={isFullscreen} /></div>
           <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
           <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
           <div style={{ display: tab === "knowledge" ? "block" : "none" }}><KnowledgePanel active={tab === "knowledge"} /></div>

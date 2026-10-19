@@ -8,7 +8,7 @@ async function test(name,fn){let t;try{t=await mount({link,rows:[row]});await fn
 const change=(t,key,value,type='input')=>{const input=t.root().querySelector('[data-f="econ.'+key+'"]');input.value=String(value);input.dispatchEvent(new t.window.Event(type,{bubbles:true}));return input;};
 const values=t=>[...t.root().querySelectorAll('[data-perf-unit] .wf-r .v')].map(n=>Number(n.textContent.replace(/[¥,]/g,'')));
 function expected(e,price=e.price){const comm=price*e.commission/100,kept=price-comm-e.fba-e.cogs-e.head-e.other,returned=-(e.fba+.2*comm+e.other)-e.unsellable/100*(e.cogs+e.head);return kept*.9+returned*.1;}
-const final=t=>values(t).at(-1);
+const final=t=>{const row=[...t.root().querySelectorAll('[data-perf-unit] .wf-r')].find(n=>n.firstElementChild.textContent==='单件广告前利润');return Number(row.querySelector('.v').textContent.replace(/[¥,]/g,''));};
 const near=(a,b)=>assert.ok(Math.abs(a-b)<=.011,a+' != '+b);
 function finiteDOM(t){for(const n of t.root().querySelectorAll('[data-perf-unit] [style],svg *'))for(const a of n.attributes)assert.ok(!/NaN|Infinity/.test(a.value),'invalid coordinates '+a.value);}
 await test('logic: 200 to 341 updates before blur; actual reporting stays factual',async t=>{near(final(t),27.4);const kpis=t.root().querySelector('.kpis').textContent;const input=t.root().querySelector('[data-f="econ.price"]');input.focus();change(t,'price',341);assert.equal(t.window.document.activeElement,input);assert.equal(t.root().querySelector('[data-f="econ.price"]'),input);near(values(t)[0],341);near(final(t),134.842);assert.equal(t.root().querySelector('.kpis').textContent,kpis);assert.equal(t.writes(),0);assert.equal(t.snapshot.data.trackerV1.docs['links/test'].econ.price,200);finiteDOM(t);});

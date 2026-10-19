@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {mount,baseLink,first,settle} from './perf-test-harness.mjs';
+const source=fs.readFileSync(new URL('../modules/new-product-tracker/index.html',import.meta.url),'utf8');
+const fn=source.slice(source.indexOf('function perfLinkedAnalysis('),source.indexOf('function perfAnalysisHTML('));
+const scope=vm.createContext({num:v=>typeof v==='number'&&Number.isFinite(v)});vm.runInContext(fn+'this.calc=perfLinkedAnalysis;',scope);
+const e={targetMargin:10},row={units:100,adSpend:1000,adOrders:40},c={S:{...row}},unit={price:200,unit:27.4};
+let passed=0;const failures=[];const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,a+' != '+b);
+function test(name,fn){try{fn();passed++;}catch(error){failures.push(name+': '+error.stack);}}
+const calc=(ee=e,cc=c,uu=unit,rows=[row])=>scope.calc(ee,cc,uu,rows);
+const expected={perAd:10,net:17.4,margin:.087,targetProfit:20,limit:7.4,budget:740,targetCPA:18.5,cpa:25,pieces:25/27.4,gap:-2.6,targetTacos:.037};
+for(const [key,value] of Object.entries(expected))test('independent equation '+key,()=>near(calc()[key],value));
+test('zero target equals break-even cap',()=>near(calc({targetMargin:0}).limit,27.4));
+test('impossible target retains negative space without pretending allowed budget',()=>assert.ok(calc({targetMargin:100}).limit<0));
+test('pre-ad loss remains loss',()=>assert.ok(calc(e,c,{...unit,unit:-10}).net<0));
+test('zero orders has no CPA but per-unit ads still count',()=>{const r={...row,adOrders:0};const a=calc(e,{S:r},unit,[r]);assert.equal(a.cpa,null);assert.equal(a.targetCPA,null);near(a.perAd,10);});
+test('zero units gives no per-unit or budget division',()=>{const r={...row,units:0};const a=calc(e,{S:r},unit,[r]);assert.equal(a.perAd,null);assert.equal(a.net,null);assert.equal(a.budget,null);});
+test('missing ad spend is not silently zero',()=>{const r={...row,adSpend:null};assert.equal(calc(e,c,unit,[r]).net,null);});
+test('one incomplete period blocks partial ad average',()=>assert.equal(calc(e,c,unit,[row,{...row,adSpend:null}]).perAd,null));
+test('no periods has no made-up advertising',()=>assert.equal(calc(e,c,unit,[]).cpa,null));
+test('no target has no invented target',()=>assert.equal(calc({targetMargin:null}).limit,null));
+test('target adjustment monotonically reduces ad room',()=>assert.ok(calc({targetMargin:20}).limit<calc().limit));
+test('trial price increases both target and net without touching actuals',()=>{const before=JSON.stringify({e,c,unit,row});const a=calc(e,c,{price:341,unit:134.842});near(a.net,124.842);near(a.targetProfit,34.1);near(a.limit,100.742);assert.equal(JSON.stringify({e,c,unit,row}),before);});
+test('extreme derived numbers never emit NaN or Infinity',()=>{const a=calc(e,{S:{units:1e308,adSpend:1e308,adOrders:1e-308}},unit,[{units:1e308,adSpend:1e308,adOrders:1e-308}]);assert.ok(Object.values(a).every(v=>v===null||Number.isFinite(v)));});
+test('1000 deterministic budget and profit identities',()=>{for(let i=1;i<=1000;i++){const rr={units:i,adSpend:i*3,adOrders:i/2};const a=calc({targetMargin:i%101},{S:rr},{price:100,unit:40},[rr]);near(a.net,37);near(a.budget,a.limit*i);near(a.targetCPA,a.limit*2);}});
+async function ui(name,options,fn){let t;try{t=await mount(options);await fn(t);assert.equal(t.errors.length,0,t.errors.join('\n'));assert.equal(t.writes(),0);passed++;}catch(error){failures.push(name+': '+error.stack);}finally{t?.window.close();}}
+const link={...baseLink,econ:{price:200,cogs:40,head:22,fba:53,commission:15,other:10,unsellable:100,targetMargin:10}},r={...first,units:100,sales:20000,returns:10,adSpend:1000,adOrders:40};
+const set=(t,key,value)=>{const n=t.root().querySelector('[data-f="econ.'+key+'"]');n.value=String(value);n.dispatchEvent(new t.window.Event('input',{bubbles:true}));};
+await ui('linked UI and single ad deduction',{link,rows:[r]},async t=>{assert.ok([...t.root().querySelectorAll('h2')].some(n=>n.textContent==='分析'));const analysis=t.root().querySelector('[data-perf-break-even]').textContent;assert.match(analysis,/740.00/);assert.match(analysis,/18.50/);const row=[...t.root().querySelectorAll('[data-perf-unit] .wf-r')].find(n=>n.firstElementChild.textContent==='广告后净利润');assert.match(row.querySelector('.v').textContent,/17.40/);assert.match(t.root().querySelector('[data-perf-unit]').textContent,/CPA ¥25.00/);assert.match(analysis,/不表示广告带来了自然订单/);});
+await ui('price and goal inputs update both modules before blur',{link,rows:[r]},async t=>{set(t,'price',341);assert.match(t.root().querySelector('[data-perf-break-even]').textContent,/124.84/);assert.match(t.root().querySelector('[data-perf-unit]').textContent,/124.84/);const prior=t.root().querySelector('[data-perf-break-even]').textContent;set(t,'targetMargin',20);assert.notEqual(t.root().querySelector('[data-perf-break-even]').textContent,prior);assert.match(t.root().querySelector('[data-perf-break-even]').textContent,/68.20/);assert.equal(t.snapshot.data.trackerV1.docs['links/test'].econ.price,200);});
+await ui('no data explains unavailable CPA, not zero',{link,rows:[]},async t=>{assert.match(t.root().querySelector('[data-perf-break-even]').textContent,/待补齐/);assert.ok(!t.root().querySelector('[data-perf-unit]').textContent.includes('广告后净利润'));});
+await ui('impossible target stays explicit and chart remains',{link,rows:[r]},async t=>{set(t,'targetMargin',100);assert.match(t.root().querySelector('[data-perf-break-even]').textContent,/即使广告花费为 0/);assert.match(t.root().querySelector('[data-perf-break-even]').textContent,/单靠减少广告花费无法/);assert.ok(t.root().querySelector('[data-perf-unit] .wf'));});
+console.log(JSON.stringify({passed,failed:failures.length,failures},null,2));if(failures.length)process.exitCode=1;

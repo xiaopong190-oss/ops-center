@@ -4,6 +4,11 @@ export function buildTrackerDocument(root) {
   const inline=path=>fs.readFileSync(new URL(path,root),'utf8').replace(/^import .*;\r?\n/gm,'').replaceAll('export function','function');
   const adapter=inline('src/tracker-cloud-adapter.js')+'\n'+inline('src/tracker-drafts.js');
   const runtime = fs.readFileSync(new URL('src/tracker-runtime.js',root),'utf8');
+  const intelligence=inline('src/perf-intelligence-model.js')+'\n'+inline('src/perf-intelligence.js');
+  const intelligenceStyles=fs.readFileSync(new URL('src/perf-intelligence.css',root),'utf8');
+  if(!html.includes('/* ---------- events ---------- */'))throw Error('Tracker event hook changed');
+  html=html.replace('</style>',intelligenceStyles+'\n</style>');
+  html=html.replace('/* ---------- events ---------- */',intelligence+'\n/* ---------- events ---------- */');
   const begin = html.indexOf('function localDb(){');
   const end = html.indexOf('\nrender(true);',begin);
   if (begin < 0 || end < 0) throw Error('Tracker storage hooks changed');

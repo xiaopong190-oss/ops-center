@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Install tracker test dependencies
+        run: npm ci --prefix modules/new-product-followup/work/qa --no-audit --no-fund
+
       - name: Run regression tests
         run: npm run test:regression
 

@@ -417,6 +417,37 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
   const isSuper = currentUser?.auth === AUTH_ROLE_SUPER || currentUser?.role === AUTH_ROLE_SUPER;
   const [pwdOpen, setPwdOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(() => Boolean(document.fullscreenElement || document.webkitFullscreenElement));
+  const [fullscreenError, setFullscreenError] = useState('');
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement || document.webkitFullscreenElement));
+      setFullscreenError('');
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen);
+    };
+  }, []);
+  const toggleFullscreen = async () => {
+    setFullscreenError('');
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (!exit) throw Error('Fullscreen unavailable');
+        await exit.call(document);
+      } else {
+        const root = document.documentElement;
+        const enter = root.requestFullscreen || root.webkitRequestFullscreen;
+        if (!enter) throw Error('Fullscreen unavailable');
+        await enter.call(root);
+      }
+    } catch {
+      setFullscreenError('浏览器未允许全屏，可按 F11 切换');
+    }
+  };
   const confirmLeave = useConfirmLeave();
   const trySetTab = async (key) => {
     if (key === tab) return;
@@ -473,6 +504,15 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
             <div className="ops-topbar-title">{TAB_TITLES[tab] || "运营中心"}</div>
           </div>
           <div className="ops-topbar-actions">
+            {fullscreenError && <span role="status" style={{fontSize:12,color:'var(--tm)'}}>{fullscreenError}</span>}
+            <button type="button" className="ops-btn" onClick={toggleFullscreen} aria-pressed={isFullscreen}
+              aria-label={isFullscreen ? '退出全屏' : '全屏显示运营中心'} title={isFullscreen ? '退出全屏（Esc）' : '全屏显示，适用于所有菜单'}
+              style={{display:'inline-flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d={isFullscreen ? 'M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6' : 'M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6'} />
+              </svg>
+              {isFullscreen ? '退出全屏' : '全屏'}
+            </button>
             <span className="ops-topbar-user" style={{ fontSize: 12, color: "var(--tm)", fontWeight: 600, padding: "0 4px" }}>
               {isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}`}
             </span>
@@ -480,7 +520,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           </div>
         </header>
 
-        <main className="ops-content" style={{ maxWidth: tab === "new-product-followup" || tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" || tab === "amazon-growth" ? 1280 : 960 }}>
+        <main className="ops-content" style={{ maxWidth: isFullscreen ? "none" : tab === "new-product-followup" || tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" || tab === "amazon-growth" ? 1280 : 960 }}>
           {showCloudBar && <GlobalCloudBar />}
           <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>

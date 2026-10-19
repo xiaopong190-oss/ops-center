@@ -13,6 +13,7 @@ const suites=[
   'deploy/test-workspace-maximize.mjs',
   'deploy/test-followup-adversarial.mjs',
   'deploy/test-classic-perf-ui.mjs',
+  'deploy/test-perf-live-input.mjs',
 ];
 for(const suite of suites){
   console.log('\nRunning '+suite);

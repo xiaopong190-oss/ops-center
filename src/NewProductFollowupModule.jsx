@@ -38,7 +38,10 @@ export function NewProductFollowupPanel({ active }) {
     },
     reload:options=>legacy?frame.current?.contentWindow?.setOpsFollowupContext?.(context):frame.current?.contentWindow?.reloadOpsFollowup?.(options),
   });
-  const publish = () => frame.current?.contentWindow?.setOpsFollowupContext?.(context);
+  const publish = () => {
+    const initialized = frame.current?.contentWindow?.setOpsFollowupContext?.(context);
+    initialized?.catch?.(error => setSyncState(current => ({...current,error:error.message || '新品页面加载失败，请重试'})));
+  };
   useEffect(publish, [JSON.stringify(context), active]);
   return <section style={{ height: "calc(100vh - 150px)", minHeight: 600, display: "flex", flexDirection: "column" }}>
     <div hidden style={{ display:"none", fontSize: 12, color: "var(--tm)", padding: "0 0 10px" }}>新品跟踪大屏 · 沿用共享库 · 原版记录保留 <button onClick={() => setLegacy(!legacy)} style={{marginLeft:12}}>{legacy ? "返回新品大屏" : "原版记录（只读）"}</button>{syncState.saving&&uploadProgress&&<span style={{marginLeft:12}}>上传进度 {uploadProgress.completed} / {uploadProgress.total}</span>}</div>

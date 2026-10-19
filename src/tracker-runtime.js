@@ -52,6 +52,8 @@ function trackerStatus(message) {
     status.style.cssText='padding:10px 14px;margin-bottom:12px;border:1px solid var(--line);border-radius:8px;color:var(--fg2)';
     document.body.prepend(status);
   }
+  status.hidden=true;
+  status.style.display='none';
   status.replaceChildren(document.createTextNode(message + ' '));
   const backup = document.createElement('button');backup.className='btn';backup.textContent='导出完整备份（含原版记录）';
   backup.onclick = async () => {

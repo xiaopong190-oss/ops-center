@@ -157,6 +157,7 @@ export function useCloudSyncPage(active, handlers) {
       get isDirty() { return !!ref.current.isDirty; },
       get dirtyHint() { return ref.current.dirtyHint; },
       get barHint() { return ref.current.barHint; },
+      get hideHint() { return ref.current.hideHint; },
     });
     return () => ctx.unregister();
   }, [active, ctx?.register, ctx?.unregister]);
@@ -213,8 +214,8 @@ export function GlobalCloudBar() {
   }
 
   return (
-    <div className={`ops-cloud-bar ops-cloud-bar-${tone}`}>
-      <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+    <div className={`ops-cloud-bar ops-cloud-bar-${tone}`} style={handler?.hideHint ? {background:"transparent",border:"none",padding:"0",justifyContent:"flex-end"} : undefined}>
+      <span hidden={!!handler?.hideHint} style={{ display:handler?.hideHint ? "none" : undefined, flex: 1, minWidth: 0 }}>{text}</span>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button type="button" disabled={loading || saving} onClick={onSave}
           className="ops-btn ops-btn-primary" style={{ minWidth: 108 }}>

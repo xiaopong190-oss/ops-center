@@ -71,12 +71,7 @@ function trackerStatus(message) {
 window.setOpsFollowupContext = async function(context) {
   const previous = trackerContext;
   trackerContext = context;
-  document.documentElement.dataset.opsWorkspaceMaximized = context.workspaceMaximized ? 'true' : 'false';
-  if (!document.getElementById('ops-workspace-menu-style')) {
-    const style = document.createElement('style');style.id = 'ops-workspace-menu-style';
-    style.textContent = 'html[data-ops-workspace-maximized="true"] nav.tabs{display:none!important}';
-    document.head.append(style);
-  }
+  document.getElementById('ops-workspace-menu-style')?.remove();
   if(previous.user?.id!==context.user?.id)trackerAdapter?.clear();
   state.me = context.user ? {id:context.user.id,isOwner:!!context.canEdit} : null;
   if (context.user) state.names[context.user.id] = context.user.name;

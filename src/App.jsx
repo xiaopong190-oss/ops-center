@@ -418,14 +418,20 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
   const [pwdOpen, setPwdOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenNotice, setFullscreenNotice] = useState('');
   useEffect(() => {
     const documents = new Set();
     const onKey = event => {
-      if (event.key === 'Escape') setIsFullscreen(false);
+      if (event.key === 'Escape') {
+        setIsFullscreen(false);setFullscreenNotice('');
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if ((document.fullscreenElement || document.webkitFullscreenElement) && exit) {
+          try { Promise.resolve(exit.call(document)).catch(() => {}); } catch { /* Native Escape may already have exited. */ }
+        }
+      }
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyF' && !event.repeat) {
         event.preventDefault();
-        setNavOpen(false);
-        setIsFullscreen(value => !value);
+        void toggleFullscreen();
       }
     };
     const bindDocument = target => {
@@ -437,17 +443,40 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
       try { bindDocument(frame.contentDocument); } catch { /* Cross-origin panels keep the restore button available. */ }
     };
     const onFrameLoad = event => { if (event.target?.tagName === 'IFRAME') bindFrame(event.target); };
+    const syncBrowserFullscreen = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement || document.webkitFullscreenElement));
+      setFullscreenNotice('');
+    };
+    document.addEventListener('fullscreenchange', syncBrowserFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncBrowserFullscreen);
     bindDocument(document);
     document.querySelectorAll('iframe').forEach(bindFrame);
     document.addEventListener('load', onFrameLoad, true);
     return () => {
       for (const target of documents) target.removeEventListener('keydown', onKey);
       document.removeEventListener('load', onFrameLoad, true);
+      document.removeEventListener('fullscreenchange', syncBrowserFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncBrowserFullscreen);
     };
-  }, []);
-  const toggleFullscreen = () => {
-    setNavOpen(false);
-    setIsFullscreen(value => !value);
+  }, [isFullscreen]);
+  const toggleFullscreen = async () => {
+    setNavOpen(false);setFullscreenNotice('');
+    const nativeActive = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+    if (isFullscreen || nativeActive) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      try { if (nativeActive && exit) await exit.call(document); } catch { /* Keep the workspace restore available. */ }
+      setIsFullscreen(false);
+      return;
+    }
+    setIsFullscreen(true);
+    const root = document.documentElement;
+    const enter = root.requestFullscreen || root.webkitRequestFullscreen;
+    try {
+      if (!enter) throw Error('Fullscreen unavailable');
+      await enter.call(root);
+    } catch {
+      setFullscreenNotice('请按 F11 隐藏浏览器顶部栏');
+    }
   };
   const confirmLeave = useConfirmLeave();
   const trySetTab = async (key) => {
@@ -510,6 +539,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
         .ops-workspace-max [data-ops-workspace-frame]{height:calc(100dvh - 56px)!important;min-height:0!important}
       `}</style>
       {isFullscreen && <div className="ops-workspace-controls">
+        {fullscreenNotice && <span role="status" style={{fontSize:12,color:"var(--tm)"}}>{fullscreenNotice}</span>}
         {showCloudBar && <GlobalCloudBar />}
         <button type="button" className="ops-btn" onClick={toggleFullscreen} title="恢复工作区（Esc）" aria-label="恢复工作区" style={{width:32,height:32,justifyContent:'center'}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6" /></svg>

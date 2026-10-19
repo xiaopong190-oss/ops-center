@@ -1,3 +1,4 @@
+import { buildTrackerDocument } from './build-tracker-document.mjs';
 import fs from 'node:fs';
 const root = new URL('../', import.meta.url);
 let html = fs.readFileSync(new URL('modules/new-product-followup/index.html', root), 'utf8');
@@ -31,7 +32,7 @@ html = html.replace("['title','owner','channel','target','status']", "['title','
 html = html.replace("(kind==='campaign'&&out.status==='已完成')", 'false');
 html = html.replace('  return out;', "  if(kind==='cost'&&out.actual==='')throw Error('请填写成本金额');return out;");
 html = html.replace('</body>', '<script>' + costCalculation + '\n' + bridge + '\n' + marketRows + '\n' + logisticsSimple + '\n' + costPromotionSimple + '\n' + assignmentScope + '\n' + supplyOverview + '\n' + dualOverview + '\n' + consistentEntry + '\n' + costForm + '\n' + siteCostSummary + '</script></body>');
-fs.writeFileSync(new URL('src/NewProductFollowupDocument.js', root), 'export const NEW_PRODUCT_FOLLOWUP_HTML = ' + JSON.stringify(html) + ';\n');
+fs.writeFileSync(new URL('src/NewProductFollowupDocument.js', root), 'export const NEW_PRODUCT_FOLLOWUP_HTML = ' + JSON.stringify({legacy:html,tracker:buildTrackerDocument(root)}) + ';\n');
 console.log('Built production followup document (empty by default)');
 
 

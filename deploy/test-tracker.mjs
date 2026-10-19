@@ -1,3 +1,5 @@
+import {DatabaseSync} from 'node:sqlite';
+import {readFollowup} from '../cloud/followup-storage.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -13,15 +15,14 @@ const fixture = structuredClone(original);
 let cloud = {revision:5,data:structuredClone(original)}, backups=[],writes=0,conflict=true;
 const user = {id:'user',name:'User',canEdit:true};
 // Exercise the actual unchanged production API validation and CAS contract.
-const env = {DB:{prepare(sql){let args;return {bind(...a){args=a;return this;},async first(){return {value:JSON.stringify(cloud)};},async run(){
-  if(args[2] !== cloud.revision) return {meta:{changes:0}};
-  cloud=JSON.parse(args[0]); return {meta:{changes:1}};
-}};}}};
+const sqlite=new DatabaseSync(':memory:');sqlite.exec('CREATE TABLE records(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
+sqlite.prepare('INSERT INTO records VALUES(?,?)').run('_new-product-followup',JSON.stringify(cloud));
+const env={DB:{prepare(sql){let args=[];return {bind(...a){args=a;return this;},async first(){return sqlite.prepare(sql).get(...args)||null;},async all(){return {results:sqlite.prepare(sql).all(...args)};},async run(){return sqlite.prepare(sql).run(...args);}};}}};
 const ctx={user,canEdit:true,async cloudRequest(path,payload){
   assert.equal(path,'/ops-api/followup');
-  if(payload && conflict){conflict=false;cloud.revision++;cloud.data.events.push({id:'concurrent',actor:'Another'});throw Error('其它人员已更新');}
+  if(payload && conflict){conflict=false;cloud.revision++;cloud.data.events.push({id:'concurrent',actor:'Another'});sqlite.prepare('UPDATE records SET value=? WHERE key=?').run(JSON.stringify(cloud),'_new-product-followup');throw Error('其它人员已更新');}
   const req=new Request('https://example.com'+path,payload?{method:'POST',body:JSON.stringify(payload)}:{});
-  const res=await followup(req,env,user);if(payload)writes++;return res.json();
+  const res=await followup(req,env,user);if(payload)writes++;cloud=(await readFollowup(env)).snapshot;return res.json();
 }};
 const db=createTrackerCloudDb({context:()=>ctx,backup:async value=>backups.push(structuredClone(value)),notify:()=>{}});
 await db.refresh();

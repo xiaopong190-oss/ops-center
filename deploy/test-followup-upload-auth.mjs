@@ -1,0 +1,27 @@
+import {DatabaseSync} from 'node:sqlite';
+import {Buffer} from 'node:buffer';
+import assert from 'node:assert/strict';
+import worker from '../cloud/worker.mjs';
+const sql=new DatabaseSync(':memory:');
+sql.exec('CREATE TABLE records(key TEXT PRIMARY KEY,value TEXT NOT NULL);CREATE TABLE sessions(token TEXT PRIMARY KEY,name TEXT,auth TEXT,version TEXT,expires INTEGER);CREATE TABLE limits(key TEXT PRIMARY KEY,count INTEGER,expires INTEGER);');
+const env={DB:{prepare(text){let args=[];return {bind(...a){args=a;return this;},async first(){return sql.prepare(text).get(...args)||null;},async all(){return {results:sql.prepare(text).all(...args)};},async run(){return sql.prepare(text).run(...args);}};}}};
+const hash=async value=>Buffer.from(await crypto.subtle.digest('SHA-256',Buffer.from(value))).toString('hex');
+sql.prepare('INSERT INTO records VALUES(?,?)').run('global-config.json',JSON.stringify({data:{superHash:'synthetic-version',staff:[{name:'Reader',codeHash:'reader-version',canEdit:false}]}}));
+sql.prepare('INSERT INTO sessions VALUES(?,?,?,?,?)').run(await hash('test-admin'),'super','super','synthetic-version',Date.now()+60000);
+sql.prepare('INSERT INTO sessions VALUES(?,?,?,?,?)').run(await hash('test-reader'),'Reader','staff','reader-version',Date.now()+60000);
+const call=async(body,token,origin='https://xiaopong190-oss.github.io')=>{
+  const response=await worker.fetch(new Request('https://worker.example/ops-api/followup/upload',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(body)}),env);
+  return {status:response.status,data:await response.json()};
+};
+const bytes=Buffer.from(JSON.stringify({revision:0,data:{products:[],records:[],events:[]}}));
+const id=crypto.randomUUID(),start={action:'start',id,bytes:bytes.length,count:1,sha256:await hash(bytes)};
+assert.equal((await call(start)).status,401);
+assert.equal((await call(start,'test-reader')).status,403);
+assert.equal((await call(start,'test-admin','https://untrusted.example')).status,403);
+assert.equal((await call(start,'test-admin')).status,200);
+assert.equal((await call({action:'part',id,index:0,content:bytes.toString('base64')},'test-admin')).status,200);
+assert.equal((await call({action:'commit',id},'test-admin')).data.revision,1);
+const gist=await worker.fetch(new Request('https://worker.example/ops-api/gist/main'),env);
+assert.equal(JSON.stringify(await gist.json()).includes('_new-product-followup'),false);
+console.log('PASS full worker route: session required, read-only denied, foreign origin denied, authenticated upload commit, internal shards excluded from public files');
+sql.close();

@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 export function buildTrackerDocument(root) {
   let html = fs.readFileSync(new URL('modules/new-product-tracker/index.html',root),'utf8');
-  const adapter = fs.readFileSync(new URL('src/tracker-cloud-adapter.js',root),'utf8').replaceAll('export function','function');
+  const inline=path=>fs.readFileSync(new URL(path,root),'utf8').replace(/^import .*;\r?\n/gm,'').replaceAll('export function','function');
+  const adapter=inline('src/tracker-cloud-adapter.js')+'\n'+inline('src/tracker-drafts.js');
   const runtime = fs.readFileSync(new URL('src/tracker-runtime.js',root),'utf8');
   const begin = html.indexOf('function localDb(){');
   const end = html.indexOf('\nrender(true);',begin);

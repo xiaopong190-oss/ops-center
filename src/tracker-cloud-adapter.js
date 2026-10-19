@@ -1,3 +1,4 @@
+import {applyTrackerOperations} from './tracker-drafts.js';
 // The original workbench collections remain byte-for-byte intact. Tracker edits
 // live in an additive namespace in the same revision-controlled cloud document.
 export function projectTracker(data) {
@@ -88,9 +89,11 @@ export function createTrackerCloudDb({context, backup, notify, onError}) {
         if (context().user?.id !== userId) throw Error('登录身份已变化，未保存');
         await backup(current, userId); // Failure prevents a cloud write.
         const next = structuredClone(current.data), visible = projectTracker(next);
-        const changed = change(visible);
+        const changed = change(visible,next);
+        if(changed.noop){install(current);return changed.result;}
         next.trackerV1 = {...next.trackerV1, schema:1, docs:{...next.trackerV1?.docs,...changed.patch}};
-        next.events.unshift({id:crypto.randomUUID(),product_id:'',actor:c.user.name,actor_id:userId,
+        if(changed.events)next.events.unshift(...changed.events);
+        else next.events.unshift({id:crypto.randomUUID(),product_id:'',actor:c.user.name,actor_id:userId,
           action:'新品大屏更新',reason:changed.reason,created_at:new Date().toISOString(),
           before:JSON.stringify(Object.fromEntries(Object.keys(changed.patch).map(k => [k,visible[k] ?? null]))),after:JSON.stringify(changed.patch)});
         try {
@@ -113,6 +116,12 @@ export function createTrackerCloudDb({context, backup, notify, onError}) {
     return out;
   };
   return {
+    _commit:operations => mutate((visible,current) => {
+      const existing=new Set(current.events.map(event=>event.id));
+      const pending=operations.filter(operation=>!existing.has(operation.id));
+      const applied=applyTrackerOperations(visible,pending,context().user);
+      return {...applied,noop:pending.length===0};
+    }),
     refresh, clear(){identity='';snapshot=null;docs={};emit();},
     _dump:() => structuredClone(docs), _snapshot:() => structuredClone(snapshot),
     _load:incoming => mutate(visible => {

@@ -3,11 +3,21 @@ let trackerAdapter;
 let trackerGeneration = 0;
 const trackerBackupDb = new Promise((resolve,reject) => {
   const req = indexedDB.open('ops-tracker-safety-backups-v1',1);
-  req.onupgradeneeded = () => req.result.createObjectStore('snapshots');
-  req.onsuccess = () => resolve(req.result);
+  req.onupgradeneeded = () => {
+    if(!req.result.objectStoreNames.contains('snapshots'))req.result.createObjectStore('snapshots');
+  };
+  req.onsuccess = () => {req.result.onversionchange=()=>req.result.close();resolve(req.result);};
   req.onerror = () => reject(Error('无法创建本机备份，请允许浏览器存储后重试'));
+  req.onblocked = () => reject(Error('备份库被旧页面占用，请刷新旧页面后重试'));
 });
 trackerBackupDb.catch(() => {});
+const trackerDraftStorage = new Promise((resolve,reject)=>{
+  const request=indexedDB.open('ops-tracker-personal-drafts-v1',1);
+  request.onupgradeneeded=()=>request.result.createObjectStore('drafts');
+  request.onsuccess=()=>{request.result.onversionchange=()=>request.result.close();resolve(request.result);};
+  request.onerror=request.onblocked=()=>reject(Error('个人草稿库不可用，请允许浏览器存储后重试'));
+});
+trackerDraftStorage.catch(()=>{});
 async function trackerBackup(value,userId) {
   const database = await trackerBackupDb;
   await new Promise((resolve,reject) => {
@@ -18,9 +28,23 @@ async function trackerBackup(value,userId) {
   });
 }
 function localDb() {
-  trackerAdapter = createTrackerCloudDb({context:() => trackerContext,backup:trackerBackup,notify:toast});
+  const draftStore={
+    async load(userId){const database=await trackerDraftStorage;return new Promise((resolve,reject)=>{
+      const request=database.transaction('drafts','readonly').objectStore('drafts').get(userId);
+      request.onsuccess=()=>resolve(request.result||[]);request.onerror=()=>reject(Error('个人草稿读取失败，请重试'));
+    });},
+    async save(userId,operations){const database=await trackerDraftStorage;return new Promise((resolve,reject)=>{
+      const tx=database.transaction('drafts','readwrite');tx.objectStore('drafts').put(operations,userId);
+      tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(Error('本账号草稿暂存失败，未覆盖云端数据'));
+    });},
+  };
+  const cloud=createTrackerCloudDb({context:() => trackerContext,backup:trackerBackup,notify:toast});
+  trackerAdapter=createTrackerDraftDb({context:()=>trackerContext,cloud,store:draftStore,
+    onState:status=>trackerContext.onSyncState?.(status),notify:toast});
   return trackerAdapter;
 }
+window.saveOpsFollowup=()=>trackerAdapter.save();
+window.reloadOpsFollowup=options=>trackerAdapter.refresh(options);
 function trackerStatus(message) {
   let status = document.getElementById('tracker-cloud-status');
   if (!status) {
@@ -45,19 +69,20 @@ function trackerStatus(message) {
 window.setOpsFollowupContext = async function(context) {
   const previous = trackerContext;
   trackerContext = context;
+  if(previous.user?.id!==context.user?.id)trackerAdapter?.clear();
   state.me = context.user ? {id:context.user.id,isOwner:!!context.canEdit} : null;
   if (context.user) state.names[context.user.id] = context.user.name;
   if (!context.user?.id || context.user.id === 'guest') {
     trackerGeneration++;trackerAdapter?.clear();state.live=false;state.loaded=true;render();
     trackerStatus('请先登录运营中心；原版数据仍保留。');return;
   }
-  if (previous.user?.id !== context.user.id || context.active && !previous.active) {
+  if (previous.user?.id !== context.user.id || context.active && !previous.active || previous.autoShare !== context.autoShare) {
     const generation = ++trackerGeneration;
     try {
       await trackerAdapter.refresh();
       if (generation !== trackerGeneration) return;
       state.loaded=true;state.live=true;render();
-      trackerStatus('共享库已连接 · 保存前自动备份 · 原版记录完整保留 · 未分配站点的多店铺货件请在原版记录中查看');
+      trackerStatus('共享库已连接 · 沿用个人暂存 / 自动分享设置 · 修改历史保留 · 大数据自动分片上传');
     } catch(error) {
       if (generation !== trackerGeneration) return;
       state.live=false;state.loaded=true;render();trackerStatus('共享库连接失败：'+error.message+'；未改写数据。');

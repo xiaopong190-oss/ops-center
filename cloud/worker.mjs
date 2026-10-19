@@ -85,7 +85,7 @@ async function secureConfig(input,prev) {
 }
 async function handle(req,env) {
   const url=new URL(req.url),p=url.pathname;
-  if(p === '/ops-api/followup') return followup(req, env, await session(req, env));
+  if(p === '/ops-api/followup' || p === '/ops-api/followup/upload') return followup(req, env, await session(req, env));
   if(p==='/ops-api/health')return json({ok:true,version:'cloud-v1'});
   if(p==='/ops-api/bootstrap') {
     if(!env.BOOTSTRAP_TOKEN||req.headers.get('Authorization')!==`Bearer ${env.BOOTSTRAP_TOKEN}`)fail(403,'禁止访问');
@@ -127,7 +127,7 @@ async function handle(req,env) {
   if(p.startsWith('/ops-api/gist/')){
     const u=await session(req,env,true);
     if(req.method==='GET'){
-      const rows=await env.DB.prepare('SELECT key,value FROM records WHERE key NOT LIKE ?').bind('\\_%').all();const files={};
+      const rows=await env.DB.prepare('SELECT key,value FROM records WHERE substr(key,1,1) <> ?').bind('_').all();const files={};
       for(const row of rows.results){try{fileAccess(row.key,u);}catch{continue;}const v=JSON.parse(row.value);files[row.key]={content:JSON.stringify(row.key==='global-config.json'?publicConfig(v):v)};}
       return json({files});
     }

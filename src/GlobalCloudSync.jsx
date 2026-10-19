@@ -159,11 +159,11 @@ export function useCloudSyncPage(active, handlers) {
       get barHint() { return ref.current.barHint; },
     });
     return () => ctx.unregister();
-  }, [active, ctx]);
+  }, [active, ctx?.register, ctx?.unregister]);
 
   useEffect(() => {
     if (active && ctx) ctx.bump();
-  }, [active, ctx, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty, handlers.barHint]);
+  }, [active, ctx?.bump, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty, handlers.barHint]);
 }
 
 export function useConfirmLeave() {

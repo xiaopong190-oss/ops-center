@@ -1,19 +1,22 @@
+import {readFollowup,writeFollowup,uploadFollowup} from './followup-storage.mjs';
 import {calculateFollowupCost} from '../src/followup-cost-calculation.js';
 const key = '_new-product-followup';
 const empty = () => ({ products: [], records: [], events: [] });
 const reject = (status, message) => { throw Object.assign(new Error(message), { status }); };
-export async function followup(req, env, user) {
-  const stored = await env.DB.prepare('SELECT value FROM records WHERE key=?').bind(key).first();
-  const current = stored ? JSON.parse(stored.value) : { revision: 0, data: empty() };
+export async function followup(req, env, user, assembled = null) {
+  if(new URL(req.url).pathname === '/ops-api/followup/upload') return uploadFollowup(req,env,user,text => followup(new Request(new URL('/ops-api/followup',req.url),{method:'POST'}),env,user,text));
+  const previous = await readFollowup(env);
+  const current = previous.snapshot;
   if (req.method === 'GET') return Response.json(current, { headers: { 'Cache-Control': 'no-store' } });
   if (req.method !== 'POST') reject(405, '方法不允许');
   if (user.canEdit === false && user.auth !== 'super') reject(403, '当前帐号没有编辑权限');
-  const text = await req.text();
-  if (text.length > 3000000) reject(413, '记录过大，请拆分数据');
+  const text = assembled ?? await req.text();
+  if (assembled === null && new TextEncoder().encode(text).length > 3000000) reject(413, '记录过大，请拆分数据');
   let input; try { input = JSON.parse(text); } catch { reject(400, '无效数据'); }
   if (input.revision !== current.revision) reject(409, '其它人员已更新，请刷新后重试；本次修改未覆盖云端');
   let data = input.data;
   if (!data || !['products', 'records', 'events'].every(name => Array.isArray(data[name]))) reject(400, '数据格式错误');
+  if (!Object.hasOwn(data,'trackerV1') && current.data.trackerV1) data = {...data,trackerV1:structuredClone(current.data.trackerV1)};
   if (input.merge) {
     const uploaded = data;
     data = structuredClone(current.data);
@@ -58,9 +61,6 @@ export async function followup(req, env, user) {
     }
   } else data.events.unshift({id:crypto.randomUUID(),product_id:data.products[0]?.id || '',actor:user.name,actor_id:user.id,action:'上传本机记录',reason:'首次迁移到共享云端',created_at:new Date().toISOString(),before:null,after:'{}'});
   const next = { revision: current.revision + 1, data, updatedBy: user.name, updatedAt: new Date().toISOString() };
-  const result = stored
-    ? await env.DB.prepare("UPDATE records SET value=? WHERE key=? AND json_extract(value,'$.revision')=?").bind(JSON.stringify(next), key, input.revision).run()
-    : await env.DB.prepare('INSERT INTO records(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING').bind(key, JSON.stringify(next)).run();
-  if (Number(result.meta?.changes ?? result.changes) !== 1) reject(409, '其它人员已更新，请刷新后重试');
+  await writeFollowup(env,previous,next);
   return Response.json(next, { headers: { 'Cache-Control': 'no-store' } });
 }

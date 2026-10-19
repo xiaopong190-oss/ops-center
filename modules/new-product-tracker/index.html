@@ -951,6 +951,11 @@ function reviews(l,s){
 function perfEconIssue(e){
   for(const [key] of ECON){const value=e[key];if(value==null||value==='')continue;const percent=['commission','unsellable','targetMargin'].includes(key);if(!num(value)||Math.abs(value)>Number.MAX_SAFE_INTEGER||value<0||key==='price'&&value===0||percent&&value>100)return percent?'比例必须在 0% 到 100% 之间':'成本或售价无效，请核对数值';}return '';
 }
+function perfPreviewEcon(e,baseline={}){
+  const out={...e};for(const [key] of ECON)if(perfEconIssue({[key]:e[key]})){
+    const old=baseline[key];out[key]=num(old)&&!perfEconIssue({[key]:old})?old:['commission','unsellable','targetMargin'].includes(key)?(num(e[key])?Math.max(0,Math.min(100,e[key])):0):key==='price'?null:0;
+  }return out;
+}
 function perfView(l,editorsOnly=false,previewOnly=false){
   const all=perfOf(l.id);const recs=rangeRecs(all,state.range);const c=perfCalc(l,recs);const S=c.S;const ue=c.ue;const e=l.econ;
   const seg=(items,cur,act,label)=>`<div class="seg" role="group" aria-label="${label}">${items.map(([k,t])=>`<button data-act="${act}" data-v="${k}" class="${cur===k?'on':''}" aria-pressed="${cur===k}">${t}</button>`).join('')}</div>`;
@@ -990,10 +995,9 @@ function perfView(l,editorsOnly=false,previewOnly=false){
   // waterfall
   let wf='';
   const econIssue=perfEconIssue(e);
-  if(econIssue)wf='<p class="note" role="alert">'+esc(econIssue)+'；请修正后测算。</p>';
-  const trialPrice=num(e.price)?e.price:c.price,trialUE=unitEcon(l,trialPrice,c.retRate);
-  if(trialUE&&!editorsOnly&&!econIssue){
-    const ue=trialUE;
+  const trialEcon=perfPreviewEcon(e),trialPrice=num(trialEcon.price)?trialEcon.price:c.price,trialUE=unitEcon({...l,econ:trialEcon},trialPrice,c.retRate);
+  if(trialUE&&!editorsOnly){
+    const ue=trialUE,e=trialEcon;
     const lo=Math.min(0,ue.unit,ue.kept),span=ue.price-lo;const pos=v=>(v-lo)/span*100;
     const rows=[];let run=ue.price;
     rows.push(['售价',0,ue.price,ue.price,'var(--accent)','']);
@@ -1004,7 +1008,8 @@ function perfView(l,editorsOnly=false,previewOnly=false){
     wf=`<div class="wf">${rows.map(([n,a,b,v,col,cls])=>`<div class="wf-r ${cls}"><span>${n}</span><span class="b"><i style="left:${pos(Math.min(a,b)).toFixed(1)}%;width:${Math.max(0.5,Math.abs(pos(b)-pos(a))).toFixed(1)}%;background:${col};opacity:${col==='var(--bad)'&&!cls?.6:1}"></i></span><span class="v ${v<0&&cls?'neg':''}">${v<0?'-':''}${money2(Math.abs(v))}</span></div>`).join('')}</div>
     <p class="hint">单件试算售价取${num(e.price)?'上方输入值':'所选周期实际均价'}；经营汇总与左侧保本分析仍按所选周期实际均价计算。 退货件按退回佣金 80%、FBA 配送费不退、不可再售部分损失采购成本和头程来算。${ue.missing.length?`<span style="color:var(--warn)">还没填：${ue.missing.join('、')}，结果会偏高。</span>`:''}</p>`;
   }
-  h+=`<div class="two">
+  if(econIssue)wf='<p class="note" role="alert">'+esc(econIssue)+'；图表继续显示预览，异常比例暂按 0–100% 边界值计算，异常金额暂按 0（售价用实际均价）；异常值未保存。当前图示不可再售比例 '+trialEcon.unsellable+'%。</p>'+wf;
+  h+=`<div class="two"> 
     <div class="panel"><h2>一个 CPA 要几件利润来养</h2><div data-perf-break-even>${be}</div></div>
     <div class="panel"><h2>单件利润测算</h2>
       <div class="facts">${ECON.map(([k,n])=>{const ah=k==='head'?shipAvgHead(l.id):null;
@@ -1060,7 +1065,7 @@ function perfReadInputs(link){
     if(invalid)error=percent?'比例必须在 0% 到 100% 之间':'请输入有效非负数；售价必须大于 0，数值不能超出安全计算范围';
     econ[key]=value;
   }
-  const preview={...link,econ};
+  const preview={...link,econ:perfPreviewEcon(econ,link.econ)};
   if(!error){
     const c=perfCalc(preview,rangeRecs(perfOf(link.id),state.range)),unit=unitEcon(preview,num(econ.price)?econ.price:c.price,c.retRate);
     const values=[c.preAd,c.net,c.margin,...Object.values(unit||{}).filter(v=>typeof v==='number')];
@@ -1072,11 +1077,12 @@ function perfLiveInput(){
   if(state.view!=='perf')return;
   const link=state.links.find(l=>l.id===state.sel);if(!link)return;
   const {preview,error}=perfReadInputs(link);
-  if(error){for(const selector of ['[data-perf-unit]','[data-perf-break-even]']){const node=app.querySelector(selector);if(node)node.innerHTML='<p class="note" role="alert">'+esc(error)+'；当前输入未保存，测算暂停。</p>';}return;}
+  if(error.includes('计算超出可靠范围')){const node=app.querySelector('[data-perf-unit]');if(node){node.querySelector('[data-perf-warning]')?.remove();const note=document.createElement('p');note.className='note';note.dataset.perfWarning='';note.setAttribute('role','alert');note.textContent=error+'；保留上次有效图表，异常值未保存。';node.prepend(note);}return;}
   const template=document.createElement('template');template.innerHTML=perfView(preview,false,true);
   for(const selector of ['.kpis','[data-perf-unit]','[data-perf-break-even]']){
     const target=app.querySelector(selector),next=template.content.querySelector(selector);if(target&&next)target.replaceChildren(...next.childNodes);
   }
+  if(error){const node=app.querySelector('[data-perf-unit]');if(node){const note=document.createElement('p');note.className='note';note.setAttribute('role','alert');note.textContent=error+'；异常字段暂用已保存的有效值，原值也异常时比例按 0–100% 边界预览，金额按 0（售价用实际均价）；异常值未保存。图示不可再售比例 '+preview.econ.unsellable+'%。';node.prepend(note);}}
 }
 
 /* ---------- events ---------- */

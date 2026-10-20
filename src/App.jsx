@@ -551,7 +551,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <button type="button" className="ops-nav-toggle ops-btn" onClick={() => setNavOpen(v => !v)} aria-label="打开菜单">菜单</button>
             <div className="ops-topbar-title">{TAB_TITLES[tab] || "运营中心"}</div>
-            <span data-app-version="2026.10.19.2" title="发布版本：2026.10.19.2" style={{fontSize:11,color:"var(--tm)",whiteSpace:"nowrap"}}>v2026.10.19.2</span>
+            <span data-app-version="2026.10.19.3" title="发布版本：2026.10.19.3" style={{fontSize:11,color:"var(--tm)",whiteSpace:"nowrap"}}>v2026.10.19.3</span>
           </div>
           <div className="ops-topbar-actions">
             <button type="button" className="ops-btn" onClick={toggleFullscreen} aria-pressed={isFullscreen}

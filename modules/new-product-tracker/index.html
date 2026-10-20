@@ -318,7 +318,7 @@ const VIEWS=[['overview','总览'],['logistics','物流 · 到港'],['content','
 const PF=['sessions','units','sales','adSpend','adSales','adOrders','returns'];
 const PF_NAME={sessions:'访客',units:'订单（件）',sales:'销售额',adSpend:'广告花费',adSales:'广告销售额',adOrders:'广告订单',returns:'退货（件）'};
 const METRICS=[['net','净利润'],['tacos','TACoS vs 保本'],['cvr','CVR'],['ret','退货率'],['cpa','CPA']];
-const ECON=[['price','售价（无销售数据时用）'],['cogs','采购成本 / 件'],['head','头程 / 件'],['fba','FBA 配送费 / 件'],['commission','佣金 %'],['other','其它成本 / 件'],['unsellable','退货不可再售 %'],['targetMargin','目标净利率 %']];
+const ECON=[['price','售价（无销售数据时用）'],['cogs','采购成本 / 件'],['head','头程 / 件'],['fba','FBA 配送费 / 件'],['commission','佣金 %'],['other','其它成本 / 件'],['unsellable','退货不可再售 %'],['targetMargin','目标净利率 %'],['trialAdSpend','试算广告花费（总额）'],['trialUnits','试算销售件数'],['trialAdOrders','试算广告订单数'],['trialReturnRate','试算退货率 %']];
 const VIEW_NAME=Object.fromEntries(VIEWS);
 
 const pad=n=>String(n).padStart(2,'0');
@@ -955,17 +955,29 @@ function perfFieldIssue(key,value){
   const label=ECON.find(([k])=>k===key)?.[1]||'成本字段';
   if(!ECON.some(([k])=>k===key))return '无效成本字段';
   if(value==null||value==='')return '';
-  const percent=['commission','unsellable','targetMargin'].includes(key);
+  const percent=['commission','unsellable','targetMargin','trialReturnRate'].includes(key);
   if(!num(value))return label+'：请输入有效数字';
   if(percent&&(value<0||value>100))return label+'：只允许 0%–100%';
-  if(!percent&&(value<0||key==='price'&&value===0||value>PERF_UNIT_AMOUNT_MAX))return label+'：'+(key==='price'?'必须大于 0，且不超过':'只允许 0–')+'1,000,000 元 / 件';
+  if(['trialUnits','trialAdOrders'].includes(key)&&(!Number.isSafeInteger(value)||value<0||value>100000000))return label+'：只允许 0–100,000,000 的整数';
+  if(['trialUnits','trialAdOrders'].includes(key))return '';
+  if(!percent&&(value<0||key==='price'&&value===0||value>PERF_UNIT_AMOUNT_MAX))return label+'：'+(key==='price'?'必须大于 0，且不超过':'只允许 0–')+'1,000,000 元'+(key==='trialAdSpend'?'（总额）':' / 件');
   return '';
 }
-function perfEconIssue(e){for(const [key] of ECON){const issue=perfFieldIssue(key,e[key]);if(issue)return issue;}return '';}
+function perfEconIssue(e){for(const [key] of ECON.filter(([k])=>!k.startsWith('trial'))){const issue=perfFieldIssue(key,e[key]);if(issue)return issue;}return '';}
 function perfPreviewEcon(e,baseline={}){
-  const out={...e};for(const [key] of ECON)if(perfEconIssue({[key]:e[key]})){
-    const old=baseline[key];out[key]=num(old)&&!perfEconIssue({[key]:old})?old:['commission','unsellable','targetMargin'].includes(key)?(num(e[key])?Math.max(0,Math.min(100,e[key])):0):key==='price'?null:0;
+  const out={...e};for(const [key] of ECON)if(perfFieldIssue(key,e[key])){
+    const old=baseline[key];out[key]=num(old)&&!perfFieldIssue(key,old)?old:['commission','unsellable','targetMargin','trialReturnRate'].includes(key)?(num(e[key])?Math.max(0,Math.min(100,e[key])):0):key==='price'?null:0;
   }return out;
+}
+function perfTrialContext(l,c,recs){
+  const e=l.econ,complete=k=>recs.length>0&&recs.every(r=>num(r[k])&&r[k]>=0);
+  const defaults={trialAdSpend:complete('adSpend')?c.S.adSpend:null,trialUnits:complete('units')?c.S.units:null,trialAdOrders:complete('adOrders')?c.S.adOrders:null,trialReturnRate:num(c.retRate)?c.retRate*100:null};
+  const value=k=>Object.prototype.hasOwnProperty.call(e,k)?e[k]:defaults[k];
+  const values=Object.fromEntries(Object.keys(defaults).map(k=>[k,value(k)]));
+  const price=num(e.price)?e.price:c.price;
+  const row={units:values.trialUnits,adSpend:values.trialAdSpend,adOrders:values.trialAdOrders,sales:num(price)&&num(values.trialUnits)?price*values.trialUnits:null,returns:num(values.trialUnits)&&num(values.trialReturnRate)?values.trialUnits*values.trialReturnRate/100:null};
+  const trialCalc=perfCalc(l,[row]);
+  return {values,c:trialCalc,recs:[row],price,rate:num(values.trialReturnRate)?values.trialReturnRate/100:0};
 }
 function perfLinkedAnalysis(e,c,unit,recs){
   const complete=keys=>recs.length>0&&recs.every(r=>keys.every(k=>num(r[k])&&r[k]>=0));
@@ -1023,7 +1035,7 @@ function perfAnalysisHTML(e,c,unit,recs,context='trial'){
 function perfAnalysisDetailsHTML(e,c,unit,recs,context='trial'){
   if(!unit)return '<p class="note">先填写售价和成本，再分析广告与目标净利率。</p>';
   const a=perfLinkedAnalysis(e,c,unit,recs);
-  return '<p class="note">'+(context==='latest'?'本期实际数据：均价 ':'与右侧单件试算联动：售价 ')+money2(unit.price)+'，退货率 '+pct(unit.r)+(context==='latest'?'；广告与销量均来自本期。</p>':'；广告花费及销售件数采用所选周期，保持销量不变做试算。</p>')+
+  return '<p class="note">'+(context==='latest'?'本期实际数据：均价 ':'与右侧单件试算联动：售价 ')+money2(unit.price)+'，退货率 '+pct(unit.r)+(context==='latest'?'；广告与销量均来自本期。</p>':'；广告花费、销售件数和广告订单采用右侧试算输入，保持试算销量不变。</p>')+
     '<div class="cpa-big">CPA '+money2(a.cpa)+(a.pieces!=null?'，需要 <b>'+a.pieces.toFixed(2)+'</b> 件广告前利润覆盖':unit.unit<=0?'；广告前已无正利润可覆盖':'；广告订单数据待补齐')+'</div>'+
     '<p class="note">CPA＝广告花费÷广告订单；分摊到每件销量的广告成本＝广告花费÷全部销售件数。两者口径不同，不能直接从单件利润中重复扣减。</p>'+
     '<div class="facts">'+fact('单件广告成本',money2(a.perAd))+fact(context==='latest'?'本期广告后净利润 / 件':'试算广告后净利润 / 件',money2(a.net))+fact(context==='latest'?'本期广告后净利率':'试算广告后净利率',pct(a.margin))+fact('目标净利率',pct(a.target))+fact('目标净利润 / 件',money2(a.targetProfit))+fact('距目标利润 / 件',a.gap==null?'待补齐广告数据':(a.gap>=0?'+':'')+money2(a.gap))+'</div>'+
@@ -1099,12 +1111,12 @@ function perfView(l,editorsOnly=false,previewOnly=false){
     ${kpi('ACoS',pct(c.acos),'广告销售额 '+moneyS(S.adSales))}
    </div>`:`<p class="hint">${all.length?'这个时间范围内没有记录，换「全部」看看。':'还没有经营数据。在下方「周期数据」里按周录入访客、订单、销售额、广告和退货，再把单件成本填好，就能算出 CPA、保本 TACoS 和净利润。'}</p>`}</div>`;
 
-  const trialEcon=perfPreviewEcon(e),trialPrice=num(trialEcon.price)?trialEcon.price:c.price,trialUE=unitEcon({...l,econ:trialEcon},trialPrice,c.retRate);
-  const linked=perfLinkedAnalysis(trialEcon,c,trialUE,recs);
-  let be=editorsOnly?'':perfAnalysisHTML(trialEcon,c,trialUE,recs);
+  const trialEcon=perfPreviewEcon(e),trial=perfTrialContext({...l,econ:trialEcon},c,recs),trialPrice=trial.price,trialUE=unitEcon({...l,econ:trialEcon},trialPrice,trial.rate);
+  const linked=perfLinkedAnalysis(trialEcon,trial.c,trialUE,trial.recs);
+  let be=editorsOnly?'':perfAnalysisHTML(trialEcon,trial.c,trialUE,trial.recs);
   // waterfall
   let wf='';
-  const econIssue=perfEconIssue(e);
+  const econIssue=ECON.map(([key])=>perfFieldIssue(key,e[key])).find(Boolean)||'';
 
   if(trialUE&&!editorsOnly){
     const ue=trialUE,e=trialEcon;
@@ -1117,18 +1129,19 @@ function perfView(l,editorsOnly=false,previewOnly=false){
     rows.push(['单件广告前利润',Math.min(0,ue.unit),Math.max(0,ue.unit),ue.unit,ue.unit<0?'var(--bad)':'var(--ok)','tot']);
     if(linked.perAd!=null){rows.push(['广告成本 / 件',ue.unit-linked.perAd,ue.unit,-linked.perAd,'var(--bad)','']);rows.push(['广告后净利润',Math.min(0,linked.net),Math.max(0,linked.net),linked.net,linked.net<0?'var(--bad)':'var(--ok)','tot']);}
     wf=`<div class="wf">${rows.map(([n,a,b,v,col,cls])=>`<div class="wf-r ${cls}"><span>${n}</span><span class="b"><i style="left:${pos(Math.min(a,b)).toFixed(1)}%;width:${Math.max(0.5,Math.abs(pos(b)-pos(a))).toFixed(1)}%;background:${col};opacity:${col==='var(--bad)'&&!cls?.6:1}"></i></span><span class="v ${v<0&&cls?'neg':''}">${v<0?'-':''}${money2(Math.abs(v))}</span></div>`).join('')}</div>
-    <p class="note">所选周期广告：CPA ${money2(linked.cpa)} · ACoS ${pct(c.acos)} · 实际 TACoS ${pct(c.tacos)}。${linked.perAd==null?'广告花费或销售件数待补齐，暂不扣广告成本。':'图中仅扣除一次「广告花费 ÷ 全部销售件数」，不是再扣一次 CPA。'} 目标净利率 ${pct(linked.target)}；目标利润 / 件 ${money2(linked.targetProfit)}。</p>
-    <p class="hint">单件试算售价取${num(e.price)?'上方输入值':'所选周期实际均价'}；左侧分析与此处采用相同试算售价，顶部经营汇总仍按所选周期实际均价计算。 退货件按退回佣金 80%、FBA 配送费不退、不可再售部分损失采购成本和头程来算。${ue.missing.length?`<span style="color:var(--warn)">还没填：${ue.missing.join('、')}，结果会偏高。</span>`:''}</p>`;
+    <p class="note">右侧试算广告：CPA ${money2(linked.cpa)} · 试算 TACoS ${pct(trial.c.tacos)}。${linked.perAd==null?'广告花费或销售件数待补齐，暂不扣广告成本。':'图中仅扣除一次「广告花费 ÷ 全部销售件数」，不是再扣一次 CPA。'} 目标净利率 ${pct(linked.target)}；目标利润 / 件 ${money2(linked.targetProfit)}。</p>
+    <p class="hint">${trial.values.trialReturnRate==null?'退货率空白，当前按 0% 试算。':''}单件试算售价取${num(e.price)?'上方输入值':'所选周期实际均价'}；左侧分析与此处采用相同试算售价，顶部经营汇总仍按所选周期实际均价计算。 退货件按退回佣金 80%、FBA 配送费不退、不可再售部分损失采购成本和头程来算。${ue.missing.length?`<span style="color:var(--warn)">还没填：${ue.missing.join('、')}，结果会偏高。</span>`:''}</p>`;
   }
   if(trialUE&&num(e.targetMargin)&&e.targetMargin/100>trialUE.unit/trialUE.price)wf+='<p class="note" role="status">经营提醒：目标净利率高于当前单件广告前利润率；按当前售价、成本及退货率，即使不投广告也无法达到。请调整售价、成本或目标。此提醒不阻止保存，也不隐藏亏损。</p>';
   if(econIssue)wf='<p class="note" role="alert">'+esc(econIssue)+'；图表继续显示预览，异常比例暂按 0–100% 边界值计算，异常金额暂按 0（售价用实际均价）；异常值未保存。当前图示不可再售比例 '+trialEcon.unsellable+'%。</p>'+wf;
   h+=`<div class="two"> 
-    <div class="panel"><h2>分析</h2><p class="hint">关联右侧单件利润测算；售价、成本与目标调整即时重算。周期广告仅辅助测算 CPA 与广告后结果。</p><div id="perf-analysis-output" data-perf-break-even>${be}</div></div>
+    <div class="panel"><h2>分析</h2><p class="hint">关联右侧单件利润测算；售价、成本与目标调整即时重算。广告花费、销售件数及广告订单均使用右侧可编辑的试算输入。</p><div id="perf-analysis-output" data-perf-break-even>${be}</div></div>
     <div class="panel"><h2>单件利润测算</h2>
       <div class="facts" id="perf-econ-inputs">${ECON.map(([k,n])=>{const ah=k==='head'?shipAvgHead(l.id):null;
-        const percent=['commission','unsellable','targetMargin'].includes(k);
-        const field=inp(l,'econ.'+k,{type:'number',kind:'num',ph:num(ah)?'留空用货件均值 '+ah.toFixed(2):''}).replace(' step="any"',' min="'+'0'+'" max="'+(percent?'100':PERF_UNIT_AMOUNT_MAX)+'" aria-describedby="'+(k==='unsellable'?'perf-unsellable-help':'perf-econ-help')+'" step="any"');
-        return fact(k==='price'?'售价（单件试算）':k==='unsellable'?'退货中不可再售 %':n,field+(k==='unsellable'?'<span class="hint" id="perf-unsellable-help">占退回商品的比例，不是退货率。0＝全部可再售；20＝20% 不能再售；100＝全部不能再售。按实际质检结果填写。</span>':''));}).join('')}</div><p class="hint" id="perf-econ-help">输入范围：佣金、退货中不可再售比例、目标净利率均为 0%–100%；售价须大于 0，单件售价及各项成本上限为 1,000,000 元（防误输保护），成本不能为负。成本超过售价可正常测算亏损。退货率由周期数据的退货件数 ÷ 销售件数计算。</p><div id="perf-unit-output" data-perf-unit aria-live="polite">${wf}</div></div>
+        const percent=['commission','unsellable','targetMargin','trialReturnRate'].includes(k);
+        const inputLink=k.startsWith('trial')?{...l,econ:{...e,[k]:trial.values[k]}}:l;
+        const field=inp(inputLink,'econ.'+k,{type:'number',kind:'num',ph:num(ah)?'留空用货件均值 '+ah.toFixed(2):''}).replace(' step="any"',' min="'+'0'+'" max="'+(percent?'100':['trialUnits','trialAdOrders'].includes(k)?'100000000':PERF_UNIT_AMOUNT_MAX)+'" aria-describedby="'+(k==='unsellable'?'perf-unsellable-help':'perf-econ-help')+'" step="'+(['trialUnits','trialAdOrders'].includes(k)?'1':'any')+'"');
+        return fact(k==='price'?'售价（单件试算）':k==='unsellable'?'退货中不可再售 %':n,field+(k==='unsellable'?'<span class="hint" id="perf-unsellable-help">占退回商品的比例，不是退货率。0＝全部可再售；20＝20% 不能再售；100＝全部不能再售。按实际质检结果填写。</span>':''));}).join('')}</div><p class="hint" id="perf-econ-help">输入范围：佣金、退货中不可再售比例、目标净利率均为 0%–100%；售价须大于 0，单件售价及各项成本上限为 1,000,000 元（防误输保护），成本不能为负。成本超过售价可正常测算亏损。试算广告花费、销售件数、广告订单与退货率可直接修改，实时联动左侧分析和下方分解图；尚未设置时显示所选周期的参考值，清空后不按零广告处理。退货率空白按 0% 试算并明确提示。这些试算输入不会改写周期记录。</p><div id="perf-unit-output" data-perf-unit aria-live="polite">${wf}</div></div>
   </div>`;
 
   // trend
@@ -1175,7 +1188,7 @@ function perfReadInputs(link){
   const econ={...link.econ};let error='';
   for(const input of (document.getElementById('perf-econ-inputs')||app).querySelectorAll('[data-f^="econ."]')){
     const key=input.dataset.f.slice(5);if(!ECON.some(([k])=>k===key)){error='无效成本字段';break;}
-    const value=input.value===''?null:Number(input.value),percent=['commission','unsellable','targetMargin'].includes(key);
+    const value=input.value===''?null:Number(input.value),percent=['commission','unsellable','targetMargin','trialReturnRate'].includes(key);
     const issue=perfFieldIssue(key,input.validity.badInput?NaN:value),invalid=Boolean(issue);
     input.setCustomValidity(issue);
     input.setAttribute('aria-invalid',String(Boolean(invalid)));
@@ -1184,7 +1197,8 @@ function perfReadInputs(link){
   }
   const preview={...link,econ:perfPreviewEcon(econ,link.econ)};
   if(!error){
-    const c=perfCalc(preview,rangeRecs(perfOf(link.id),state.range)),unit=unitEcon(preview,num(econ.price)?econ.price:c.price,c.retRate);
+    const records=rangeRecs(perfOf(link.id),state.range),c=perfCalc(preview,records),trial=perfTrialContext(preview,c,records),unit=unitEcon(preview,trial.price,trial.rate);
+    if(num(econ.trialAdOrders)&&num(econ.trialUnits)&&econ.trialAdOrders>econ.trialUnits)error='试算广告订单数不能超过销售件数';
     const values=[c.preAd,c.net,c.margin,...Object.values(unit||{}).filter(v=>typeof v==='number')];
     if(values.some(v=>v!=null&&(!num(v)||Math.abs(v)>Number.MAX_SAFE_INTEGER)))error='计算超出可靠范围，请核对金额、数量和小数点';
   }
@@ -1194,12 +1208,12 @@ function perfLiveInput(changedField=''){
   if(state.view!=='perf')return;
   const link=state.links.find(l=>l.id===state.sel);if(!link)return;
   const {preview,error}=perfReadInputs(link);
-  if(error.includes('计算超出可靠范围')){if(changedField!=='econ.price')perfRefreshLatest(preview,null,error);const node=app.querySelector('[data-perf-unit]');if(node){node.querySelector('[data-perf-warning]')?.remove();const note=document.createElement('p');note.className='note';note.dataset.perfWarning='';note.setAttribute('role','alert');note.textContent=error+'；保留上次有效图表，异常值未保存。';node.prepend(note);}return;}
+  if(error.includes('计算超出可靠范围')){if(changedField!=='econ.price'&&!changedField.startsWith('econ.trial'))perfRefreshLatest(preview,null,error);const node=app.querySelector('[data-perf-unit]');if(node){node.querySelector('[data-perf-warning]')?.remove();const note=document.createElement('p');note.className='note';note.dataset.perfWarning='';note.setAttribute('role','alert');note.textContent=error+'；保留上次有效图表，异常值未保存。';node.prepend(note);}return;}
   const template=document.createElement('template');template.innerHTML=perfView(preview,false,true);
   for(const selector of ['.kpis','[data-perf-unit]','[data-perf-break-even]']){
     const target=document.getElementById(({'.kpis':'perf-kpis-output','[data-perf-unit]':'perf-unit-output','[data-perf-break-even]':'perf-analysis-output'})[selector]),next=template.content.querySelector(selector);if(target&&next)target.replaceChildren(...next.childNodes);
   }
-  perfRefreshLatest(preview,null,error);
+  if(!changedField.startsWith('econ.trial'))perfRefreshLatest(preview,null,error);
   if(error){const node=app.querySelector('[data-perf-unit]');if(node){const note=document.createElement('p');note.className='note';note.setAttribute('role','alert');note.textContent=error+'；异常字段暂用已保存的有效值，原值也异常时比例按 0–100% 边界预览，金额按 0（售价用实际均价）；异常值未保存。图示不可再售比例 '+preview.econ.unsellable+'%。';node.prepend(note);}}
 }
 

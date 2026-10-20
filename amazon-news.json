@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-10-19T03:20:11.616Z",
+  "updatedAt": "2026-10-20T03:28:49.862Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Fri, 16 Oct 2026 21:12:00 GMT",
-      "date": "10/16",
-      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
-      "category": "AWS"
+      "title": "Watch the trailer for ‘Drive – The Pretenders,’ coming to Prime Video October 28",
+      "link": "https://www.aboutamazon.com/news/entertainment/drive-the-pretenders-prime-video?utm_source=rss",
+      "pubDate": "Mon, 19 Oct 2026 13:00:24 GMT",
+      "date": "10/19",
+      "summary": "The movie, inspired by the hit novel 'Drive,' follows a mechanic who fakes an engagement to a scandalous racing star—with a passion that cou",
+      "category": "Entertainment"
     },
     {
-      "title": "Amazon will share its Q3 2026 earnings on October 29",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-earnings-q3-2026-report?utm_source=rss",
-      "pubDate": "Thu, 15 Oct 2026 20:14:12 GMT",
-      "date": "10/15",
-      "summary": "On October 29, Amazon is set to hold a conference call to discuss its Q3 2026 financial results.",
-      "category": "Company news"
+      "title": "Amazon opens its AWS Trainium AI chips to every PyTorch developer, no rewrite needed",
+      "link": "https://www.aboutamazon.com/news/innovation-at-amazon/torchneuron-pytorch-aws-trainium-chips-ai?utm_source=rss",
+      "pubDate": "Mon, 19 Oct 2026 13:00:10 GMT",
+      "date": "10/19",
+      "summary": "TorchNeuron lets developers run their existing AI code on AWS Trainium chips with virtually no changes, reducing the friction to adopting ne",
+      "category": "Innovation at Amazon"
     },
     {
-      "title": "Amazon introduces 2 new AI products from Bee: Bee Frontier and Bee Eclipse",
-      "link": "https://www.aboutamazon.com/news/devices/amazon-personal-ai-bee-frontier-bee-eclipse?utm_source=rss",
-      "pubDate": "Thu, 15 Oct 2026 11:55:24 GMT",
-      "date": "10/15",
-      "summary": "Bee expands its ambient AI family with two personal AI devices designed to remember the moments that matter most, plus new integrations with",
-      "category": "Devices"
+      "title": "Amazon invests in nuclear energy project targeting nearly 1 gigawatt of carbon-free energy for Indiana",
+      "link": "https://www.aboutamazon.com/news/sustainability/amazon-nuclear-energy-indiana-x-energy-aep?utm_source=rss",
+      "pubDate": "Mon, 19 Oct 2026 12:30:08 GMT",
+      "date": "10/19",
+      "summary": "Amazon, X-energy, and AEP are collaborating to explore building small modular reactors in Indiana that would add carbon-free power to the re",
+      "category": "Sustainability"
     }
   ]
 }

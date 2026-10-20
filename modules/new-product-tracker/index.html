@@ -14,20 +14,7 @@
   --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
   color-scheme:dark;
 }
-@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
-  --bg:#EEF1F6;--panel:#FFFFFF;--panel2:#F6F8FB;--raise:#E8EFFD;--line:#D8DEE8;--line2:#E5E9F0;
-  --fg:#141B26;--fg2:#3A4659;--muted:#5C687B;
-  --accent:#2F6BEA;--accent-fg:#2459C9;--accent-bg:rgba(47,107,234,.10);
-  --ok:#147A50;--ok-bg:rgba(20,122,80,.10);--warn:#8F5A00;--warn-bg:rgba(201,130,0,.13);
-  --bad:#BE2E2B;--bad-bg:rgba(190,46,43,.10);--idle:#5C687B;--idle-bg:rgba(92,104,123,.10);
-  --btn-fg:#FFFFFF;--btn-bg:#2F6BEA;color-scheme:light}}
-:root[data-theme="light"]{
-  --bg:#EEF1F6;--panel:#FFFFFF;--panel2:#F6F8FB;--raise:#E8EFFD;--line:#D8DEE8;--line2:#E5E9F0;
-  --fg:#141B26;--fg2:#3A4659;--muted:#5C687B;
-  --accent:#2F6BEA;--accent-fg:#2459C9;--accent-bg:rgba(47,107,234,.10);
-  --ok:#147A50;--ok-bg:rgba(20,122,80,.10);--warn:#8F5A00;--warn-bg:rgba(201,130,0,.13);
-  --bad:#BE2E2B;--bad-bg:rgba(190,46,43,.10);--idle:#5C687B;--idle-bg:rgba(92,104,123,.10);
-  --btn-fg:#FFFFFF;--btn-bg:#2F6BEA;color-scheme:light}
+/* Keep the tracking board dark on every computer, independent of the OS theme. */
 body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.5;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
 *{box-sizing:border-box}

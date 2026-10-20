@@ -991,6 +991,10 @@ function perfAnalysisHTML(e,c,unit,recs,context='trial'){
   const details=perfAnalysisDetailsHTML(e,c,unit,recs,context);
   if(!unit)return details;
   const a=perfLinkedAnalysis(e,c,unit,recs),state=unit.missing?.length||!num(e.commission)||!num(e.head)&&!unit.headAuto?'data':perfAnalysisState(a);
+  if(context==='trial'&&state==='data'&&!unit.missing?.length&&num(e.commission)&&(num(e.head)||unit.headAuto)&&a.limit!=null){
+    const max=Math.max(unit.unit,a.targetProfit,0),scale=max||1;
+    return '<div class="profit-state" data-profit-state="trial" data-analysis-source="unit-trial"><div class="profit-chips"><span>单件利润测算联动</span><span>售价 '+money2(unit.price)+'</span><span>目标 '+pct(a.target)+'</span></div><span class="profit-badge">● 单件目标测算</span><h3 class="profit-lead">单件利润可覆盖目标，广告实际达标待判断</h3><div class="profit-hero"><span>目标单件广告上限</span><div class="profit-hero-line"><strong>'+money2(a.limit)+'</strong></div><small>广告前利润 '+money2(unit.unit)+' − 目标利润 '+money2(a.targetProfit)+'</small></div><div class="profit-chart"><div class="profit-track"><i class="profit-segment net" style="left:0%;width:'+(Math.max(0,a.targetProfit)/scale*100).toFixed(3)+'%"></i><i class="profit-segment remaining" style="left:'+(Math.max(0,a.targetProfit)/scale*100).toFixed(3)+'%;width:'+(Math.max(0,a.limit)/scale*100).toFixed(3)+'%"></i></div></div><div class="profit-actions"><div class="profit-action"><span>目标利润 / 件</span><strong>'+money2(a.targetProfit)+'</strong></div><div class="profit-action"><span>不投广告时净利率上限</span><strong>'+pct(unit.unit/unit.price)+'</strong></div></div><p class="hint">上方分析跟随右侧单件测算的售价、成本和目标实时变化；周期广告数据缺失不影响单件广告上限。CPA 和广告后实际结果需要广告数据，暂不判定已达标。下方最新一期分析单独使用周期实际数据。</p><details class="profit-details"><summary>明细与口径</summary>'+details+'</details></div>';
+  }
   if(state==='data')return '<div class="profit-state" data-profit-state="data"><p class="note">补齐成本、目标、广告花费及销售件数后显示达标状态；空白数据不按零处理。</p><details open><summary>明细与口径</summary>'+details+'</details></div>';
   const structural=state==='structural',over=state==='overspend';
   const label=structural?'结构性不达标':over?'广告超支':'达标';
@@ -1119,7 +1123,7 @@ function perfView(l,editorsOnly=false,previewOnly=false){
   if(trialUE&&num(e.targetMargin)&&e.targetMargin/100>trialUE.unit/trialUE.price)wf+='<p class="note" role="status">经营提醒：目标净利率高于当前单件广告前利润率；按当前售价、成本及退货率，即使不投广告也无法达到。请调整售价、成本或目标。此提醒不阻止保存，也不隐藏亏损。</p>';
   if(econIssue)wf='<p class="note" role="alert">'+esc(econIssue)+'；图表继续显示预览，异常比例暂按 0–100% 边界值计算，异常金额暂按 0（售价用实际均价）；异常值未保存。当前图示不可再售比例 '+trialEcon.unsellable+'%。</p>'+wf;
   h+=`<div class="two"> 
-    <div class="panel"><h2>分析</h2><div id="perf-analysis-output" data-perf-break-even>${be}</div></div>
+    <div class="panel"><h2>分析</h2><p class="hint">关联右侧单件利润测算；售价、成本与目标调整即时重算。周期广告仅辅助测算 CPA 与广告后结果。</p><div id="perf-analysis-output" data-perf-break-even>${be}</div></div>
     <div class="panel"><h2>单件利润测算</h2>
       <div class="facts" id="perf-econ-inputs">${ECON.map(([k,n])=>{const ah=k==='head'?shipAvgHead(l.id):null;
         const percent=['commission','unsellable','targetMargin'].includes(k);

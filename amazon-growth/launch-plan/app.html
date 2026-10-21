@@ -1077,6 +1077,7 @@
 <div class="planbar">
   <span class="who" id="whoLabel">运营：—</span>
   <span class="who" id="cloudHint">云端：检测中</span>
+  <select id="adminOwnerSelect" title="超级管理员查看运营人员" hidden></select>
   <select id="planSelect" title="我的推品计划"></select>
   <button class="ghost-btn" id="newPlanBtn" type="button" title="再加一支产品，每人最多 5 个">添加产品</button>
   <button class="ghost-btn" id="deletePlanBtn" type="button" title="删除当前这支产品">删除当前产品</button>
@@ -1441,6 +1442,8 @@ function readPlaybookUser(){
   return found[0] || { id: "guest", name: "访客" };
 }
 let USER = readPlaybookUser();
+const IS_SUPER = (function(){ try{return new URLSearchParams(location.search).get("opsRole") === "super";}catch(e){return false;} })();
+let ADMIN_VIEW_USER = null;
 function getUserId(){ return String(USER && USER.id ? USER.id : "guest"); }
 const MAX_PLANS = 5;
 
@@ -1538,6 +1541,7 @@ function getCloudApi(){
 function syncStampKey(){ return "user:"+getUserId()+":hs-playbook:cloudSyncedAt"; }
 
 async function waitForPlaybookUser(){
+  if(IS_SUPER && ADMIN_VIEW_USER){ USER = ADMIN_VIEW_USER; return USER; }
   USER = readPlaybookUser();
   if(!isGuestUser(USER)) return USER;
   if(window.parent === window) return USER;
@@ -3570,6 +3574,7 @@ function applyPlaybookUser(next){
   let incoming = next && (next.id || next.name)
     ? { id: String(next.id || next.name), name: String(next.name || next.id) }
     : readPlaybookUser();
+  if(IS_SUPER && ADMIN_VIEW_USER) incoming = ADMIN_VIEW_USER;
   if(isGuestUser(incoming)){
     const live = readPlaybookUser();
     if(!isGuestUser(live)) incoming = live;
@@ -3580,6 +3585,32 @@ function applyPlaybookUser(next){
   planId = "";
   paintWhoLabel();
   loadAll();
+}
+async function setupAdminOwnerSelect(){
+  if(!IS_SUPER) return;
+  const select = document.getElementById("adminOwnerSelect");
+  const api = getCloudApi();
+  if(!select || !api || typeof api.listOwners !== "function") return;
+  try{
+    const owners = await api.listOwners();
+    if(!owners.length) return;
+    select.innerHTML = owners.map(function(owner){
+      return '<option value="'+esc(owner.id)+'">查看：'+esc(owner.name)+'（'+Number(owner.plans||0)+' 个）</option>';
+    }).join("");
+    select.value = owners.some(function(owner){return owner.id === getUserId();}) ? getUserId() : owners[0].id;
+    select.hidden = false;
+    select.addEventListener("change", async function(){
+      const owner = owners.find(function(item){return item.id === select.value;});
+      if(!owner || owner.id === getUserId()) return;
+      if(cloudTimer){ clearTimeout(cloudTimer); cloudTimer = null; }
+      await persistCurrentPlanLocal();
+      await flushCloudSave();
+      ADMIN_VIEW_USER = {id:owner.id,name:owner.name};
+      applyPlaybookUser(ADMIN_VIEW_USER);
+    });
+  }catch(e){
+    setCloudHint("云端：人员列表读取失败");
+  }
 }
 let loadGen = 0;
 async function loadAll(){
@@ -3650,6 +3681,7 @@ window.addEventListener("pagehide", function(){
 });
 setInterval(function(){ applyPlaybookUser(readPlaybookUser()); }, 2000);
 loadAll();
+setupAdminOwnerSelect();
 </script>
 <script>
   /* 全局层：新建推品方案时，站点为空则用全局站点预填；已保存方案的站点不被覆盖。方案本身是推品计划私有数据 */

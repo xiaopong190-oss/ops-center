@@ -15,4 +15,7 @@ assert.ok(settings.includes('/growth-auth.js'),'Settings page must receive cloud
 assert.ok(settings.includes('../shared/growth-core.js'),'Settings page must load the global growth layer');
 const growthCore=fs.readFileSync(new URL('./public/shared/growth-core.js',import.meta.url),'utf8');
 assert.ok(growthCore.includes('window.GrowthCore'),'Global growth layer must expose GrowthCore');
+assert.ok(html.includes('adminOwnerSelect'),'Launch plan must expose the administrator owner selector');
+const auth=fs.readFileSync(new URL('./public/growth-auth.js',import.meta.url),'utf8');
+assert.ok(auth.includes('listOwners'),'Cloud bootstrap must expose owner discovery for administrators');
 console.log('PASS settings page and shared GrowthCore are included in cloud assets');

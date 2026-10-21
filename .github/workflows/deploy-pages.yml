@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: '发布或回滚到指定版本标签 / 提交（留空使用当前分支）'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -19,6 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -37,7 +44,15 @@ jobs:
         env:
           GITHUB_GIST_TOKEN: ${{ secrets.OPS_GIST_TOKEN }}
           GITHUB_GIST_ID: ${{ secrets.OPS_GIST_ID }}
-        run: node deploy/build-pages.mjs
+        run: |
+          node deploy/build-pages.mjs
+          node deploy/write-release-manifest.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ops-center-release-${{ github.run_id }}
+          path: docs
+          retention-days: 90
 
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -250,7 +250,7 @@ function BrandLogo({ size = 28 }) {
 }
 
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_BUILD = "cloud-48-secure";
+const APP_BUILD = "v2026.10.20.2";
 const THEME_KEY = "ops-center-theme";
 const AUTH_SESSION_KEY = "ops-center-auth-v6";
 const AUTH_ROLE_SUPER = "super";
@@ -588,7 +588,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <button type="button" className="ops-nav-toggle ops-btn" onClick={() => setNavOpen(v => !v)} aria-label="打开菜单">菜单</button>
             <div className="ops-topbar-title">{TAB_TITLES[tab] || "运营中心"}</div>
-            <span data-app-version="2026.10.20.1" title="发布版本：2026.10.20.1" style={{fontSize:11,color:"var(--tm)",whiteSpace:"nowrap"}}>v2026.10.20.1</span>
+            <span data-app-version={APP_BUILD} title={`整站版本：${APP_BUILD}`} style={{fontSize:11,color:"var(--tm)",whiteSpace:"nowrap"}}>{APP_BUILD}</span>
           </div>
           <div className="ops-topbar-actions">
             <button type="button" className="ops-btn" onClick={toggleFullscreen} aria-pressed={isFullscreen}

@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import {execFileSync} from 'node:child_process';
+const root=new URL('../',import.meta.url);
+const manifest=JSON.parse(fs.readFileSync(new URL('release.json',root),'utf8'));
+const source=fs.readFileSync(new URL('src/App.jsx',root),'utf8');
+if(!source.includes(`const APP_BUILD = "v${manifest.version}";`))throw Error('页面版本和发布清单不一致');
+manifest.frontendCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
+manifest.builtAt=new Date().toISOString();
+fs.mkdirSync(new URL('docs/',root),{recursive:true});
+fs.writeFileSync(new URL('docs/release.json',root),JSON.stringify(manifest,null,2)+'\n');
+console.log('Release manifest verified:',manifest.version,manifest.frontendCommit);

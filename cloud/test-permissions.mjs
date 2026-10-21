@@ -14,6 +14,13 @@ r=await call('/ops-api/login',{name:'TestTwo',password:'test-user-123'});assert.
 assert.equal((await call('/api/connections')).status,401);
 assert.equal((await call('/api/connections',null,one)).status,403);
 assert.equal((await call('/api/connections',null,admin)).status,200);
+assert.equal((await call('/ops-api/module-visibility',{module:'logistics',visible:true})).status,401);
+assert.equal((await call('/ops-api/module-visibility',{module:'logistics',visible:true},one)).status,403);
+assert.equal((await call('/ops-api/module-visibility',{module:'tasks',visible:true},admin)).status,400);
+assert.equal((await call('/ops-api/module-visibility',{module:'logistics',visible:true},admin)).status,200);
+let visibility=JSON.parse((await call('/ops-api/gist/main',null,two)).data.files['global-config.json'].content).data.moduleVisibility;
+assert.equal(visibility.logistics,true);assert.notEqual(visibility.production,true);
+assert.equal((await call('/ops-api/module-visibility',{module:'logistics',visible:false},admin)).status,200);
 const file='playbook-u-'+Buffer.from('TestOne').toString('base64url')+'.json';
 const patch={files:{[file]:{content:JSON.stringify({data:{test:'synthetic'}})}}};
 assert.equal((await call('/ops-api/gist/main',patch,one,'PATCH')).status,200);

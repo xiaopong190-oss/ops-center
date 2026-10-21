@@ -495,11 +495,110 @@ function LoginScreen({ onSuccess, dark }) {
   );
 }
 
+function WorkspaceFullscreenIcon({ restore = false }) {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <path d={restore ? 'M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6' : 'M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6'} />
+  </svg>;
+}
+
+function ModuleVisibilityModal({ onClose }) {
+  const [visibility,setVisibility] = useState(() => loadGlobalConfig().moduleVisibility || {});
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState('');
+  const toggle = async (module,visible) => {
+    setBusy(true);setError('');
+    try {
+      const result = await window.OpsCloud.request('/ops-api/module-visibility',{module,visible});
+      setVisibility(result.moduleVisibility);
+      await fetchGlobalConfigFromCloud();
+    } catch (failure) { setError(failure.message || '保存失败，请重试'); }
+    finally { setBusy(false); }
+  };
+  return <div style={{position:'fixed',inset:0,zIndex:1200,background:'rgba(0,0,0,.45)',display:'grid',placeItems:'center',padding:20}}><div role="dialog" aria-modal="true" aria-label="模块显示" style={{width:'100%',maxWidth:440,padding:24,borderRadius:16,background:'var(--card)',color:'var(--text)'}}>
+    <h3>模块显示</h3>
+    <p style={{color:'var(--tm)',fontSize:13}}>设置对所有账号生效，仅管理员可以修改。隐藏后保留原有数据。</p>
+    {[['logistics','物流头程'],['production','精品生产']].map(([key,label]) => <label key={key} style={{display:'flex',gap:10,alignItems:'center',padding:'12px 0'}}>
+      <input type="checkbox" checked={visibility[key]===true} disabled={busy} onChange={event=>toggle(key,event.target.checked)} />显示{label}
+    </label>)}
+    {error && <p role="alert" style={{color:'#dc2626'}}>{error}</p>}
+    <button className="ops-btn" disabled={busy} onClick={onClose}>{busy?'正在保存…':'关闭'}</button>
+  </div></div>;
+}
+
 function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel, onLogout }) {
   const currentUser = useCurrentUser();
+  const [moduleSettingsOpen,setModuleSettingsOpen] = useState(false);
+  const [moduleVisibility,setModuleVisibility] = useState(() => loadGlobalConfig().moduleVisibility || {});
+  useEffect(() => {
+    const update = () => setModuleVisibility(loadGlobalConfig().moduleVisibility || {});
+    const refresh = () => { fetchGlobalConfigFromCloud().then(update); };
+    window.addEventListener('ops-global-config-updated',update);
+    window.addEventListener('focus',refresh);
+    const timer=setInterval(refresh,30000);
+    return () => {clearInterval(timer);window.removeEventListener('ops-global-config-updated',update);window.removeEventListener('focus',refresh);};
+  },[]);
+  const moduleVisible = key => !['logistics','production'].includes(key) || moduleVisibility[key]===true;
+  useEffect(() => { if (!moduleVisible(tab)) setTab('home'); },[tab,moduleVisibility]);
   const isSuper = currentUser?.auth === AUTH_ROLE_SUPER || currentUser?.role === AUTH_ROLE_SUPER;
   const [pwdOpen, setPwdOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenNotice, setFullscreenNotice] = useState('');
+  const browserIsFullscreen = () => Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+  const leaveFullscreen = async () => {
+    setIsFullscreen(false);setFullscreenNotice('');
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    try { if (browserIsFullscreen() && exit) await exit.call(document); } catch { /* Browser Escape may already have exited. */ }
+  };
+
+  useEffect(() => {
+    const documents = new Set();
+    const onKey = event => {
+      if (event.key === 'Escape') void leaveFullscreen();
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyF' && !event.repeat) {
+        event.preventDefault();
+        void toggleFullscreen();
+      }
+    };
+    const bindDocument = target => {
+      if (!target || documents.has(target)) return;
+      documents.add(target);
+      target.addEventListener('keydown', onKey);
+    };
+    const bindFrame = frame => {
+      try { bindDocument(frame.contentDocument); } catch { /* Cross-origin panels keep the restore button available. */ }
+    };
+    const onFrameLoad = event => { if (event.target?.tagName === 'IFRAME') bindFrame(event.target); };
+    const syncBrowserFullscreen = () => {
+      setIsFullscreen(browserIsFullscreen());
+      setFullscreenNotice('');
+    };
+    document.addEventListener('fullscreenchange', syncBrowserFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncBrowserFullscreen);
+    bindDocument(document);
+    document.querySelectorAll('iframe').forEach(bindFrame);
+    document.addEventListener('load', onFrameLoad, true);
+    return () => {
+      for (const target of documents) target.removeEventListener('keydown', onKey);
+      document.removeEventListener('load', onFrameLoad, true);
+      document.removeEventListener('fullscreenchange', syncBrowserFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncBrowserFullscreen);
+    };
+  }, [isFullscreen]);
+  const toggleFullscreen = async () => {
+    setNavOpen(false);
+    if (isFullscreen || browserIsFullscreen()) return leaveFullscreen();
+    setFullscreenNotice('');
+    setIsFullscreen(true);
+    const root = document.documentElement;
+    const enter = root.requestFullscreen || root.webkitRequestFullscreen;
+    try {
+      if (!enter) throw Error('Fullscreen unavailable');
+      await enter.call(root);
+    } catch {
+      setFullscreenNotice('请按 F11 隐藏浏览器顶部栏');
+    }
+  };
   const confirmLeave = useConfirmLeave();
   const trySetTab = async (key) => {
     if (key === tab) return;
@@ -522,9 +621,9 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
     "--shadow-md": dark ? "0 8px 24px rgba(0,0,0,0.45)" : "0 8px 24px rgba(112,144,176,0.14)",
   };
   return (
-    <div className={`ops-app${dark ? " ops-theme-dark" : " ops-theme-light"}`} style={css}>
-      {navOpen && <div className="ops-sidebar-backdrop" onClick={() => setNavOpen(false)} />}
-      <aside className={`ops-sidebar${navOpen ? " ops-sidebar-open" : ""}`}>
+    <div className={`ops-app${dark ? " ops-theme-dark" : " ops-theme-light"}${isFullscreen ? " ops-workspace-max" : ""}`} style={css}>
+      {navOpen && !isFullscreen && <div className="ops-sidebar-backdrop" onClick={() => setNavOpen(false)} />}
+      <aside hidden={isFullscreen} style={{display:isFullscreen ? "none" : undefined}} className={`ops-sidebar${navOpen ? " ops-sidebar-open" : ""}`}>
         <div className="ops-sidebar-brand">
           <BrandLogo size={32} />
           <div>
@@ -533,7 +632,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           </div>
         </div>
         <nav className="ops-sidebar-nav">
-          {TABS.map(t => (
+          {TABS.filter(t => moduleVisible(t.key)).map(t => (
             <div key={t.key} className="ops-nav-item-wrap">
               <button type="button" className={`ops-nav-item${tab === t.key ? " active" : ""}`} onClick={() => trySetTab(t.key)}>
                 <span className="ops-nav-icon"><NavIcon name={t.icon} /></span>
@@ -544,18 +643,42 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
         </nav>
         <div className="ops-sidebar-footer">
           <button type="button" className="ops-sidebar-foot-btn" onClick={() => { setPwdOpen(true); setNavOpen(false); }}>个人设置</button>
+          {isSuper && <button type="button" className="ops-sidebar-foot-btn" onClick={() => {setModuleSettingsOpen(true);setNavOpen(false);}}>模块显示</button>}
           {isSuper && <button type="button" className="ops-sidebar-foot-btn" onClick={() => { setSettingsPanel("staff"); setNavOpen(false); }}>员工与 M 码</button>}
           {isSuper && <span className="ops-badge ops-badge-sidebar ops-sidebar-build">{APP_BUILD}</span>}
         </div>
       </aside>
 
+      <style>{`
+        .ops-workspace-max{position:fixed!important;inset:0;z-index:1000;display:block!important;overflow:hidden;background:var(--bg)}
+        .ops-workspace-max>.ops-main{width:100%;height:100dvh;margin:0!important;min-width:0}
+        .ops-workspace-max .ops-content{position:absolute;inset:0;width:100%;max-width:none!important;margin:0!important;padding:48px 8px 8px!important;overflow:auto;box-sizing:border-box}
+        .ops-workspace-controls{position:absolute;top:6px;right:8px;z-index:40;display:flex;align-items:center;gap:8px;padding:3px 5px;background:var(--card);border:1px solid var(--border);border-radius:9px;box-shadow:var(--shadow-card)}
+        .ops-workspace-controls .ops-cloud-bar{margin:0!important;padding:0!important;min-height:0;box-shadow:none;background:transparent;border:0}
+        .ops-workspace-controls .ops-cloud-bar>span{display:none!important}
+        .ops-workspace-controls .ops-btn{padding:5px 10px!important;min-width:0!important}
+        .ops-workspace-max [data-ops-workspace-frame]{height:calc(100dvh - 56px)!important;min-height:0!important}
+      `}</style>
+      {isFullscreen && <div className="ops-workspace-controls">
+        {fullscreenNotice && <span role="status" style={{fontSize:12,color:"var(--tm)"}}>{fullscreenNotice}</span>}
+        {showCloudBar && <GlobalCloudBar />}
+        <button type="button" className="ops-btn" onClick={toggleFullscreen} title="恢复工作区（Esc）" aria-label="恢复工作区" style={{width:32,height:32,justifyContent:'center'}}>
+          <WorkspaceFullscreenIcon restore />
+        </button>
+      </div>}
       <div className="ops-main">
-        <header className="ops-topbar">
+        <header hidden={isFullscreen} style={{display:isFullscreen ? "none" : undefined}} className="ops-topbar">
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <button type="button" className="ops-nav-toggle ops-btn" onClick={() => setNavOpen(v => !v)} aria-label="打开菜单">菜单</button>
             <div className="ops-topbar-title">{TAB_TITLES[tab] || "运营中心"}</div>
+            <span data-app-version="2026.10.20.1" title="发布版本：2026.10.20.1" style={{fontSize:11,color:"var(--tm)",whiteSpace:"nowrap"}}>v2026.10.20.1</span>
           </div>
           <div className="ops-topbar-actions">
+            <button type="button" className="ops-btn" onClick={toggleFullscreen} aria-pressed={isFullscreen}
+              aria-label={isFullscreen ? '恢复工作区' : '最大化中间工作区'} title={isFullscreen ? '恢复工作区（Esc）' : '工作区最大化（Ctrl+Shift+F）'}
+              style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:32,height:32,padding:0}}>
+              <WorkspaceFullscreenIcon restore={isFullscreen} />
+            </button>
             <span className="ops-topbar-user" style={{ fontSize: 12, color: "var(--tm)", fontWeight: 600, padding: "0 4px" }}>
               {isSuper ? "超级管理员" : `${currentUser?.name || ""}${currentUser?.role ? ` · ${currentUser.role}` : ""}`}
             </span>
@@ -563,14 +686,14 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           </div>
         </header>
 
-        <main className="ops-content" style={{ maxWidth: tab === "new-product-followup" || tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" || tab === "amazon-growth" ? 1280 : 960 }}>
-          {showCloudBar && <GlobalCloudBar />}
+        <main className="ops-content" style={{ maxWidth: isFullscreen ? "none" : tab === "new-product-followup" || tab === "kpi" || tab === "knowledge" || tab === "keywords" || tab === "tools" || tab === "amazon-growth" ? 1280 : 960 }}>
+          {showCloudBar && !isFullscreen && <GlobalCloudBar />}
           <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
           <div style={{ display: tab === "amazon-growth" ? "block" : "none" }}><AmazonGrowthPanel /></div>
-          <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
+          {moduleVisible('logistics') && <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>}
           <div style={{ display: tab === "new-product-followup" ? "block" : "none" }}><NewProductFollowupPanel active={tab === "new-product-followup"} /></div>
-          <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
+          {moduleVisible('production') && <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>}
           <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
           <div style={{ display: tab === "knowledge" ? "block" : "none" }}><KnowledgePanel active={tab === "knowledge"} /></div>
           <div style={{ display: tab === "keywords" ? "block" : "none" }}><KeywordPanel active={tab === "keywords"} /></div>
@@ -579,6 +702,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
         </main>
       </div>
 
+      {isSuper && moduleSettingsOpen && <ModuleVisibilityModal onClose={() => setModuleSettingsOpen(false)} />}
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
       {pwdOpen && <ChangePasswordModal dark={dark} setDark={setDark} onClose={() => setPwdOpen(false)} onSaved={() => window.dispatchEvent(new CustomEvent("ops-user-prefs-updated"))} />}
     </div>

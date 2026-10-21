@@ -418,8 +418,44 @@ function WorkspaceFullscreenIcon({ restore = false }) {
   </svg>;
 }
 
+function ModuleVisibilityModal({ onClose }) {
+  const [visibility,setVisibility] = useState(() => loadGlobalConfig().moduleVisibility || {});
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState('');
+  const toggle = async (module,visible) => {
+    setBusy(true);setError('');
+    try {
+      const result = await window.OpsCloud.request('/ops-api/module-visibility',{module,visible});
+      setVisibility(result.moduleVisibility);
+      await fetchGlobalConfigFromCloud();
+    } catch (failure) { setError(failure.message || '保存失败，请重试'); }
+    finally { setBusy(false); }
+  };
+  return <div style={{position:'fixed',inset:0,zIndex:1200,background:'rgba(0,0,0,.45)',display:'grid',placeItems:'center',padding:20}}><div role="dialog" aria-modal="true" aria-label="模块显示" style={{width:'100%',maxWidth:440,padding:24,borderRadius:16,background:'var(--card)',color:'var(--text)'}}>
+    <h3>模块显示</h3>
+    <p style={{color:'var(--tm)',fontSize:13}}>设置对所有账号生效，仅管理员可以修改。隐藏后保留原有数据。</p>
+    {[['logistics','物流头程'],['production','精品生产']].map(([key,label]) => <label key={key} style={{display:'flex',gap:10,alignItems:'center',padding:'12px 0'}}>
+      <input type="checkbox" checked={visibility[key]===true} disabled={busy} onChange={event=>toggle(key,event.target.checked)} />显示{label}
+    </label>)}
+    {error && <p role="alert" style={{color:'#dc2626'}}>{error}</p>}
+    <button className="ops-btn" disabled={busy} onClick={onClose}>{busy?'正在保存…':'关闭'}</button>
+  </div></div>;
+}
+
 function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel, onLogout }) {
   const currentUser = useCurrentUser();
+  const [moduleSettingsOpen,setModuleSettingsOpen] = useState(false);
+  const [moduleVisibility,setModuleVisibility] = useState(() => loadGlobalConfig().moduleVisibility || {});
+  useEffect(() => {
+    const update = () => setModuleVisibility(loadGlobalConfig().moduleVisibility || {});
+    const refresh = () => { fetchGlobalConfigFromCloud().then(update); };
+    window.addEventListener('ops-global-config-updated',update);
+    window.addEventListener('focus',refresh);
+    const timer=setInterval(refresh,30000);
+    return () => {clearInterval(timer);window.removeEventListener('ops-global-config-updated',update);window.removeEventListener('focus',refresh);};
+  },[]);
+  const moduleVisible = key => !['logistics','production'].includes(key) || moduleVisibility[key]===true;
+  useEffect(() => { if (!moduleVisible(tab)) setTab('home'); },[tab,moduleVisibility]);
   const isSuper = currentUser?.auth === AUTH_ROLE_SUPER || currentUser?.role === AUTH_ROLE_SUPER;
   const [pwdOpen, setPwdOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -513,7 +549,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           </div>
         </div>
         <nav className="ops-sidebar-nav">
-          {TABS.map(t => (
+          {TABS.filter(t => moduleVisible(t.key)).map(t => (
             <div key={t.key} className="ops-nav-item-wrap">
               <button type="button" className={`ops-nav-item${tab === t.key ? " active" : ""}`} onClick={() => trySetTab(t.key)}>
                 <span className="ops-nav-icon"><NavIcon name={t.icon} /></span>
@@ -524,6 +560,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
         </nav>
         <div className="ops-sidebar-footer">
           <button type="button" className="ops-sidebar-foot-btn" onClick={() => { setPwdOpen(true); setNavOpen(false); }}>个人设置</button>
+          {isSuper && <button type="button" className="ops-sidebar-foot-btn" onClick={() => {setModuleSettingsOpen(true);setNavOpen(false);}}>模块显示</button>}
           {isSuper && <button type="button" className="ops-sidebar-foot-btn" onClick={() => { setSettingsPanel("staff"); setNavOpen(false); }}>员工与 M 码</button>}
           {isSuper && <span className="ops-badge ops-badge-sidebar ops-sidebar-build">{APP_BUILD}</span>}
         </div>
@@ -571,9 +608,9 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
           <div style={{ display: tab === "home" ? "block" : "none" }}><HomePanel /></div>
           <div style={{ display: tab === "tasks" ? "block" : "none" }}><TasksPanel active={tab === "tasks"} /></div>
           <div style={{ display: tab === "amazon-growth" ? "block" : "none" }}><AmazonGrowthPanel /></div>
-          <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>
+          {moduleVisible('logistics') && <div style={{ display: tab === "logistics" ? "block" : "none" }}><LogisticsPanel active={tab === "logistics"} /></div>}
           <div style={{ display: tab === "new-product-followup" ? "block" : "none" }}><NewProductFollowupPanel active={tab === "new-product-followup"} /></div>
-          <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>
+          {moduleVisible('production') && <div style={{ display: tab === "production" ? "block" : "none" }}><ProductionPanel active={tab === "production"} /></div>}
           <div style={{ display: tab === "kpi" ? "block" : "none" }}><KpiPanel active={tab === "kpi"} /></div>
           <div style={{ display: tab === "knowledge" ? "block" : "none" }}><KnowledgePanel active={tab === "knowledge"} /></div>
           <div style={{ display: tab === "keywords" ? "block" : "none" }}><KeywordPanel active={tab === "keywords"} /></div>
@@ -582,6 +619,7 @@ function AppShell({ tab, setTab, dark, setDark, settingsPanel, setSettingsPanel,
         </main>
       </div>
 
+      {isSuper && moduleSettingsOpen && <ModuleVisibilityModal onClose={() => setModuleSettingsOpen(false)} />}
       {settingsPanel === "staff" && <GlobalSettingsModal onClose={() => setSettingsPanel(null)} onSaved={() => setSettingsPanel(null)} />}
       {pwdOpen && <ChangePasswordModal dark={dark} setDark={setDark} onClose={() => setPwdOpen(false)} onSaved={() => window.dispatchEvent(new CustomEvent("ops-user-prefs-updated"))} />}
     </div>

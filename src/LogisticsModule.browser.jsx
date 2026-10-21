@@ -472,6 +472,7 @@ function normalizeConfigData(data) {
   if (opsPassword) next.opsPassword = opsPassword;
   if (superPassword) next.superPassword = superPassword;
   next.superAutoShare = data?.superAutoShare === true;
+  next.moduleVisibility = {logistics:data?.moduleVisibility?.logistics===true,production:data?.moduleVisibility?.production===true};
   return next;
 }
 

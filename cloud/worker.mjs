@@ -25,7 +25,7 @@ async function quota(env,key,max,seconds) {
   if(row.count>max)fail(429,'请求过于频繁，请稍后再试');
 }
 function publicConfig(record) {
-  return {...record,data:{staff:(record?.data?.staff||[]).map(({name,role,canEdit,autoShare})=>({name,role,canEdit,autoShare})),superAutoShare:record?.data?.superAutoShare===true,cloudManaged:true}};
+  return {...record,data:{staff:(record?.data?.staff||[]).map(({name,role,canEdit,autoShare})=>({name,role,canEdit,autoShare})),superAutoShare:record?.data?.superAutoShare===true,moduleVisibility:record?.data?.moduleVisibility||{},cloudManaged:true}};
 }
 function userFor(config,name,auth) {
   if(auth==='super')return {id:'super',name:'超级管理员',role:'super',auth:'super',canEdit:true};
@@ -82,10 +82,21 @@ async function secureConfig(input,prev) {
     const codeHash=item.loginCode?await passwordHash(String(item.loginCode)):previous?.codeHash||opsHash;
     staff.push({name,role:String(item.role||''),canEdit:item.canEdit!==false,autoShare:item.autoShare===true,codeHash});
   }
-  return {data:{staff,superHash,opsHash,superAutoShare:input.superAutoShare===true},updatedAt:Date.now(),updatedBy:'超级管理员'};
+  return {data:{staff,superHash,opsHash,superAutoShare:input.superAutoShare===true,moduleVisibility:old.moduleVisibility||{}},updatedAt:Date.now(),updatedBy:'超级管理员'};
 }
 async function handle(req,env) {
   const url=new URL(req.url),p=url.pathname;
+  if(p==='/ops-api/module-visibility'){
+    const u=await session(req,env);admin(u);
+    if(req.method!=='POST')fail(405,'方法不允许');
+    const input=await body(req);
+    if(!['logistics','production'].includes(input.module)||typeof input.visible!=='boolean')fail(400,'模块显示设置无效');
+    const cfg=await get(env,'global-config.json');
+    cfg.data.moduleVisibility={...cfg.data.moduleVisibility,[input.module]:input.visible};
+    cfg.updatedAt=Date.now();cfg.updatedBy=u.name;
+    await put(env,'global-config.json',cfg);
+    return json({ok:true,moduleVisibility:cfg.data.moduleVisibility});
+  }
   if(p==='/ops-api/health')return json({ok:true,version:'cloud-v2',cloudflareAiConfigured:!!env.AI,anthropicConfigured:!!env.ANTHROPIC_API_KEY});
   if(p==='/ops-api/bootstrap') {
     if(!env.BOOTSTRAP_TOKEN||req.headers.get('Authorization')!==`Bearer ${env.BOOTSTRAP_TOKEN}`)fail(403,'禁止访问');

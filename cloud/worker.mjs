@@ -139,7 +139,7 @@ async function handle(req,env) {
   if(p.startsWith('/ops-api/gist/')){
     const u=await session(req,env,true);
     if(req.method==='GET'){
-      const rows=await env.DB.prepare('SELECT key,value FROM records WHERE key NOT LIKE ?').bind('\\_%').all();const files={};
+      const rows=await env.DB.prepare('SELECT key,value FROM records WHERE substr(key,1,1) <> ?').bind('_').all();const files={};
       for(const row of rows.results){try{fileAccess(row.key,u);}catch{continue;}const v=JSON.parse(row.value);files[row.key]={content:JSON.stringify(row.key==='global-config.json'?publicConfig(v):v)};}
       return json({files});
     }

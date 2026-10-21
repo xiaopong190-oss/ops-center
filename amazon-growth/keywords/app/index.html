@@ -59,7 +59,12 @@
       <section class="quality-note"><strong>规则自评</strong><div id="self-assessment">尚未运行分析。</div></section>
     </main>
   </div>
-  <script src="vendor/exceljs.min.js?v=1"></script>
-  <script src="app.js?v=17" type="module"></script>
+  <script src="../../shared/growth-core.js?v=20261020-global1"></script>
+<script src="vendor/exceljs.min.js?v=1"></script>
+  <script src="app.js?v=18" type="module"></script>
+<script>
+  /* 全局层：只共享站点。自身/竞品 ASIN、SQP 报告、ACOS/CPA 与本地缓存都是关键词库私有数据 */
+  GrowthCore.context.bind({ site: "#marketplace" }, { source: "keywords" });
+</script>
 </body>
 </html>

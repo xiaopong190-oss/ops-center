@@ -487,8 +487,8 @@
   }
   function pingGateway() {
     window.WatchlistMcp.stats().then(s => {
-      renderConn(true, "证据库 " + (s.size || 0), "新鲜 " + (s.fresh || 0) + " · 连接组在调用台");
-    }).catch(() => renderConn(false, "网关未通", "连接组在调用台"));
+      renderConn(true, "证据库 " + (s.size || 0), "新鲜 " + (s.fresh || 0) + " · 连接在「数据与连接」");
+    }).catch(() => renderConn(false, "网关未通", "连接在「数据与连接」"));
   }
   function loadReports() { return loadJson(LS_REP, []); }
   function saveReports(list) { saveJson(LS_REP, list.slice(0, 40)); }
@@ -920,7 +920,7 @@
     toast(state.cacheOnly ? "不会发起新的 MCP 调用" : "将按缺失项取数");
   });
   $("#themeBtn").addEventListener("click", cycleTheme);
-  $("#connBar").addEventListener("click", () => toast("连接组在运营调用台设置。本页只读共享证据网关。"));
+  $("#connBar").addEventListener("click", () => toast("连接、密钥与 AI 在「数据与连接」统一设置。本页只读共享证据网关。"));
   $("#clearBtn").addEventListener("click", () => {
     if (state.running) return;
     state.lanes = emptyLanes();

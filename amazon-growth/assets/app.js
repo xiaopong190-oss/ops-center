@@ -52,6 +52,11 @@
         state.activeList = typeof o.activeList === "string" ? o.activeList : "";
       }
     } catch (e) { /* ignore */ }
+    // 全局层：接入模式 / 代理地址 / 令牌以 GrowthCore 为准（首次会从旧 cfg 迁移）
+    if (window.GrowthCore) {
+      try { if (localStorage.getItem(window.GrowthCore.keys.conn)) firstRun = false; } catch (e) { /* ignore */ }
+      Object.assign(state.cfg, window.GrowthCore.connection());
+    }
     if (!state.form.dateTo) {
       const d = new Date();
       const p = n => String(n).padStart(2, "0");
@@ -172,11 +177,67 @@
   }
   function writeCatCtx(form, ctx) {
     if (!form || !ctx || !ctx.categoryId) return;
+    // 只缓存经 pickCategory 确认可用的类目，避免把不可用父级（如 1055398）写进缓存
+    if (ctx.categoryIdConfirmed !== true) return;
     try {
       const map = JSON.parse(localStorage.getItem(CAT_CTX_LS) || "{}");
       map[catCtxKey(form)] = { categoryId: ctx.categoryId, savedAt: Date.now() };
       localStorage.setItem(CAT_CTX_LS, JSON.stringify(map));
     } catch (e) { /* ignore */ }
+  }
+  function clearCatCtx(form) {
+    try {
+      const map = JSON.parse(localStorage.getItem(CAT_CTX_LS) || "{}");
+      if (map[catCtxKey(form)]) { delete map[catCtxKey(form)]; localStorage.setItem(CAT_CTX_LS, JSON.stringify(map)); }
+    } catch (e) { /* ignore */ }
+  }
+  const CAT_REJECT_LS = "xiyou-catreject-v1";
+  function readCatRejects(form) {
+    try {
+      const map = JSON.parse(localStorage.getItem(CAT_REJECT_LS) || "{}");
+      const arr = map[catCtxKey(form)];
+      return Array.isArray(arr) ? arr.map(String) : [];
+    } catch (e) { return []; }
+  }
+  function addCatReject(form, id) {
+    if (!form || id == null) return;
+    try {
+      const map = JSON.parse(localStorage.getItem(CAT_REJECT_LS) || "{}");
+      const key = catCtxKey(form);
+      const arr = Array.isArray(map[key]) ? map[key].map(String) : [];
+      if (arr.indexOf(String(id)) < 0) arr.push(String(id));
+      map[key] = arr.slice(-20);
+      localStorage.setItem(CAT_REJECT_LS, JSON.stringify(map));
+    } catch (e) { /* ignore */ }
+  }
+  function catUnavailableError(msg) {
+    return String(msg || "").toLowerCase().indexOf("category is unavailable") >= 0;
+  }
+  /** 合并西柚返回。已确认的叶子类目不被后续接口里顺带出现的父级 categoryId 覆盖。 */
+  function mergeXiyouContext(ctx, data, extra) {
+    const locked = ctx.categoryIdConfirmed === true ? ctx.categoryId : undefined;
+    Object.assign(ctx, window.Mcp.harvestContext(data), extra || {});
+    if (locked !== undefined) ctx.categoryId = locked;
+  }
+  /** 搜索结果只采纳 pickCategory 选出的可用叶子。选不到就清空，不把 harvest 抓到的第一个 id 写进缓存。 */
+  function acceptSearchedCategory(ctx, data, form, extra) {
+    mergeXiyouContext(ctx, data, extra);
+    const picked = window.Mcp.pickCategory ? window.Mcp.pickCategory(data, form.category, readCatRejects(form)) : null;
+    if (picked && picked.categoryId) {
+      ctx.categoryId = picked.categoryId;
+      ctx.categoryIdConfirmed = true;
+    } else {
+      delete ctx.categoryId;
+      ctx.categoryIdConfirmed = false;
+    }
+    writeCatCtx(form, ctx);
+  }
+  /** 生成洞察资源被服务端判为类目不可用：记入拒绝表，清缓存，下次搜索换一个叶子。 */
+  function dropRejectedCategory(ctx, form) {
+    if (ctx.categoryId != null) addCatReject(form, ctx.categoryId);
+    clearCatCtx(form);
+    delete ctx.categoryId;
+    ctx.categoryIdConfirmed = false;
   }
 
   /* ---------------- 监控清单 ---------------- */
@@ -1175,7 +1236,11 @@
     };
     if (s.id === "s23") state.run.ctx.watchlist = watchlistFrom(form);
     const cached = readCatCtx(form);
-    if (cached && cached.categoryId) state.run.ctx.categoryId = cached.categoryId;
+    const rejected = new Set(readCatRejects(form));
+    if (cached && cached.categoryId && !rejected.has(String(cached.categoryId))) {
+      state.run.ctx.categoryId = cached.categoryId;
+      state.run.ctx.categoryIdConfirmed = true;
+    }
     if (window.Connections) state.run.steps.push(...window.Connections.plan(s.id).map(p=>({...p,status:"idle",args:null,data:null,error:null})));
     state.run.steps = expandKeywordSteps(state.run.steps, form);
     if (s.id === "s30") state.run.steps = expandReviewSteps(state.run.steps);
@@ -1230,12 +1295,8 @@
           maybeInjectListingByRelation(s, st, i);
         }
         if(provider==="xiyou"){
-          Object.assign(state.run.ctx,window.Mcp.harvestContext(r.data),r.context||{});
-          if (st.tool === "search_market_insight_categories" && window.Mcp.pickCategory) {
-            const picked = window.Mcp.pickCategory(r.data, form.category);
-            if (picked && picked.categoryId) state.run.ctx.categoryId = picked.categoryId;
-          }
-          writeCatCtx(form, state.run.ctx);
+          if (st.tool === "search_market_insight_categories") acceptSearchedCategory(state.run.ctx, r.data, form, r.context);
+          else mergeXiyouContext(state.run.ctx, r.data, r.context);
           if (s.id === "s3" && st.tool === "get_category_price_segment_trends") {
             const t = window.Analyst.topPriceType ? window.Analyst.topPriceType(st.data) : null;
             if (t) state.run.ctx.priceType = t;
@@ -1268,6 +1329,7 @@
       } catch (e) {
         st.status = "error";
         st.error = e.message || String(e);
+        if (st.tool === "generate_category_insight_resource" && catUnavailableError(st.error)) dropRejectedCategory(state.run.ctx, form);
         if ((st.provider || "xiyou") === "xiyou" && quotaHaltMessage(st.error)) {
           haltReason = "前置步骤额度不足，未调用（避免重复消耗额度）";
         }
@@ -1359,10 +1421,11 @@
             harvestListingRelations(st.data, state.run.ctx);
             maybeInjectListingByRelation(state.scene, st, state.run.steps.indexOf(st));
           }
-          if(provider==="xiyou"){Object.assign(state.run.ctx,window.Mcp.harvestContext(r.data),r.context||{});if(st.tool==="search_market_insight_categories"&&window.Mcp.pickCategory){const picked=window.Mcp.pickCategory(r.data,form.category);if(picked&&picked.categoryId)state.run.ctx.categoryId=picked.categoryId;}writeCatCtx(form,state.run.ctx);state.run.ctxSource=r.source?.id;}
+          if(provider==="xiyou"){if(st.tool==="search_market_insight_categories")acceptSearchedCategory(state.run.ctx,r.data,form,r.context);else mergeXiyouContext(state.run.ctx,r.data,r.context);state.run.ctxSource=r.source?.id;}
         } catch(e) {
           st.status="error";
           st.error=e.message||String(e);
+          if (st.tool === "generate_category_insight_resource" && catUnavailableError(st.error)) dropRejectedCategory(state.run.ctx, form);
           if ((st.provider || "xiyou") === "xiyou" && quotaHaltMessage(st.error)) {
             haltReason = "前置步骤额度不足，未调用（避免重复消耗额度）";
           }
@@ -1486,10 +1549,11 @@
       model: state.cfg.model || ''
     };
     save();
+    if (window.GrowthCore) window.GrowthCore.setConnection({ mode: state.cfg.mode, proxy: state.cfg.proxy, proxyToken: state.cfg.proxyToken });
     state.connected = false; state.serverTools = null; state.client = null;
     renderConnBar(); renderTools();
     $("#settings").hidden = true;
-    toast("设置已保存到本机浏览器");
+    toast("设置已保存，五个工具共用");
   }
 
   async function testConn() {
@@ -1641,6 +1705,20 @@
   renderLists();
   renderConnBar();
   bind();
+  if (window.GrowthCore) {
+    // 全局参数：与竞品分析、监控清单、关键词库、推品计划共享
+    window.GrowthCore.context.bind({
+      site: "#p-site", asin: "#p-asin", asins: "#p-asins", keyword: "#p-kw",
+      category: "#p-cat", brand: "#p-brand", dateFrom: "#p-from", dateTo: "#p-to"
+    }, { source: "console" });
+    // 别的页面（数据与连接）改了接入设置 → 断开重连
+    window.GrowthCore.on("connection", c => {
+      if (state.busy || state.analyzing) return;
+      Object.assign(state.cfg, c);
+      state.connected = false; state.serverTools = null; state.client = null;
+      renderConnBar();
+    });
+  }
   (async function bootstrap() {
     const restored = await restoreRun();
     if (!restored) selectScene("s7", true);

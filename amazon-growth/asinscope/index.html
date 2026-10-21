@@ -22,9 +22,10 @@
         <a href="/watchlist/">监控清单</a>
         <a href="/launch-plan/">推品计划</a>
         <a href="/keywords/">关键词库</a>
+        <a href="/settings/" class="app-global">数据与连接</a>
       </nav>
     </div>
-    <button type="button" class="conn off" id="connBar" title="连接组在调用台">
+    <button type="button" class="conn off" id="connBar" title="连接与密钥在「数据与连接」统一维护">
       <span class="dot"></span><span>网关未通</span>
     </button>
     <div class="mast-actions">
@@ -167,8 +168,14 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="../shared/growth-core.js?v=20261020-global1"></script>
 <script src="assets/mcp-client.js?v=20260912-ui1"></script>
 <script src="assets/analyze.js?v=20260914-country1"></script>
 <script src="assets/app.js?v=20260912-ui1"></script>
+<script>
+  /* 全局参数：站点 / 日期 / 主 ASIN 与其他工具共享；本页私有数据（权重、九章报告、任务历史）不进全局层 */
+  GrowthCore.carryParams();
+  GrowthCore.context.bind({ site: "#site", asin: "#asin", dateFrom: "#from", dateTo: "#to" }, { source: "asinscope" });
+</script>
 </body>
 </html>

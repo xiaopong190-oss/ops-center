@@ -338,3 +338,6 @@ body.report-open{overflow:hidden}
 .connection-row .btn{margin-left:4px}
 .plan-param{display:block;margin:8px 0}
 .plan-param small{display:block;color:var(--ink-3)}
+
+/* 全局层入口：数据与连接 */
+.app-switch a.app-global{margin-left:6px;box-shadow:inset 1px 0 0 var(--line-strong)}

@@ -1,7 +1,10 @@
 import { parseReportFiles } from './report-parser.js';
 
 const $ = (selector) => document.querySelector(selector);
-const apiBase = localStorage.getItem('rootlineApiBase') || '';
+// 接口地址与代理令牌来自全局层（数据与连接）；rootlineApiBase 仅作旧版本地调试覆盖
+const core = window.GrowthCore;
+const apiBase = (() => { try { return localStorage.getItem('rootlineApiBase') || ''; } catch (_) { return ''; } })() || (core ? core.connection().proxy : '');
+const apiHeaders = () => core ? core.headers() : { 'Content-Type': 'application/json' };
 const percent = (value) => value == null ? '—' : `${(value * 100).toFixed(1)}%`;
 const number = (value) => value == null ? '—' : Number(value).toLocaleString('en-US');
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -191,7 +194,7 @@ $('#explain').addEventListener('click', async () => {
   $('#ai-output').textContent = '正在调用 Cloudflare Workers AI，仅发送分析摘要与排名结果…';
   try {
     const response = await fetch(`${apiBase}/api/explain`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: apiHeaders(),
       body: JSON.stringify({ result: lastAnalysisResult })
     });
     const payload = await response.json();
@@ -226,7 +229,7 @@ $('#run').addEventListener('click', async () => {
       if (cached) { render(cached.payload, cached); return; }
     }
     const response = await fetch(`${apiBase}/api/analyze`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers:apiHeaders(),
       body:JSON.stringify(requestInput)
     });
     const payload = await response.json();

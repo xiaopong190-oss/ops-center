@@ -122,6 +122,25 @@ Vercel 直接导入这个仓库即可：静态文件走根目录，`api/*.js` �
 
 ---
 
+## 全局数据层（数据与连接）
+
+五个工具共用的数据统一放在 `shared/growth-core.js`（`window.GrowthCore`），管理页是 `/settings/`。
+
+| 层 | 内容 | 存放 |
+|---|---|---|
+| 全局 · 接入与鉴权 | 接入模式、代理地址、`PROXY_TOKEN` | `localStorage: growth-conn-v1`（首次自动从旧 `xiyou-console-v1.cfg` 迁移） |
+| 全局 · MCP 连接组 | 西柚 / 卖家精灵连接与执行顺序 | 代理服务端 `/api/connections`；页面只读，编辑仍用调用台连接组弹层（`/?panel=connections` 直达） |
+| 全局 · AI 模型 | 服务、模型偏好；本会话 API Key | `localStorage / sessionStorage: growth-ai-v1:<opsUser>` |
+| 全局 · 共享证据缓存 | 接口结果复用 | 代理服务端 `/api/evidence/*`，所有工具经 `GrowthCore.evidence()` 调用并自动带令牌 |
+| 全局 · 全局参数 | 站点、主 ASIN、对比 ASIN、关键词、类目、品牌、日期 | `localStorage: growth-context-v1`，跨标签页实时同步 |
+| 工具私有 | 场景运行记录、竞品权重、监控清单、推品方案、关键词导入与本地缓存 | 各工具原有存储，未改动 |
+
+各工具读取的全局参数：调用台全部；竞品分析 站点 / 主 ASIN / 日期；监控清单 站点 / 日期（窗口超过 31 天只在本页截短，不回写）；关键词库 站点；推品计划 新建方案时预填站点（已保存方案不覆盖）。
+
+规则：页面加载时全局值优先；只有用户真实输入才写回全局，页面脚本自己改值不回写；日期只接受完整的 `YYYY-MM-DD`。
+
+---
+
 ## License
 
 MIT。西柚数据的版权与使用条款以西柚官方为准。

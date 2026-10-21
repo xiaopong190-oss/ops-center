@@ -1,0 +1,34 @@
+/* 数据与连接 · 全局页（沿用 assets/style.css 的色板变量） */
+.gs-block{margin-top:18px}
+.gs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px;align-items:start}
+.gs-grid .gs-block{margin-top:18px}
+.gs-globals{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;padding:12px;background:var(--ink);border-radius:4px}
+.gs-global{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:4px;background:color-mix(in srgb,var(--surface) 10%,var(--ink));color:var(--bg);text-decoration:none;border:1px solid color-mix(in srgb,var(--surface) 20%,var(--ink))}
+.gs-global strong{font-size:13px}
+.gs-global span{font-size:11.5px;opacity:.8}
+.gs-global:hover,.gs-global:focus-visible{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.gs-tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:12px}
+.gs-tool{display:flex;flex-direction:column;gap:5px;padding:12px;border:1px solid var(--line);border-radius:4px;background:var(--surface)}
+.gs-tool a{color:var(--ink);text-decoration:none}
+.gs-tool a:hover{color:var(--accent)}
+.gs-cap{font-size:11px;color:var(--ink-3);margin-top:4px}
+.gs-chips{display:flex;flex-wrap:wrap;gap:4px}
+.gs-chips span{font-size:11px;padding:1px 7px;border-radius:3px;background:var(--ink);color:var(--bg)}
+.gs-tool ul{margin:0;padding-left:16px;font-size:12px;color:var(--ink-2);line-height:1.6}
+.gs-tool li::marker{color:var(--accent)}
+.gs-badge{font-size:11px;padding:2px 8px;border-radius:3px;background:var(--surface-2);color:var(--ink-2)}
+.gs-kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0 0 10px;font-size:13px}
+.gs-kv dt{color:var(--ink-3)}
+.gs-kv dd{margin:0;color:var(--ink)}
+.mono{font-family:var(--mono)}
+.gs-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:4px;margin-top:10px}
+.gs-table{width:100%;min-width:560px;border-collapse:collapse;font-size:13px}
+.gs-table th{text-align:left;font-weight:500;font-size:12px;color:var(--ink-2);background:var(--surface-2);padding:8px 12px}
+.gs-table td{padding:9px 12px;border-top:1px solid var(--line)}
+.gs-prov{font-size:11px;padding:1px 7px;border-radius:3px}
+.gs-prov-xiyou{background:var(--accent-soft);color:var(--accent)}
+.gs-prov-sellersprite{background:var(--rind-soft);color:var(--rind)}
+.gs-ok{color:var(--ok)}
+.gs-idle{color:var(--warn)}
+@media (max-width:760px){.gs-grid{grid-template-columns:1fr}}
+#mcpEdit{text-decoration:none}

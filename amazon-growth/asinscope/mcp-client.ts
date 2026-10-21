@@ -1,4 +1,5 @@
-/** 3210 ASINSCOPE 只通过本机证据网关取数，不保存 MCP Token。浏览器实际加载 assets/mcp-client.js。 */
+/** 3210 ASINSCOPE 只通过共享证据网关取数，不保存 MCP Token。浏览器实际加载 assets/mcp-client.js，
+ *  它委托给全局层 shared/growth-core.js 的 GrowthCore.evidence("asinscope")，自动带代理令牌。 */
 export type Provider = "xiyou" | "sellersprite";
 export type EvidenceCall = {
   provider?: Provider;

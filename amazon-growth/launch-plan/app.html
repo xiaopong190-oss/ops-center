@@ -1175,6 +1175,7 @@
 </div>
 
 <!-- The host owns URL normalization; do not redirect extensionless asset URLs. -->
+<script src="/shared/growth-core.js?v=20261020-global1"></script>
 <script src="/launch-plan/budget-math.cjs"></script>
 <script>
 const STEPS = [
@@ -3649,6 +3650,15 @@ window.addEventListener("pagehide", function(){
 });
 setInterval(function(){ applyPlaybookUser(readPlaybookUser()); }, 2000);
 loadAll();
+</script>
+<script>
+  /* 全局层：新建推品方案时，站点为空则用全局站点预填；已保存方案的站点不被覆盖。方案本身是推品计划私有数据 */
+  (function () {
+    var btn = document.getElementById("newPlanBtn");
+    function prefill() { var el = document.getElementById("caseSite"); var g = window.GrowthCore && GrowthCore.context.get(); if (el && g && g.site && !el.value.trim()) el.value = g.site; }
+    if (btn) btn.addEventListener("click", function () { setTimeout(prefill, 0); });
+    prefill();
+  })();
 </script>
 </body>
 </html>

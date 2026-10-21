@@ -632,13 +632,14 @@
     return out;
   }
   /** 按用户品类词选最贴叶子类目，避免命中“Electric Kettles & Smart Drinkware”这类父级。 */
-  function pickCategory(data, query) {
+  function pickCategory(data, query, exclude) {
     const target = normName(query);
     const rows = collectCategories(data, [], 0);
     const seen = new Set();
+    const banned = new Set((exclude || []).map(String));
     const scored = [];
     rows.forEach(r => {
-      if (!r.categoryId || seen.has(r.categoryId) || r.available === false) return;
+      if (!r.categoryId || seen.has(r.categoryId) || r.available === false || banned.has(String(r.categoryId))) return;
       seen.add(r.categoryId);
       const name = readableName(r.categoryName);
       const n = normName(name);

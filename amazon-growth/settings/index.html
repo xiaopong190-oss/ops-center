@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数据与连接 · 增长中心</title>
+<meta name="description" content="五个工具共用的全局数据层：接入与鉴权、MCP 连接组、AI 模型、共享证据缓存、全局参数。">
+<script>
+  (function () {
+    var p = new URLSearchParams(location.search);
+    window.OPS_IS_SUPER = p.get("opsRole") === "super";
+    document.documentElement.setAttribute("data-ops-role", window.OPS_IS_SUPER ? "super" : "operator");
+    try { var t = localStorage.getItem("xiyou-theme"); if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+  })();
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍊</text></svg>">
+<link rel="stylesheet" href="../assets/style.css?v=20260915-required1">
+<link rel="stylesheet" href="settings.css?v=20261020-global1">
+</head>
+<body>
+<a class="skip" href="#workspace">跳到工作区</a>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="brand">
+      <div class="eyebrow">Xiyou MCP · Amazon Ops · 全局</div>
+      <h1>数据与连接</h1>
+      <nav class="app-switch" aria-label="工具切换">
+        <a href="/">运营调用台</a>
+        <a href="/asinscope/">完整竞品分析</a>
+        <a href="/watchlist/">监控清单</a>
+        <a href="/launch-plan/">推品计划</a>
+        <a href="/keywords/">关键词库</a>
+        <a href="/settings/" class="on app-global" aria-current="page">数据与连接</a>
+      </nav>
+    </div>
+    <button type="button" class="conn off" id="connBar"><span class="dot"></span><span>检测中…</span></button>
+    <div class="mast-actions">
+      <button class="btn mini" id="themeBtn" type="button" title="切换浅色 / 深色 / 跟随系统">自动</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="workspace">
+  <section class="usage-guide" aria-labelledby="usage-title">
+    <h2 id="usage-title">配一次，五个工具共用</h2>
+    <p><b>全局层：</b>接入与鉴权、MCP 连接组、AI 模型、共享证据缓存、全局参数只在这里维护，工具页只读取，不再各存一份。</p>
+    <p><b>工具层：</b>场景运行记录、竞品权重、监控清单、推品方案、关键词导入文件仍留在各自工具里，互不影响。</p>
+    <p><b>权限：</b>接入与连接组仅超级管理员可改；运营可看状态、改自己的 AI 偏好和全局参数。</p>
+  </section>
+
+  <!-- 数据分层 -->
+  <section class="panel gs-block" aria-labelledby="layer-h">
+    <div class="panel-hd"><h2 id="layer-h">数据分层</h2><span class="hint">深色 = 全局共享 · 列表 = 本工具私有</span></div>
+    <div class="panel-bd">
+      <div class="gs-globals" id="globalsRow"></div>
+      <div class="gs-tools" id="toolsRow"></div>
+    </div>
+  </section>
+
+  <div class="gs-grid">
+    <!-- 接入与鉴权 -->
+    <section class="panel gs-block" id="sec-conn" aria-labelledby="conn-h">
+      <div class="panel-hd"><h2 id="conn-h">接入与鉴权</h2><span class="gs-badge" id="connRole"></span></div>
+      <div class="panel-bd">
+        <div class="field">
+          <label for="g-mode">接入模式</label>
+          <select id="g-mode">
+            <option value="proxy">经代理（推荐，密钥留在服务端）</option>
+            <option value="direct">浏览器直连 MCP 端点（仅本机自用）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="g-proxy">代理地址</label>
+          <input id="g-proxy" autocomplete="off" placeholder="http://localhost:8787 或 https://your-proxy.vercel.app">
+        </div>
+        <div class="field">
+          <label for="g-token">代理访问令牌 PROXY_TOKEN</label>
+          <input id="g-token" type="password" autocomplete="off" placeholder="本地未配置可留空">
+        </div>
+        <p class="hint">直连模式的 MCP 端点与密钥仍在调用台「设置」中填写，只对调用台生效；竞品分析、监控清单、关键词库始终经代理取数。</p>
+        <div class="modal-actions">
+          <button class="btn" id="g-test" type="button">测试连接</button>
+          <button class="btn btn-primary" id="g-save" type="button">保存，五个工具共用</button>
+        </div>
+        <p class="s-result" id="g-result" role="status"></p>
+      </div>
+    </section>
+
+    <!-- AI 模型 -->
+    <section class="panel gs-block" id="sec-ai" aria-labelledby="ai-h">
+      <div class="panel-hd"><h2 id="ai-h">AI 模型 API</h2><span class="gs-badge">本人偏好</span></div>
+      <div class="panel-bd">
+        <dl class="gs-kv" id="aiSummary"></dl>
+        <p class="hint">偏好存本机，API Key 只留在本次浏览器会话；服务端已配置 Key 时可留空。调用台报告与关键词库 AI 解读共用这份设置。</p>
+        <div class="modal-actions">
+          <button class="btn btn-primary" id="llmSettings" type="button">修改 AI 设置</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- MCP 连接组 -->
+  <section class="panel gs-block" id="sec-mcp" aria-labelledby="mcp-h">
+    <div class="panel-hd">
+      <h2 id="mcp-h">MCP 连接组 · 执行顺序</h2>
+      <div class="panel-tools">
+        <button class="btn mini" id="mcpReload" type="button">刷新</button>
+        <a class="btn mini btn-primary gs-super" id="mcpEdit" href="/?panel=connections" data-carry>编辑连接组</a>
+      </div>
+    </div>
+    <div class="panel-bd">
+      <p class="note">同平台按顺序接力；额度不足或限流时切换下一条；超时不会自动重发。连接与密钥保存在代理服务端，页面只显示主机名。</p>
+      <div class="gs-table-wrap"><table class="gs-table" id="mcpTable">
+        <thead><tr><th>顺序</th><th>平台</th><th>名称</th><th>主机</th><th>状态</th></tr></thead>
+        <tbody><tr><td colspan="5" class="hint">读取中…</td></tr></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <div class="gs-grid">
+    <!-- 共享证据缓存 -->
+    <section class="panel gs-block" id="sec-cache" aria-labelledby="cache-h">
+      <div class="panel-hd"><h2 id="cache-h">共享证据缓存</h2><button class="btn mini" id="cacheReload" type="button">刷新</button></div>
+      <div class="panel-bd">
+        <p class="hint">同一接口、同一组实参，任一工具取过一次，其他工具直接复用，不重复扣额度。键 = 平台 + 接口 + 实参。</p>
+        <dl class="gs-kv" id="cacheStats"><dt>状态</dt><dd>读取中…</dd></dl>
+      </div>
+    </section>
+
+    <!-- 全局参数 -->
+    <section class="panel gs-block" id="sec-ctx" aria-labelledby="ctx-h">
+      <div class="panel-hd"><h2 id="ctx-h">全局参数</h2><button class="btn mini" id="ctxClear" type="button">清空</button></div>
+      <div class="panel-bd">
+        <p class="hint" id="ctxMeta">任一工具里改的站点、ASIN、日期等会实时同步到这里，也会同步到其他打开的工具。</p>
+        <div class="row2">
+          <div class="field"><label for="c-site">站点</label><select id="c-site"></select></div>
+          <div class="field"><label for="c-asin">主 ASIN</label><input id="c-asin" placeholder="B0XXXXXXXX" autocomplete="off"></div>
+        </div>
+        <div class="field"><label for="c-asins">对比 ASIN（逗号分隔，≤20）</label><input id="c-asins" autocomplete="off"></div>
+        <div class="field"><label for="c-kw">关键词（逗号或换行分隔，≤8）</label><input id="c-kw" autocomplete="off"></div>
+        <div class="row2">
+          <div class="field"><label for="c-cat">类目 / 品类词</label><input id="c-cat" autocomplete="off"></div>
+          <div class="field"><label for="c-brand">品牌</label><input id="c-brand" autocomplete="off"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label for="c-from">起始日期</label><input id="c-from" type="date"></div>
+          <div class="field"><label for="c-to">结束日期</label><input id="c-to" type="date"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap"><p>MCP 密钥只存在代理服务端环境变量或连接组里；本页保存的是代理地址、访问令牌与本人 AI 偏好。数据版权与准确性归西柚 / 卖家精灵。</p></div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="../shared/growth-core.js?v=20261020-global1"></script>
+<script src="../assets/llm-settings.js?v=20261020-global1"></script>
+<script src="settings.js?v=20261020-global1"></script>
+</body>
+</html>

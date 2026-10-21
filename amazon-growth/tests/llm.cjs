@@ -37,8 +37,9 @@ const fs=require('node:fs'),vm=require('node:vm');
   const element=id=>{if(!elements.has(id))elements.set(id,{value:'',focus(){},addEventListener(event,fn){this[event]=fn;}});return elements.get(id);};
   const memory=()=>{const data={};return {getItem:k=>data[k],setItem:(k,v)=>{data[k]=v;}};};
   const local=memory(),session=memory();
-  const ui={window:{},location:{search:'?opsUser=test-user',origin:'https://app.example'},URLSearchParams,localStorage:local,sessionStorage:session,
+  const ui={window:{addEventListener(){}},location:{search:'?opsUser=test-user',origin:'https://app.example',protocol:'https:',href:'https://app.example/?opsUser=test-user'},URL,URLSearchParams,localStorage:local,sessionStorage:session,
     document:{createElement:()=>({querySelector:element,addEventListener(){}}),body:{appendChild(){}},getElementById:element,addEventListener(){}}};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../shared/growth-core.js'),'utf8'),ui);
   vm.runInNewContext(fs.readFileSync(require.resolve('../assets/llm-settings.js'),'utf8'),ui);
   element('llmSettings').click();element('#ai-provider').value='gemini';element('#ai-provider').onchange();
   element('#ai-key').value='gemini-secret';element('#ai-model').value='gemini-custom';

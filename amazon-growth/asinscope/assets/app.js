@@ -186,13 +186,13 @@
   }
   function pingGateway() {
     if (!window.AsinScopeMcp || !window.AsinScopeMcp.stats) {
-      renderConn(false, "网关未通", "连接组在调用台");
+      renderConn(false, "网关未通", "连接在「数据与连接」");
       return;
     }
     window.AsinScopeMcp.stats().then(s => {
-      renderConn(true, "证据库 " + (s.size || 0), "新鲜 " + (s.fresh || 0) + (s.stale ? " · 过期 " + s.stale : "") + " · 连接组在调用台");
+      renderConn(true, "证据库 " + (s.size || 0), "新鲜 " + (s.fresh || 0) + (s.stale ? " · 过期 " + s.stale : "") + " · 连接在「数据与连接」");
     }).catch(() => {
-      renderConn(false, "网关未通", "连接组在调用台");
+      renderConn(false, "网关未通", "连接在「数据与连接」");
     });
   }
   async function refreshCost() {
@@ -376,7 +376,7 @@
   $("#runBtn").addEventListener("click", () => run(state.cacheOnly));
   $("#onlyCacheBtn").addEventListener("click", () => { state.cacheOnly = !state.cacheOnly; $("#onlyCacheBtn").textContent = state.cacheOnly ? "仅用已有数据 · 开" : "仅用已有数据"; flushSession(); toast(state.cacheOnly ? "不会发起新的 MCP 调用" : "将按缺失项取数"); });
   $("#themeBtn").addEventListener("click", cycleTheme);
-  $("#connBar").addEventListener("click", () => toast("连接组在运营调用台设置。本页只读共享证据网关。"));
+  $("#connBar").addEventListener("click", () => toast("连接、密钥与 AI 在「数据与连接」统一设置。本页只读共享证据网关。"));
   $("#clearBtn").addEventListener("click", () => {
     if (state.running) return;
     $("#asin").value = "";

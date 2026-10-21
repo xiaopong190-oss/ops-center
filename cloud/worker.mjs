@@ -2,6 +2,7 @@ import callerModule from '../amazon-growth/gateway/caller.js';
 import llmModule from '../amazon-growth/gateway/llm.cjs';
 import evidenceModule from '../amazon-growth/gateway/evidence.js';
 import {analyzeRequest} from './keyword/server/services/analyze.js';
+import {followup} from './followup.mjs';
 
 const enc = new TextEncoder();
 const origins = new Set(['https://xiaopong190-oss.github.io']);
@@ -10,7 +11,6 @@ const fail = (status, message) => { throw Object.assign(new Error(message), {sta
 const json = (data, status=200) => Response.json(data, {status, headers:{'Cache-Control':'no-store'}});
 const hex = bytes => [...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('');
 const hash = async s => hex(await crypto.subtle.digest('SHA-256',enc.encode(s)));
-const hashBytes = async bytes => hex(await crypto.subtle.digest('SHA-256',bytes));
 async function passwordHash(password, salt=crypto.randomUUID()) {
   const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);
   return salt+':'+hex(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:enc.encode(salt),iterations:100000},key,256));
@@ -18,42 +18,6 @@ async function passwordHash(password, salt=crypto.randomUUID()) {
 async function matches(value, stored) { return !!stored && await passwordHash(String(value),stored.split(':')[0])===stored; }
 async function get(env,key) { const row=await env.DB.prepare('SELECT value FROM records WHERE key=?').bind(key).first();return row?JSON.parse(row.value):null; }
 async function put(env,key,value) { await env.DB.prepare('INSERT INTO records(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(value)).run(); }
-const FOLLOWUP_KEY='_new-product-followup',FOLLOWUP_CHUNK_BYTES=512*1024;
-async function readFollowup(env) {
-  const manifest=await get(env,FOLLOWUP_KEY);
-  if(!manifest)return {revision:0,data:{products:[],events:[],trackerV1:{schema:1,docs:{}}},updatedBy:'',updatedAt:''};
-  if(manifest.storage!=='followup-shards-v1'||!Array.isArray(manifest.parts)||!manifest.parts.length)fail(500,'新品跟进索引损坏，请联系管理员恢复历史版本');
-  const results=await env.DB.batch(manifest.parts.map(key=>env.DB.prepare('SELECT value FROM records WHERE key=?').bind(key)));
-  const chunks=results.map((result,index)=>{
-    const row=result.results&&result.results[0];if(!row)fail(500,'新品跟进分片缺失：'+(index+1));
-    return Buffer.from(JSON.parse(row.value),'base64');
-  });
-  const bytes=Buffer.concat(chunks);
-  if(bytes.length!==manifest.bytes)fail(500,'新品跟进数据长度校验失败');
-  if(manifest.sha256&&await hashBytes(bytes)!==manifest.sha256)fail(500,'新品跟进数据校验失败');
-  try{return JSON.parse(bytes.toString('utf8'));}catch{fail(500,'新品跟进数据无法解析');}
-}
-async function writeFollowup(env,current,input,user) {
-  if(!Number.isInteger(input.revision)||!input.data||typeof input.data!=='object'||Array.isArray(input.data))fail(400,'新品跟进数据格式错误');
-  if(input.revision!==current.revision)fail(409,'其它人员已更新，请刷新后重试');
-  const snapshot={revision:current.revision+1,data:input.data,updatedBy:user.name,updatedAt:new Date().toISOString()};
-  const bytes=Buffer.from(JSON.stringify(snapshot),'utf8');
-  if(bytes.length>2500000)fail(413,'新品跟进数据过大，请联系管理员归档历史');
-  const version=crypto.randomUUID(),parts=[],statements=[];
-  for(let offset=0,index=0;offset<bytes.length;offset+=FOLLOWUP_CHUNK_BYTES,index++){
-    const key=FOLLOWUP_KEY+':version:'+version+':'+index;parts.push(key);
-    statements.push(env.DB.prepare('INSERT INTO records(key,value) VALUES(?,?)').bind(key,JSON.stringify(bytes.subarray(offset,offset+FOLLOWUP_CHUNK_BYTES).toString('base64'))));
-  }
-  const manifest={storage:'followup-shards-v1',revision:snapshot.revision,version,parts,bytes:bytes.length,sha256:await hashBytes(bytes)};
-  const previous=await get(env,FOLLOWUP_KEY);
-  if(previous)statements.push(env.DB.prepare('INSERT INTO records(key,value) VALUES(?,?)').bind(FOLLOWUP_KEY+':history:'+current.revision+':'+version,JSON.stringify(previous)));
-  statements.push(previous
-    ?env.DB.prepare('UPDATE records SET value=? WHERE key=? AND value=?').bind(JSON.stringify(manifest),FOLLOWUP_KEY,JSON.stringify(previous))
-    :env.DB.prepare('INSERT OR IGNORE INTO records(key,value) VALUES(?,?)').bind(FOLLOWUP_KEY,JSON.stringify(manifest)));
-  const results=await env.DB.batch(statements),updated=results[results.length-1];
-  if(!updated.meta||updated.meta.changes!==1)fail(409,'其它人员已更新，请刷新后重试');
-  return snapshot;
-}
 async function body(req) { const text=await req.text();if(text.length>3000000)fail(413,'请求过大');try{return JSON.parse(text);}catch{fail(400,'无效 JSON');} }
 async function quota(env,key,max,seconds) {
   const bucket=key+':'+Math.floor(Date.now()/1000/seconds);
@@ -160,17 +124,7 @@ async function handle(req,env) {
     await env.DB.prepare('UPDATE sessions SET version=? WHERE token=?').bind(s.codeHash,await hash(req.headers.get('Authorization').slice(7))).run();
     return json({ok:true});
   }
-  if(p==='/ops-api/followup'){
-    const u=await session(req,env);
-    if(req.method==='GET')return json(await readFollowup(env));
-    if(req.method==='POST'){
-      if(u.canEdit===false)fail(403,'当前账号没有修改权限');
-      await quota(env,'followup:'+u.id,120,60);
-      const current=await readFollowup(env);
-      return json(await writeFollowup(env,current,await body(req),u));
-    }
-    fail(405,'方法不允许');
-  }
+  if(p==='/ops-api/followup'||p==='/ops-api/followup/upload')return followup(req,env,await session(req,env));
   if(p.startsWith('/ops-api/gist/')){
     const u=await session(req,env,true);
     if(req.method==='GET'){

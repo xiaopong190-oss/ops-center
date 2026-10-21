@@ -96,13 +96,6 @@ export function AmazonGrowthPanel() {
   });
   return (
     <div style={{ height: "calc(100vh - 112px)", minHeight: 640, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>亚马逊增长中心</div>
-          <div style={{ fontSize: 11, color: "var(--tm)", marginTop: 3 }}>运营调用、竞品分析、监控清单、推品计划与关键词库</div>
-        </div>
-        <span className="ops-badge">{isSuper ? "超级管理员 · 可配置连接" : "运营账号 · 仅业务调用"}</span>
-      </div>
       <iframe
         src={`${window.OpsCloud?.base || 'http://127.0.0.1:8791'}/?${params}`}
         title="亚马逊增长中心"

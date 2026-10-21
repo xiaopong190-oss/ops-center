@@ -250,7 +250,7 @@ function BrandLogo({ size = 28 }) {
 }
 
 const APP_ORG_NAME = "泓森拓创科技";
-const APP_BUILD = "v2026.10.20.2";
+const APP_BUILD = "v2026.10.20.3";
 const THEME_KEY = "ops-center-theme";
 const AUTH_SESSION_KEY = "ops-center-auth-v6";
 const AUTH_ROLE_SUPER = "super";

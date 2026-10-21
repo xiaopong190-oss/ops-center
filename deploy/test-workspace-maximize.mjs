@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),Babel=require('@babel/standalone');
 const source=fs.readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
 const start=source.indexOf('function AppShell('),end=source.indexOf('export default function App()',start),shell=source.slice(start,end);
-let stateIndex=0,entered=0,exited=0;
+let stateIndex=0,entered=0,exited=0,mounted=false;
 const states=[],cleanups=[],rootListeners={},frameListeners={};
 const target=listeners=>({addEventListener:(name,fn)=>{listeners[name]=fn;},removeEventListener:name=>{delete listeners[name];}});
 const frameDoc=target(frameListeners);
@@ -15,15 +15,17 @@ const document={...target(rootListeners),querySelectorAll:()=>[{contentDocument:
 };
 const mocks={
   React:{createElement:(type,props,...children)=>({type,props:props||{},children})},document,
+  window:target({}),setInterval:()=>1,clearInterval:()=>{},loadGlobalConfig:()=>({moduleVisibility:{}}),
+  fetchGlobalConfigFromCloud:async()=>{},
   useCurrentUser:()=>({auth:'super'}),AUTH_ROLE_SUPER:'super',useConfirmLeave:()=>async()=>true,
   TABS:[],TAB_TITLES:{'new-product-followup':'新品跟进'},APP_BUILD:'test',
-  useState:initial=>{const i=stateIndex++;if(!states[i])states[i]=[initial,value=>{states[i][0]=typeof value==='function'?value(states[i][0]):value;}];return states[i];},
-  useEffect:fn=>{if(!cleanups.length)cleanups.push(fn());},
+  useState:initial=>{const i=stateIndex++;if(!states[i])states[i]=[typeof initial==='function'?initial():initial,value=>{states[i][0]=typeof value==='function'?value(states[i][0]):value;}];return states[i];},
+  useEffect:fn=>{if(!mounted)cleanups.push(fn());},
 };
 for(const match of shell.matchAll(/<([A-Z][A-Za-z0-9_]*)/g))mocks[match[1]]=()=>null;
 const context=vm.createContext(mocks);
 vm.runInContext(Babel.transform(shell,{presets:['react']}).code+'\nthis.panel=AppShell',context);
-const render=()=>{stateIndex=0;return context.panel({tab:'new-product-followup',dark:false});};
+const render=()=>{stateIndex=0;const tree=context.panel({tab:'new-product-followup',dark:false});mounted=true;return tree;};
 const walk=node=>node&&typeof node==='object'?[node,...node.children.flat(Infinity).flatMap(walk)]:[];
 let tree=render(),nodes=walk(tree);
 await nodes.find(node=>node.props['aria-label']==='最大化中间工作区').props.onClick();

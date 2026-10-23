@@ -37,7 +37,7 @@
 
  const identityCache=new Map();let identityRevision=0;
  async function backgroundIdentity(original){
-  const revision=++identityRevision;if(detectedCompany?.name)return;
+  const revision=++identityRevision;if(window.LogisticsSpace?.isDemo||detectedCompany?.name)return;
   const token=localStorage.getItem('ops-cloud-session-v1');if(!token)return;
   const directory=Companies.list().map(c=>({id:c.id,name:c.name,aliases:c.aliases.slice(0,30)}));const cacheKey=JSON.stringify([original.fileName,directory]);
   if(identityCache.has(cacheKey))return applyIdentity(identityCache.get(cacheKey),original,revision);

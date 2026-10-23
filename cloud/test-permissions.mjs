@@ -70,5 +70,7 @@ assert.equal((await call("/api/logistics-ai/status")).status,401);
 assert.equal((await call("/api/logistics-ai/status",null,one)).data.configured,false);
 assert.equal((await call("/api/logistics-ai/recognize",{consent:false},one)).status,400);
 
+assert.equal((await call("/api/logistics-backup")).status,401);
+assert.equal((await call("/api/logistics-backup",null,one)).data.revision,0);
 sql.close();
 

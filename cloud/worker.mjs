@@ -1,3 +1,4 @@
+import {logisticsBackup} from './logistics-backup.mjs';
 import {validateInput as validateLogisticsInput,recognize as recognizeLogistics} from './logistics-ai.mjs';
 import callerModule from '../amazon-growth/gateway/caller.js';
 import {followup} from './followup.mjs';
@@ -158,6 +159,7 @@ async function handle(req,env) {
     }
     fail(405,'方法不允许');
   }
+  if(p==='/api/logistics-backup'||p==='/api/logistics-backup/upload'){const u=await session(req,env);if(req.method==='POST')await quota(env,'logistics-backup:'+u.id,3000,86400);return logisticsBackup(req,env,u);}
   if(p==='/api/logistics-ai/status'){
     const u=await session(req,env);return json({configured:!!env.DEEPSEEK_API_KEY,model:env.DEEPSEEK_MODEL||'deepseek-flash',canConfigure:u.auth==='super'});
   }

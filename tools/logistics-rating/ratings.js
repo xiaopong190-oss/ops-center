@@ -1,7 +1,7 @@
 (() => {
  'use strict';const $=id=>document.getElementById(id),KEY='logistics-completed-ratings-v1';let records=[],snapshot=localStorage.getItem(KEY)||'[]',locked=false;
  try{const x=JSON.parse(localStorage.getItem(KEY)||'[]');Domain.ratings(x,today());records=x;}catch(e){$('message').textContent='历史记录读取失败，本页已锁定保存，避免覆盖原数据。';$('save').disabled=true;locked=true;}
- function saveRecords(next){if(locked)throw Error('存储异常，已锁定写入');Domain.ratings(next,today());if((localStorage.getItem(KEY)||'[]')!==snapshot)throw Error('其他页面已修改记录，请刷新后重试');let raw=JSON.stringify(next);localStorage.setItem(KEY,raw);snapshot=raw;}
+ function saveRecords(next){if(locked)throw Error('存储异常，已锁定写入');Domain.ratings(next,today());if((localStorage.getItem(KEY)||'[]')!==snapshot)throw Error('其他页面已修改记录，请刷新后重试');let raw=JSON.stringify(next);localStorage.setItem(KEY,raw);snapshot=raw;window.CloudBackup?.queue();}
  const clean=s=>s.normalize('NFKC').trim().replace(/\s+/g,' '),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  function today(){let d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
  const grade=n=>n>=90?'S':n>=80?'A':n>=70?'B':n>=60?'C':'D';

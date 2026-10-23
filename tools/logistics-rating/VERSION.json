@@ -1,5 +1,5 @@
 {
-  "version": "0.2.7-beta.30",
+  "version": "0.2.7-beta.31",
   "releaseDate": "2026-10-23",
   "status": "local-pilot",
   "storageSchema": 1,
@@ -36,6 +36,8 @@
     "cached-company-display-names",
     "first-seen-warehouse-review",
     "warehouse-source-cell-edit",
-    "warehouse-manual-confirmation"
+    "warehouse-manual-confirmation",
+    "multi-row-rate-layout",
+    "regional-quotes-separate-storage"
   ]
 }

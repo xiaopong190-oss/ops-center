@@ -2,9 +2,9 @@
   "app.js": "0a96d18c4e616a9187c6fb18ef4f9aacf68ffea73cbc31698ba19a73b92b69d0",
   "boundaries.html": "1bb17ea896e722fec2513a0d598d51bb8cff059f49aa2aecf9398faa6c7de410",
   "BOUNDARIES.md": "8bf806cdb05fb716ddf97f48fbe535c342fd17f0124137868aab9e22f8d3c392",
-  "CHANGELOG.md": "343364bbef39e1a33f83483e9b2a38067a3d4833c7073d85268aa356e4fde28a",
+  "CHANGELOG.md": "3b1ae4ac81ef1a94824c3ba7e31629df8e4c38d064b6b5f82e5a217a4f8680b0",
   "cloud-backup.js": "8a69dd003d020da753e72b259f9e4b3ea04905abc2f790f2270c7fea1374d783",
-  "CLOUD-SAVE.md": "1b4f83ddb42d0b07bbdc9bb5756fecffc0003c1aa7a33a96da232c9467e6d584",
+  "CLOUD-SAVE.md": "c414863a5a838fe104b48dd55d579cbd8f55ae19da50cac8cc7b0bb29bab2d59",
   "companies.js": "220231540edc65655e7a6c8e0c01dd1ed0c5044a06b32250b8e2488067ce1fc8",
   "DATA-SPACES.md": "c02844cc96c729676705dfcfd4800dc719076ccda6ec5d2b0d2e89140c3cc890",
   "data.js": "a928d6b89170e1f947663800a36a2e87a222b75d0d92e29aac3cc5381a74417f",
@@ -50,7 +50,7 @@
   "TEST-REPORT-beta21.md": "84eb06e22caa14121f503ffef85e64d0428d2e0e97cabd0c83f2384e888ae8fb",
   "TEST-REPORT-beta23.md": "22c4c6b36d15b38bb8cefd85ae5b55de1b8a6cc726aba7a58b15880b3276e983",
   "TEST-REPORT.md": "234ba5e20d02093448d97dadd0947e4eebc3277e10f87d088517c260c2dffd28",
-  "test-results.tap": "efc8cf170a8a51d92c4433df1f45145108fbbf4d76b59ee7c19e4a174249dcc7",
+  "test-results.tap": "7c5aec9000b60c77c70ca919a0ef2c1861f40b06aec0c1baa81e571bb1ce77b8",
   "tests/boundaries.test.cjs": "c880cfb6571ff4f20418951faa2627f11bbcbb92e3e18d7e9d7566b3dbc6a157",
   "tests/browser/qa-capacity.html": "802c324b6a57534129241db4cae1c380b6390318966940f51ed7e3efea53f72f",
   "tests/browser/qa-company.html": "8d6b66b9d7b06f6c7b05c030bfaa5abe0ef2f09c2ead114c7bce141df8b04dfb",
@@ -69,5 +69,6 @@
   "vendor/jszip.min.js": "acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e",
   "VERSION.json": "8ffebd89d57d6f17700a92573f7061f5e2a46d22775fb15e06f5af8b3241a6e0",
   "workbook-preview.js": "7ae01086bcac0afbbabc22624a9710af6139d142fdad276171ec6c4e9c5e289e",
-  "package.json": "f408823a81559125432b21cc6cfc5bcbbedfa3af4c648196f75b976fe4be1b36"
+  "package.json": "f408823a81559125432b21cc6cfc5bcbbedfa3af4c648196f75b976fe4be1b36",
+  "TEST-REPORT-beta27.md": "8edc73526495f3c321f933ed57bd955f3b652ea93888eb5737adb54308f81adb"
 }

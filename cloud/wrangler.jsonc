@@ -1,6 +1,7 @@
 {
   "name": "ops-center-cloud",
   "keep_vars": true,
+  "triggers": {"crons": ["0 9 * * *"]},
   "main": "worker.mjs",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],

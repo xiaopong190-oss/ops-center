@@ -1,3 +1,4 @@
+import {cleanupLogistics} from './logistics-cleanup.mjs';
 import {logisticsBackup} from './logistics-backup.mjs';
 import {validateInput as validateLogisticsInput,recognize as recognizeLogistics} from './logistics-ai.mjs';
 import callerModule from '../amazon-growth/gateway/caller.js';
@@ -232,7 +233,7 @@ async function handle(req,env) {
   const asset=await env.ASSETS.fetch(req);
   return asset;
 }
-export default {async fetch(req,env){
+export default {async scheduled(event,env,ctx){ctx.waitUntil(cleanupLogistics(env).then(result=>console.log('logistics_cleanup',JSON.stringify(result))));},async fetch(req,env){
   const origin=req.headers.get('Origin'),own=new URL(req.url).origin;
   if(origin&&!origins.has(origin)&&origin!==own)return json({error:'来源不允许'},403);
   let r;

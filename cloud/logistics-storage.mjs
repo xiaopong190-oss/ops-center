@@ -28,13 +28,13 @@ async function readFollowup(env) {
 async function writeFollowup(env,previous,next) {
   const bytes=Buffer.from(JSON.stringify(next),'utf8');
   if(bytes.length>MAX_BYTES)fail(413,'工作台已超过16MB容量保护上限，请导出归档后联系管理员扩容；原数据未改变');
-  const version=crypto.randomUUID(),parts=[];
+  const version=Date.now()+'-'+crypto.randomUUID(),parts=[];
   // Immutable data parts and the previous root are written before the only live pointer changes.
   for(let offset=0;offset<bytes.length;offset+=PART_BYTES){
     const key=FOLLOWUP_KEY+':version:'+version+':'+parts.length;parts.push(key);
     await insert(env,key,bytes.subarray(offset,offset+PART_BYTES).toString('base64'));
   }
-  const pointer=JSON.stringify({storage:'followup-shards-v1',revision:next.revision,version,parts,bytes:bytes.length,sha256:await sha256(bytes)});
+  const pointer=JSON.stringify({storage:'followup-shards-v1',createdAt:Date.now(),revision:next.revision,version,parts,bytes:bytes.length,sha256:await sha256(bytes)});
   if(previous.raw)await insert(env,FOLLOWUP_KEY+':history:'+previous.snapshot.revision+':'+version,previous.raw);
   const result=previous.raw
     ? await env.DB.prepare("UPDATE records SET value=? WHERE key=? AND json_extract(value,'$.revision')=?").bind(pointer,FOLLOWUP_KEY,previous.snapshot.revision).run()

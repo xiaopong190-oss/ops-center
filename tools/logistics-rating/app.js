@@ -583,8 +583,8 @@
   }
 
   // ---------- 外壳 ----------
-  function quoteFrame(view){return '<iframe id="module-frame" title="报价清洗与同仓比价" src="quotes.html?view='+view+'&v=0.2.7-beta.29" style="width:100%;height:1600px;border:0;border-radius:12px"></iframe>';}
-  var ROUTES = { import: ['数据导入', function(){return quoteFrame('import');}], channels: ['报价对比', function(){return quoteFrame('compare');}], warehouses: ['国家仓库模板', function(){return quoteFrame('warehouses');}], bills: ['月度对账', function(){return '<iframe id="module-frame" title="月度对账" src="monthly.html?v=0.2.7-beta.29" style="width:100%;height:1100px;border:0"></iframe>';}], score: ['合作评级', function () { return '<iframe id="module-frame" title="月度合作评级" src="ratings.html?v=0.2.7-beta.29" style="width:100%;height:1550px;border:0;border-radius:12px"></iframe>'; }] };
+  function quoteFrame(view){return '<iframe id="module-frame" title="报价清洗与同仓比价" src="quotes.html?view='+view+'&v=0.2.7-beta.30" style="width:100%;height:1600px;border:0;border-radius:12px"></iframe>';}
+  var ROUTES = { import: ['数据导入', function(){return quoteFrame('import');}], channels: ['报价对比', function(){return quoteFrame('compare');}], warehouses: ['国家仓库模板', function(){return quoteFrame('warehouses');}], bills: ['月度对账', function(){return '<iframe id="module-frame" title="月度对账" src="monthly.html?v=0.2.7-beta.30" style="width:100%;height:1100px;border:0"></iframe>';}], score: ['合作评级', function () { return '<iframe id="module-frame" title="月度合作评级" src="ratings.html?v=0.2.7-beta.30" style="width:100%;height:1550px;border:0;border-radius:12px"></iframe>'; }] };
   function route() { var r = (location.hash || '').replace('#/', ''); if(r==='compare')r='channels';return ROUTES[r] ? r : 'import'; }
   function render() {
     var r = route();
@@ -593,7 +593,7 @@
     var header = '<header class="top"><div class="brand"><span class="brand-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v9H3z"></path><path d="M14 10h4l3 3v3h-7z"></path><circle cx="7" cy="18" r="1.6"></circle><circle cx="17" cy="18" r="1.6"></circle></svg></span>物流商评级中心</div>' +
       '<nav class="nav" aria-label="主导航">' + Object.keys(ROUTES).map(function (k) { return '<a href="#/' + k + '" class="' + (k === r ? 'on' : '') + '">' + ROUTES[k][0] + '</a>'; }).join('') + '</nav>' +
       '<div class="top-right"><span class="pill-demo">' + (window.LogisticsSpace?.isDemo?'演示空间 · 独立数据':'真实业务空间') + '</span><details style="position:relative"><summary style="cursor:pointer;color:#617086">演示数据</summary><div style="position:absolute;right:0;top:28px;z-index:50;width:200px;padding:12px;background:white;box-shadow:0 4px 20px #0002;border-radius:10px"><button data-a="demoSuite" class="btn">进入/重置整套Demo</button><button data-a="realSpace" class="btn">返回真实业务</button><button data-a="clearSuite" class="btn" style="margin-top:8px">清除演示数据</button></div></details></div></header>';
-    document.getElementById('app').innerHTML = header + '<main style="padding:0;max-width:none">' + ROUTES[r][1]() + '</main>' + '<footer class="app-version">v0.2.7-beta.29 · 本地试用版 · <a href="boundaries.html">使用说明</a></footer>' + (toast ? '<div class="toast" role="status">' + toast + '</div>' : '');
+    document.getElementById('app').innerHTML = header + '<main style="padding:0;max-width:none">' + ROUTES[r][1]() + '</main>' + '<footer class="app-version">v0.2.7-beta.30 · 本地试用版 · <a href="boundaries.html">使用说明</a></footer>' + (toast ? '<div class="toast" role="status">' + toast + '</div>' : '');
     document.title = ROUTES[r][0] + ' · 物流商评级中心';
   }
 

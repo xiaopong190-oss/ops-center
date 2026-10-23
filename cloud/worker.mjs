@@ -1,7 +1,7 @@
 import {logisticsGithub} from './logistics-github.mjs';
 import {cleanupLogistics} from './logistics-cleanup.mjs';
 import {logisticsBackup} from './logistics-backup.mjs';
-import {validateInput as validateLogisticsInput,recognize as recognizeLogistics} from './logistics-ai.mjs';
+import {validateInput as validateLogisticsInput,recognize as recognizeLogistics,recognizeWarehousesCached} from './logistics-ai.mjs';
 import callerModule from '../amazon-growth/gateway/caller.js';
 import {followup} from './followup.mjs';
 import evidenceModule from '../amazon-growth/gateway/evidence.js';
@@ -168,8 +168,9 @@ async function handle(req,env) {
   }
   if(p==='/api/logistics-ai/recognize'){
     const u=await session(req,env);if(req.method!=='POST')fail(405,'方法不允许');
-    const input=validateLogisticsInput(await body(req));await quota(env,'logistics-ai:'+u.id,20,86400);
-    return json(await recognizeLogistics(input,env));
+    const input=validateLogisticsInput(await body(req));
+    if(input.purpose==='warehouse-identity')return json(await recognizeWarehousesCached(input,env,()=>quota(env,'logistics-warehouse-ai:'+u.id,20,86400)));
+    await quota(env,'logistics-ai:'+u.id,20,86400);return json(await recognizeLogistics(input,env));
   }
   if(p.startsWith('/api/')){
     const u=await session(req,env);

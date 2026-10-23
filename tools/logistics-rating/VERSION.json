@@ -1,6 +1,6 @@
 {
-  "version": "0.2.7-beta.29",
-  "releaseDate": "2026-10-22",
+  "version": "0.2.7-beta.30",
+  "releaseDate": "2026-10-23",
   "status": "local-pilot",
   "storageSchema": 1,
   "testCommand": "node --test tests/*.test.cjs",
@@ -33,6 +33,9 @@
     "cross-tab-web-lock-writes",
     "quote-csv-roundtrip-with-time-basis",
     "validated-legacy-migration",
-    "cached-company-display-names"
+    "cached-company-display-names",
+    "first-seen-warehouse-review",
+    "warehouse-source-cell-edit",
+    "warehouse-manual-confirmation"
   ]
 }

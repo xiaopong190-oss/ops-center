@@ -25,3 +25,15 @@ test('10000票评级按完成月汇总，待评不计零分且与独立加权账
 test('主壳公司订阅更新不得重建iframe丢失待保存预览',()=>{let e=env(),html='',renders=0;Object.defineProperty(e.el('app'),'innerHTML',{get:()=>html,set:v=>{html=v;renders++;}});e.context.sessionStorage={getItem:()=>null,setItem(){}};e.context.location.hash='#/import';e.context.scrollTo=()=>{};e.run('data.js');e.run('app.js');let initial=renders,c=e.context.Companies.imported('新公司');e.context.Companies.rename(c.id,'公司更名');e.events.storage.forEach(fn=>fn({key:'logistics-company-directory-v1'}));assert.equal(renders,initial,'公司变更只能更新显示，不能销毁模块会话');});
 
 test("仓库默认展开并直接显示八列表头筛选排序入口",()=>{const e=quotes({[KEY]:JSON.stringify({quotes:[row()],templates:[]})});const html=e.el("comparison").innerHTML;assert.match(html,/<details open class="warehouse-group">/);assert.equal((html.match(/筛选\/排序 ▾/g)||[]).length,8);});
+
+test("报价入库明细的物流商等六列表头均提供筛选排序并绑定处理器",()=>{const e=quotes({[KEY]:JSON.stringify({quotes:[row()],templates:[]})});const html=e.el("quoteDiagnosticsBody").innerHTML;assert.match(html,/data-column-kind="diagnostics"/);assert.equal((html.match(/data-sort-col=/g)||[]).length,6);assert.match(html,/aria-label="物流商筛选与排序"/);assert.equal(e.el("quoteDiagnosticsBody").onclick,e.el("comparison").onclick);});
+
+test('入库明细数量按数值排序且物流商多选可过滤与清除',()=>{
+ const e=quotes(),rows=[['乙','10'],['甲','2'],['丙','30']].map((values,i)=>({dataset:{originalOrder:i},cells:values.map(text=>({textContent:text})),hidden:false}));
+ const table={dataset:{columnKind:'diagnostics'},tBodies:[{rows,append(...sorted){this.rows=sorted;}}],querySelectorAll(){return [];}};
+ let selected=[];e.el('columnChoices').querySelectorAll=()=>selected;e.el('columnDialog').style={};e.el('columnDialog').showModal=()=>{};e.el('columnDialog').close=()=>{};e.context.innerHeight=800;
+ const open=(col,label)=>e.el('quoteDiagnosticsBody').onclick({target:{closest:()=>({dataset:{sortCol:String(col),columnName:label},closest:()=>table})}});
+ open(1,'已入库');selected=[{dataset:{choice:'0'}},{dataset:{choice:'1'}},{dataset:{choice:'2'}}];e.el('columnOrder').value='asc';e.el('columnApply').onclick();assert.deepEqual(table.tBodies[0].rows.map(r=>r.cells[1].textContent),['2','10','30']);
+ open(0,'物流商');let i=e.el('columnChoices').choiceValues.indexOf('甲');selected=[{dataset:{choice:String(i)}}];e.el('columnOrder').value='';e.el('columnApply').onclick();assert.deepEqual(table.tBodies[0].rows.filter(r=>!r.hidden).map(r=>r.cells[0].textContent),['甲']);
+ e.el('columnReset').onclick();assert.equal(table.tBodies[0].rows.filter(r=>!r.hidden).length,3);
+});

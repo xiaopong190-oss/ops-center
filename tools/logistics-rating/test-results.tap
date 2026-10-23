@@ -35,739 +35,763 @@ TAP version 13
 # Subtest: 有效闰年、跨月、跨年日期
 ok 1 - 有效闰年、跨月、跨年日期
   ---
-  duration_ms: 9.5965
+  duration_ms: 10.2606
   type: 'test'
   ...
 # Subtest: 拒绝无效日期 2026-02-29
 ok 2 - 拒绝无效日期 2026-02-29
   ---
-  duration_ms: 2.1966
+  duration_ms: 0.4839
   type: 'test'
   ...
 # Subtest: 拒绝无效日期 2026-04-31
 ok 3 - 拒绝无效日期 2026-04-31
   ---
-  duration_ms: 0.3191
+  duration_ms: 0.1135
   type: 'test'
   ...
 # Subtest: 拒绝无效日期 2026-00-01
 ok 4 - 拒绝无效日期 2026-00-01
   ---
-  duration_ms: 0.1757
+  duration_ms: 1.758
   type: 'test'
   ...
 # Subtest: 拒绝无效日期 2026-13-01
 ok 5 - 拒绝无效日期 2026-13-01
   ---
-  duration_ms: 0.2655
+  duration_ms: 0.4023
   type: 'test'
   ...
 # Subtest: 拒绝无效日期 2026-01-00
 ok 6 - 拒绝无效日期 2026-01-00
   ---
-  duration_ms: 0.2222
+  duration_ms: 0.3077
   type: 'test'
   ...
 # Subtest: 拒绝无效日期 1999-12-31
 ok 7 - 拒绝无效日期 1999-12-31
   ---
-  duration_ms: 0.2077
+  duration_ms: 0.2679
   type: 'test'
   ...
 # Subtest: 拒绝无效日期 2101-01-01
 ok 8 - 拒绝无效日期 2101-01-01
   ---
-  duration_ms: 0.182
+  duration_ms: 0.1416
   type: 'test'
   ...
 # Subtest: 拒绝无效日期 
 ok 9 - 拒绝无效日期 
   ---
-  duration_ms: 0.1937
+  duration_ms: 0.1454
   type: 'test'
   ...
 # Subtest: 拒绝无效日期 <script>
 ok 10 - 拒绝无效日期 <script>
   ---
-  duration_ms: 0.3427
+  duration_ms: 0.2126
   type: 'test'
   ...
 # Subtest: 金额按分精确计算与最大值
 ok 11 - 金额按分精确计算与最大值
   ---
-  duration_ms: 0.8588
+  duration_ms: 0.7331
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 
 ok 12 - 拒绝异常金额 
   ---
-  duration_ms: 0.2867
+  duration_ms: 0.2154
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 NaN
 ok 13 - 拒绝异常金额 NaN
   ---
-  duration_ms: 0.1256
+  duration_ms: 0.0738
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 Infinity
 ok 14 - 拒绝异常金额 Infinity
   ---
-  duration_ms: 0.0724
+  duration_ms: 0.0752
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 1e9
 ok 15 - 拒绝异常金额 1e9
   ---
-  duration_ms: 0.0582
+  duration_ms: 0.058
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 1.001
 ok 16 - 拒绝异常金额 1.001
   ---
-  duration_ms: 0.0807
+  duration_ms: 0.0661
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 1,2
 ok 17 - 拒绝异常金额 1,2
   ---
-  duration_ms: 0.0641
+  duration_ms: 0.0535
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 1,23,456
 ok 18 - 拒绝异常金额 1,23,456
   ---
-  duration_ms: 0.0611
+  duration_ms: 0.0516
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 1000000000.01
 ok 19 - 拒绝异常金额 1000000000.01
   ---
-  duration_ms: 0.0986
+  duration_ms: 0.0708
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 =SUM(A1)
 ok 20 - 拒绝异常金额 =SUM(A1)
   ---
-  duration_ms: 0.0674
+  duration_ms: 0.0639
   type: 'test'
   ...
 # Subtest: 拒绝异常金额 0x10
 ok 21 - 拒绝异常金额 0x10
   ---
-  duration_ms: 0.0663
+  duration_ms: 0.0594
   type: 'test'
   ...
 # Subtest: 评分0到10每0.5一步均有效
 ok 22 - 评分0到10每0.5一步均有效
   ---
-  duration_ms: 0.421
+  duration_ms: 0.2298
   type: 'test'
   ...
 # Subtest: 拒绝异常评分 
 ok 23 - 拒绝异常评分 
   ---
-  duration_ms: 0.3177
+  duration_ms: 0.1657
   type: 'test'
   ...
 # Subtest: 拒绝异常评分 null
 ok 24 - 拒绝异常评分 null
   ---
-  duration_ms: 0.1371
+  duration_ms: 0.066
   type: 'test'
   ...
 # Subtest: 拒绝异常评分 -0.5
 ok 25 - 拒绝异常评分 -0.5
   ---
-  duration_ms: 0.0819
+  duration_ms: 0.0786
   type: 'test'
   ...
 # Subtest: 拒绝异常评分 10.5
 ok 26 - 拒绝异常评分 10.5
   ---
-  duration_ms: 0.053
+  duration_ms: 0.0588
   type: 'test'
   ...
 # Subtest: 拒绝异常评分 7.1
 ok 27 - 拒绝异常评分 7.1
   ---
-  duration_ms: 0.0974
+  duration_ms: 0.0778
   type: 'test'
   ...
 # Subtest: 拒绝异常评分 NaN
 ok 28 - 拒绝异常评分 NaN
   ---
-  duration_ms: 0.1018
+  duration_ms: 0.0564
   type: 'test'
   ...
 # Subtest: 拒绝异常评分 Infinity
 ok 29 - 拒绝异常评分 Infinity
   ---
-  duration_ms: 0.0939
+  duration_ms: 0.0553
   type: 'test'
   ...
 # Subtest: 拒绝异常评分 true
 ok 30 - 拒绝异常评分 true
   ---
-  duration_ms: 0.0782
+  duration_ms: 0.0686
   type: 'test'
   ...
 # Subtest: 完成月及未来日期边界
 ok 31 - 完成月及未来日期边界
   ---
-  duration_ms: 0.6639
+  duration_ms: 0.708
   type: 'test'
   ...
 # Subtest: 同公司单号不区分大小写去重；不同公司允许
 ok 32 - 同公司单号不区分大小写去重；不同公司允许
   ---
-  duration_ms: 0.4492
+  duration_ms: 0.4544
   type: 'test'
   ...
 # Subtest: 字数和记录总量极限
 ok 33 - 字数和记录总量极限
   ---
-  duration_ms: 0.4348
+  duration_ms: 0.4961
   type: 'test'
   ...
 # Subtest: 公司改名稳定ID、别名往返及导入资格
 ok 34 - 公司改名稳定ID、别名往返及导入资格
   ---
-  duration_ms: 3.6756
+  duration_ms: 3.7749
   type: 'test'
   ...
 # Subtest: 恶意名称安全渲染数据层不执行；prototype别名不污染对象
 ok 35 - 恶意名称安全渲染数据层不执行；prototype别名不污染对象
   ---
-  duration_ms: 2.9769
+  duration_ms: 2.1875
   type: 'test'
   ...
 # Subtest: 损坏历史记录不会在公司迁移时被覆盖
 ok 36 - 损坏历史记录不会在公司迁移时被覆盖
   ---
-  duration_ms: 3.1199
+  duration_ms: 2.7927
   type: 'test'
   ...
 # Subtest: 评级损坏存储锁定写入且保留告警
 ok 37 - 评级损坏存储锁定写入且保留告警
   ---
-  duration_ms: 6.0765
+  duration_ms: 3.4928
   type: 'test'
   ...
 # Subtest: 评级提交、重复拦截、月份归档、待评价不计零分
 ok 38 - 评级提交、重复拦截、月份归档、待评价不计零分
   ---
-  duration_ms: 7.5909
+  duration_ms: 9.8506
   type: 'test'
   ...
 # Subtest: 评级拒绝伪造非导入公司和空运营
 ok 39 - 评级拒绝伪造非导入公司和空运营
   ---
-  duration_ms: 4.0373
+  duration_ms: 4.1336
   type: 'test'
   ...
 # Subtest: 评级配额失败及旧标签页覆盖被阻止
 ok 40 - 评级配额失败及旧标签页覆盖被阻止
   ---
-  duration_ms: 3.8196
+  duration_ms: 4.3549
   type: 'test'
   ...
 # Subtest: 演示数据幂等，清除不影响真实记录
 ok 41 - 演示数据幂等，清除不影响真实记录
   ---
-  duration_ms: 28.0439
+  duration_ms: 25.8342
   type: 'test'
   ...
 # Subtest: CSV引号、逗号、跨行、BOM、重复去重、分币种汇总
 ok 42 - CSV引号、逗号、跨行、BOM、重复去重、分币种汇总
   ---
-  duration_ms: 9.3351
+  duration_ms: 8.4723
   type: 'test'
   ...
 # Subtest: CSV异常行隔离、HTML转义、零金额与负数
 ok 43 - CSV异常行隔离、HTML转义、零金额与负数
   ---
-  duration_ms: 4.0975
+  duration_ms: 3.3204
   type: 'test'
   ...
 # Subtest: CSV文件大小、行数、后缀、重复列、缺列及坏引号
 ok 44 - CSV文件大小、行数、后缀、重复列、缺列及坏引号
   ---
-  duration_ms: 7.1002
+  duration_ms: 4.8789
   type: 'test'
   ...
 # Subtest: 账单异常存储禁止覆盖
 ok 45 - 账单异常存储禁止覆盖
   ---
-  duration_ms: 4.6283
+  duration_ms: 4.87
   type: 'test'
   ...
 # Subtest: 账单双击提交幂等、旧快照写入阻止
 ok 46 - 账单双击提交幂等、旧快照写入阻止
   ---
-  duration_ms: 6.1118
+  duration_ms: 6.4834
   type: 'test'
   ...
 # Subtest: 极限2000行导入与10000评级校验
 ok 47 - 极限2000行导入与10000评级校验
   ---
-  duration_ms: 174.2511
+  duration_ms: 171.2973
   type: 'test'
   ...
 # Subtest: 跨标签页公司改名即时读取及通知
 ok 48 - 跨标签页公司改名即时读取及通知
   ---
-  duration_ms: 3.6449
+  duration_ms: 4.0405
   type: 'test'
   ...
 # Subtest: 损坏公司档案不被覆盖
 ok 49 - 损坏公司档案不被覆盖
   ---
-  duration_ms: 2.1848
+  duration_ms: 3.0137
   type: 'test'
   ...
 # Subtest: CSV不规范引号拒绝
 ok 50 - CSV不规范引号拒绝
   ---
-  duration_ms: 3.305
+  duration_ms: 4.4425
   type: 'test'
   ...
 # Subtest: 完整应用各路由渲染与稀疏报价不产生负节省
 ok 51 - 完整应用各路由渲染与稀疏报价不产生负节省
   ---
-  duration_ms: 9.6061
+  duration_ms: 10.71
   type: 'test'
   ...
 # Subtest: 报价清洗国家代码、仓库格式、渠道别名
 ok 52 - 报价清洗国家代码、仓库格式、渠道别名
   ---
-  duration_ms: 1.1116
+  duration_ms: 0.8405
   type: 'test'
   ...
 # Subtest: 必须同国家同渠道同AMZ仓库才同组
 ok 53 - 必须同国家同渠道同AMZ仓库才同组
   ---
-  duration_ms: 1.0961
+  duration_ms: 0.6527
   type: 'test'
   ...
 # Subtest: 不同币种单位计费条件不混比；配合度不进入报价
 ok 54 - 不同币种单位计费条件不混比；配合度不进入报价
   ---
-  duration_ms: 0.923
+  duration_ms: 0.4573
   type: 'test'
   ...
 # Subtest: 不同仓库正常保存并按国家归档模板
 ok 55 - 不同仓库正常保存并按国家归档模板
   ---
-  duration_ms: 1.1524
+  duration_ms: 1.3382
   type: 'test'
   ...
 # Subtest: 报价重复不增加公司仓库模板
 ok 56 - 报价重复不增加公司仓库模板
   ---
-  duration_ms: 0.4747
+  duration_ms: 0.7122
   type: 'test'
   ...
 # Subtest: 30天边界清理仅影响报价，保留仓库模板
 ok 57 - 30天边界清理仅影响报价，保留仓库模板
   ---
-  duration_ms: 0.6569
+  duration_ms: 0.6386
   type: 'test'
   ...
 # Subtest: 过期和未来报价不保存
 ok 58 - 过期和未来报价不保存
   ---
-  duration_ms: 0.5648
+  duration_ms: 0.8905
   type: 'test'
   ...
 # Subtest: 比价取每家公司最新报价且同日冲突排除最优评选
 ok 59 - 比价取每家公司最新报价且同日冲突排除最优评选
   ---
-  duration_ms: 0.4011
+  duration_ms: 0.7259
   type: 'test'
   ...
 # Subtest: 无效仓库不擅自归并，承诺天数上下界校验
 ok 60 - 无效仓库不擅自归并，承诺天数上下界校验
   ---
-  duration_ms: 1.0726
+  duration_ms: 1.1831
   type: 'test'
   ...
 # Subtest: 报价真实CSV导入、全局公司关联和同仓最低价显示
 ok 61 - 报价真实CSV导入、全局公司关联和同仓最低价显示
   ---
-  duration_ms: 14.8062
+  duration_ms: 15.8747
   type: 'test'
   ...
 # Subtest: 仓库格式模糊归一：全半角空白分隔符与标签
 ok 62 - 仓库格式模糊归一：全半角空白分隔符与标签
   ---
-  duration_ms: 0.4074
+  duration_ms: 0.632
   type: 'test'
   ...
 # Subtest: 重复格式只存一条报价一条仓库但保留原始写法
 ok 63 - 重复格式只存一条报价一条仓库但保留原始写法
   ---
-  duration_ms: 0.6573
+  duration_ms: 1.0876
   type: 'test'
   ...
 # Subtest: 真实不同编号及不同国家绝不模糊合并
 ok 64 - 真实不同编号及不同国家绝不模糊合并
   ---
-  duration_ms: 0.5722
+  duration_ms: 0.9265
   type: 'test'
   ...
 # Subtest: 疑似0/O笔误仅给同国家候选，不修改数据
 ok 65 - 疑似0/O笔误仅给同国家候选，不修改数据
   ---
-  duration_ms: 1.5972
+  duration_ms: 2.2409
   type: 'test'
   ...
 # Subtest: 一格多个不同仓库不自动选一个
 ok 66 - 一格多个不同仓库不自动选一个
   ---
-  duration_ms: 0.3421
+  duration_ms: 0.7241
   type: 'test'
   ...
 # Subtest: 已有格式不同仓库记录读取归并且保留模板来源
 ok 67 - 已有格式不同仓库记录读取归并且保留模板来源
   ---
-  duration_ms: 0.4969
+  duration_ms: 0.9618
   type: 'test'
   ...
 # Subtest: 人工纠错同步关联报价且不影响其他仓
 ok 68 - 人工纠错同步关联报价且不影响其他仓
   ---
-  duration_ms: 1.1271
+  duration_ms: 1.1481
   type: 'test'
   ...
 # Subtest: 人工纠错改为已有仓自动去重并保留原写法
 ok 69 - 人工纠错改为已有仓自动去重并保留原写法
   ---
-  duration_ms: 0.7521
+  duration_ms: 0.7495
   type: 'test'
   ...
 # Subtest: 人工纠错拒绝无变化、无效编号与不存在来源
 ok 70 - 人工纠错拒绝无变化、无效编号与不存在来源
   ---
-  duration_ms: 0.5641
+  duration_ms: 0.759
   type: 'test'
   ...
 # Subtest: 整套Demo贯穿报价仓库账单和评级，重复载入幂等
 ok 71 - 整套Demo贯穿报价仓库账单和评级，重复载入幂等
   ---
-  duration_ms: 9.7171
+  duration_ms: 10.4889
   type: 'test'
   ...
 # Subtest: 清除整套Demo保留真实报价账单和评级与真实仓库
 ok 72 - 清除整套Demo保留真实报价账单和评级与真实仓库
   ---
-  duration_ms: 7.7762
+  duration_ms: 8.7313
   type: 'test'
   ...
 # Subtest: Demo拒绝覆盖异常账单
 ok 73 - Demo拒绝覆盖异常账单
   ---
-  duration_ms: 5.5202
+  duration_ms: 5.0031
   type: 'test'
   ...
 # Subtest: 同组报价等级分开计算价格时效并按50/50排序
 ok 74 - 同组报价等级分开计算价格时效并按50/50排序
   ---
-  duration_ms: 0.9657
+  duration_ms: 1.0025
   type: 'test'
   ...
 # Subtest: 单家和冲突报价不授予报价等级
 ok 75 - 单家和冲突报价不授予报价等级
   ---
-  duration_ms: 0.7689
+  duration_ms: 0.7584
   type: 'test'
   ...
 # Subtest: 跨仓或计费口径禁止同组评级
 ok 76 - 跨仓或计费口径禁止同组评级
   ---
-  duration_ms: 0.5231
+  duration_ms: 0.7046
   type: 'test'
   ...
 # Subtest: 报价完全相同并列S级，不强分高低
 ok 77 - 报价完全相同并列S级，不强分高低
   ---
-  duration_ms: 0.3809
+  duration_ms: 0.4522
   type: 'test'
   ...
 # Subtest: 报价仅限当前周，周一边界和跨年正确
 ok 78 - 报价仅限当前周，周一边界和跨年正确
   ---
-  duration_ms: 0.4947
+  duration_ms: 0.4279
   type: 'test'
   ...
 # Subtest: 旧周不补位、未来日期不参与、周一当天纳入
 ok 79 - 旧周不补位、未来日期不参与、周一当天纳入
   ---
-  duration_ms: 0.6133
+  duration_ms: 0.5579
   type: 'test'
   ...
 # Subtest: Excel预览拒绝非ZIP、过大文件
 ok 80 - Excel预览拒绝非ZIP、过大文件
   ---
-  duration_ms: 0.5597
+  duration_ms: 0.5052
   type: 'test'
   ...
 # Subtest: Excel预览在展开前拦截压缩膨胀与加密文件
 ok 81 - Excel预览在展开前拦截压缩膨胀与加密文件
   ---
-  duration_ms: 0.4102
+  duration_ms: 0.3495
   type: 'test'
   ...
 # Subtest: 工作表建议分类与列编号只影响预览
 ok 82 - 工作表建议分类与列编号只影响预览
   ---
-  duration_ms: 0.6912
+  duration_ms: 0.4495
   type: 'test'
   ...
 # Subtest: 复杂报价默认选表所用分类排除目录介绍和费用说明
 ok 83 - 复杂报价默认选表所用分类排除目录介绍和费用说明
   ---
-  duration_ms: 0.2413
+  duration_ms: 0.1611
   type: 'test'
   ...
 # Subtest: GitHub提交回执返回后才显示入库成功
 ok 84 - GitHub提交回执返回后才显示入库成功
   ---
-  duration_ms: 42.3135
+  duration_ms: 40.7421
   type: 'test'
   ...
 # Subtest: GitHub失败保留待提交提示，不显示入库成功
 ok 85 - GitHub失败保留待提交提示，不显示入库成功
   ---
-  duration_ms: 4.5285
+  duration_ms: 5.6585
   type: 'test'
   ...
 # Subtest: 演示空间不提交GitHub
 ok 86 - 演示空间不提交GitHub
   ---
-  duration_ms: 2.1621
+  duration_ms: 3.5623
+  type: 'test'
+  ...
+# Subtest: 国家限制渠道和仓库，旧渠道失效后自动清空
+ok 87 - 国家限制渠道和仓库，旧渠道失效后自动清空
+  ---
+  duration_ms: 2.3802
+  type: 'test'
+  ...
+# Subtest: 五级联动遵循服务商地区国家渠道仓库，支持退回全部
+ok 88 - 五级联动遵循服务商地区国家渠道仓库，支持退回全部
+  ---
+  duration_ms: 0.5646
+  type: 'test'
+  ...
+# Subtest: 固定种子3000轮极限切换：选项完整、无旧残留、输入不变
+ok 89 - 固定种子3000轮极限切换：选项完整、无旧残留、输入不变
+  ---
+  duration_ms: 100.2932
+  type: 'test'
+  ...
+# Subtest: 页面change处理器联动国家渠道仓库且报价表仅当前选择
+ok 90 - 页面change处理器联动国家渠道仓库且报价表仅当前选择
+  ---
+  duration_ms: 44.8057
   type: 'test'
   ...
 # Subtest: 新浏览器从GitHub加载共享数据而非空本地库
-ok 87 - 新浏览器从GitHub加载共享数据而非空本地库
+ok 91 - 新浏览器从GitHub加载共享数据而非空本地库
   ---
-  duration_ms: 21.0157
+  duration_ms: 15.1878
   type: 'test'
   ...
 # Subtest: 已有未提交数据遇到不同GitHub数据时不静默覆盖
-ok 88 - 已有未提交数据遇到不同GitHub数据时不静默覆盖
+ok 92 - 已有未提交数据遇到不同GitHub数据时不静默覆盖
   ---
-  duration_ms: 4.0958
+  duration_ms: 5.2716
   type: 'test'
   ...
 # Subtest: 提交使用加载时SHA，成功保存GitHub回执，加载失败不允许写入
-ok 89 - 提交使用加载时SHA，成功保存GitHub回执，加载失败不允许写入
+ok 93 - 提交使用加载时SHA，成功保存GitHub回执，加载失败不允许写入
   ---
-  duration_ms: 8.6812
+  duration_ms: 8.4407
   type: 'test'
   ...
 # Subtest: 所有页面先读取GitHub数据再初始化公司与业务模块
-ok 90 - 所有页面先读取GitHub数据再初始化公司与业务模块
+ok 94 - 所有页面先读取GitHub数据再初始化公司与业务模块
   ---
-  duration_ms: 27.6779
+  duration_ms: 25.7531
   type: 'test'
   ...
 # Subtest: 正常识别不调用后台模型
-ok 91 - 正常识别不调用后台模型
+ok 95 - 正常识别不调用后台模型
   ---
-  duration_ms: 4.4153
+  duration_ms: 5.0768
   type: 'test'
   ...
 # Subtest: 异常只发送文件名和已有档案，并匹配已有公司
-ok 92 - 异常只发送文件名和已有档案，并匹配已有公司
+ok 96 - 异常只发送文件名和已有档案，并匹配已有公司
   ---
-  duration_ms: 5.8706
+  duration_ms: 4.4414
   type: 'test'
   ...
 # Subtest: 人工已选供应商时不覆盖，低置信度不自动采用
-ok 93 - 人工已选供应商时不覆盖，低置信度不自动采用
+ok 97 - 人工已选供应商时不覆盖，低置信度不自动采用
   ---
-  duration_ms: 2.721
+  duration_ms: 2.2745
   type: 'test'
   ...
 # Subtest: 矩阵多仓拆分、指定档位、原始单元格与真实日期
-ok 94 - 矩阵多仓拆分、指定档位、原始单元格与真实日期
+ok 98 - 矩阵多仓拆分、指定档位、原始单元格与真实日期
   ---
-  duration_ms: 11.1582
+  duration_ms: 12.1706
   type: 'test'
   ...
 # Subtest: 缺日期和计费条件仍禁止导入
-ok 95 - 缺日期和计费条件仍禁止导入
+ok 99 - 缺日期和计费条件仍禁止导入
   ---
-  duration_ms: 1.0187
+  duration_ms: 0.7565
   type: 'test'
   ...
 # Subtest: 缩写不展开，明确纯字母仓号可拆分
-ok 96 - 缩写不展开，明确纯字母仓号可拆分
+ok 100 - 缩写不展开，明确纯字母仓号可拆分
   ---
-  duration_ms: 1.8301
+  duration_ms: 1.6095
   type: 'test'
   ...
 # Subtest: 不从缺年份文件名补造日期
-ok 97 - 不从缺年份文件名补造日期
+ok 101 - 不从缺年份文件名补造日期
   ---
-  duration_ms: 0.5164
+  duration_ms: 0.4296
   type: 'test'
   ...
 # Subtest: 公司从表内字段抓取并匹配全局别名
-ok 98 - 公司从表内字段抓取并匹配全局别名
+ok 102 - 公司从表内字段抓取并匹配全局别名
   ---
-  duration_ms: 1.3705
+  duration_ms: 1.4163
   type: 'test'
   ...
 # Subtest: 文件名公司识别、多公司冲突不自动选择
-ok 99 - 文件名公司识别、多公司冲突不自动选择
+ok 103 - 文件名公司识别、多公司冲突不自动选择
   ---
-  duration_ms: 0.5607
+  duration_ms: 0.6509
   type: 'test'
   ...
 # Subtest: 默认不含税且不覆盖明确包税
-ok 100 - 默认不含税且不覆盖明确包税
+ok 104 - 默认不含税且不覆盖明确包税
   ---
-  duration_ms: 0.4078
+  duration_ms: 1.0798
   type: 'test'
   ...
 # Subtest: 渠道从档位自动带入，国家只识别明确国家不把欧洲当国家
-ok 101 - 渠道从档位自动带入，国家只识别明确国家不把欧洲当国家
+ok 105 - 渠道从档位自动带入，国家只识别明确国家不把欧洲当国家
   ---
-  duration_ms: 0.5023
+  duration_ms: 1.2856
   type: 'test'
   ...
 # Subtest: 缺时效可入库且只比较价格
-ok 102 - 缺时效可入库且只比较价格
+ok 106 - 缺时效可入库且只比较价格
   ---
-  duration_ms: 1.7663
+  duration_ms: 2.3794
   type: 'test'
   ...
 # Subtest: 各行独立时效，不复用前行或人工统一时效
-ok 103 - 各行独立时效，不复用前行或人工统一时效
+ok 107 - 各行独立时效，不复用前行或人工统一时效
   ---
-  duration_ms: 1.3236
+  duration_ms: 1.4207
   type: 'test'
   ...
 # Subtest: 缺时效经过CSV往返和保存后保持空值而非0或null文本
-ok 104 - 缺时效经过CSV往返和保存后保持空值而非0或null文本
+ok 108 - 缺时效经过CSV往返和保存后保持空值而非0或null文本
   ---
-  duration_ms: 15.7099
+  duration_ms: 16.806
   type: 'test'
   ...
 # Subtest: 用户提供两组混合多仓完整拆分并入库去重
-ok 105 - 用户提供两组混合多仓完整拆分并入库去重
+ok 109 - 用户提供两组混合多仓完整拆分并入库去重
   ---
-  duration_ms: 4.3874
+  duration_ms: 5.7071
   type: 'test'
   ...
 # Subtest: 海外仓自动忽略，与AMZ报价及待核对问题分开
-ok 106 - 海外仓自动忽略，与AMZ报价及待核对问题分开
+ok 110 - 海外仓自动忽略，与AMZ报价及待核对问题分开
   ---
-  duration_ms: 0.9793
+  duration_ms: 1.7011
   type: 'test'
   ...
 # Subtest: 整本清洗遍历各表所有档位、跳过参考资料并保留来源
-ok 107 - 整本清洗遍历各表所有档位、跳过参考资料并保留来源
+ok 111 - 整本清洗遍历各表所有档位、跳过参考资料并保留来源
   ---
-  duration_ms: 1.2015
+  duration_ms: 2.7761
   type: 'test'
   ...
 # Subtest: 地区国家两级归类
-ok 108 - 地区国家两级归类
+ok 112 - 地区国家两级归类
   ---
-  duration_ms: 0.261
+  duration_ms: 0.5406
   type: 'test'
   ...
 # Subtest: 同公司同条件新替旧、同日修订替换、旧日期不覆盖且不删其他仓
-ok 109 - 同公司同条件新替旧、同日修订替换、旧日期不覆盖且不删其他仓
+ok 113 - 同公司同条件新替旧、同日修订替换、旧日期不覆盖且不删其他仓
   ---
-  duration_ms: 0.551
+  duration_ms: 0.73
   type: 'test'
   ...
 # Subtest: 恒祥日期前缀识别且优先关联全局别名
-ok 110 - 恒祥日期前缀识别且优先关联全局别名
+ok 114 - 恒祥日期前缀识别且优先关联全局别名
   ---
-  duration_ms: 0.3013
+  duration_ms: 0.6021
   type: 'test'
   ...
 # Subtest: 船期和WPS保留表在预览与整本清洗均排除，真正报价继续解析
-ok 111 - 船期和WPS保留表在预览与整本清洗均排除，真正报价继续解析
+ok 115 - 船期和WPS保留表在预览与整本清洗均排除，真正报价继续解析
   ---
-  duration_ms: 2.3413
+  duration_ms: 4.3243
   type: 'test'
   ...
 # Subtest: 报价重复文件及重复点击只保存一次，同批矛盾保持冲突
-ok 112 - 报价重复文件及重复点击只保存一次，同批矛盾保持冲突
+ok 116 - 报价重复文件及重复点击只保存一次，同批矛盾保持冲突
   ---
-  duration_ms: 28.7509
+  duration_ms: 25.7384
   type: 'test'
   ...
 # Subtest: 报价同步事件保留预览并阻止旧预览覆盖及创建无关公司
-ok 113 - 报价同步事件保留预览并阻止旧预览覆盖及创建无关公司
+ok 117 - 报价同步事件保留预览并阻止旧预览覆盖及创建无关公司
   ---
-  duration_ms: 8.4273
+  duration_ms: 5.1966
   type: 'test'
   ...
 # Subtest: 报价同步有效数据后可正常显示，损坏同步禁止覆盖
-ok 114 - 报价同步有效数据后可正常显示，损坏同步禁止覆盖
+ok 118 - 报价同步有效数据后可正常显示，损坏同步禁止覆盖
   ---
-  duration_ms: 6.3703
+  duration_ms: 3.8215
   type: 'test'
   ...
 # Subtest: 跨周聚焦刷新排除上周但30天内报价仍保留
-ok 115 - 跨周聚焦刷新排除上周但30天内报价仍保留
+ok 119 - 跨周聚焦刷新排除上周但30天内报价仍保留
   ---
-  duration_ms: 5.0749
+  duration_ms: 4.2826
   type: 'test'
   ...
 # Subtest: 同批仅最新日期替换，范围隔离且未涉及条件保留
-ok 116 - 同批仅最新日期替换，范围隔离且未涉及条件保留
+ok 120 - 同批仅最新日期替换，范围隔离且未涉及条件保留
   ---
-  duration_ms: 1.922
+  duration_ms: 1.398
   type: 'test'
   ...
 # Subtest: 同日时效口径修订生效，矛盾口径不可丢失
-ok 117 - 同日时效口径修订生效，矛盾口径不可丢失
+ok 121 - 同日时效口径修订生效，矛盾口径不可丢失
   ---
-  duration_ms: 1.4759
+  duration_ms: 0.5857
   type: 'test'
   ...
 # Subtest: 明确美国工作表的州缩写不会覆盖国家
-ok 118 - 明确美国工作表的州缩写不会覆盖国家
+ok 122 - 明确美国工作表的州缩写不会覆盖国家
   ---
-  duration_ms: 7.1423
+  duration_ms: 3.9345
   type: 'test'
   ...
 # Subtest: 报价显示服务商筛选不改变原组评级
-ok 119 - 报价显示服务商筛选不改变原组评级
+ok 123 - 报价显示服务商筛选不改变原组评级
   ---
-  duration_ms: 20.0406
+  duration_ms: 5.2176
   type: 'test'
   ...
 # Subtest: 超过200行的不同国家均渲染
-ok 120 - 超过200行的不同国家均渲染
+ok 124 - 超过200行的不同国家均渲染
   ---
-  duration_ms: 26.5179
+  duration_ms: 40.5308
   type: 'test'
   ...
 # Subtest: 合作评级跨标签更新不能让旧编辑覆盖新记录
-ok 121 - 合作评级跨标签更新不能让旧编辑覆盖新记录
+ok 125 - 合作评级跨标签更新不能让旧编辑覆盖新记录
   ---
-  duration_ms: 2.8594
+  duration_ms: 3.4286
   type: 'test'
   ...
 # Subtest: 同一行多个渠道的时效按标题合并范围分别归属
-ok 122 - 同一行多个渠道的时效按标题合并范围分别归属
+ok 126 - 同一行多个渠道的时效按标题合并范围分别归属
   ---
-  duration_ms: 1.5354
+  duration_ms: 1.3723
   type: 'test'
   ...
 # Subtest: 所有入口首方脚本版本与版本文件一致，不保留死弹窗
-ok 123 - 所有入口首方脚本版本与版本文件一致，不保留死弹窗
+ok 127 - 所有入口首方脚本版本与版本文件一致，不保留死弹窗
   ---
-  duration_ms: 6.1249
+  duration_ms: 6.4512
   type: 'test'
   ...
 # 保留异常历史数据，未覆盖 Error: 账单金额异常
@@ -793,173 +817,173 @@ ok 123 - 所有入口首方脚本版本与版本文件一致，不保留死弹�
 #     at Object.runInContext (node:vm:301:6)
 #     at run (D:\\systemDir\\Documents\\skill\\outputs\\logistics-rating\\tests\\harness.cjs:2:773)
 # Subtest: 报价实际导出CSV可重新导入，保留空值与时效口径
-ok 124 - 报价实际导出CSV可重新导入，保留空值与时效口径
+ok 128 - 报价实际导出CSV可重新导入，保留空值与时效口径
   ---
-  duration_ms: 34.0036
+  duration_ms: 32.7077
   type: 'test'
   ...
 # Subtest: 旧账单升级前校验完整结构，损坏但可解析JSON不得被迁移覆盖
-ok 125 - 旧账单升级前校验完整结构，损坏但可解析JSON不得被迁移覆盖
+ok 129 - 旧账单升级前校验完整结构，损坏但可解析JSON不得被迁移覆盖
   ---
-  duration_ms: 3.1808
+  duration_ms: 2.6612
   type: 'test'
   ...
 # Subtest: 旧评级非法记录不得触发公司创建及ID回写
-ok 126 - 旧评级非法记录不得触发公司创建及ID回写
+ok 130 - 旧评级非法记录不得触发公司创建及ID回写
   ---
-  duration_ms: 2.6106
+  duration_ms: 2.0658
   type: 'test'
   ...
 # Subtest: 旧账单迁移可重复运行且金额、原名及公司关联保持
-ok 127 - 旧账单迁移可重复运行且金额、原名及公司关联保持
+ok 131 - 旧账单迁移可重复运行且金额、原名及公司关联保持
   ---
-  duration_ms: 2.8442
+  duration_ms: 2.4354
   type: 'test'
   ...
 # Subtest: 报价配额写入失败保留原库，重试只成功一次
-ok 128 - 报价配额写入失败保留原库，重试只成功一次
+ok 132 - 报价配额写入失败保留原库，重试只成功一次
   ---
-  duration_ms: 4.8862
+  duration_ms: 4.2868
   type: 'test'
   ...
 # Subtest: 报价容量10000可用、10001拒绝且不改变输入
-ok 129 - 报价容量10000可用、10001拒绝且不改变输入
+ok 133 - 报价容量10000可用、10001拒绝且不改变输入
   ---
-  duration_ms: 280.3397
+  duration_ms: 288.3964
   type: 'test'
   ...
 # Subtest: 随机报价顺序、重复及JSON往返保持业务属性（固定种子1000组）
-ok 130 - 随机报价顺序、重复及JSON往返保持业务属性（固定种子1000组）
+ok 134 - 随机报价顺序、重复及JSON往返保持业务属性（固定种子1000组）
   ---
-  duration_ms: 128.2739
+  duration_ms: 130.7748
   type: 'test'
   ...
 # Subtest: ZIP/CSV损坏输入模糊测试（固定种子500组）有界失败且不挂死
-ok 131 - ZIP/CSV损坏输入模糊测试（固定种子500组）有界失败且不挂死
+ok 135 - ZIP/CSV损坏输入模糊测试（固定种子500组）有界失败且不挂死
   ---
-  duration_ms: 15.8095
+  duration_ms: 16.3236
   type: 'test'
   ...
 # Subtest: 备份四键在隔离环境恢复后关联、金额、空值一致
-ok 132 - 备份四键在隔离环境恢复后关联、金额、空值一致
+ok 136 - 备份四键在隔离环境恢复后关联、金额、空值一致
   ---
-  duration_ms: 8.2715
+  duration_ms: 8.4201
   type: 'test'
   ...
 # Subtest: 整套Demo跨键写入中途失败回滚全部已写入键
-ok 133 - 整套Demo跨键写入中途失败回滚全部已写入键
+ok 137 - 整套Demo跨键写入中途失败回滚全部已写入键
   ---
-  duration_ms: 3.5667
+  duration_ms: 4.1269
   type: 'test'
   ...
 # Subtest: 报价CSV公式保护与原始单引号可逆，来源换行保持
-ok 134 - 报价CSV公式保护与原始单引号可逆，来源换行保持
+ok 138 - 报价CSV公式保护与原始单引号可逆，来源换行保持
   ---
-  duration_ms: 7.0688
+  duration_ms: 6.2451
   type: 'test'
   ...
 # Subtest: 旧版15列导出可读但不凭空恢复时效口径；未知附加列拒绝
-ok 135 - 旧版15列导出可读但不凭空恢复时效口径；未知附加列拒绝
+ok 139 - 旧版15列导出可读但不凭空恢复时效口径；未知附加列拒绝
   ---
-  duration_ms: 0.4449
+  duration_ms: 0.4467
   type: 'test'
   ...
 # Subtest: 公司名称缓存随改名及外部存储更新失效，损坏快照不沿用
-ok 136 - 公司名称缓存随改名及外部存储更新失效，损坏快照不沿用
+ok 140 - 公司名称缓存随改名及外部存储更新失效，损坏快照不沿用
   ---
-  duration_ms: 1.7203
+  duration_ms: 2.156
   type: 'test'
   ...
 # Subtest: 夏令时与跨年自然周/30天按本地日历计算
-ok 137 - 夏令时与跨年自然周/30天按本地日历计算
+ok 141 - 夏令时与跨年自然周/30天按本地日历计算
   ---
-  duration_ms: 458.2236
+  duration_ms: 460.1645
   type: 'test'
   ...
 # Subtest: 共享Web Lock串行化双标签保存，即使没有storage事件也拒绝旧快照
-ok 138 - 共享Web Lock串行化双标签保存，即使没有storage事件也拒绝旧快照
+ok 142 - 共享Web Lock串行化双标签保存，即使没有storage事件也拒绝旧快照
   ---
-  duration_ms: 7.8124
+  duration_ms: 8.1619
   type: 'test'
   ...
 # Subtest: Web Lock内保存失败后锁释放，后续保存可继续
-ok 139 - Web Lock内保存失败后锁释放，后续保存可继续
+ok 143 - Web Lock内保存失败后锁释放，后续保存可继续
   ---
-  duration_ms: 2.0924
+  duration_ms: 2.0325
   type: 'test'
   ...
 # Subtest: 启动读取锁尚未完成时，整本预览等待而不丢失或沿用错误快照
-ok 140 - 启动读取锁尚未完成时，整本预览等待而不丢失或沿用错误快照
+ok 144 - 启动读取锁尚未完成时，整本预览等待而不丢失或沿用错误快照
   ---
-  duration_ms: 5.3937
+  duration_ms: 3.837
   type: 'test'
   ...
 # Subtest: 10000行账单跨月、多币种及负调整，页面汇总与独立整数账本一致
-ok 141 - 10000行账单跨月、多币种及负调整，页面汇总与独立整数账本一致
+ok 145 - 10000行账单跨月、多币种及负调整，页面汇总与独立整数账本一致
   ---
-  duration_ms: 252.4608
+  duration_ms: 275.1207
   type: 'test'
   ...
 # Subtest: 10000票评级按完成月汇总，待评不计零分且与独立加权账本一致
-ok 142 - 10000票评级按完成月汇总，待评不计零分且与独立加权账本一致
+ok 146 - 10000票评级按完成月汇总，待评不计零分且与独立加权账本一致
   ---
-  duration_ms: 202.3348
+  duration_ms: 209.5186
   type: 'test'
   ...
 # Subtest: 主壳公司订阅更新不得重建iframe丢失待保存预览
-ok 143 - 主壳公司订阅更新不得重建iframe丢失待保存预览
+ok 147 - 主壳公司订阅更新不得重建iframe丢失待保存预览
   ---
-  duration_ms: 6.5045
+  duration_ms: 4.7313
   type: 'test'
   ...
 # Subtest: 仓库默认展开并直接显示八列表头筛选排序入口
-ok 144 - 仓库默认展开并直接显示八列表头筛选排序入口
+ok 148 - 仓库默认展开并直接显示八列表头筛选排序入口
   ---
-  duration_ms: 2.9371
+  duration_ms: 2.8404
   type: 'test'
   ...
 # Subtest: 报价入库明细的物流商等六列表头均提供筛选排序并绑定处理器
-ok 145 - 报价入库明细的物流商等六列表头均提供筛选排序并绑定处理器
+ok 149 - 报价入库明细的物流商等六列表头均提供筛选排序并绑定处理器
   ---
-  duration_ms: 2.6943
+  duration_ms: 2.6441
   type: 'test'
   ...
 # Subtest: 入库明细数量按数值排序且物流商多选可过滤与清除
-ok 146 - 入库明细数量按数值排序且物流商多选可过滤与清除
+ok 150 - 入库明细数量按数值排序且物流商多选可过滤与清除
   ---
-  duration_ms: 3.303
+  duration_ms: 3.3337
   type: 'test'
   ...
 # Subtest: 演示与真实四键读写清除互不影响
-ok 147 - 演示与真实四键读写清除互不影响
+ok 151 - 演示与真实四键读写清除互不影响
   ---
-  duration_ms: 2.9471
+  duration_ms: 2.9358
   type: 'test'
   ...
 # Subtest: 旧混合库先归档，真实视图排除Demo且保留真实引用公司与仓库
-ok 148 - 旧混合库先归档，真实视图排除Demo且保留真实引用公司与仓库
+ok 152 - 旧混合库先归档，真实视图排除Demo且保留真实引用公司与仓库
   ---
-  duration_ms: 5.796
+  duration_ms: 4.6227
   type: 'test'
   ...
 # Subtest: 跨标签事件只在同空间传播，演示键映射回业务键
-ok 149 - 跨标签事件只在同空间传播，演示键映射回业务键
+ok 153 - 跨标签事件只在同空间传播，演示键映射回业务键
   ---
-  duration_ms: 3.118
+  duration_ms: 3.0437
   type: 'test'
   ...
 # Subtest: 真实保存后反复载入Demo及清除，真实四键逐字不变且评级数据分离
-ok 150 - 真实保存后反复载入Demo及清除，真实四键逐字不变且评级数据分离
+ok 154 - 真实保存后反复载入Demo及清除，真实四键逐字不变且评级数据分离
   ---
-  duration_ms: 29.3277
+  duration_ms: 34.3409
   type: 'test'
   ...
-1..150
-# tests 150
+1..154
+# tests 154
 # suites 0
-# pass 150
+# pass 154
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2132.2624
+# duration_ms 2220.7359

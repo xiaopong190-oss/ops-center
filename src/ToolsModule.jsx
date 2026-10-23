@@ -445,7 +445,7 @@ function UnitConverterTool() {
 }
 
 const TOOL_CATALOG = [
-  { id: "logistics-rating", name: "物流商报价与评级 · 试用", desc: "报价比价、月度账单、合作评级；保留整套演示数据入口", icon: "🚚", category: "物流", target: "inline", openUrl: "tools/logistics-rating/index.html?v=0.2.7-beta.21" },
+  { id: "logistics-rating", name: "物流商报价与评级 · 试用", desc: "报价比价、月度账单、合作评级；保留整套演示数据入口", icon: "🚚", category: "物流", target: "inline", openUrl: "tools/logistics-rating/index.html?v=0.2.7-beta.22" },
   { id: "weight-converter", name: "单位换算", desc: "质量与长度实时换算，支持多单位切换", icon: "⚖️", category: "常用", component: UnitConverterTool },
   { id: "fba-profit", name: "FBA 利润计算器", desc: "全链路利润：体积重、尺寸分档、头程 / 佣金 / 退货", icon: "💰", category: "FBA", openUrl: "fba-profit-calculator.html" },
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },

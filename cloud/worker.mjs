@@ -1,3 +1,4 @@
+import {validateInput as validateLogisticsInput,recognize as recognizeLogistics} from './logistics-ai.mjs';
 import callerModule from '../amazon-growth/gateway/caller.js';
 import {followup} from './followup.mjs';
 import evidenceModule from '../amazon-growth/gateway/evidence.js';
@@ -156,6 +157,14 @@ async function handle(req,env) {
       await env.DB.batch(statements);return json({ok:true});
     }
     fail(405,'方法不允许');
+  }
+  if(p==='/api/logistics-ai/status'){
+    const u=await session(req,env);return json({configured:!!env.DEEPSEEK_API_KEY,model:env.DEEPSEEK_MODEL||'deepseek-flash',canConfigure:u.auth==='super'});
+  }
+  if(p==='/api/logistics-ai/recognize'){
+    const u=await session(req,env);if(req.method!=='POST')fail(405,'方法不允许');
+    const input=validateLogisticsInput(await body(req));await quota(env,'logistics-ai:'+u.id,20,86400);
+    return json(await recognizeLogistics(input,env));
   }
   if(p.startsWith('/api/')){
     const u=await session(req,env);

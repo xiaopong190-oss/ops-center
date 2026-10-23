@@ -65,5 +65,10 @@ assert.equal((await call('/ops-api/followup',{revision:covered.data.revision,dat
 costData.records[0].body.actual=1200;
 assert.equal((await call('/ops-api/followup',{revision:covered.data.revision,data:costData},two)).status,200);
 console.log('PASS isolated cloud: reject mismatched cost total and accept calculated unit freight total');
+
+assert.equal((await call("/api/logistics-ai/status")).status,401);
+assert.equal((await call("/api/logistics-ai/status",null,one)).data.configured,false);
+assert.equal((await call("/api/logistics-ai/recognize",{consent:false},one)).status,400);
+
 sql.close();
 

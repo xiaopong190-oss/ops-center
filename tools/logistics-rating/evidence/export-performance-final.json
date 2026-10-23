@@ -1,0 +1,45 @@
+[
+  {
+    "kind": "load",
+    "ms": 1419.5,
+    "rows": 10000,
+    "nodes": 200601,
+    "withWriteLock": true
+  },
+  {
+    "kind": "filter",
+    "id": "region",
+    "value": "欧洲",
+    "ms": 282.30000001192093,
+    "rows": 3330
+  },
+  {
+    "kind": "filter",
+    "id": "region",
+    "value": "",
+    "ms": 375.5,
+    "rows": 10000
+  },
+  {
+    "kind": "export",
+    "ms": 109.40000000596046,
+    "rows": 10000,
+    "expectedRows": 10000,
+    "columns": 20,
+    "bytes": 1752046,
+    "headerKind": "export-v2",
+    "first": [
+      "QA物流008",
+      "美国",
+      "铁路",
+      "QA1",
+      "8.08",
+      "CNY",
+      "kg",
+      "20",
+      "31",
+      "2026-10-22",
+      "普货/不含税"
+    ]
+  }
+]

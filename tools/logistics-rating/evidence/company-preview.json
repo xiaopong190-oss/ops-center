@@ -1,0 +1,7 @@
+{
+  "sameIframe": true,
+  "previewRows": 2,
+  "message": "整本校验：可导入 1 条；异常 0 条；旧周留档 0 条。缺时效留空保存。确认后统一入库。\n",
+  "globalName": "QA公司同步验证",
+  "quotes": 10000
+}

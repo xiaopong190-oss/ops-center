@@ -37,6 +37,9 @@ jobs:
       - name: Install tracker test dependencies
         run: npm ci --prefix modules/new-product-followup/work/qa --no-audit --no-fund
 
+      - name: Test logistics trial
+        run: node --test tools/logistics-rating/tests/*.test.cjs
+
       - name: Run regression tests
         run: npm run test:regression
 

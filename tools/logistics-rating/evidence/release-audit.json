@@ -1,0 +1,18 @@
+{
+  "version": "0.2.7-beta.18",
+  "passed": true,
+  "scriptRefs": 23,
+  "coreSeconds": 600.35,
+  "coreIterations": 300,
+  "coreP95Ms": 35.387000000017,
+  "sourceHashesVerified": 8,
+  "browserSamples": 21,
+  "browserSeconds": 600,
+  "browserHeapBytes": {
+    "first": 16943413,
+    "last": 20237585,
+    "min": 16250044,
+    "max": 23180548
+  },
+  "executor": "Codex local deterministic script; Cursor agent not available"
+}

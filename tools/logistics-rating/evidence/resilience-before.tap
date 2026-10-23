@@ -1,0 +1,130 @@
+TAP version 13
+# Subtest: 报价实际导出CSV可重新导入，保留空值与时效口径
+not ok 1 - 报价实际导出CSV可重新导入，保留空值与时效口径
+  ---
+  duration_ms: 27.0783
+  type: 'test'
+  location: 'D:\\systemDir\\Documents\\skill\\outputs\\logistics-rating\\tests\\resilience.test.cjs:6:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    请使用标准报价模板，保留列名和顺序
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (D:\systemDir\Documents\skill\outputs\logistics-rating\tests\resilience.test.cjs:6:409)
+    async Test.run (node:internal/test_runner/test:1313:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)
+  ...
+# Subtest: 旧账单升级前校验完整结构，损坏但可解析JSON不得被迁移覆盖
+not ok 2 - 旧账单升级前校验完整结构，损坏但可解析JSON不得被迁移覆盖
+  ---
+  duration_ms: 2.1023
+  type: 'test'
+  location: 'D:\\systemDir\\Documents\\skill\\outputs\\logistics-rating\\tests\\resilience.test.cjs:7:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '{"rows":[{"company":"旧公司","date":"2026-10-22","bill":"B","currency":"CNY","amount":"非法","paid":0,"companyId":"id-1"}],"aliases":{}}'
+    - '{"rows":[{"company":"旧公司","date":"2026-10-22","bill":"B","currency":"CNY","amount":"非法","paid":0}],"aliases":{}}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"rows":[{"company":"旧公司","date":"2026-10-22","bill":"B","currency":"CNY","amount":"非法","paid":0}],"aliases":{}}'
+  actual: '{"rows":[{"company":"旧公司","date":"2026-10-22","bill":"B","currency":"CNY","amount":"非法","paid":0,"companyId":"id-1"}],"aliases":{}}'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (D:\systemDir\Documents\skill\outputs\logistics-rating\tests\resilience.test.cjs:7:215)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1306:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    Test.postRun (node:internal/test_runner/test:1447:19)
+    Test.run (node:internal/test_runner/test:1372:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)
+  ...
+# Subtest: 旧评级非法记录不得触发公司创建及ID回写
+not ok 3 - 旧评级非法记录不得触发公司创建及ID回写
+  ---
+  duration_ms: 1.5528
+  type: 'test'
+  location: 'D:\\systemDir\\Documents\\skill\\outputs\\logistics-rating\\tests\\resilience.test.cjs:8:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '[{"id":"r","company":"旧公司","operator":"运营","shipment":"A","channel":"美国 · 空运","shipped":"2026-10-22","finished":"2026-10-22","mode":"rated","price":99,"time":8,"coop":8,"note":"非法分数","companyId":"id-1"}]'
+    - '[{"id":"r","company":"旧公司","operator":"运营","shipment":"A","channel":"美国 · 空运","shipped":"2026-10-22","finished":"2026-10-22","mode":"rated","price":99,"time":8,"coop":8,"note":"非法分数"}]'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '[{"id":"r","company":"旧公司","operator":"运营","shipment":"A","channel":"美国 · 空运","shipped":"2026-10-22","finished":"2026-10-22","mode":"rated","price":99,"time":8,"coop":8,"note":"非法分数"}]'
+  actual: '[{"id":"r","company":"旧公司","operator":"运营","shipment":"A","channel":"美国 · 空运","shipped":"2026-10-22","finished":"2026-10-22","mode":"rated","price":99,"time":8,"coop":8,"note":"非法分数","companyId":"id-1"}]'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (D:\systemDir\Documents\skill\outputs\logistics-rating\tests\resilience.test.cjs:8:268)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1306:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    Test.postRun (node:internal/test_runner/test:1447:19)
+    Test.run (node:internal/test_runner/test:1372:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+  ...
+# Subtest: 旧账单迁移可重复运行且金额、原名及公司关联保持
+ok 4 - 旧账单迁移可重复运行且金额、原名及公司关联保持
+  ---
+  duration_ms: 2.2001
+  type: 'test'
+  ...
+# Subtest: 报价配额写入失败保留原库，重试只成功一次
+ok 5 - 报价配额写入失败保留原库，重试只成功一次
+  ---
+  duration_ms: 5.351
+  type: 'test'
+  ...
+# Subtest: 报价容量10000可用、10001拒绝且不改变输入
+ok 6 - 报价容量10000可用、10001拒绝且不改变输入
+  ---
+  duration_ms: 284.7246
+  type: 'test'
+  ...
+# Subtest: 随机报价顺序、重复及JSON往返保持业务属性（固定种子1000组）
+ok 7 - 随机报价顺序、重复及JSON往返保持业务属性（固定种子1000组）
+  ---
+  duration_ms: 136.5397
+  type: 'test'
+  ...
+# Subtest: ZIP/CSV损坏输入模糊测试（固定种子500组）有界失败且不挂死
+ok 8 - ZIP/CSV损坏输入模糊测试（固定种子500组）有界失败且不挂死
+  ---
+  duration_ms: 15.8461
+  type: 'test'
+  ...
+# Subtest: 备份四键在隔离环境恢复后关联、金额、空值一致
+ok 9 - 备份四键在隔离环境恢复后关联、金额、空值一致
+  ---
+  duration_ms: 8.761
+  type: 'test'
+  ...
+# Subtest: 整套Demo跨键写入中途失败回滚全部已写入键
+ok 10 - 整套Demo跨键写入中途失败回滚全部已写入键
+  ---
+  duration_ms: 3.8207
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 7
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 701.9638

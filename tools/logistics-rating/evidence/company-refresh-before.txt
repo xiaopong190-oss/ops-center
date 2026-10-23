@@ -1,0 +1,73 @@
+保留异常历史数据，未覆盖 Error: 账单金额异常
+    at Object.bills (D:\systemDir\Documents\skill\outputs\logistics-rating\domain.js:13:468)
+    at evalmachine.<anonymous>:15:280
+    at evalmachine.<anonymous>:25:3
+    at Script.runInContext (node:vm:149:12)
+    at Object.runInContext (node:vm:301:6)
+    at run (D:\systemDir\Documents\skill\outputs\logistics-rating\tests\harness.cjs:2:773)
+    at env (D:\systemDir\Documents\skill\outputs\logistics-rating\tests\harness.cjs:2:840)
+    at TestContext.<anonymous> (D:\systemDir\Documents\skill\outputs\logistics-rating\tests\resilience.test.cjs:7:191)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+保留异常历史数据，未覆盖 Error: 评分需为 0–10，步长 0.5
+    at score (D:\systemDir\Documents\skill\outputs\logistics-rating\domain.js:8:146)
+    at D:\systemDir\Documents\skill\outputs\logistics-rating\domain.js:10:438
+    at Array.forEach (<anonymous>)
+    at rating (D:\systemDir\Documents\skill\outputs\logistics-rating\domain.js:10:427)
+    at Object.ratings (D:\systemDir\Documents\skill\outputs\logistics-rating\domain.js:12:162)
+    at evalmachine.<anonymous>:15:432
+    at evalmachine.<anonymous>:25:3
+    at Script.runInContext (node:vm:149:12)
+    at Object.runInContext (node:vm:301:6)
+    at run (D:\systemDir\Documents\skill\outputs\logistics-rating\tests\harness.cjs:2:773)
+✔ 报价实际导出CSV可重新导入，保留空值与时效口径 (28.763ms)
+✔ 旧账单升级前校验完整结构，损坏但可解析JSON不得被迁移覆盖 (3.3002ms)
+✔ 旧评级非法记录不得触发公司创建及ID回写 (2.4998ms)
+✔ 旧账单迁移可重复运行且金额、原名及公司关联保持 (2.7067ms)
+✔ 报价配额写入失败保留原库，重试只成功一次 (4.7452ms)
+✔ 报价容量10000可用、10001拒绝且不改变输入 (285.6359ms)
+✔ 随机报价顺序、重复及JSON往返保持业务属性（固定种子1000组） (130.8075ms)
+✔ ZIP/CSV损坏输入模糊测试（固定种子500组）有界失败且不挂死 (16.7487ms)
+✔ 备份四键在隔离环境恢复后关联、金额、空值一致 (7.6711ms)
+✔ 整套Demo跨键写入中途失败回滚全部已写入键 (3.4964ms)
+✔ 报价CSV公式保护与原始单引号可逆，来源换行保持 (6.9031ms)
+✔ 旧版15列导出可读但不凭空恢复时效口径；未知附加列拒绝 (0.4129ms)
+✔ 公司名称缓存随改名及外部存储更新失效，损坏快照不沿用 (1.638ms)
+✔ 夏令时与跨年自然周/30天按本地日历计算 (462.7012ms)
+✔ 共享Web Lock串行化双标签保存，即使没有storage事件也拒绝旧快照 (9.2242ms)
+✔ Web Lock内保存失败后锁释放，后续保存可继续 (2.5836ms)
+✔ 启动读取锁尚未完成时，整本预览等待而不丢失或沿用错误快照 (4.4212ms)
+✔ 10000行账单跨月、多币种及负调整，页面汇总与独立整数账本一致 (257.3424ms)
+✔ 10000票评级按完成月汇总，待评不计零分且与独立加权账本一致 (205.207ms)
+✖ 主壳公司订阅更新不得重建iframe丢失待保存预览 (5.1597ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 19
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1678.0357
+
+✖ failing tests:
+
+test at outputs\logistics-rating\tests\resilience.test.cjs:25:1
+✖ 主壳公司订阅更新不得重建iframe丢失待保存预览 (5.1597ms)
+  AssertionError [ERR_ASSERTION]: 公司变更只能更新显示，不能销毁模块会话
+  
+  5 !== 1
+  
+      at TestContext.<anonymous> (D:\systemDir\Documents\skill\outputs\logistics-rating\tests\resilience.test.cjs:25:486)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 5,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

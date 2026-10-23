@@ -1,0 +1,173 @@
+{
+  "samples": [
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 0,
+      "heap": 16943413,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 30,
+      "heap": 16903567,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 60,
+      "heap": 20649429,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 90,
+      "heap": 22622893,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 120,
+      "heap": 21243421,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 150,
+      "heap": 21174885,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 180,
+      "heap": 23180548,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 210,
+      "heap": 16410954,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 240,
+      "heap": 20151147,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 270,
+      "heap": 19872700,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 300,
+      "heap": 22571955,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 330,
+      "heap": 16260500,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 360,
+      "heap": 19971097,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 390,
+      "heap": 19692474,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 420,
+      "heap": 22392013,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 450,
+      "heap": 16250044,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 480,
+      "heap": 20026642,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 510,
+      "heap": 16250508,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 540,
+      "heap": 16437706,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 570,
+      "heap": 18266709,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    },
+    {
+      "version": "0.2.7-beta.18",
+      "elapsedSeconds": 600,
+      "heap": 20237585,
+      "rows": 10000,
+      "error": "",
+      "quotes": 10000
+    }
+  ],
+  "complete": true
+}

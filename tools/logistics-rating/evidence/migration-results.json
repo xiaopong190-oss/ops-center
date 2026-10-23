@@ -1,0 +1,36 @@
+[
+  {
+    "archive": "logistics-rating-0.2.6-beta.7",
+    "upgradeExact": true,
+    "migrationIdempotent": true,
+    "rollbackFromPreUpgradeBackup": true,
+    "bills": 6,
+    "ratings": 6,
+    "quotes": 18
+  },
+  {
+    "archive": "logistics-rating-0.2.7-beta.17",
+    "upgradeExact": true,
+    "migrationIdempotent": true,
+    "rollbackFromPreUpgradeBackup": true,
+    "bills": 6,
+    "ratings": 6,
+    "quotes": 18
+  },
+  {
+    "archive": "logistics-rating-v0.2.0-beta.1",
+    "upgradeExact": true,
+    "migrationIdempotent": true,
+    "rollbackFromPreUpgradeBackup": true,
+    "bills": 1,
+    "ratings": 1,
+    "quotes": 0
+  },
+  {
+    "actualBrowserBackup": true,
+    "restoredKeys": 4,
+    "quotes": 10000,
+    "companies": 500,
+    "unchanged": true
+  }
+]

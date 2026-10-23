@@ -1,0 +1,38 @@
+{
+  "version": "0.2.7-beta.18",
+  "releaseDate": "2026-10-22",
+  "status": "local-pilot",
+  "storageSchema": 1,
+  "testCommand": "node --test tests/*.test.cjs",
+  "limits": {
+    "companies": 500,
+    "recordsPerModule": 10000,
+    "csvBytes": 2097152,
+    "csvRowsPerImport": 2000,
+    "visibleDetailRows": 200,
+    "warehouseTemplates": 5000,
+    "visibleComparisonRows": null,
+    "xlsxBytes": 10485760,
+    "xlsxUncompressedBytes": 33554432,
+    "xlsxSheets": 100,
+    "xlsxCells": 150000,
+    "workbookRowsPerImport": 10000
+  },
+  "productionReady": false,
+  "uiFeatures": [
+    "xlsx-sheet-preview",
+    "sheet-review-drafts",
+    "standard-csv-validation-unchanged",
+    "reviewed-matrix-quote-import",
+    "auto-company-detection",
+    "default-tax-exclusive",
+    "whole-workbook-all-tiers",
+    "per-column-filter-sort",
+    "week-boundary-refresh",
+    "pending-preview-conflict-protection",
+    "cross-tab-web-lock-writes",
+    "quote-csv-roundtrip-with-time-basis",
+    "validated-legacy-migration",
+    "cached-company-display-names"
+  ]
+}

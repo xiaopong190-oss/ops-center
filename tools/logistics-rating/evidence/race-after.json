@@ -1,0 +1,131 @@
+[
+  {
+    "round": 1,
+    "a": [
+      {
+        "side": "A",
+        "startedAt": 1792712436926,
+        "savedAt": 1792712437279,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "本次通过校验 1 条：本周 1 条，旧周留档 0 条（不参与比价）。已保存 1 条新增或更新报价；相同公司同条件的新报价已替换旧报价，重复内容跳过。公司名单和按国家仓库模板已更新。",
+        "pendingRows": 0
+      },
+      {
+        "side": "B",
+        "startedAt": 1792712436926,
+        "savedAt": 1792712437283,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "未保存报价：其他页面已修改报价，请刷新后重新校验",
+        "pendingRows": 2
+      }
+    ],
+    "b": [
+      {
+        "side": "B",
+        "startedAt": 1792712436926,
+        "savedAt": 1792712437283,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "未保存报价：其他页面已修改报价，请刷新后重新校验",
+        "pendingRows": 2
+      },
+      {
+        "side": "A",
+        "startedAt": 1792712436926,
+        "savedAt": 1792712437279,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "本次通过校验 1 条：本周 1 条，旧周留档 0 条（不参与比价）。已保存 1 条新增或更新报价；相同公司同条件的新报价已替换旧报价，重复内容跳过。公司名单和按国家仓库模板已更新。",
+        "pendingRows": 0
+      }
+    ]
+  },
+  {
+    "round": 2,
+    "a": [
+      {
+        "side": "A",
+        "startedAt": 1792712495724,
+        "savedAt": 1792712496053,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "未保存报价：其他页面已修改报价，请刷新后重新校验",
+        "pendingRows": 2
+      },
+      {
+        "side": "B",
+        "startedAt": 1792712495724,
+        "savedAt": 1792712496051,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "本次通过校验 1 条：本周 1 条，旧周留档 0 条（不参与比价）。已保存 1 条新增或更新报价；相同公司同条件的新报价已替换旧报价，重复内容跳过。公司名单和按国家仓库模板已更新。",
+        "pendingRows": 0
+      }
+    ],
+    "b": [
+      {
+        "side": "B",
+        "startedAt": 1792712495724,
+        "savedAt": 1792712496051,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "本次通过校验 1 条：本周 1 条，旧周留档 0 条（不参与比价）。已保存 1 条新增或更新报价；相同公司同条件的新报价已替换旧报价，重复内容跳过。公司名单和按国家仓库模板已更新。",
+        "pendingRows": 0
+      },
+      {
+        "side": "A",
+        "startedAt": 1792712495724,
+        "savedAt": 1792712496053,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "未保存报价：其他页面已修改报价，请刷新后重新校验",
+        "pendingRows": 2
+      }
+    ]
+  },
+  {
+    "round": 3,
+    "a": [
+      {
+        "side": "A",
+        "startedAt": 1792712548128,
+        "savedAt": 1792712548865,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "未保存报价：其他页面已修改报价，请刷新后重新校验",
+        "pendingRows": 2
+      },
+      {
+        "side": "B",
+        "startedAt": 1792712548128,
+        "savedAt": 1792712548838,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "本次通过校验 1 条：本周 1 条，旧周留档 0 条（不参与比价）。已保存 1 条新增或更新报价；相同公司同条件的新报价已替换旧报价，重复内容跳过。公司名单和按国家仓库模板已更新。",
+        "pendingRows": 0
+      }
+    ],
+    "b": [
+      {
+        "side": "B",
+        "startedAt": 1792712548128,
+        "savedAt": 1792712548838,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "本次通过校验 1 条：本周 1 条，旧周留档 0 条（不参与比价）。已保存 1 条新增或更新报价；相同公司同条件的新报价已替换旧报价，重复内容跳过。公司名单和按国家仓库模板已更新。",
+        "pendingRows": 0
+      },
+      {
+        "side": "A",
+        "startedAt": 1792712548128,
+        "savedAt": 1792712548865,
+        "unchanged": false,
+        "rows": 10000,
+        "message": "未保存报价：其他页面已修改报价，请刷新后重新校验",
+        "pendingRows": 2
+      }
+    ]
+  }
+]

@@ -1,1 +1,1 @@
-{"name": "logistics-rating-trial", "version": "0.2.7-beta.25", "private": true, "type": "commonjs", "scripts": {"test": "node --test tests/*.test.cjs"}}
+{"name": "logistics-rating-trial", "version": "0.2.7-beta.26", "private": true, "type": "commonjs", "scripts": {"test": "node --test tests/*.test.cjs"}}

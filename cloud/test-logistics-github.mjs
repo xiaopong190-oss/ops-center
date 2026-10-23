@@ -8,4 +8,4 @@ await assert.rejects(()=>readGithub({},async()=>new Response(null,{status:302}))
 import {validateBackup} from './logistics-backup.mjs';
 import C from '../tools/logistics-rating/comparison-core.js';
 const mapped=structuredClone(data);const rawQuote={company:'甲',companyId:'a',country:'美国',channel:'原始正班',terms:'包税',currency:'CNY',unit:'kg'};mapped.storage['logistics-quotes-v1'].comparisonMappings=[{signature:C.signature(rawQuote),profile:{country:'美国',service:'美森正班海卡',tier:'12KG+',tax:'包税',origin:'深圳',minimum:'12KG起收',ratio:'6000',cargo:'普货',extra:'无'},confirmed:true,at:'2026-10-23T12:00:00Z'}];
-validateBackup(mapped);const bad=structuredClone(mapped);bad.storage['logistics-quotes-v1'].comparisonMappings[0].profile.minimum='未知';assert.throws(()=>validateBackup(bad));console.log('PASS confirmed comparison mapping shared schema; unknown business conditions rejected');
+validateBackup(mapped);const bad=structuredClone(mapped);bad.storage['logistics-quotes-v1'].comparisonMappings[0].profile.service='不支持的服务';assert.throws(()=>validateBackup(bad));console.log('PASS confirmed comparison mapping shared schema; invalid service rejected; missing conditions permitted');

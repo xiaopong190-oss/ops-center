@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "data": {
+    "space": "real",
+    "storage": {
+      "logistics-company-directory-v1": [],
+      "logistics-quotes-v1": {
+        "quotes": [],
+        "templates": []
+      },
+      "logistics-monthly-bills-v1": {
+        "rows": [],
+        "aliases": {}
+      },
+      "logistics-completed-ratings-v1": []
+    }
+  }
+}

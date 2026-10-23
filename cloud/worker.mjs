@@ -1,3 +1,4 @@
+import {logisticsGithub} from './logistics-github.mjs';
 import {cleanupLogistics} from './logistics-cleanup.mjs';
 import {logisticsBackup} from './logistics-backup.mjs';
 import {validateInput as validateLogisticsInput,recognize as recognizeLogistics} from './logistics-ai.mjs';
@@ -160,7 +161,8 @@ async function handle(req,env) {
     }
     fail(405,'方法不允许');
   }
-  if(p==='/api/logistics-backup'||p==='/api/logistics-backup/upload'){const u=await session(req,env);if(req.method==='POST')await quota(env,'logistics-backup:'+u.id,3000,86400);return logisticsBackup(req,env,u);}
+  if(p==='/api/logistics-data'||p==='/api/logistics-data/upload'){if(req.method==='GET')return logisticsGithub(req,env);const u=await session(req,env);await quota(env,'logistics-github:'+u.id,3000,86400);return logisticsGithub(req,env,u);}
+  if(p==='/api/logistics-backup'||p==='/api/logistics-backup/upload'){const u=await session(req,env);if(req.method!=='GET')fail(410,'已改为GitHub共享数据，请更新页面后重新提交');return logisticsBackup(req,env,u);}
   if(p==='/api/logistics-ai/status'){
     const u=await session(req,env);return json({configured:!!env.DEEPSEEK_API_KEY,model:env.DEEPSEEK_MODEL||'deepseek-flash',canConfigure:u.auth==='super'});
   }

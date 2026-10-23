@@ -20,3 +20,15 @@ test('海外仓自动忽略，与AMZ报价及待核对问题分开',()=>{let s={
 test('整本清洗遍历各表所有档位、跳过参考资料并保留来源',()=>{let model={sheets:[sheet,{...sheet,name:'欧洲铁路包税',rows:sheet.rows.map(r=>({...r,cells:r.cells.map(c=>c.cell==='C3'?{...c,v:'深圳铁路'}:c)}))},{...sheet,name:'注意事项'}]},x=M.workbook(model,{company:'长河',date:'2026-10-22',currency:'CNY'});assert.equal(x.records.length,8);assert.equal(x.reports.length,3);assert.equal(x.reports[2].count,0);assert.ok(x.records.every(r=>r.sourceSheet&&r.priceCell));assert.deepEqual([...new Set(x.records.map(r=>r.values[4]))].sort(),['6.7','8.2']);});
 test('地区国家两级归类',()=>{assert.equal(Q.region('US'),'美洲');assert.equal(Q.region('德国'),'欧洲');assert.equal(Q.region('波兰'),'欧洲');assert.equal(Q.region('日本'),'亚洲');assert.equal(Q.region('澳大利亚'),'大洋洲');assert.equal(Q.region('未知国家'),'其他地区');});
 test('同公司同条件新替旧、同日修订替换、旧日期不覆盖且不删其他仓',()=>{let a={...Q.normalize(['甲','美国','海运','ONT8','10','CNY','kg','','','2026-10-20','不含税']),companyId:'a'},other={...a,warehouse:'LGB8'},db=Q.merge({quotes:[],templates:[]},[a,other],'2026-10-22').db;let revised={...a,price:900};db=Q.merge(db,[revised],'2026-10-22').db;assert.equal(db.quotes.length,2);assert.equal(db.quotes.find(r=>r.warehouse==='ONT8').price,900);let newer={...a,date:'2026-10-21',price:800};db=Q.merge(db,[newer],'2026-10-22').db;assert.equal(db.quotes.length,2);db=Q.merge(db,[a],'2026-10-22').db;assert.equal(db.quotes.find(r=>r.warehouse==='ONT8').price,800);assert.equal(Q.merge(db,[newer],'2026-10-22').count,0);});
+
+test('恒祥日期前缀识别且优先关联全局别名',()=>{
+ const model={fileName:'恒祥10.20号报价表.xlsx',sheets:[]};assert.equal(M.company(model).name,'恒祥');
+ assert.equal(M.company(model,[{id:'hx',name:'恒祥国际物流',aliases:['恒祥']}]).id,'hx');
+ assert.equal(M.company({...model,fileName:'恒祥2026.10.20报价表.xlsx'}).name,'恒祥');
+ assert.equal(M.company({...model,fileName:'10.20号报价表.xlsx'}).name,'');
+});
+test('船期和WPS保留表在预览与整本清洗均排除，真正报价继续解析',()=>{
+ const W=require('../workbook-preview.js');for(const name of ['本周船期表','WpsReserved_CellImgList','Sailing Schedule']){assert.equal(W.classify(name),'说明');assert.equal(M.sheetKind(name),'说明');}
+ const model={sheets:[{...sheet,name:'本周船期表'},{...sheet,name:'WpsReserved_CellImgList'},sheet]};
+ const r=M.workbook(model,{company:'恒祥',date:'2026-10-22',currency:'CNY'});assert.equal(r.reports[0].count,0);assert.equal(r.reports[1].count,0);assert.ok(r.reports[2].count>0);assert.ok(r.records.every(x=>x.sourceSheet===sheet.name));
+});

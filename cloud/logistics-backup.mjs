@@ -15,7 +15,7 @@ export async function logisticsBackup(req,env,user,assembled=null){
  const previous=await store.read(env),current=previous.snapshot;
  if(req.method==='GET')return Response.json(url.searchParams.get('download')==='1'?current:{revision:current.revision,savedAt:current.savedAt||null,owner:user.id,counts:current.counts||null},{headers:{'Cache-Control':'no-store'}});
  if(req.method!=='POST')fail(405,'方法不允许');if(user.canEdit===false&&user.auth!=='super')fail(403,'当前账号没有编辑权限');
- const text=assembled??await req.text();if(new TextEncoder().encode(text).length>16*1024*1024)fail(413,'备份超过16 MiB');let input;try{input=JSON.parse(text);}catch{fail(400,'无效备份JSON');}
+ const text=assembled??await req.text();if(new TextEncoder().encode(text).length>32*1024*1024)fail(413,'备份超过32 MiB');let input;try{input=JSON.parse(text);}catch{fail(400,'无效备份JSON');}
  if(input.operationId===current.operationId)return Response.json({ok:true,revision:current.revision,savedAt:current.savedAt,counts:current.counts});
  if(input.revision!==current.revision)fail(409,'云端备份已被更新，请核对后重试；本地数据保留');
  if(!/^[0-9a-f-]{36}$/i.test(input.operationId||''))fail(400,'操作编号无效');const data=validateBackup(input.data),s=data.storage;

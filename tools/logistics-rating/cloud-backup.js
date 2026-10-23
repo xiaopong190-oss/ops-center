@@ -5,5 +5,5 @@
  async function sync(){if(running){again=true;return;}running=true;submit.disabled=true;try{show('正在提交GitHub，尚未确认入库…');const receipt=await GithubData.save(show);show('入库成功 · 已上传GitHub · '+new Date(receipt.savedAt).toLocaleString()+' · 文件版本 '+receipt.sha.slice(0,8));}catch(e){show('未确认GitHub入库：'+e.message+'。本机待提交数据保留。');}finally{running=false;submit.disabled=false;if(again){again=false;queue();}}}
  function queue(){GithubData.markPending();show('本机待提交，正在准备上传GitHub…');clearTimeout(timer);timer=setTimeout(()=>navigator.locks?.request?navigator.locks.request('logistics-github-write-v1',sync):sync(),600);}
  submit.onclick=queue;refresh.onclick=async()=>{if(GithubData.hasPending()&&!confirm('当前本机有未提交数据。加载GitHub数据会暂存当前草稿并切换到GitHub版本，是否继续？'))return;show('正在读取GitHub…');const result=await GithubData.load(true);if(!result.loaded){show(result.error);return;}root.location.reload();};root.CloudBackup={queue};const current=GithubData.state();show(current.error||(current.loaded?'当前数据来自GitHub · 确认提交成功后才算入库':'未连接GitHub'));submit.hidden=!GithubData.hasPending();
- const normalQueue=queue;root.CloudBackup.queue=()=>{submit.hidden=false;normalQueue();};
+ root.addEventListener?.('logistics-cache-error',e=>show(e.detail));const normalQueue=queue;root.CloudBackup.queue=()=>{submit.hidden=false;normalQueue();};
 })(window);

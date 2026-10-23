@@ -2,7 +2,7 @@ import {Buffer} from 'node:buffer';
 export function logisticsStorage(user){
 const FOLLOWUP_KEY = '_logistics-backup:'+Buffer.from(user.id).toString('base64url');
 const PART_BYTES = 512 * 1024;
-const MAX_BYTES = 16 * 1024 * 1024;
+const MAX_BYTES = 32 * 1024 * 1024;
 const fail = (status,message) => {throw Object.assign(Error(message),{status});};
 const sha256 = async bytes => Buffer.from(await crypto.subtle.digest('SHA-256',bytes)).toString('hex');
 const get = async (env,key) => (await env.DB.prepare('SELECT value FROM records WHERE key=?').bind(key).first())?.value;
@@ -27,7 +27,7 @@ async function readFollowup(env) {
 }
 async function writeFollowup(env,previous,next) {
   const bytes=Buffer.from(JSON.stringify(next),'utf8');
-  if(bytes.length>MAX_BYTES)fail(413,'工作台已超过16MB容量保护上限，请导出归档后联系管理员扩容；原数据未改变');
+  if(bytes.length>MAX_BYTES)fail(413,'工作台已超过32MB容量保护上限，请导出归档后联系管理员扩容；原数据未改变');
   const version=Date.now()+'-'+crypto.randomUUID(),parts=[];
   // Immutable data parts and the previous root are written before the only live pointer changes.
   for(let offset=0;offset<bytes.length;offset+=PART_BYTES){

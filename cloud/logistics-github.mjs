@@ -8,7 +8,11 @@ function headers(env){return {'Accept':'application/vnd.github+json','User-Agent
 export async function readGithub(env,send=fetch){
  const response=await send(api+'?ref=main',{headers:headers(env),redirect:'manual',signal:AbortSignal.timeout(30000)});
  if(response.status===404)return {sha:null,document:{schemaVersion:1,data:emptyData()}};
- if(!response.ok)fail(502,'GitHub读取失败，请稍后重试');const file=await response.json();let document;
+ if(!response.ok){
+  const raw=await send('https://raw.githubusercontent.com/xiaopong190-oss/ops-center/main/'+path+'?t='+Date.now(),{headers:{'User-Agent':'ops-center-logistics'},redirect:'manual',signal:AbortSignal.timeout(30000)});
+  if(!raw.ok)fail(502,'GitHub读取失败，请稍后重试');const bytes=Buffer.from(await raw.arrayBuffer());if(bytes.length>16*1024*1024)fail(502,'公开数据超过读取上限');let document;try{document=JSON.parse(bytes.toString('utf8'));validateBackup(document.data);}catch{fail(502,'公开数据校验失败');}
+  const blob=Buffer.concat([Buffer.from('blob '+bytes.length+'\0'),bytes]);const sha=Buffer.from(await crypto.subtle.digest('SHA-1',blob)).toString('hex');return {sha,document};
+ }const file=await response.json();let document;
  try{let bytes;if(file.encoding==='base64')bytes=Buffer.from(file.content.replace(/\s/g,''),'base64');else{if(!/^[0-9a-f]{40,64}$/.test(file.sha)||file.size>16*1024*1024)throw Error();const blob=await send('https://api.github.com/repos/xiaopong190-oss/ops-center/git/blobs/'+file.sha,{headers:headers(env),redirect:'manual',signal:AbortSignal.timeout(30000)});if(!blob.ok)throw Error();const b=await blob.json();if(b.encoding!=='base64')throw Error();bytes=Buffer.from(b.content.replace(/\s/g,''),'base64');}if(bytes.length>16*1024*1024)throw Error();document=JSON.parse(bytes.toString('utf8'));validateBackup(document.data);}catch{fail(502,'GitHub数据文件校验失败，未覆盖本地草稿');}
  return {sha:file.sha,document};
 }

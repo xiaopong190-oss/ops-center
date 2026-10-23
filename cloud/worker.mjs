@@ -169,7 +169,7 @@ async function handle(req,env) {
   if(p==='/api/logistics-ai/recognize'){
     const u=await session(req,env);if(req.method!=='POST')fail(405,'方法不允许');
     const input=validateLogisticsInput(await body(req));
-    if(input.purpose==='warehouse-identity')return json(await recognizeWarehousesCached(input,env,()=>quota(env,'logistics-warehouse-ai:'+u.id,20,86400)));
+    if(input.purpose==='warehouse-identity')return json(await recognizeWarehousesCached(input,env,async count=>{for(let i=0;i<count;i++)await quota(env,'logistics-warehouse-codes:'+u.id,2000,86400);}));
     await quota(env,'logistics-ai:'+u.id,20,86400);return json(await recognizeLogistics(input,env));
   }
   if(p.startsWith('/api/')){

@@ -1,5 +1,5 @@
 {
-  "version": "0.2.7-beta.35",
+  "version": "0.2.7-beta.36",
   "releaseDate": "2026-10-23",
   "status": "local-pilot",
   "storageSchema": 1,
@@ -20,7 +20,8 @@
     "quoteRecords": 50000,
     "regionalQuoteRecords": 50000,
     "deletedQuoteRecords": 50000,
-    "sharedDataBytes": 33554432
+    "sharedDataBytes": 33554432,
+    "quoteRetentionDays": 10
   },
   "productionReady": false,
   "uiFeatures": [
@@ -43,5 +44,6 @@
     "warehouse-manual-confirmation",
     "multi-row-rate-layout",
     "regional-quotes-separate-storage"
-  ]
+  ],
+  "warehouseRetention": "permanent"
 }

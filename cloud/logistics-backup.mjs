@@ -6,7 +6,7 @@ const fail=(status,message)=>{throw Object.assign(Error(message),{status});};
 export function validateBackup(data){
  if(!data||data.space!=='real'||!data.storage||Object.keys(data.storage).length!==4||keys.some(k=>!Object.hasOwn(data.storage,k)))fail(400,'仅允许真实业务四键备份');
  const [companies,quotes,bills,ratings]=keys.map(k=>data.storage[k]);try{D.directory(companies);Q.validate(quotes);D.bills(bills);D.ratings(ratings,new Date(Date.now()+14*3600000).toISOString().slice(0,10));}catch{fail(400,'业务数据校验失败，云端未保存');}
- const rows=[...quotes.quotes,...(quotes.regionalQuotes||[]),...bills.rows,...ratings],ids=new Set(companies.map(c=>c.id));if([...companies,...rows].some(r=>r.demo===true)||quotes.templates.some(t=>t.demo===true&&!quotes.quotes.some(q=>q.country===t.country&&q.warehouse===t.warehouse)))fail(400,'演示数据禁止上传真实业务云端');
+ const rows=[...quotes.quotes,...(quotes.deletedQuotes||[]),...(quotes.regionalQuotes||[]),...bills.rows,...ratings],ids=new Set(companies.map(c=>c.id));if([...companies,...rows].some(r=>r.demo===true)||quotes.templates.some(t=>t.demo===true&&!quotes.quotes.some(q=>q.country===t.country&&q.warehouse===t.warehouse)))fail(400,'演示数据禁止上传真实业务云端');
  if(rows.some(r=>!ids.has(r.companyId)))fail(400,'业务记录缺少关联公司档案');return data;
 }
 export async function logisticsBackup(req,env,user,assembled=null){

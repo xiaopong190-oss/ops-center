@@ -1,0 +1,7 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),M=require('../matrix-import.js');
+const row=(row,v)=>({row,cells:v.map(([c,v])=>({cell:c+row,v}))});
+const sheet={name:'欧洲海运包税',merges:['A2:D2','C3:D3','A8:D8','C9:D9'],rows:[row(2,[['A','海运普船（卡派）']]),row(3,[['C','深圳 普线']]),row(4,[['A','国家'],['B','仓库代码'],['C','21KG+']]),row(5,[['A','法国'],['B','其他亚马逊仓库（非超大件仓库）'],['C','11.5']]),row(8,[['A','海运卡派直送']]),row(9,[['C','深圳 普线']]),row(10,[['A','国家'],['B','仓库代码'],['C','21KG+']]),row(11,[['A','法国'],['B','其他亚马逊仓库（非超大件仓库）'],['C','12']])]};
+test('同始发同档位但普船与直送的整段标题需保留，不能误报同条件冲突',()=>{const r=M.workbook({sheets:[sheet]},{company:'长河',date:'2026-10-24'});assert.equal(r.regionalRecords.length,2);assert.equal(r.regionalRecords[0].channel,r.regionalRecords[1].channel);assert.notEqual(r.regionalRecords[0].terms,r.regionalRecords[1].terms);assert.match(r.regionalRecords[0].terms,/海运普船/);assert.match(r.regionalRecords[1].terms,/海运卡派直送/);});
+test('只有一个服务段的旧矩阵保持原计费条件，不增加无关分段',()=>{const single={...sheet,rows:sheet.rows.filter(r=>r.row<8),merges:sheet.merges.slice(0,2)};const r=M.workbook({sheets:[single]},{company:'长河',date:'2026-10-24'});assert.equal(r.regionalRecords[0].terms,'档=21KG+;条件=包税;起运/服务=深圳 普线');});
+
+test('不同渠道或不同档位已有唯一区分时不改动历史条件',()=>{const changed=structuredClone(sheet);changed.rows.find(r=>r.row===9).cells[0].v='深圳 直送专线';const x=M.workbook({sheets:[changed]},{company:'长河',date:'2026-10-24'});assert.ok(x.regionalRecords.every(r=>!r.terms.includes('服务分段=')));});

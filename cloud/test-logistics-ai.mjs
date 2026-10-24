@@ -13,3 +13,5 @@ await recognizeWarehousesCached(warehouseInput,warehouseEnv,async()=>charges++,s
 await assert.rejects(()=>recognize(warehouseInput,{}));await assert.rejects(()=>recognize(warehouseInput,warehouseEnv,async()=>new Response(null,{status:302})));
 console.log('PASS warehouse limits, untrusted input, exact country/character conservation, persistent first-seen cache and quota on misses');
 
+
+await import('./test-logistics-cleaning.mjs');

@@ -1,5 +1,7 @@
+import {validateCleaningInput,recognizeCleaning} from './logistics-cleaning.mjs';
 const invalid=m=>{throw Object.assign(Error(m),{status:400});};
 export function validateInput(b){
+ if(b?.purpose==='quote-cleaning')return validateCleaningInput(b);
  if(b?.purpose==='warehouse-identity')return validateWarehouseInput(b);
  if(!b||b.purpose!=='supplier-identity'||b.exception!==true)invalid('仅允许常规供应商识别异常时调用');
  if(typeof b.fileName!=='string'||!b.fileName.trim()||b.fileName.length>200||!Array.isArray(b.directory)||b.directory.length>500)invalid('供应商识别请求无效');
@@ -13,6 +15,7 @@ export function validateResult(data,input){
  return {company:matched?matched.name:data.company.trim(),matchedId:matched?.id||'',confidence:data.confidence};
 }
 export async function recognize(input,env,send=fetch){
+ if(input.purpose==='quote-cleaning')return recognizeCleaning(input,env,send);
  if(input.purpose==='warehouse-identity')return recognizeWarehouses(input,env,send);
  if(!env.DEEPSEEK_API_KEY)throw Object.assign(Error('供应商自动识别暂不可用，请核对名称'),{status:503});
  const model=env.DEEPSEEK_MODEL||'deepseek-flash';if(!['deepseek-flash','deepseek-v4-pro'].includes(model))throw Error('后端模型配置无效');

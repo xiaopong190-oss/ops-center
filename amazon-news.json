@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-10-23T03:27:05.337Z",
+  "updatedAt": "2026-10-24T03:21:36.827Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Prime Video’s ‘Fourth Wing’ series casts Esther McGregor and Emilio Sakraya as leads",
-      "link": "https://www.aboutamazon.com/news/entertainment/fourth-wing-cast-violet-xaden-prime-video?utm_source=rss",
-      "pubDate": "Wed, 21 Oct 2026 18:27:10 GMT",
-      "date": "10/21",
-      "summary": "Esther McGregor and Emilio Sakraya will play dragon riders Violet Sorrengail and Xaden Riorson in Prime Video’s adaptation of Rebecca Yarros",
+      "title": "Amazon CEO Andy Jassy's career advice: Most people don't land their dream job at 22—and that's okay",
+      "link": "https://www.aboutamazon.com/news/workplace/amazon-ceo-andy-jassy-first-job-advice?utm_source=rss",
+      "pubDate": "Fri, 23 Oct 2026 19:49:26 GMT",
+      "date": "10/23",
+      "summary": "Jassy reflected on how his career wandered before he found Amazon—and why he tells young people to stop chasing the perfect first job.",
+      "category": "Workplace"
+    },
+    {
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Fri, 23 Oct 2026 19:07:00 GMT",
+      "date": "10/23",
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
+    },
+    {
+      "title": "‘The Odyssey’ is coming to Prime Video November 17. Here's how to watch.",
+      "link": "https://www.aboutamazon.com/news/entertainment/the-odyssey-christopher-nolan-prime-video?utm_source=rss",
+      "pubDate": "Fri, 23 Oct 2026 10:49:58 GMT",
+      "date": "10/23",
+      "summary": "Director Christopher Nolan's 2026 epic ‘The Odyssey’ will be available to buy starting November 17. Preorder it now.",
       "category": "Entertainment"
-    },
-    {
-      "title": "Blink debuts its first 4K, spotlight, and pan-tilt cameras, plus an expanded XR lineup",
-      "link": "https://www.aboutamazon.com/news/devices/blink-4k-long-range-security-cameras?utm_source=rss",
-      "pubDate": "Wed, 21 Oct 2026 13:55:18 GMT",
-      "date": "10/21",
-      "summary": "The new lineup delivers higher resolution, broader coverage, and extended range to help customers see more of what’s happening around their ",
-      "category": "Devices"
-    },
-    {
-      "title": "Amazon commits 30,000 jobs to young people in the UK by 2030—no experience required",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-youth-promise-uk?utm_source=rss",
-      "pubDate": "Tue, 20 Oct 2026 21:25:08 GMT",
-      "date": "10/20",
-      "summary": "The Amazon Youth Promise will also see 10,000 work experience places open to young people in the UK.",
-      "category": "Company news"
     }
   ]
 }

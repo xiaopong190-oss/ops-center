@@ -18,7 +18,7 @@
  function latest(rows){const map=new Map();for(const r of rows){const k=JSON.stringify([r.companyId||r.company,group(r),...(r.priceTrial?[signature(r)]:[])]),old=map.get(k);if(!old||r.date>old.date)map.set(k,r);else if(r.date===old.date&&(r.price!==old.price||r.min!==old.min||r.max!==old.max||r.timeBasis!==old.timeBasis||Boolean(r.timeUnverified)!==Boolean(old.timeUnverified)))map.set(k,{...old,conflict:true});}return [...map.values()];}
  let mode='strict';
  function setMode(value){mode=value==='price'?'price':'strict';}
- function pricePrepare(rows,mappings=[]){const mapped=new Map(mappings.map(m=>[m.signature,m.profile]));return rows.map(r=>{const p=profile(mapped.get(signature(r))||suggest(r)),raw=clean(r.channel+';'+r.terms+';'+(r.sourceSheet||''));let service=p.service;
+ function pricePrepare(rows,mappings=[]){const mapped=new Map(mappings.map(m=>[m.signature,m.profile]));return rows.map(r=>{const p=profile(mapped.get(signature(r))||suggest(r)),raw=clean(r.channel+';'+r.terms+';'+(r.sourceSheet||''));let service=p.service||(!mapped.has(signature(r))?root.RelationCore?.service(r):null)||'';
  if(!service){for(const [pattern,name] of [[/美森.*加班/,'美森加班海卡'],[/美森.*正班|CLX/,'美森正班海卡'],[/美森|MATSON/,'美森未注明班次'],[/EXX/,'EXX海卡'],[/以星|ZIM/,'以星海卡'],[/合德/,'合德海卡'],[/COSCO|中远/,'COSCO海卡'],[/OA/,'OA海卡'],[/海铁/,'海铁联运'],[/空运|空派/,'空运'],[/快递|UPS|FEDEX/,'快递派'],[/普船/,'普船海卡']])if(pattern.test(raw)){service=name;break;}}
  // Unknown channels retain their original identity; never infer a service from price.
  service=service||r.channel;
@@ -26,7 +26,7 @@
  const country=p.country||r.country,origin=p.origin||'所有始发地';
  const key=JSON.stringify(['price-v1',country,r.warehouse,r.currency,r.unit,clean(service),tier,clean(p.tax),clean(origin),clean(p.minimum),clean(p.ratio),clean(p.cargo),clean(p.extra)]);
  const warning='价格初评，非最终运费；'+(missingReason(p)||'请核对适用条件')+'；起重档：'+tier+'；始发：'+origin;
- return {...r,country,channel:service,comparisonOriginal:{country:r.country,channel:r.channel},priceTrial:true,priceKey:key,priceWarning:warning,comparisonMappingNeeded:!mapped.has(signature(r)),comparisonIssue:/截单|渠道代码|材积重|体积重|按长/.test(service)?'渠道未识别，暂不评级':''};});}
+ return {...r,country,channel:service,comparisonOriginal:{country:r.country,channel:r.channel},priceTrial:true,priceKey:key,priceWarning:warning+(root.RelationCore?.serviceInfo(r)?'；AI服务对应依据：'+root.RelationCore.serviceInfo(r).evidence:''),comparisonMappingNeeded:!mapped.has(signature(r)),comparisonIssue:/截单|渠道代码|材积重|体积重|按长/.test(service)?'渠道未识别，暂不评级':''};});}
  const originalPrepare=prepare,originalGroup=group;
  prepare=function(rows,mappings=[]){return mode==='price'?pricePrepare(rows,mappings):originalPrepare(rows,mappings);};
  group=function(r){return r.priceTrial?r.priceKey:originalGroup(r);};

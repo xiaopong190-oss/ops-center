@@ -1,0 +1,3 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),S=require('../channel-score.js');
+test('单个候选可评分，初始60；未主动操作不评分；缺项冲突不扣分',()=>{assert.equal(S.calculate({}).channelScore,60);assert.equal(S.calculate({},false).channelScore,null);assert.equal(S.calculate({conflict:true,priceGrade:'S'}).channelScore,60);assert.equal(S.calculate({comparisonIssue:'缺重量'}).channelScore,60);assert.match(S.calculate({}).channelScoreBasis,/合作表现未验证/);});
+test('仅使用既有可比价格等级提供最多5分证据，不伪造合作分',()=>{assert.equal(S.calculate({priceGrade:'S'}).channelScore,65);assert.equal(S.calculate({priceGrade:'A'}).channelScore,64);assert.equal(S.calculate({priceGrade:'D'}).channelScore,60);assert.equal(S.calculate({priceGrade:'未知'}).channelScore,60);});

@@ -3,7 +3,7 @@
  const key=r=>JSON.stringify([r.kind,r.reason,r.raw]),pending=r=>!r.status||r.status==='pending';
  function source(r){try{return JSON.parse(r.raw);}catch{throw Error('异常原文损坏，不能确认导入');}}
  function draft(r){const x=source(r);if(r.kind==='warehouse'){if(Array.isArray(x.values)){const v=x.values;return {company:v[0]||'',country:v[1]||'',channel:v[2]||'',warehouse:v[3]||'',price:v[4]??'',currency:v[5]||'CNY',unit:v[6]||'kg',min:v[7]??'',max:v[8]??'',date:v[9]||'',terms:v[10]||''};}return {...x,price:Number.isSafeInteger(x.price)?(x.price/100).toFixed(2):x.price||''};}return {...x,price:Number.isSafeInteger(x.price)?(x.price/100).toFixed(2):x.price||''};}
- const regionalKey=r=>JSON.stringify([r.company,r.country,r.channel,r.regionRaw,r.currency,r.unit,r.terms,r.date]);
+ const regionalKey=r=>JSON.stringify([Q.regionalScope(r),r.date]);
  function groups(rows){const map=new Map();for(const item of rows.filter(pending)){const x=source(item),d=draft(item);const id=x.reviewType==='warehouse-country-conflict'?JSON.stringify([x.reviewType,d.company,d.country,d.warehouse,x.archiveCountry,x.source,d.date]):key(item);if(!map.has(id))map.set(id,[]);map.get(id).push(item);}return [...map.values()];}
  function resolve(db,keys,action,edits,today,actor='',companyIdFor=()=>{throw Error('缺少公司关联');}){
   Q.validate(db);if(!Array.isArray(keys)||!keys.length||!['confirm','edit','ignore'].includes(action))throw Error('请选择异常处理方式');const selected=new Set(keys),items=(db.importExceptions||[]).filter(r=>selected.has(key(r)));if(items.length!==selected.size||items.some(r=>!pending(r)))throw Error('异常已被处理或数据已变化，请重新选择');

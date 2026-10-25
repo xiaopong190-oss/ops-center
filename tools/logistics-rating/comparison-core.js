@@ -14,6 +14,9 @@
  return {country,service,tier,tax,origin,minimum,ratio,cargo:'',extra:''};}
  function issue(r){if(/^美[东西中]/.test(r.country))return '国家字段混入地区，请确认修正映射';if(/截单|渠道代码|材积|体积重|按长/.test(r.channel))return '渠道字段疑似说明文字，请核对原表并建立映射';return missingReason(suggest(r))||'待确认统一比价口径';}
  function prepare(rows,mappings=[]){const map=new Map(mappings.map(m=>[m.signature,m.profile]));return rows.map(r=>{const saved=map.get(signature(r)),p=saved?profile(saved):null;if(!p)return {...r,comparisonIssue:issue(r),comparisonMappingNeeded:true};return {...r,country:p.country||r.country,channel:p.service||r.channel,comparisonProfile:p,comparisonOriginal:{country:r.country,channel:r.channel},comparisonMappingNeeded:false,comparisonIssue:missingReason(p)};});}
+
+ // All dimensions are equality constraints, not ranking weights. Unknown stays unknown.
+ function conditionDimensions(r){const raw=D.clean((r.channel||'')+';'+(r.terms||'')),attribute=(field,yes,no)=>{const explicit=D.clean(r[field]??'');if(explicit)return explicit;const parts=raw.split(/[;；，,]/).map(D.clean);const positive=parts.some(x=>yes.test(x)&&!no.test(x)),negative=parts.some(x=>no.test(x));return positive&&negative?'原文冲突':positive?'是':negative?'否':'未注明';};const promised=D.clean(r.promisedLeadRaw||(/承诺|保证/.test(r.leadRaw||'')?r.leadRaw:''));return [r.min??null,r.max??null,D.clean(r.timeBasis||''),Boolean(r.timeUnverified),promised,D.clean(r.startWeight??r.minimumWeight??r.weightTier??''),attribute('battery',/带电|含电|电池/,/不带电|无电|禁电|不接.*带电/),attribute('magnetic',/带磁|含磁/,/不带磁|无磁|禁磁|不接.*带磁/),attribute('sensitive',/敏感货|敏感品|敏感专线/,/非敏感|不接敏感|禁敏感/),D.clean(r.cargoType||'')];}
  function group(r){if(!r.comparisonProfile)return JSON.stringify([r.country,r.channel,r.warehouse,r.currency,r.unit,r.terms]);return JSON.stringify(['reviewed-v1',r.currency,r.unit,r.warehouse,...names.map(k=>clean(r.comparisonProfile[k]))]);}
  function latest(rows){const map=new Map();for(const r of rows){const k=JSON.stringify([r.companyId||r.company,group(r),...(r.priceTrial?[signature(r)]:[])]),old=map.get(k);if(!old||r.date>old.date)map.set(k,r);else if(r.date===old.date&&(r.price!==old.price||r.min!==old.min||r.max!==old.max||r.timeBasis!==old.timeBasis||Boolean(r.timeUnverified)!==Boolean(old.timeUnverified)))map.set(k,{...old,conflict:true});}return [...map.values()];}
  let mode='strict';
@@ -30,5 +33,5 @@
  const originalPrepare=prepare,originalGroup=group;
  prepare=function(rows,mappings=[]){return mode==='price'?pricePrepare(rows,mappings):originalPrepare(rows,mappings);};
  group=function(r){return r.priceTrial?r.priceKey:originalGroup(r);};
- const api={setMode,pricePrepare,missingReason,names,services,signature,profile,validate,suggest,issue,prepare,group,latest};root.ComparisonCore=api;if(typeof module!=='undefined')module.exports=api;
+ const api={conditionDimensions,setMode,pricePrepare,missingReason,names,services,signature,profile,validate,suggest,issue,prepare,group,latest};root.ComparisonCore=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

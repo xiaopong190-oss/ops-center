@@ -21,6 +21,7 @@
  function paint(){
   const companies=new Map(snapshot.companies.map(c=>[c.id,c]));for(const r of snapshot.records)if(!companies.has(r.companyId))companies.set(r.companyId,{id:r.companyId,name:r.company,imported:false});
   const list=[...companies.values()];if(!companies.has(selected)){selected=list[0]?.id||'';resetFilters();}
+  const validChannels=new Set(snapshot.records.filter(r=>r.companyId===selected&&r.finished.slice(0,7)===snapshot.month).map(r=>r.channel));if($('channel').value&&!validChannels.has($('channel').value)){$('channel').value='';page=1;}
   const v=V.companyRatingView(snapshot.records,{month:snapshot.month,companyId:selected,channel:$('channel').value,status:$('status').value,query:$('recordSearch').value,page});
   const s=v.selected,c=companies.get(selected);$('month').value=snapshot.month;
   $('lockNotice').hidden=!snapshot.locked;$('lockNotice').textContent=snapshot.locked?'合作数据异常，已停止保存。请保留现有数据并检查备份。':'';

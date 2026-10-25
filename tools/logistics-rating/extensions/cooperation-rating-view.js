@@ -11,8 +11,9 @@
   if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw Error('月份无效');
   if(!Number.isInteger(pageSize)||pageSize<1||pageSize>200)throw Error('每页数量无效');
   if(!Number.isInteger(page))page=1;
-  const monthRows=records.filter(r=>r.finished.slice(0,7)===month),ids=[...new Set(monthRows.map(r=>r.companyId))];
-  const companies=ids.map(id=>{const rows=monthRows.filter(r=>r.companyId===id);return {id,name:rows[0].company,...summarize(rows)};});
+  const monthRows=records.filter(r=>r.finished.slice(0,7)===month),byCompany=new Map();
+  for(const r of monthRows){if(!byCompany.has(r.companyId))byCompany.set(r.companyId,[]);byCompany.get(r.companyId).push(r);}
+  const companies=[...byCompany].map(([id,rows])=>({id,name:rows[0].company,...summarize(rows)}));
   const history=records.filter(r=>r.companyId===companyId),current=monthRows.filter(r=>r.companyId===companyId);
   const months=[...new Set(history.map(r=>r.finished.slice(0,7)))].filter(m=>m<=month).sort().slice(-6);
   const needle=query.normalize('NFKC').trim().toUpperCase();

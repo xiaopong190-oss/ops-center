@@ -5,8 +5,8 @@ const dom=new JSDOM(html,{url:'https://isolated.test/ratings.html',runScripts:'o
 const now=new Date(),day=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0'),key='logistics-completed-ratings-v1';
 w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
 const row={id:'existing',companyId:'c1',company:'隔离测试物流',shipment:'W1',operator:'运营',shipped:day,finished:day,channel:'美国 · 海运',mode:'rated',price:8,time:8,coop:8,note:'原有评价'};
-w.localStorage.setItem('logistics-company-directory-v1',JSON.stringify([{id:'c1',name:row.company,aliases:[],imported:true}]));w.localStorage.setItem(key,JSON.stringify([row]));let queues=0;w.CloudBackup={queue(){queues++;}};
-for(const file of ['domain.js','companies.js','extensions/cooperation-rating-view.js','extensions/cooperation-rating-live.js','ratings.js'])w.eval(fs.readFileSync(path.join(base,file),'utf8'));
+w.localStorage.setItem('logistics-company-directory-v1',JSON.stringify([{id:'c1',name:row.company,aliases:[],imported:true,ratingNameLastSeenOn:day}]));w.localStorage.setItem(key,JSON.stringify([row]));let queues=0;w.CloudBackup={queue(){queues++;}};
+for(const file of ['domain.js','extensions/rating-provider-names.js','companies.js','extensions/cooperation-rating-view.js','extensions/cooperation-rating-live.js','ratings.js'])w.eval(fs.readFileSync(path.join(base,file),'utf8'));
 assert.equal($('cr-score').textContent,'80.0');assert.equal($('ratingLegacy').hidden,true);assert.equal($('cooperationWorkspace').hidden,false);assert.equal($('form').closest('dialog').id,'cooperationEditor');assert.equal(queues,0);
 $('cr-addSelected').click();assert.equal($('company').value,'c1');assert.equal($('cooperationEditor').open,true);
 for(const [id,value] of Object.entries({shipment:'W2',operator:'另一运营',shipped:day,finished:day,mode:'rated',price:'10',time:'10',coop:'10',note:'新增合作履约已核实'}))$(id).value=value;

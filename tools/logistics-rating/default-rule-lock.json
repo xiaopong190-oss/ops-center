@@ -21,6 +21,11 @@
       "file": "quotes.js",
       "approval": "User agreed to separate global high-score view with original grouped view retained (2026-10-24)",
       "scope": "post-score presentation/export hook only; no scoring, import, peer selection or deletion changes"
+    },
+    {
+      "file": "quotes.js",
+      "approval": "User confirmed rolling three months since last successful quote entry and grace for existing five names (2026-10-25)",
+      "scope": "Exact post-save name-ID hooks only; stage name metadata, confirmed by existing GitHub receipt; no quotation rule changes; original baseline hash retained with exact seam normalization"
     }
   ]
 }

@@ -5,3 +5,5 @@ test('区域承诺时效及货物属性不同不冲突；全同条件价格不�
 test('货物未注明不默认普货，显式无电与带电都分别保留',()=>{assert.notDeepEqual(Q.conditionDimensions(base),Q.conditionDimensions({...base,battery:'否'}));assert.notDeepEqual(Q.conditionDimensions({...base,terms:'不带电;无磁;非敏感'}),Q.conditionDimensions({...base,terms:'带电;带磁;敏感品'}));});
 
 test('同源单元格但条件不同不能被来源修订路径误删',()=>{const r={...base,warehouse:undefined,regionRaw:'美国',source:'test.xlsx',sourceSheet:'报价',priceCell:'B2'},b={...r,channel:'另一服务',date:today,price:1200};const saved=Q.mergeRegional([r],[b]);assert.equal(saved.length,2);assert.equal(Q.assertImportCoverage({quotes:[],templates:[],regionalQuotes:saved},[],[r,b]).missing.length,0);});
+
+test('比价最新记录筛选也不能吞掉不同承诺时效',()=>{const C=require('../comparison-core.js'),rows=C.latest([base,{...base,max:31,price:1200}]);assert.equal(rows.length,2);assert.ok(rows.every(r=>!r.conflict));});

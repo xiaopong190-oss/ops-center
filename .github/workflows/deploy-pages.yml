@@ -40,7 +40,9 @@ jobs:
         run: npm ci --prefix modules/new-product-followup/work/qa --no-audit --no-fund
 
       - name: Test logistics trial
-        run: node --test tools/logistics-rating/tests/*.test.cjs
+        run: |
+          node --test tools/logistics-rating/tests/*.test.cjs
+          node tools/logistics-rating/tests/browser/cooperation-live-dom.cjs
 
       - name: Run regression tests
         run: npm run test:regression

@@ -26,6 +26,11 @@
       "file": "quotes.js",
       "approval": "User confirmed rolling three months since last successful quote entry and grace for existing five names (2026-10-25)",
       "scope": "Exact post-save name-ID hooks only; stage name metadata, confirmed by existing GitHub receipt; no quotation rule changes; original baseline hash retained with exact seam normalization"
+    },
+    {
+      "file": "n001.js",
+      "approval": "User requested transport buttons have only neutral and exclude, no include (2026-10-25)",
+      "scope": "Exact button toggle seam calls independent nextTransportExclusion; original status/matches/scoring/import/storage remain unchanged; original hash retained with exact seam normalization"
     }
   ]
 }

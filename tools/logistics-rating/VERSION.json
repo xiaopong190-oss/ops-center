@@ -1,7 +1,7 @@
 {
-  "version": "0.2.7-beta.79",
-  "releaseDate": "2026-10-24",
-  "status": "local-pilot",
+  "version": "0.2.7-beta.80",
+  "releaseDate": "2026-10-25",
+  "status": "internal-pilot",
   "storageSchema": 1,
   "testCommand": "node --test tests/*.test.cjs",
   "limits": {
@@ -21,7 +21,9 @@
     "regionalQuoteRecords": 50000,
     "deletedQuoteRecords": 50000,
     "sharedDataBytes": 33554432,
-    "quoteRetentionDays": 10
+    "quoteRetentionDays": 10,
+    "cooperationRetentionMonths": 3,
+    "ratingProviderNameRetentionMonths": 3
   },
   "productionReady": false,
   "uiFeatures": [
@@ -46,7 +48,12 @@
     "regional-quotes-separate-storage",
     "reviewed-comparison-profiles",
     "price-independent-of-time",
-    "rating-diagnostics"
+    "rating-diagnostics",
+    "company-cooperation-profile",
+    "three-month-rating-provider-names",
+    "three-month-completed-cooperation-retention",
+    "transport-neutral-exclude-only",
+    "market-regression-hardening"
   ],
   "warehouseRetention": "permanent"
 }

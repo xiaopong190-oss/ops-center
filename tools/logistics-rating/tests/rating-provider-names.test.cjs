@@ -1,4 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),P=require('../extensions/rating-provider-names.js');
+test('completed date governs cooperation retention, boundary kept, both pending and rated expire without mutation',()=>{
+ const rows=[{id:'a',finished:'2026-07-25',mode:'rated'},{id:'b',finished:'2026-07-24',mode:'rated'},{id:'c',finished:'2026-07-24',mode:'pending'}],before=JSON.stringify(rows),out=P.retainCooperations(rows,'2026-10-25');assert.deepEqual(out.kept,[rows[0]]);assert.equal(out.expiredCount,2);assert.equal(JSON.stringify(rows),before);assert.deepEqual(P.retainCooperations(out.kept,'2026-10-26').kept,[]);
+});
 test('fixed initial grace expires without refresh renewal',()=>{
  const c={id:'5ef8c9d1-c14f-41e4-a9a4-f32c5c842737',name:'初始名称',imported:true};assert.equal(P.eligibleRatingNames([c],'2027-01-25').eligible.length,1);assert.equal(P.eligibleRatingNames([c],'2027-01-26').expired.length,1);
 });

@@ -26,8 +26,18 @@ export async function saveGithub(input,env,user,send=fetch){
  const response=await send(api,{method:'PUT',redirect:'manual',signal:AbortSignal.timeout(45000),headers:{...headers(env),'Content-Type':'application/json'},body:JSON.stringify({message:'Update classified logistics data',branch:'main',...(current.sha?{sha:current.sha}:{}),content:content.toString('base64')})});
  if(response.status===409||response.status===422)fail(409,'GitHub版本冲突，请重新核对后提交，本地数据保留');if(!response.ok)fail(502,'GitHub上传失败，未确认入库');const result=await response.json();if(!result.content?.sha||!result.commit?.sha)fail(502,'GitHub未返回有效提交凭据');return {ok:true,sha:result.content.sha,commitSha:result.commit.sha,savedAt:document.savedAt,url:result.commit.html_url};
 }
+
+export async function decodeLogisticsSubmission(text){
+ let input;try{input=JSON.parse(text);}catch{fail(400,'无效提交JSON');}
+ if(input?.encoding!=='logistics-gzip-v1')return input;
+ if(!Number.isSafeInteger(input.bytes)||input.bytes<1||input.bytes>32*1024*1024||typeof input.content!=='string'||input.content.length>32*1024*1024||!/^[A-Za-z0-9+/]*={0,2}$/.test(input.content)||!/^[0-9a-f]{64}$/.test(input.sha256||''))fail(400,'压缩提交信息无效');
+ const bytes=Buffer.from(input.content,'base64');if(bytes.toString('base64')!==input.content)fail(400,'压缩提交编码错误');const chunks=[];let size=0;
+ try{const reader=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')).getReader();for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>input.bytes||size>32*1024*1024){await reader.cancel();fail(413,'解压内容超过提交上限');}chunks.push(value);}}catch(e){if(e.status)throw e;fail(400,'压缩提交损坏，原数据未改变');}
+ const decoded=Buffer.concat(chunks);if(decoded.length!==input.bytes||Buffer.from(await crypto.subtle.digest('SHA-256',decoded)).toString('hex')!==input.sha256)fail(400,'压缩提交完整性检查失败，原数据未改变');
+ try{const result=JSON.parse(decoded.toString('utf8'));if(result?.encoding)throw Error();return result;}catch{fail(400,'压缩提交JSON无效');}
+}
 export async function logisticsGithub(req,env,user=null,assembled=null){
  const url=new URL(req.url);if(req.method==='GET'){const result=await readGithub(env);return Response.json({...result,writeConfigured:!!env.LOGISTICS_GITHUB_TOKEN},{headers:{'Cache-Control':'no-store'}});}
  if(!user)fail(401,'请先登录运营中心');if(url.pathname.endsWith('/upload'))return logisticsStorage({id:'github-staging-'+user.id}).upload(req,env,user,text=>logisticsGithub(new Request('https://local/api/logistics-data',{method:'POST'}),env,user,text));
- if(req.method!=='POST')fail(405,'方法不允许');let text=assembled??await req.text();if(Buffer.byteLength(text)>32*1024*1024)fail(413,'提交超过32MiB');let input;try{input=JSON.parse(text);}catch{fail(400,'无效提交JSON');}return Response.json(await saveGithub(input,env,user),{headers:{'Cache-Control':'no-store'}});
+ if(req.method!=='POST')fail(405,'方法不允许');let text=assembled??await req.text();if(Buffer.byteLength(text)>32*1024*1024)fail(413,'提交超过32MiB');const input=await decodeLogisticsSubmission(text);return Response.json(await saveGithub(input,env,user),{headers:{'Cache-Control':'no-store'}});
 }

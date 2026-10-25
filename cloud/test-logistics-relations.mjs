@@ -9,3 +9,12 @@ const charge=async n=>{charges+=n};assert.equal((await recognizeRelationsCached(
 const svc=validateRelations({purpose:'relation-identity',exception:true,items:[{kind:'service',raw:'Matson regular sailing',context:'美国海运'}]});
 const answer={kind:'service',raw:svc.items[0].raw,context:svc.items[0].context,country:'',region:'',channel:'美森正班海卡',mode:'海运',confidence:'high',evidence:'Matson regular sailing'};
 assert.equal(validateRelationsResult({items:[answer]},svc)[0].channel,'美森正班海卡');assert.throws(()=>validateRelationsResult({items:[{...answer,evidence:'不在输入中'}]},svc));assert.throws(()=>validateRelationsResult({items:[{...answer,channel:'自造通用服务'}]},svc));console.log('PASS service whitelist and literal source evidence requirement');
+
+const testEnv=()=>({DEEPSEEK_API_KEY:'synthetic',DB:{prepare(){return {bind(){return this;},first:async()=>null,run:async()=>({})};}}});
+await assert.rejects(()=>recognizeRelationsCached(input,testEnv(),async()=>{},async()=>{throw Object.assign(Error('timeout'),{name:'TimeoutError'});}),e=>e.status===504&&e.message.includes('REL_PROVIDER_NETWORK'));
+await assert.rejects(()=>recognizeRelationsCached(input,testEnv(),async()=>{},async()=>new Response('',{status:429})),e=>e.status===429&&e.message.includes('REL_PROVIDER_HTTP_429'));
+await assert.rejects(()=>recognizeRelationsCached(input,testEnv(),async()=>{},async()=>Response.json({choices:[{finish_reason:'length',message:{content:'{}'}}]})),e=>e.status===502&&e.message.includes('REL_OUTPUT_TRUNCATED'));
+await assert.rejects(()=>recognizeRelationsCached(input,testEnv(),async()=>{},async()=>Response.json({choices:[{message:{content:'{}'}}]})),e=>e.status===502&&e.message.includes('REL_RESULT_INVALID'));
+const badDB=testEnv();badDB.DB.prepare=()=>({bind(){return this;},first:async()=>null,run:async()=>{throw Error('storage failed');}});
+await assert.rejects(()=>recognizeRelationsCached(input,badDB,async()=>{},send),e=>e.status===503&&e.message.includes('REL_CACHE_WRITE'));
+console.log('PASS distinct timeout, upstream HTTP, output truncation, invalid result and cache-write diagnostics');

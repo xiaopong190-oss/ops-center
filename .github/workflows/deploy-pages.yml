@@ -45,6 +45,7 @@ jobs:
           node tools/logistics-rating/tests/browser/cooperation-live-dom.cjs
           node --test tools/logistics-rating/tests/browser/market-readiness.cjs
           node tools/logistics-rating/tests/browser/intake-feedback-dom.cjs
+          node tools/logistics-rating/tests/browser/supplier-confirmation-dom.cjs
 
       - name: Run regression tests
         run: npm run test:regression

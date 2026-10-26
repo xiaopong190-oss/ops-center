@@ -5,11 +5,29 @@
  function validate(d){if(!d||d.space!=='real')throw Error('共享数据空间无效');Domain.directory(d.storage[keys[0]]);QuoteCore.validate(d.storage[keys[1]]);Domain.bills(d.storage[keys[2]]);Domain.ratings(d.storage[keys[3]],new Date(Date.now()+14*3600000).toISOString().slice(0,10));return d;}
  function cache(d){const before=keys.map(k=>localStorage.getItem(k));try{keys.forEach(k=>localStorage.setItem(k,JSON.stringify(d.storage[k])));}catch(e){keys.forEach((k,i)=>{try{if(before[i]===null)localStorage.removeItem(k);else localStorage.setItem(k,before[i]);}catch(ignore){}});throw Error('本地缓存写入失败，未继续提交');}}
  async function request(path,data){const token=localStorage.getItem('ops-cloud-session-v1');const response=await fetch(base+path,{method:data?'POST':'GET',headers:{'Content-Type':'application/json',...(data&&token?{Authorization:'Bearer '+token}:{})},...(data?{body:JSON.stringify(data)}:{}),signal:AbortSignal.timeout(60000)});const result=await response.json();if(!response.ok)throw Error(result.error||'GitHub请求失败');return result;}
- async function load(force=false){if(root.LogisticsSpace?.isDemo){state.loaded=true;return state;}try{const response=await request(''),data=validate(response.document.data),local=snapshot(),meta=JSON.parse(localStorage.getItem(metaKey)||'null'),pending=localStorage.getItem(pendingKey);state={sha:response.sha,loaded:true,conflict:false,error:'',writeConfigured:response.writeConfigured};
-  if(!force&&hasRows(local)&&JSON.stringify(local)!==JSON.stringify(data)&&(!meta||pending)){
-   state.conflict=!!hasRows(data)&&(!meta||meta.sha!==response.sha);state.error=state.conflict?'本机待提交数据与GitHub不同，请先核对，未自动覆盖':'本机存在待提交数据，尚未上传GitHub';localStorage.setItem(pendingKey,'1');
-  }else{if(force&&pending)localStorage.setItem('logistics-github-unsent-draft-v1',JSON.stringify(local));cache(data);if(root.LocalQuoteStore)await root.LocalQuoteStore.flush();localStorage.removeItem(pendingKey);}
-  if(root.LocalQuoteStore)await root.LocalQuoteStore.flush();localStorage.setItem(metaKey,JSON.stringify({sha:response.sha,savedAt:response.document.savedAt||null}));
+ async function load(force=false){if(root.LogisticsSpace?.isDemo){state.loaded=true;return state;}try{
+  const response=await request(''),data=validate(response.document.data),local=snapshot(),meta=JSON.parse(localStorage.getItem(metaKey)||'null'),pending=localStorage.getItem(pendingKey),different=JSON.stringify(local)!==JSON.stringify(data);
+  const now=new Date(),day=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  const review=root.CloudDataReview?.reviewCloudQuotes(local,data,QuoteCore.weekWindow(day));
+  state={sha:response.sha,loaded:true,conflict:false,error:'',writeConfigured:response.writeConfigured,review};
+  if(!force&&hasRows(local)&&different&&(!meta||pending)){
+   state.conflict=!!hasRows(data)&&(!meta||meta.sha!==response.sha||!!review?.missingCurrent);
+   state.error=review?.missingCurrent?'当前显示本机草稿：本周 0 条；云端本周 '+review.cloud.current+' 条。请先导出草稿，再暂存并加载云端报价。':state.conflict?'本机待提交数据与GitHub不同，请先核对，未自动覆盖':'本机存在待提交数据，尚未上传GitHub';
+   localStorage.setItem(pendingKey,'1');
+   if(root.LocalQuoteStore)await root.LocalQuoteStore.flush();
+   // A fetched revision is not an accepted baseline while local data is kept.
+   return state;
+  }
+  if(force&&hasRows(local)&&different){
+   const raw=JSON.stringify(local),previous=localStorage.getItem('logistics-github-unsent-draft-v1');
+   if(previous&&previous!==raw)throw Error('已有另一份暂存草稿，请先导出并核对；未覆盖草稿或本机数据');
+   localStorage.setItem('logistics-github-unsent-draft-v1',raw);
+   // Persist the draft before replacing the active quote cache.
+   if(root.LocalQuoteStore)await root.LocalQuoteStore.flush();
+  }
+  try{cache(data);if(root.LocalQuoteStore)await root.LocalQuoteStore.flush();}catch(error){cache(local);throw error;}
+  localStorage.removeItem(pendingKey);
+  localStorage.setItem(metaKey,JSON.stringify({sha:response.sha,savedAt:response.document.savedAt||null}));
  }catch(e){state.loaded=false;state.error=e.message;}return state;}
  async function save(progress=()=>{}){if(root.LogisticsSpace?.isDemo)return {demo:true};if(!state.loaded)throw Error('未取得GitHub最新版本，请刷新后重试');if(state.conflict)throw Error(state.error);if(!localStorage.getItem('ops-cloud-session-v1'))throw Error('请先登录运营中心再提交');if(!state.writeConfigured)throw Error('GitHub写入凭证尚未配置');if(busy)throw Error('正在提交，请稍候');busy=true;
  try{if(root.LocalQuoteStore)await root.LocalQuoteStore.flush();const original=validate(snapshot()),raw=JSON.stringify(original),data=root.RatingProviderNames?{...original,storage:{...original.storage,[keys[3]]:root.RatingProviderNames.retainCooperations(original.storage[keys[3]],new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(new Date().getDate()).padStart(2,'0')).kept,[keys[0]]:root.RatingProviderNames.prepareConfirmedNames(original.storage[keys[0]],new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(new Date().getDate()).padStart(2,'0'))}}:original;let payload={baseSha:state.sha,operationId:crypto.randomUUID(),data},bytes=new TextEncoder().encode(JSON.stringify(payload));if(bytes.length>32*1024*1024)throw Error('共享数据超过32MiB');if(bytes.length>700000&&typeof CompressionStream==='function'){progress('正在压缩上传数据，原始报价保持不变');const compressed=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());let binary='';for(const b of compressed)binary+=String.fromCharCode(b);const envelope={encoding:'logistics-gzip-v1',bytes:bytes.length,sha256:[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join(''),content:btoa(binary)},encoded=new TextEncoder().encode(JSON.stringify(envelope));if(encoded.length<bytes.length){payload=envelope;bytes=encoded;}}let result;

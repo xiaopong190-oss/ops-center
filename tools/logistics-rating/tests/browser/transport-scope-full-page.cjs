@@ -9,7 +9,7 @@ test('full quotes render pipeline repeatedly recovers after excluding every avai
   for(const f of ['domain.js','comparison-core.js','channel-score.js','quote-core.js','companies.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
   const rows=Array.from({length:4130},(_,i)=>({company:'测试物流',companyId:'test',country:'美国',warehouse:'ONT8',channel:i<3180?'海运':'铁路',terms:'档='+i+'KG+;'+(i%3===0?'带电':i%3===1?'带磁':'普货'),price:1000,currency:'CNY',unit:'kg',date:'2026-10-26',min:20,max:30}));
   w.localStorage.setItem('logistics-quotes-v1',JSON.stringify({quotes:rows,templates:[]}));
-  for(const f of ['relation-core.js','extensions/transport-exclusion.js','n001.js','extensions/score-filter.js','quotes.js','extensions/comparison-filter-reset.js','extensions/cargo-filter.js','extensions/cargo-filter-ui.js','n001-layout.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
+  for(const f of ['relation-core.js','extensions/transport-exclusion.js','n001.js','extensions/score-filter.js','quotes.js','extensions/comparison-filter-reset.js','extensions/cargo-filter.js','extensions/cargo-filter-ui.js','n001-layout.js','extensions/comparison-layout.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
   await new Promise(resolve=>setTimeout(resolve,0));
   const snapshot=w.localStorage.getItem('logistics-quotes-v1'),buttons=[...w.document.querySelectorAll('[data-transport]')],button=mode=>buttons.find(b=>b.dataset.transport===mode);
   function total(expected){assert.match($('n001Page').textContent,new RegExp('共 '+expected+' 条'));assert.equal($('comparison').querySelectorAll('tbody tr').length,Math.min(expected,200));}

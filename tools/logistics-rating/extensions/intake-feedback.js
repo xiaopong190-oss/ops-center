@@ -9,5 +9,10 @@
   }else if(/日期/.test(message)){date.scrollIntoView?.({behavior:'smooth',block:'center'});date.focus?.();}
  }
  function placeSupplierPicker({supplier,button}){const label=supplier.closest?.('label');if(label&&button?.parentElement)button.before(label);}
- const api={showCleaningBlocker,placeSupplierPicker};if(typeof module!=='undefined')module.exports=api;else root.IntakeFeedback=Object.freeze(api);
+ function ensureManualChoice(supplier){if(!supplier.querySelector('option[value="__manual__"]')){const option=supplier.ownerDocument.createElement('option');option.value='__manual__';option.textContent='＋ 自行填写服务商名称';supplier.appendChild(option);}}
+ function mountSupplierEntry({supplier,button,manualPanel,manualInput}){
+  placeSupplierPicker({supplier,button});ensureManualChoice(supplier);button.after(manualPanel);
+  supplier.addEventListener('change',()=>{if(supplier.value==='__manual__'){manualPanel.open=true;manualInput.focus?.();}else manualPanel.open=false;});
+ }
+ const api={showCleaningBlocker,placeSupplierPicker,ensureManualChoice,mountSupplierEntry};if(typeof module!=='undefined')module.exports=api;else root.IntakeFeedback=Object.freeze(api);
 })(typeof window==='undefined'?globalThis:window);

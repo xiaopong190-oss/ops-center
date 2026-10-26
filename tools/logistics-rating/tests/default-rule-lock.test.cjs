@@ -2,6 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const base=path.resolve(__dirname,'..'),lock=JSON.parse(fs.readFileSync(path.join(base,'default-rule-lock.json'),'utf8'));
 function mismatches(read){return Object.entries(lock.files).filter(([file,expected])=>crypto.createHash('sha256').update(read(file).replace(/\r\n/g,'\n'),'utf8').digest('hex')!==expected).map(([file])=>file);}
 const hooks=[
+ ["/* cargo-filter-approved */return window.CargoFilter?CargoFilter.filterCargoRows(window.N001UI.rows(rows),[...document.querySelectorAll('#cargoFilter input:checked')].map(input=>input.value)):window.N001UI.rows(rows);","return window.N001UI.rows(rows);"],
  ['/* rating-name-import-approved */Companies.recordRatingProviderImport?.([...mapped,...mappedRegions].map(r=>r.companyId),today());',''],
  ['const confirmedNameIds=new Set();const result=ImportResolution.resolve(db,keys,action,edits,today(),actor,company=>{const id=Companies.imported(company).id;confirmedNameIds.add(id);return id;});write(result.db);/* rating-name-resolution-approved */Companies.recordRatingProviderImport?.([...confirmedNameIds],today());','const result=ImportResolution.resolve(db,keys,action,edits,today(),actor,company=>Companies.imported(company).id);write(result.db);']
 ];

@@ -1,6 +1,6 @@
 {
-  "version": "0.2.7-beta.82",
-  "releaseDate": "2026-10-25",
+  "version": "0.2.7-beta.83",
+  "releaseDate": "2026-10-26",
   "status": "internal-pilot",
   "storageSchema": 1,
   "testCommand": "node --test tests/*.test.cjs",

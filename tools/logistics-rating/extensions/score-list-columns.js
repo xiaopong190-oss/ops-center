@@ -1,5 +1,10 @@
 (function(root){
  'use strict';
+ function visibleDialogBounds({height,frameTop=null,parentHeight=height}){
+  const top=frameTop===null?24:Math.max(24,80-frameTop);
+  const bottom=frameTop===null?height-24:Math.min(height,parentHeight-frameTop)-24;
+  return {top,maxHeight:Math.max(48,bottom-top)};
+ }
  function bindScoreListColumns(doc){
   const host=doc.getElementById('comparison');if(!host)return;
   const states=new WeakMap();
@@ -23,8 +28,11 @@
    action('全选',()=>inputs.forEach(x=>x.input.checked=true));action('全不选',()=>inputs.forEach(x=>x.input.checked=false));
    action('应用',()=>{const allowed=new Set(inputs.filter(x=>x.input.checked).map(x=>x.value));if(allowed.size===values.length)state.filters.delete(col);else state.filters.set(col,allowed);if(order.value)state.sort={col,order:order.value};else if(state.sort?.col===col)state.sort=null;apply();close();});
    action('重置本列',()=>{state.filters.delete(col);if(state.sort?.col===col)state.sort=null;apply();close();});action('取消',close);
-   dialog.addEventListener('cancel',()=>dialog.remove());dialog.style.maxHeight='80vh';dialog.style.maxWidth='90vw';doc.body.append(dialog);dialog.showModal();
+   const view=doc.defaultView;let viewport={height:view.innerHeight};
+   try{if(view.frameElement)viewport={...viewport,frameTop:view.frameElement.getBoundingClientRect().top,parentHeight:view.parent.innerHeight};}catch(ignore){}
+   const bounds=visibleDialogBounds(viewport);
+   dialog.addEventListener('cancel',()=>dialog.remove());dialog.style.top=bounds.top+'px';dialog.style.maxHeight=bounds.maxHeight+'px';dialog.style.maxWidth='90vw';doc.body.append(dialog);dialog.showModal();
   });
  }
- const api={bindScoreListColumns};if(typeof module!=='undefined')module.exports=api;else root.ScoreListColumns=Object.freeze(api);
+ const api={bindScoreListColumns,visibleDialogBounds};if(typeof module!=='undefined')module.exports=api;else root.ScoreListColumns=Object.freeze(api);
 })(typeof window==='undefined'?globalThis:window);

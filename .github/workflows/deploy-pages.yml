@@ -47,6 +47,7 @@ jobs:
           node tools/logistics-rating/tests/browser/intake-feedback-dom.cjs
           node --test tools/logistics-rating/tests/browser/transport-scope-dom.cjs
           node --test tools/logistics-rating/tests/browser/transport-scope-full-page.cjs
+          node --test tools/logistics-rating/tests/browser/transport-record-integrity.cjs
 
       - name: Run regression tests
         run: npm run test:regression

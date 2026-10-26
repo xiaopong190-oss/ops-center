@@ -45,12 +45,25 @@
 
 绑定用户浏览器标签页时工具超时，未完成实际标签页重复操作。用户确认运输范围不变而下方记录消失。在完整页面中，应用最低 6 分后直接将输入框置空但不应用，往返切换海运排除时列表仍为 0，可复现“看起来无分数条件但取消排除仍无记录”的路径；现已覆盖通过实际 input 事件清空立即恢复、顶部重置恢复的测试。尚未读取用户浏览器内部状态，不能断言这是其实际现场唯一原因。
 
+## 记录完整性专项复测
+
+用户再次明确：要验证连续切换运输方式／查看范围时，下方实际记录是否正确变化、切回后是否完整恢复、底层是否真的丢数据。此项独立于分数筛选修复，不能用分数问题推定运输切换的根因。
+
+- 使用四种已识别运输方式与待确认方案的 205 条带唯一 ID、独立档位和不同价格的报价，覆盖超过一页的结果。
+- 原有运输／范围逻辑与加载重置修复的版本各跑 161 个连续状态，共 322 个状态。以 Gray code 连续切换所有排除组合，逐一切换四种范围，最后重置。
+- 每个状态逐条核对完整导出的原始报价字段、所有实际渲染分页里的记录集合，断言无漏记、无重复、内容无变化；并断言每一步内存中的源记录（含 ID）和整个隔离 localStorage 与初始快照完全一致。最后记录序列与初始导出完全一致。
+- 用只读取得的共享快照在独立 JSDOM 内存空间复测：底层报价 14239 条，本周最终展示／导出基线 2312 条；连续 3 轮共 24 个状态切换，恢复后导出报价逐字段一致，底层内存及报价存储文本完全不变。最终展示数量使用现有比价投影后的结果，不等同于原始本周报价总数；此测试未改去重或周范围规则。
+- 本次再次执行物流回归：353 项通过，0 失败。新增逐条完整性测试已加入 CI。
+
+结论：上述受测数据和流程中，列表按运输及范围正确增减，恢复原条件后记录完整恢复，未发现原始数据删除、改写或重复。用户当前浏览器标签页仍不可直接读取，故不能宣称已定位其“取消后列表仍为空”的现场原因；分数筛选残留是已独立复现的问题，不能直接当作该现场的唯一根因。本轮未上线、未写生产业务数据。
+
 ## 复现命令
 
 ```text
 node --test tools/logistics-rating/tests/*.test.cjs
 node --test tools/logistics-rating/tests/browser/transport-scope-dom.cjs
 node --test tools/logistics-rating/tests/browser/transport-scope-full-page.cjs
+node --test tools/logistics-rating/tests/browser/transport-record-integrity.cjs
 node tools/logistics-rating/tests/browser/cooperation-live-dom.cjs
 node --test tools/logistics-rating/tests/browser/market-readiness.cjs
 node tools/logistics-rating/tests/browser/intake-feedback-dom.cjs

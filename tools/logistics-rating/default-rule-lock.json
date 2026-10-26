@@ -31,6 +31,11 @@
       "file": "n001.js",
       "approval": "User requested transport buttons have only neutral and exclude, no include (2026-10-25)",
       "scope": "Exact button toggle seam calls independent nextTransportExclusion; original status/matches/scoring/import/storage remain unchanged; original hash retained with exact seam normalization"
+    },
+    {
+      "file": "quotes.js",
+      "approval": "User approved multi-select cargo UI (2026-10-26)",
+      "scope": "Exact independent read-only cargo-filter projection after transport selection; original baseline hash retained with exact seam normalization; no import, storage, grouping or score changes"
     }
   ]
 }

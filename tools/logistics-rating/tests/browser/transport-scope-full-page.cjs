@@ -7,9 +7,9 @@ test('full quotes render pipeline repeatedly recovers after excluding every avai
   class Clock extends w.Date{constructor(...args){super(...(args.length?args:['2026-10-26T12:00:00']));}}w.Date=Clock;
   w.fetch=async()=>({ok:true,json:async()=>({items:[]})});
   for(const f of ['domain.js','comparison-core.js','channel-score.js','quote-core.js','companies.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
-  const rows=Array.from({length:4130},(_,i)=>({company:'测试物流',companyId:'test',country:'美国',warehouse:'ONT8',channel:i<3180?'海运':'铁路',terms:'档='+i+'KG+',price:1000,currency:'CNY',unit:'kg',date:'2026-10-26',min:20,max:30}));
+  const rows=Array.from({length:4130},(_,i)=>({company:'测试物流',companyId:'test',country:'美国',warehouse:'ONT8',channel:i<3180?'海运':'铁路',terms:'档='+i+'KG+;'+(i%3===0?'带电':i%3===1?'带磁':'普货'),price:1000,currency:'CNY',unit:'kg',date:'2026-10-26',min:20,max:30}));
   w.localStorage.setItem('logistics-quotes-v1',JSON.stringify({quotes:rows,templates:[]}));
-  for(const f of ['relation-core.js','extensions/transport-exclusion.js','n001.js','extensions/score-filter.js','quotes.js','extensions/comparison-filter-reset.js','n001-layout.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
+  for(const f of ['relation-core.js','extensions/transport-exclusion.js','n001.js','extensions/score-filter.js','quotes.js','extensions/comparison-filter-reset.js','extensions/cargo-filter.js','extensions/cargo-filter-ui.js','n001-layout.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
   await new Promise(resolve=>setTimeout(resolve,0));
   const snapshot=w.localStorage.getItem('logistics-quotes-v1'),buttons=[...w.document.querySelectorAll('[data-transport]')],button=mode=>buttons.find(b=>b.dataset.transport===mode);
   function total(expected){assert.match($('n001Page').textContent,new RegExp('共 '+expected+' 条'));assert.equal($('comparison').querySelectorAll('tbody tr').length,Math.min(expected,200));}
@@ -30,6 +30,10 @@ test('full quotes render pipeline repeatedly recovers after excluding every avai
   $('scoreMin').value='6';$('scoreApply').click();total(0);
   $('scoreMin').value='';$('scoreMin').dispatchEvent(new w.Event('input'));total(4130);
   button('海运').click();total(950);button('海运').click();total(4130);
+  const cargo=docCargo=>w.document.querySelector('#cargoFilter input[value="'+docCargo+'"]');
+  cargo('带电').checked=true;cargo('带电').dispatchEvent(new w.Event('change',{bubbles:true}));total(1377);
+  cargo('带磁').checked=true;cargo('带磁').dispatchEvent(new w.Event('change',{bubbles:true}));total(2754);
+  $('n001Reset').click();total(4130);assert.equal(w.document.querySelectorAll('#cargoFilter input:checked').length,0);
   assert.equal(w.localStorage.getItem('logistics-quotes-v1'),snapshot);
  }finally{w.close();}
 });

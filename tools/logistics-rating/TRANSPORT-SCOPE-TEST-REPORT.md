@@ -28,13 +28,29 @@
 - “全部运输范围”会展示已排除方式；查看排除结果请选择“仅范围外”。
 - 运输统计是全局统计，未应用后续服务商等筛选，故不要求等于最终列表条数。
 
-本轮覆盖范围内未发现功能缺陷。自动交互运行于 JSDOM，并非人工桌面／手机浏览器视觉验收；未操作用户实际业务数据，未测试生产环境删除或入库操作。
+初轮逻辑测试未发现筛选计算缺陷，但此结论不能排除用户完整页面中的问题。自动交互运行于 JSDOM，并非人工桌面／手机浏览器视觉验收；未操作用户实际业务数据，未测试生产环境删除或入库操作。
+
+## 用户补充截图后的复测
+
+增加完整 `n001.html`、`quotes.js`、`relation-core.js`、评分列表及布局模块联动测试，不再仅以替代渲染回调验证运输控件。
+
+使用 4130 条合成海运／铁路报价，重复 5 轮：海运排除后 950 条，两项排除后 0 条；仅范围外／全部恢复 4130 条，仅待确认 0 条；恢复海运后 3180 条，再恢复铁路后 4130 条；排除不存在的空运／卡航不影响结果，顶部重置恢复 4130 条。整个过程报价存储不变。此合成数据用于验证相同数量和模式分布下的交互，不代表读取了用户截图中的本地报价。
+
+发现两个明确的界面歧义，尚未修改：
+
+- 运输方式筛选已排空列表时，空提示仍统一为“当前分数范围没有报价”，不能准确指明运输筛选原因。
+- 顶部“重置筛选”只重置顶部筛选，不清除独立分数筛选。已应用最低 6 分且报价仅有基准 5 分时，顶部重置仍为 0；点击“清空分数筛选”后恢复。
+
+只读检查当前共享快照：2026-10-26 所属自然周有 2322 条报价，其中海运 1872、铁路 450。排除这两种时为空符合现有规则。截图有 4130 条，与共享快照不同，不能直接把云端分类结果等同于用户浏览器的分类结果。
+
+绑定用户浏览器标签页时工具超时，未完成实际标签页重复操作。尚未复现恢复“不限”或切换“全部”仍无法恢复的故障；等待用户明确失败步骤，不能以当前自动测试通过宣称该故障不存在。
 
 ## 复现命令
 
 ```text
 node --test tools/logistics-rating/tests/*.test.cjs
 node --test tools/logistics-rating/tests/browser/transport-scope-dom.cjs
+node --test tools/logistics-rating/tests/browser/transport-scope-full-page.cjs
 node tools/logistics-rating/tests/browser/cooperation-live-dom.cjs
 node --test tools/logistics-rating/tests/browser/market-readiness.cjs
 node tools/logistics-rating/tests/browser/intake-feedback-dom.cjs

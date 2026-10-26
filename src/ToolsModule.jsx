@@ -449,7 +449,7 @@ const visibleToolsForUser = (tools, user) => tools.filter(tool => !tool.superOnl
 const TOOL_CATALOG = [
   { id: "hstc-ledger-admin", name: "亚马逊账本 · 管理端", desc: "交易导入、收支提现与账本管理 · 超级管理员专用", icon: "💼", category: "财务", superOnly: true, url: "https://hstc-amz-cw.akolojutet24.chatgpt.site/" },
   { id: "hstc-ledger-viewer", name: "亚马逊账本 · 展示端", desc: "财务报表与共享账本只读展示 · 超级管理员专用", icon: "📊", category: "财务", superOnly: true, url: "https://xiaopong190-oss.github.io/hstc-amz-cw-viewer/?v=1.04&r=22" },
-  { id: "logistics-rating", name: "物流商报价与评级 · 试用", desc: "报价对比、国家仓库模板、月度对账、合作评级", icon: "🚚", category: "物流", openUrl: "tools/logistics-rating/index.html?v=0.2.7-beta.83#/channels" },
+  { id: "logistics-rating", name: "物流商报价与评级 · 试用", desc: "报价对比、国家仓库模板、月度对账、合作评级", icon: "🚚", category: "物流", openUrl: "tools/logistics-rating/index.html?v=0.2.7-beta.84#/channels" },
   { id: "weight-converter", name: "单位换算", desc: "质量与长度实时换算，支持多单位切换", icon: "⚖️", category: "常用", component: UnitConverterTool },
   { id: "fba-profit", name: "FBA 利润计算器", desc: "全链路利润：体积重、尺寸分档、头程 / 佣金 / 退货", icon: "💰", category: "FBA", openUrl: "fba-profit-calculator.html" },
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },

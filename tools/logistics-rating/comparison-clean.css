@@ -1,0 +1,42 @@
+/* Presentation only. Existing controls and handlers retain their identity. */
+body{background:#f5f7fa;color:#25334b}main{max-width:1440px;margin:auto;padding:24px}
+#comparisonPanel{background:transparent;border:0;box-shadow:none;padding:0}
+.n001-search{background:#fff;border:1px solid #e1e7ef;padding:22px 24px;margin:20px 0;border-radius:14px;box-shadow:none}
+.n001-search h2,.comparison-results-heading h2{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
+.n001-search>p{color:#7a8799;line-height:1.6;margin:7px 0 16px}
+.n001-filters{margin:16px 0;gap:10px;grid-template-columns:1.1fr .8fr .8fr 1.4fr 1fr}
+.n001-filters select,.n001-filters .warehouse-picker>button{height:40px;border-color:#dce3ed;background:#fff}
+.n001-modes{border-top:1px solid #edf0f5;padding:14px 0 10px;margin:0;display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.n001-modes>b{width:64px;color:#67768c;font-weight:500}.n001-modes button{margin:0;min-height:34px;background:#f8fafc;color:#4e6384;border:1px solid #e0e7f0}
+.n001-modes button[data-state=exclude]{background:#fff2f0;border-color:#f3b4ab;color:#b74736}
+#cargoFilter{border:0;padding:10px 0 14px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+#cargoFilter legend{float:left;width:64px;padding:6px 0;margin-right:7px;font-size:0;color:#67768c}
+#cargoFilter legend::after{content:'货物类型';font-size:12px}
+#cargoFilter label{display:inline-flex;align-items:center;gap:5px;margin:0!important;padding:5px 9px;border:1px solid #e3e8f0;border-radius:6px;color:#566680;font-size:12px;cursor:pointer;min-height:32px;box-sizing:border-box}
+#cargoFilter label:has(input:checked){background:#edf3ff;border-color:#9eb9ef;color:#2450d8}
+#cargoFilter input{width:13px;height:13px;margin:0;accent-color:#2450d8}
+#cargoFilter>button{font-size:12px;border:0;padding:6px;color:#2450d8;background:transparent}
+#cargoFilter>p{flex-basis:100%;font-size:11px;margin:3px 0 0;color:#8390a3;line-height:1.6}
+.comparison-actions{border-top:1px solid #edf0f5;padding-top:14px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.comparison-actions label{display:flex;align-items:center;gap:8px;margin:0;color:#67768c;font-size:12px}.comparison-actions select{margin:0;min-height:36px}
+.comparison-actions button{margin:0;min-height:36px}#n001Compare{margin-left:auto;min-width:118px}
+#n001Status{font-size:12px!important;line-height:1.65;color:#60718b;margin:12px 0 0}
+.comparison-notes{margin-top:12px;border-top:1px solid #eef1f5;padding-top:10px;font-size:12px;color:#7b889c}
+.comparison-notes>summary{cursor:pointer}.comparison-notes p{line-height:1.7}.comparison-notes #ratingSummary{background:#f7f9fc;margin:10px 0;padding:10px;border:0;color:#60718b}
+.comparison-results{background:#fff;border:1px solid #e1e7ef;border-radius:14px;padding:20px 22px}
+.comparison-results-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.comparison-export-actions{display:flex;gap:8px;flex-wrap:wrap}.comparison-export-actions button{font-size:12px;padding:7px 10px;margin:0;background:#fff;color:#526785;border-color:#dfe6ef}
+#scoreViewControls{border:0;border-radius:0;box-shadow:none;background:#f8fafc;margin:0;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#scoreViewControls label{font-size:12px;margin:0;display:flex;align-items:center;gap:7px;color:#63728a}
+#scoreViewControls input{width:68px!important;box-sizing:border-box}#scoreViewControls input,#scoreViewControls select,#scoreViewControls button{margin:0;font-size:12px;min-height:34px}
+#scoreViewMessage{flex-basis:100%;font-size:11px;line-height:1.7;color:#8591a3;margin:0}
+.comparison-pagination{justify-content:flex-end;font-size:11px;margin:12px 0!important;gap:8px!important}.comparison-pagination button{font-size:12px;padding:6px 10px}
+#comparison>table{width:100%;min-width:1100px;border-collapse:collapse;font-size:12px;table-layout:auto}
+#comparison>table th{background:#f7f9fc;color:#62748e;font-weight:500;white-space:nowrap;padding:12px;text-align:left;border-bottom:1px solid #e4eaf2}
+#comparison>table td{padding:13px 12px;vertical-align:top;border-bottom:1px solid #edf1f6;line-height:1.7;max-width:240px;overflow-wrap:anywhere}
+#comparison>table td:first-child{font-size:20px;color:#2450d8;white-space:nowrap}#comparison>table tr:hover td{background:#fafcff}
+#comparison>table td button{font-size:11px;padding:3px 7px;margin:5px 5px 0 0}#comparison>table td details{font-size:11px;color:#7d8ba0}
+.n001-manage{background:transparent;border:0;border-top:1px solid #e2e8f0;margin:20px 0;padding:14px 0;color:#7b889c}
+#scenarioRating{margin:0 0 18px!important;padding:13px 18px!important;background:#fff!important;border-color:#e1e7ef!important}
+@media(max-width:900px){main{padding:14px}.n001-search,.comparison-results{padding:16px}.n001-filters{grid-template-columns:1fr 1fr}.comparison-results-heading{align-items:flex-start}.comparison-export-actions{justify-content:flex-end}.comparison-pagination{justify-content:flex-start}.comparison-actions{gap:8px}#n001Compare{margin-left:0}#cargoFilter legend{float:none;width:100%;margin:0 0 4px}.n001-modes>b{width:100%}#scoreViewControls{padding:10px}.comparison-pagination #n001Page{flex-basis:100%;order:3}}
+@media(max-width:520px){main{padding:10px}.comparison-results-heading{flex-direction:column}.comparison-actions label{width:100%}.comparison-actions select{flex:1}.comparison-actions button{flex:1}.n001-filters{gap:8px}.comparison-export-actions{width:100%}#scoreViewControls label:first-child{width:100%}}

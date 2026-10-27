@@ -1,5 +1,5 @@
 {
-  "version": "0.2.7-beta.88",
+  "version": "0.2.7-beta.89",
   "releaseDate": "2026-10-26",
   "status": "internal-pilot",
   "storageSchema": 1,
@@ -53,7 +53,8 @@
     "three-month-rating-provider-names",
     "three-month-completed-cooperation-retention",
     "transport-neutral-exclude-only",
-    "market-regression-hardening"
+    "market-regression-hardening",
+    "explicit-rule-bulk-clean-adoption"
   ],
   "warehouseRetention": "permanent"
 }

@@ -7,7 +7,7 @@
     "comparison-core.js": "f25d26492f43154550124de222a0d85e97e0c2c476932496d41fdf25d4d8c160",
     "channel-score.js": "5b1f024a8436b275fd880e885e15b70e66d58042ddb2b078c6a119c39654cbcd",
     "quote-core.js": "edf7a65cdc760bcb6d313ea6751f2dbf1127d2bbe4f07b585fe6dc9af9ddfd6e",
-    "matrix-import.js": "92103f622a1d0c96382cf8d51c8fc190ef3f94c79caac2ab5cc3a04a4571b893",
+    "matrix-import.js": "91af297cbb0af51545671ac9af6567d9596d57939830c6b43faff44197abdae7",
     "quotes.js": "52a2c0321641e287bcc3aa5e447d1de790eddf972262bfec37243622ea91c946",
     "n001.js": "84223a74cb7de990724f09aa5bb00e83fa1677d8d5b5bbdae3e4d253df37e07c",
     "relation-core.js": "a1570d13b6bc2465c8e7aa79385dad32e5551c054e2b556adb7d036a5dc7f55d",
@@ -36,6 +36,13 @@
       "file": "quotes.js",
       "approval": "User approved multi-select cargo UI (2026-10-26)",
       "scope": "Exact independent read-only cargo-filter projection after transport selection; original baseline hash retained with exact seam normalization; no import, storage, grouping or score changes"
+    },
+    {
+      "file": "matrix-import.js",
+      "approval": "User explicitly approved scan caching, corresponding fingerprint update, regression tests and deployment (2026-10-26)",
+      "scope": "Only omissionAudit reuses a lazy sheet-local boolean scan result per invocation. No dropped rows, changed quote/admission/retention/naming rules or skipped evidence. Real Jiufang workbook complete JSON verified identical.",
+      "previousSha256": "92103f622a1d0c96382cf8d51c8fc190ef3f94c79caac2ab5cc3a04a4571b893",
+      "approvedSha256": "91af297cbb0af51545671ac9af6567d9596d57939830c6b43faff44197abdae7"
     }
   ]
 }

@@ -5,6 +5,7 @@ for(const file of ['index.html','input.html','display.html','integration-shell.j
 const scripts=Object.keys(JSON.parse(fs.readFileSync(path.join(base,'shared-logic.json'))).sharedSourceHashes);
 routes.set('/login',path.join(base,'portable-login.html'));routes.set('/index.html',path.join(base,'portable-login.html'));
 routes.set('/portable-login.js',path.join(base,'portable-login.js'));
+routes.set('/startup',path.join(base,'startup-help.html'));routes.set('/startup-help.js',path.join(base,'startup-help.js'));
 for(const page of ['import','compare','warehouses','ratings','monthly','overview']){const html=fs.readFileSync(path.join(base,'runtime',page+'.html'),'utf8');for(const match of html.matchAll(/href="\.\.\/\.\.\/logistics-rating\/([^"?]+\.css)/g)){const file=path.resolve(engine,match[1]);if(file.startsWith(engine+path.sep))routes.set('/tools/logistics-rating/'+match[1],file)}}
 for(const file of [...scripts,'extensions/workbook-cleaning-worker.js','extensions/bulk-clean-adoption-worker.js','extensions/import-evidence-worker.js'])routes.set('/tools/logistics-rating/'+file,path.join(engine,file));
 const aliases={'/':'input.html','/input':'input.html','/input.html':'input.html','/display':'display.html','/display.html':'display.html'};
@@ -24,7 +25,7 @@ function createServer({send=fetch}={}){return http.createServer(async(req,res)=>
   }catch{return json(502,{error:'登录服务连接失败，请检查网络后重试'})}
  }
  if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);return res.end('Read-only preview')}
- if(url.pathname==='/health')return json(200,{app:'hangxu-input',version:require('./package.json').version});
+ if(url.pathname==='/health')return json(200,{app:'hangxu-input',version:require('./package.json').version,supervised:process.env.HANGXU_SUPERVISED==='1'});
  if(aliases[url.pathname]){res.writeHead(302,{Location:'/tools/logistics-workspace/'+aliases[url.pathname]+url.search,'Cache-Control':'no-store'});return res.end()}
  const file=routes.get(url.pathname);if(!file||!fs.existsSync(file)){res.writeHead(404);return res.end('Not found')}const type={'.html':'text/html','.js':'text/javascript','.css':'text/css'}[path.extname(file)]||'text/plain';res.writeHead(200,{'Content-Type':type+'; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':policy,'X-Content-Type-Options':'nosniff'});if(req.method==='HEAD')return res.end();fs.createReadStream(file).pipe(res)
 })}

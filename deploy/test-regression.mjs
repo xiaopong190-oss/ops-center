@@ -10,6 +10,7 @@ const suites=[
   'tools/logistics-workspace/snapshot.test.cjs',
   'tools/logistics-workspace/runtime.test.cjs',
   'tools/logistics-workspace/portable-server.test.cjs',
+  'tools/logistics-workspace/portable-supervisor.test.cjs',
   'tools/logistics-workspace/shell-transitions.test.cjs',
   'tools/logistics-workspace/quality-workflow.test.cjs',
   'tools/logistics-workspace/workbook-cleaning.test.cjs',

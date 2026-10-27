@@ -5,3 +5,5 @@
 .hangxu-engine dialog{transform:none!important;box-sizing:border-box}
 html[data-access="view"] :is(#commit,#save,#saveWarehouse,#saveMapping,#removeMapping,#scoreSave,#scoreUndo,#deleteQuotes,#restoreQuotes,#linkSave,#alias,#demo,#clearDemo,#demoFill,#batchClean,#matrixBuild,#toStandard,#continueImport,#localForward,#manualSupplierUse,#manualSupplierAdd,#cr-add,#cr-addSelected,[data-score-edit],[data-record],#bulkCleanOpen,#workbookFile,#file){display:none!important}html[data-module="bill-display"] :is(#importPanel,#input,#csv,#file,#template,#commit){display:none!important}.local-block-reasons{padding:14px;background:#fff4e5;border-radius:9px}.local-zero-adopt{padding:12px;background:#fff0e5;color:#9b4b10}.hangxu-engine dialog{transform:none!important;box-sizing:border-box}
 section[hidden]{display:none!important}
+
+html[data-access="view"] :is(#importEvidencePanel,#importEvidenceDialog){display:none!important}

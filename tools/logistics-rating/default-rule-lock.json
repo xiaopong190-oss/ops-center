@@ -43,6 +43,11 @@
       "scope": "Only omissionAudit reuses a lazy sheet-local boolean scan result per invocation. No dropped rows, changed quote/admission/retention/naming rules or skipped evidence. Real Jiufang workbook complete JSON verified identical.",
       "previousSha256": "92103f622a1d0c96382cf8d51c8fc190ef3f94c79caac2ab5cc3a04a4571b893",
       "approvedSha256": "91af297cbb0af51545671ac9af6567d9596d57939830c6b43faff44197abdae7"
+    },
+    {
+      "file": "quotes.js",
+      "approval": "User explicitly approved reference/enquiry archival, warehouse-group country verification, preview-only historical corrections preserving manual decisions, tests and deployment (2026-10-26)",
+      "scope": "Exact reference-exception staging hook and pending-only counts; logic lives in independent pure import-evidence extension. Existing quote/domain/comparison defaults retained; original quotes baseline restored by exact seam normalization in lock tests."
     }
   ]
 }

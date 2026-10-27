@@ -244,7 +244,8 @@ async function handle(req,env) {
 }
 export default {async scheduled(event,env,ctx){ctx.waitUntil(cleanupLogistics(env).then(result=>console.log('logistics_cleanup',JSON.stringify(result))));},async fetch(req,env){
   const origin=req.headers.get('Origin'),own=new URL(req.url).origin;
-  if(origin&&!origins.has(origin)&&origin!==own)return json({error:'来源不允许'},403);
+  const localWorkspaceOrigin=origin==='http://127.0.0.1:4318'&&new URL(req.url).pathname==='/api/logistics-workspace';
+  if(origin&&!origins.has(origin)&&origin!==own&&!localWorkspaceOrigin)return json({error:'来源不允许'},403);
   let r;
   try{r=req.method==='OPTIONS'?new Response(null,{status:204}):await handle(req,env);}catch(e){
     console.error('request_failed',new URL(req.url).pathname,e?.name||'Error',e?.message||String(e));

@@ -4,6 +4,8 @@ Baseline: deployed beta.79, commit 950a86b. This PR adds safeguards only. It doe
 
 ## Protected defaults
 
+Approved performance exception (2026-10-26): the user explicitly authorized caching `omissionAudit`'s repeated `scan(sheet)` boolean within each sheet and invocation, updating its fingerprint, running regression tests and deploying. The lock manifest records both previous and approved SHA-256 values. This changes no quote, naming, retention, import or audit output; a reverse-seam test reconstructs the exact historical source. Real Jiufang workbook validation retained all 9,185 warehouse quotes, 472 regional quotes and 6,134 omission records with identical complete JSON. Rollback restores the previous function and its recorded fingerprint together.
+
 Twelve shared modules are hashed in default-rule-lock.json. The full test suite checks normalized source hashes. CRLF/LF differences alone do not fail the check. Code changes fail with the affected filenames. Updating the baseline is an explicit rule-change operation, not a routine release step. CI cannot verify human consent by itself; the PR must record that consent.
 
 Amazon-only scope; equal-condition dedup and new-over-old; ten-day retention for quotations and evidence; permanent warehouse templates automatically saved from imports; preserved raw evidence and manual score history; unit, country, warehouse, cargo and tier boundaries.

@@ -28,7 +28,7 @@
     "warehouse-picker.js": "72f19c787b2119865c09a0e2a138c14529bc9a90f46f88f1b4b23dfb332bee0e",
     "extensions/bulk-clean-adoption.js": "5d56dd1fde453fd7fb4c02c96bcc2df1dbfd1dcadf18155b11a2598fa1c9d885",
     "extensions/bulk-clean-adoption-ui.js": "a9e5efb7a24edc76e30320c4e68ae4e1a7467874adc4cd4df9d20adb5a114415",
-    "extensions/import-evidence-ui.js": "ff76eafdb973ca8937208bfdc80a664c1cfed5b4e28a75274ed448694e0f9329",
+    "extensions/import-evidence-ui.js": "dc0badf51637ccdf3e21805c0a91a3e6f857161356cb7d2020cf828b399b4fc2",
     "embed-ui.js": "ff8c9d819c459ff269fd1e6102c3ea8e74001c39ee1af6da2dd098766839e062",
     "relation-core.js": "a1570d13b6bc2465c8e7aa79385dad32e5551c054e2b556adb7d036a5dc7f55d",
     "extensions/transport-exclusion.js": "780a8f9872a18afa1f4ce531357c8ae3d4990f53b783a4811d83ddea666e7b2c",

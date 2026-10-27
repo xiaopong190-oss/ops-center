@@ -1,0 +1,12 @@
+// Package only whitelisted application resources. No repository, user data or credentials.
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const root=path.resolve(__dirname,'../..'),out=process.argv[2],node=process.argv[3],license=process.argv[4];
+if(!out||!node||!license)throw Error('Usage: node pack-portable.cjs OUTPUT_DIR NODE_EXE NODE_LICENSE');
+if(fs.existsSync(out))throw Error('Output directory already exists; choose a fresh directory');
+const {routes}=require('./dev-server.cjs'),files=new Set([...routes.values(),path.join(__dirname,'dev-server.cjs'),path.join(__dirname,'package.json'),path.join(__dirname,'shared-logic.json')]);
+for(const file of files){const relative=path.relative(root,file);if(relative.startsWith('..')||path.isAbsolute(relative))throw Error('Resource outside application');const target=path.join(out,relative);fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(file,target)}
+fs.mkdirSync(path.join(out,'bin'),{recursive:true});fs.copyFileSync(node,path.join(out,'bin/node.exe'));fs.copyFileSync(license,path.join(out,'bin/NODE-LICENSE.txt'));
+fs.writeFileSync(path.join(out,'启动航序.ps1'),'\ufeff'+fs.readFileSync(path.join(__dirname,'portable-start.ps1'),'utf8'));
+fs.writeFileSync(path.join(out,'启动航序.cmd'),'@echo off\r\nchcp 65001 >nul\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0启动航序.ps1"\r\nif errorlevel 1 pause\r\n','utf8');
+fs.writeFileSync(path.join(out,'使用说明.txt'),'航序输入端 v1.0.6 · Windows x64 免安装包\r\n\r\n1. 完整解压到本机文件夹，不要在压缩包内直接运行。\r\n2. 双击“启动航序.cmd”，会打开本机登录页；无需安装 Node.js。\r\n3. 使用现有运营中心的姓名和 M 码登录。无账号或无编辑权限时请由管理员配置，不要共用他人凭证。\r\n4. 上传 Excel，核对日期/服务商，清洗并确认保存。\r\n5. 点击“发布展示快照”，确认并等待 GitHub 读回核验成功。\r\n6. 运营与老板打开云端展示页，登录后刷新快照。\r\n\r\n云端展示：https://xiaopong190-oss.github.io/ops-center/tools/logistics-workspace/display.html?v=1.0.6\r\n本机输入：http://127.0.0.1:4318/input\r\n本机登录：http://127.0.0.1:4318/login\r\n\r\n本地主库在同事电脑的当前浏览器中，不在此文件夹。请固定使用同一浏览器和普通模式，并定期导出本地备份。这个包不包含任何业务数据、登录凭证或云端密钥。若要迁移旧数据，请另外导出本地备份；本包不会自动复制原电脑数据。\r\n登录和发布需联网；本地服务只监听127.0.0.1，不对局域网开放。\r\n','utf8');
+const hashes={};function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())walk(file);else hashes[path.relative(out,file).replaceAll('\\','/')]=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')}}walk(out);fs.writeFileSync(path.join(out,'SHA256.json'),JSON.stringify(hashes,null,2));console.log(JSON.stringify({files:Object.keys(hashes).length,output:out}));

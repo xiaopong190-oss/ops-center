@@ -9,6 +9,7 @@ const suites=[
   'cloud/test-workspace-fullstack.mjs',
   'tools/logistics-workspace/snapshot.test.cjs',
   'tools/logistics-workspace/runtime.test.cjs',
+  'tools/logistics-workspace/portable-server.test.cjs',
   'tools/logistics-workspace/shell-transitions.test.cjs',
   'tools/logistics-workspace/quality-workflow.test.cjs',
   'tools/logistics-workspace/workbook-cleaning.test.cjs',

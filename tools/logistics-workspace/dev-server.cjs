@@ -1,7 +1,7 @@
 // Local preview serves the same release files as Pages; never exposes business files.
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const routes=new Map(),base=__dirname,engine=path.resolve(base,'../logistics-rating');
-for(const file of ['index.html','input.html','display.html','integration-shell.js','simulation.css','local-bootstrap.js','local-data-policy.js','local-view-mode.js','runtime-ready.js','engine-theme.css','workspace-loader.js','snapshot-client.js',...['import','compare','warehouses','ratings','monthly'].map(n=>'runtime/'+n+'.html')])routes.set('/tools/logistics-workspace/'+file,path.join(base,file));
+for(const file of ['index.html','input.html','display.html','integration-shell.js','simulation.css','local-bootstrap.js','local-data-policy.js','local-view-mode.js','runtime-ready.js','quality-workflow.js','engine-theme.css','workspace-loader.js','snapshot-client.js',...['import','compare','warehouses','ratings','monthly'].map(n=>'runtime/'+n+'.html')])routes.set('/tools/logistics-workspace/'+file,path.join(base,file));
 const scripts=Object.keys(JSON.parse(fs.readFileSync(path.join(base,'shared-logic.json'))).sharedSourceHashes);
 for(const file of [...scripts,'extensions/workbook-cleaning-worker.js','extensions/bulk-clean-adoption-worker.js','extensions/import-evidence-worker.js'])routes.set('/tools/logistics-rating/'+file,path.join(engine,file));
 const aliases={'/':'input.html','/input':'input.html','/input.html':'input.html','/display':'display.html','/display.html':'display.html'};

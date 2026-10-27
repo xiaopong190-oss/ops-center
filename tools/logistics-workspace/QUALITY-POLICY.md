@@ -1,0 +1,9 @@
+# Nonblocking quote data quality — v1.0.4
+
+User direction (2026-10-26): detected import anomalies deduct points with reasons and must no longer remain as blocking, individually actionable cards. This supersedes mandatory country verification in the new workspace. Country verification is not guessed and invalid quotations are not promoted into comparison.
+
+The independent `extensions/quote-data-quality.js` projection retains raw exception strings and coordinates, preserves prior manual decisions, and marks only pending evidence ignored using the existing validated decision schema plus a versioned quality marker. Valid quotes, templates, manual channel events, prices and cooperation ratings are unchanged. The local controller commits through the existing write lock/store and retries after a pending import preview is completed. Display mode never writes.
+
+Separate quotation data quality starts at 5 points: each distinct reason category deducts 0.1, capped at 1 point per provider. Repeated rows, reimports and reopening the page do not accumulate points. Proven instruction/enquiry references deduct zero. Only evidence within the existing retention window contributes. This is a visible product default, not an industry standard or a change to the protected channel/cooperation scoring formula. The sanitized score/reason/count projection is included in the existing authenticated snapshot; raw exceptions remain local. Reasons are shown as a compact provider summary rather than individual tasks.
+
+Rollback removes the workspace controller/load hook. Archived raw evidence remains in local backups with its versioned quality marker. No user browser data is touched by automated tests. Tests cover 605-row grouping, idempotence, reference exclusion, manual decision preservation, valid quote preservation, and no writes in display mode.

@@ -2,6 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const base=path.resolve(__dirname,'..'),lock=JSON.parse(fs.readFileSync(path.join(base,'default-rule-lock.json'),'utf8'));
 function mismatches(read){return Object.entries(lock.files).filter(([file,expected])=>crypto.createHash('sha256').update(read(file).replace(/\r\n/g,'\n'),'utf8').digest('hex')!==expected).map(([file])=>file);}
 const hooks=[
+ ["LegacyReclean.explain(window.ImportEvidence?ImportEvidence.pendingOnly(db):db,today())", "LegacyReclean.explain(db,today())"],
  ["/* import-evidence-merge-approved */result.db.importExceptions=window.ImportEvidence?ImportEvidence.mergeExceptions(result.db.importExceptions||[],pendingExceptions):Q.mergeExceptions(result.db.importExceptions||[],pendingExceptions);", "result.db.importExceptions=Q.mergeExceptions(result.db.importExceptions||[],pendingExceptions);"],
  ["另有 '+pendingExceptions.filter(e=>!e.status||e.status==='pending').length+' 条待处理", "另有 '+pendingExceptions.length+' 条待处理"],
  ["/* import-evidence-reference-approved */if(window.ImportEvidence)pendingExceptions.push(...ImportEvidence.referenceExceptions(e.detail.referenceRecords||[],today(),e.detail.fileName));",''],

@@ -47,7 +47,7 @@
     {
       "file": "quotes.js",
       "approval": "User explicitly approved reference/enquiry archival, warehouse-group country verification, preview-only historical corrections preserving manual decisions, tests and deployment (2026-10-26)",
-      "scope": "Exact reference-exception staging hook and pending-only counts; logic lives in independent pure import-evidence extension. Existing quote/domain/comparison defaults retained; original quotes baseline restored by exact seam normalization in lock tests."
+      "scope": "Exact reference-exception staging hook and pending-only counts; logic lives in independent pure import-evidence extension. Existing quote/domain/comparison defaults retained; original quotes baseline restored by exact seam normalization in lock tests. Legacy source-recheck diagnostics receive pending-only evidence so archived records are not described as remaining tasks."
     }
   ]
 }

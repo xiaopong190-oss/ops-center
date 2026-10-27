@@ -1,5 +1,5 @@
 (function(root){'use strict';
- const workerUrl=new URL('workbook-cleaning-worker.js?v=evidence-1',document.currentScript.src).href;
+ const workerUrl=new URL('workbook-cleaning-worker.js?v=evidence-3',document.currentScript.src).href;
  function run(model,meta,{signal,onProgress=()=>{},timeoutMs=120000}={}){return new Promise((resolve,reject)=>{
   if(signal?.aborted)return reject(Error('本次清洗已取消，原文件与已保存数据保留'));
   if(typeof root.Worker!=='function')return reject(Error('当前环境无法启动后台清洗，请使用支持 Worker 的浏览器；未执行主线程清洗'));

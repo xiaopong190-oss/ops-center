@@ -2,6 +2,8 @@
 
 Input: `input.html`. Display: `display.html`.
 
+For the local preview, run `node tools/logistics-workspace/dev-server.cjs` from the repository root and open `http://127.0.0.1:4318/input`. It serves this exact release source and original shared modules, rather than the earlier simplified prototype. It preserves the same origin and input storage namespace. The preview blocks external network requests; authenticated snapshot publishing and remote AI require the hosted operational page.
+
 The input keeps business data in this browser's localStorage / IndexedDB. It loads 40 business modules directly from `../logistics-rating`; `node build.cjs` regenerates wrappers and the source hash manifest. No locked business module is changed.
 
 The display has no input navigation. A signed-in ops-center account is required to retrieve the snapshot. Full input publishes only after preview and explicit confirmation. Companies, quotes, warehouses, mappings, bills and completed cooperation ratings are included. Pending import evidence and deleted quotes stay local.

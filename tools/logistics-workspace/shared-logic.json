@@ -19,7 +19,7 @@
     "vendor/jszip.min.js": "acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e",
     "workbook-preview.js": "de531eb6fd9031d9cf872b9f30fae6f46cea17e71175adc4c174fecfd65ccab6",
     "matrix-import.js": "91af297cbb0af51545671ac9af6567d9596d57939830c6b43faff44197abdae7",
-    "cleaning-review.js": "3ac5ad4e2f864da9f560d502418f6677f1d3602298edb835734b564e0ab07e4d",
+    "cleaning-review.js": "ad4f9d22e869590340a82fa2e307512e9d4ea37cc2e00e9b13b025303c08f8f0",
     "extensions/supplier-confirmation.js": "c794801fe3e71945d285079820d57e6692d6540536f837a8602a34ffe5169077",
     "extensions/intake-feedback.js": "bc54507542fccdc8484ced6cb830621576b0c5a1051dcea2ec818b6ed0dad797",
     "extensions/workbook-cleaning.js": "ead4528500f3ed11958934497e7e6e8888541aa57164c57eb0a41abba1d56473",

@@ -6,7 +6,7 @@
  const numeric=v=>/^\d+(?:\.\d+)?$/.test(String(v))&&Number(v)>0;
  function queue(model,result){
   const items=[],seen=new Set();let held=0,referenceRows=0;
-  for(const [sheetIndex,sheet] of model.sheets.entries()){
+  for(const [sheetIndex,sheet] of model.sheets.entries()){let scanned;const blocks=()=>scanned??=M.scan(sheet);
    if(M.effectiveKind(sheet)!=='报价'){referenceRows+=sheet.rows.length;continue;}if(!sheet.rows.length&&sheet.media?.length){held+=sheet.media.length;continue;}
    const evidence=result.cellAudit?.sheets.find(s=>s.name===sheet.name),report=result.reports?.find(s=>s.sheet===sheet.name),rows=new Set();
    for(const cell of evidence?.cells||[])if((!result.scopePriceCells||result.scopePriceCells.includes(cell.cell))&&['价格待核对','源表公式错误','公式缺少缓存值'].includes(cell.status))rows.add(cell.row);
@@ -15,9 +15,9 @@
    for(const rowNumber of rows){const row=sheet.rows.find(r=>r.row===rowNumber);if(!row||seen.has(sheetIndex+':'+rowNumber))continue;seen.add(sheetIndex+':'+rowNumber);
     const priceCells=[...new Set([...(evidence?.cells||[]).filter(c=>c.row===rowNumber&&['价格待核对','源表公式错误','公式缺少缓存值'].includes(c.status)&&(!result.scopePriceCells||result.scopePriceCells.includes(c.cell))).map(c=>c.cell),...(report?.issues||[]).filter(x=>Number(x.row)===rowNumber&&x.priceCell).map(x=>x.priceCell),...(report?.status?.startsWith('未识别计费表头')?row.cells.filter(c=>numeric(c.v)&&c.valueType!=='date').map(c=>c.cell):[])])];if(!priceCells.length)continue;const cells=row.cells.filter(c=>String(c.v).trim()).map(c=>({cell:c.cell,v:String(c.v)}));
     // Known exclusions do not become new AI destinations.
-    const dests=M.scan(sheet).filter(b=>rowNumber>b.header&&rowNumber<=b.end).map(b=>row.cells.find(c=>c.cell.match(/^[A-Z]+/)[0]===letters(b.destColumn))?.v||'');
+    const dests=blocks().filter(b=>rowNumber>b.header&&rowNumber<=b.end).map(b=>row.cells.find(c=>c.cell.match(/^[A-Z]+/)[0]===letters(b.destColumn))?.v||'');
     if(dests.length&&dests.every(raw=>M.overseas(raw)&&!M.destinations(raw).warehouses.length)){held++;continue;}
-    const headerRows=sheet.rows.filter(r=>r.row<rowNumber&&(r.row>=rowNumber-3||M.scan(sheet).some(b=>[b.header,b.header-1,b.header+1].includes(r.row)&&b.header<rowNumber&&rowNumber<=b.end))).slice(-6);
+    const headerRows=sheet.rows.filter(r=>r.row<rowNumber&&(r.row>=rowNumber-3||blocks().some(b=>[b.header,b.header-1,b.header+1].includes(r.row)&&b.header<rowNumber&&rowNumber<=b.end))).slice(-6);
     const context=headerRows.flatMap(r=>r.cells).filter(c=>String(c.v).trim()).map(c=>({cell:c.cell,v:String(c.v)}));
     if(cells.length>24||context.length>70||[...cells,...context].some(c=>c.v.length>1200)||items.length>=400){held++;continue;}
     items.push({id:sheetIndex+':'+rowNumber,sheet:sheet.name,row:rowNumber,priceCells,cells,context});

@@ -8,6 +8,7 @@ const suites=[
   'cloud/test-logistics-workspace.mjs',
   'tools/logistics-workspace/snapshot.test.cjs',
   'tools/logistics-workspace/runtime.test.cjs',
+  'tools/logistics-workspace/workbook-cleaning.test.cjs',
   'cloud/test-logistics-github.mjs',
   'cloud/test-logistics-backup.mjs',
   'cloud/test-logistics-ai.mjs',

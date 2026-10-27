@@ -30,6 +30,7 @@
     "extensions/bulk-clean-adoption-ui.js": "a9e5efb7a24edc76e30320c4e68ae4e1a7467874adc4cd4df9d20adb5a114415",
     "extensions/import-evidence-ui.js": "635a5fa66505089ab419d286f459268c7989a3624e701f3d07efa00ee82b8a5a",
     "embed-ui.js": "ff8c9d819c459ff269fd1e6102c3ea8e74001c39ee1af6da2dd098766839e062",
+    "extensions/quote-data-quality.js": "7dcb4fd013e63a9149453e9339bc3a26b8f180078cdea552e0ff8daadaa39d7d",
     "relation-core.js": "a1570d13b6bc2465c8e7aa79385dad32e5551c054e2b556adb7d036a5dc7f55d",
     "extensions/transport-exclusion.js": "780a8f9872a18afa1f4ce531357c8ae3d4990f53b783a4811d83ddea666e7b2c",
     "n001.js": "266a00597dcd070aca2dce59a76df32fe9e394091a410b9b8c33c5b91044ef35",

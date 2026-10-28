@@ -1,24 +1,26 @@
 (function(root){
  'use strict';
  const M=root.MatrixImport||(typeof require==='function'?require('./matrix-import.js'):null),Q=root.QuoteCore||(typeof require==='function'?require('./quote-core.js'):null),D=root.Domain||(typeof require==='function'?require('./domain.js'):null);
- const endpoint='https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/api/logistics-ai/recognize';
+ const endpoint=root.location?.hostname==='127.0.0.1'?'/local-ai-cleaning':'https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/api/logistics-ai/recognize';
+ const Audit=root.SheetQuoteAudit||(typeof require==='function'?require('./extensions/sheet-quote-audit.js'):null);
  const cache=new Map(),inflight=new Map();
  const numeric=v=>/^\d+(?:\.\d+)?$/.test(String(v))&&Number(v)>0;
  function queue(model,result){
   const items=[],seen=new Set();let held=0,referenceRows=0;
-  for(const [sheetIndex,sheet] of model.sheets.entries()){let scanned;const blocks=()=>scanned??=M.scan(sheet);
-   if((result.referenceSheets||[]).some(s=>s.name===sheet.name)||M.effectiveKind(sheet)!=='报价'){referenceRows+=sheet.rows.length;continue;}if(!sheet.rows.length&&sheet.media?.length){held+=sheet.media.length;continue;}
-   const evidence=result.cellAudit?.sheets.find(s=>s.name===sheet.name),report=result.reports?.find(s=>s.sheet===sheet.name),rows=new Set();
+  for(const [sheetIndex,sheet] of model.sheets.entries()){const inspection=Audit?.inspect(sheet,result);let scanned;const blocks=()=>scanned??=M.scan(sheet);
+   if(result.preflight?.find(x=>x.sheet===sheet.name)?.status!=='quote'&&result.preflight?.some(x=>x.sheet===sheet.name)){referenceRows+=sheet.rows.length;continue;}if((result.referenceSheets||[]).some(s=>s.name===sheet.name)||M.effectiveKind(sheet)!=='报价'&&!inspection?.candidateRows.length){referenceRows+=sheet.rows.length;continue;}if(!sheet.rows.length&&sheet.media?.length){held+=sheet.media.length;continue;}
+   const extraRows=new Set(inspection?.candidateRows||[]);const evidence=result.cellAudit?.sheets.find(s=>s.name===sheet.name),report=result.reports?.find(s=>s.sheet===sheet.name),rows=new Set();
    for(const cell of evidence?.cells||[])if((!result.scopePriceCells||result.scopePriceCells.includes(cell.cell))&&['价格待核对','源表公式错误','公式缺少缓存值'].includes(cell.status))rows.add(cell.row);
    for(const issue of report?.issues||[])if(Number.isInteger(Number(issue.row)))rows.add(Number(issue.row));
    if(report?.status?.startsWith('未识别计费表头'))for(const row of sheet.rows)if(row.cells.some(c=>numeric(c.v))&&row.cells.some(c=>/[A-Z]{2,5}\d|商业地址|邮编|国家|区域/i.test(c.v)))rows.add(row.row);
+   for(const rowNumber of extraRows)rows.add(rowNumber);
    for(const rowNumber of rows){const row=sheet.rows.find(r=>r.row===rowNumber);if(!row||seen.has(sheetIndex+':'+rowNumber))continue;seen.add(sheetIndex+':'+rowNumber);
-    const priceCells=[...new Set([...(evidence?.cells||[]).filter(c=>c.row===rowNumber&&['价格待核对','源表公式错误','公式缺少缓存值'].includes(c.status)&&(!result.scopePriceCells||result.scopePriceCells.includes(c.cell))).map(c=>c.cell),...(report?.issues||[]).filter(x=>Number(x.row)===rowNumber&&x.priceCell).map(x=>x.priceCell),...(report?.status?.startsWith('未识别计费表头')?row.cells.filter(c=>numeric(c.v)&&c.valueType!=='date').map(c=>c.cell):[])])];if(!priceCells.length)continue;const cells=row.cells.filter(c=>String(c.v).trim()).map(c=>({cell:c.cell,v:String(c.v)}));
+    const priceCells=[...new Set([...(evidence?.cells||[]).filter(c=>c.row===rowNumber&&['价格待核对','源表公式错误','公式缺少缓存值'].includes(c.status)&&(!result.scopePriceCells||result.scopePriceCells.includes(c.cell))).map(c=>c.cell),...(report?.issues||[]).filter(x=>Number(x.row)===rowNumber&&x.priceCell).map(x=>x.priceCell),...(report?.status?.startsWith('未识别计费表头')||extraRows.has(rowNumber)?row.cells.filter(c=>numeric(c.v)&&c.valueType!=='date').map(c=>c.cell):[])])];if(!priceCells.length)continue;const cells=row.cells.filter(c=>String(c.v).trim()).map(c=>({cell:c.cell,v:String(c.v)}));
     // Known exclusions do not become new AI destinations.
     const dests=blocks().filter(b=>rowNumber>b.header&&rowNumber<=b.end).map(b=>row.cells.find(c=>c.cell.match(/^[A-Z]+/)[0]===letters(b.destColumn))?.v||'');
     if(dests.length&&dests.every(raw=>M.overseas(raw)&&!M.destinations(raw).warehouses.length)){held++;continue;}
     const headerRows=sheet.rows.filter(r=>r.row<rowNumber&&(r.row>=rowNumber-3||blocks().some(b=>[b.header,b.header-1,b.header+1].includes(r.row)&&b.header<rowNumber&&rowNumber<=b.end))).slice(-6);
-    const context=headerRows.flatMap(r=>r.cells).filter(c=>String(c.v).trim()).map(c=>({cell:c.cell,v:String(c.v)}));
+    const context=extraRows.has(rowNumber)&&Audit?Audit.context(sheet,rowNumber):headerRows.flatMap(r=>r.cells).filter(c=>String(c.v).trim()).map(c=>({cell:c.cell,v:String(c.v)}));
     if(cells.length>24||context.length>70||[...cells,...context].some(c=>c.v.length>1200)||items.length>=400){held++;continue;}
     items.push({id:sheetIndex+':'+rowNumber,sheet:sheet.name,row:rowNumber,priceCells,cells,context});
    }

@@ -450,6 +450,8 @@ const TOOL_CATALOG = [
   { id: "hstc-ledger-admin", name: "亚马逊账本 · 管理端", desc: "交易导入、收支提现与账本管理 · 超级管理员专用", icon: "💼", category: "财务", superOnly: true, url: "https://hstc-amz-cw.akolojutet24.chatgpt.site/" },
   { id: "hstc-ledger-viewer", name: "亚马逊账本 · 展示端", desc: "财务报表与共享账本只读展示 · 超级管理员专用", icon: "📊", category: "财务", superOnly: true, url: "https://xiaopong190-oss.github.io/hstc-amz-cw-viewer/?v=1.04&r=22" },
   { id: "logistics-rating", name: "物流商报价与评级 · 试用", desc: "报价对比、国家仓库模板、月度对账、合作评级", icon: "🚚", category: "物流", openUrl: "tools/logistics-rating/index.html?v=0.2.7-beta.88#/channels" },
+  { id: "hangxu-input", name: "航序 · 输入端", desc: "录入同事本机清洗、保存与发布快照；请先双击本机“启动航序”再打开，数据保存在当前浏览器", icon: "📥", category: "物流", runtime: "local", openUrl: "http://127.0.0.1:4318/input?v=1.0.7" },
+  { id: "hangxu-display", name: "航序 · 云端展示端", desc: "运营与老板登录后查看已发布的报价、仓库、账单和合作评级；输入端发布成功后刷新快照", icon: "📊", category: "物流", openUrl: "tools/logistics-workspace/display.html?v=1.0.7" },
   { id: "weight-converter", name: "单位换算", desc: "质量与长度实时换算，支持多单位切换", icon: "⚖️", category: "常用", component: UnitConverterTool },
   { id: "fba-profit", name: "FBA 利润计算器", desc: "全链路利润：体积重、尺寸分档、头程 / 佣金 / 退货", icon: "💰", category: "FBA", openUrl: "fba-profit-calculator.html" },
   { id: "fba-warehouse", name: "FBA 分仓工具", desc: "美国货运参谋：分仓方案、头程与仓储费用测算", icon: "📦", category: "FBA", openUrl: "fba-warehouse-tool.html" },

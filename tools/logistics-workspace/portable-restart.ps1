@@ -1,6 +1,12 @@
 param([switch]$NoBrowser, [ValidateRange(1024,65535)][int]$Port = 4318)
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
+if (Test-Path -LiteralPath (Join-Path $root 'bin\launcher.ps1')) {
+    $launchArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $root 'bin\launcher.ps1'),'-Port',[string]$Port)
+    if ($NoBrowser) { $launchArgs += '-NoBrowser' }
+    & powershell.exe @launchArgs
+    exit $LASTEXITCODE
+}
 $server = Join-Path $root 'tools\logistics-workspace\dev-server.cjs'
 $supervisor = Join-Path $root 'tools\logistics-workspace\portable-supervisor.cjs'
 if (-not (Test-Path -LiteralPath (Join-Path $root 'bin\node.exe')) -or -not (Test-Path -LiteralPath $server)) { throw '请先把补丁内全部文件复制到原航序文件夹，替换同名文件，再运行本文件。' }

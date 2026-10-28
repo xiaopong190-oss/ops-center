@@ -1,0 +1,9 @@
+# v1.0.12
+
+Interrupted snapshot uploads now keep a frozen task in a separate IndexedDB database. Confirmed part counts accumulate across retries and page reloads, and new local cleaning does not change the pending task. The input page provides “继续上次上传”; the modal reports confirmed progress and errors. A task is removed after the verified publication receipt. Operators can explicitly replace a stopped task with the latest local data; business master records are not removed.
+
+The frozen payload is stored once, with small progress metadata updated separately. Storage failures block new uploads rather than claiming durable progress. Tasks and progress are scoped to the existing session fingerprint. Re-login with a new session does not reuse another session's task. Server-side temporary parts still expire after 24 hours; expired parts may need retransmission, but the locally frozen task remains available. A cloud version conflict blocks replacement until the operator reviews and prepares a new task.
+
+The Windows full package has one startup command. Support scripts live under bin. The launcher verifies the actual listener, bundled runtime and installation path before switching a stale Hangxu process; it does not terminate an unrelated application based solely on a health-page marker. Startup and publication remain separate operations.
+
+Validation used synthetic data only: 31 regression suites and 393 business-rule tests passed; the final upload/UI/storage subset passed 44 tests. Scenarios include three interrupted sessions with new cleaning in between, reloaded-page recovery, missing-part-only upload, preserved task identifiers, one frozen-payload write across retries, explicit task replacement, session isolation, unavailable IndexedDB, 32 MiB payloads, corrupt chunks, lost receipts and concurrent version conflicts. These checks do not establish that an existing production storage fault is resolved.

@@ -1,6 +1,6 @@
 param([switch]$NoBrowser, [ValidateRange(1024,65535)][int]$Port = 4318)
 $ErrorActionPreference = 'Stop'
-$bundleRoot = $PSScriptRoot
+$bundleRoot = if ((Split-Path $PSScriptRoot -Leaf) -eq 'bin') { Split-Path $PSScriptRoot -Parent } else { $PSScriptRoot }
 $nodeFile = Join-Path $bundleRoot 'bin\node.exe'
 $serverFile = Join-Path $bundleRoot 'tools\logistics-workspace\portable-supervisor.cjs'
 $logFolder = Join-Path $bundleRoot 'logs'
@@ -22,16 +22,28 @@ try {
 $ready = $false
 $ready = Test-Hangxu
 if (-not $ready -and $script:staleService) {
-    # Replace only processes whose command line names this exact installation.
-    # An old installation in another folder is never killed based on its port.
-    $ownScripts = @($serverFile, (Join-Path $bundleRoot 'tools\logistics-workspace\dev-server.cjs'))
-    foreach ($ownScript in $ownScripts) {
-        Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($ownScript,[StringComparison]::OrdinalIgnoreCase) -ge 0 } | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
-    }
-    Start-Sleep -Milliseconds 350
+    # Verify the actual listening process, installation marker and bundled runtime.
+    $connection = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop | Where-Object { $_.LocalAddress -eq '127.0.0.1' } | Select-Object -First 1
+    if (-not $connection) { throw '找不到本机航序监听进程，未关闭其他程序。请查看启动日志。' }
+    $ownerProcess = Get-CimInstance Win32_Process -Filter ("ProcessId="+$connection.OwningProcess)
+    $suffix = '\tools\logistics-workspace\dev-server.cjs'
+    $command = [string]$ownerProcess.CommandLine
+    $offset = $command.IndexOf($suffix,[StringComparison]::OrdinalIgnoreCase)
+    if ($offset -lt 0 -or -not $ownerProcess.ExecutablePath) { throw '端口进程不是可验证的航序程序，未关闭任何进程。' }
+    $oldRoot = Split-Path (Split-Path $ownerProcess.ExecutablePath -Parent) -Parent
+    $oldServer = Join-Path $oldRoot 'tools\logistics-workspace\dev-server.cjs'
+    $oldSupervisor = Join-Path $oldRoot 'tools\logistics-workspace\portable-supervisor.cjs'
+    $oldNode = Join-Path $oldRoot 'bin\node.exe'
+    if (-not [string]::Equals($ownerProcess.ExecutablePath,$oldNode,[StringComparison]::OrdinalIgnoreCase) -or $command.IndexOf($oldServer,[StringComparison]::OrdinalIgnoreCase) -lt 0 -or -not (Test-Path -LiteralPath (Join-Path $oldRoot 'tools\logistics-workspace\package.json'))) { throw '无法验证旧航序目录，未关闭其他程序。' }
+    Write-Host ('正在从旧航序切换：'+$oldRoot)
+    $candidates = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.ExecutablePath -and [string]::Equals($_.ExecutablePath,$oldNode,[StringComparison]::OrdinalIgnoreCase) -and $_.CommandLine })
+    foreach ($candidate in @($candidates | Where-Object { $_.CommandLine.IndexOf($oldSupervisor,[StringComparison]::OrdinalIgnoreCase) -ge 0 })) { Stop-Process -Id $candidate.ProcessId -ErrorAction Stop }
+    if (Get-Process -Id $ownerProcess.ProcessId -ErrorAction SilentlyContinue) { Stop-Process -Id $ownerProcess.ProcessId -ErrorAction Stop }
+    Start-Sleep -Milliseconds 500
     $script:staleService = $false
     $ready = Test-Hangxu
-    if (-not $ready -and $script:staleService) { throw '4318仍由另一文件夹的旧版航序占用。请回到原来启动航序的文件夹覆盖补丁并运行“更新后启动.cmd”；不要另开端口或清除浏览器数据。' }
+    if (-not $ready -and $script:staleService) { throw '旧服务仍占用端口，未能切换；请查看启动日志。' }
+
 }
 if (-not $ready) {
     if (-not (Test-Path -LiteralPath $nodeFile)) { throw '请先完整解压压缩包，再运行启动文件。' }

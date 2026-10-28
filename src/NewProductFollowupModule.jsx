@@ -29,10 +29,10 @@ export function NewProductFollowupPanel({ active }) {
   useCloudSyncPage(active,{
     ...syncState,label:'新品跟进',hideHint:false,
     isDirty:syncState.isDirty,
-    barHint:syncState.saving&&uploadProgress?'正在上传 '+uploadProgress.completed+' / '+uploadProgress.total+' 份数据':syncState.barHint,
+    barHint:syncState.saving&&uploadProgress?(uploadProgress.phase==='verifying'?'全部分片已收齐，正在校验并提交…':'正在上传 · 已完成 '+uploadProgress.completed+'／'+uploadProgress.total+'片'):syncState.barHint,
+    saveLabel:uploadProgress?.phase==='paused'?'继续上传':undefined,
     save:async()=>{
-      try{const save=frame.current?.contentWindow?.saveOpsFollowup;if(!save)throw Error('新品页面尚未就绪，请稍后重试');return await save();}
-      finally{setUploadProgress(null);}
+      const save=frame.current?.contentWindow?.saveOpsFollowup;if(!save)throw Error('新品页面尚未就绪，请稍后重试');return await save();
     },
     reload:()=>frame.current?.contentWindow?.reloadOpsFollowup?.(),
   });

@@ -156,13 +156,14 @@ function useCloudSyncPage(active, handlers) {
       get dirtyHint() { return ref.current.dirtyHint; },
       get barHint() { return ref.current.barHint; },
       get hideHint() { return ref.current.hideHint; },
+      get saveLabel() { return ref.current.saveLabel; },
     });
     return () => ctx.unregister();
   }, [active, ctx?.register, ctx?.unregister]);
 
   useEffect(() => {
     if (active && ctx) ctx.bump();
-  }, [active, ctx?.bump, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty, handlers.barHint]);
+  }, [active, ctx?.bump, handlers.meta, handlers.loading, handlers.saving, handlers.error, handlers.label, handlers.isDirty, handlers.barHint, handlers.saveLabel]);
 }
 
 function useConfirmLeave() {
@@ -192,7 +193,7 @@ function GlobalCloudBar() {
 
   if (saving) {
     tone = "info";
-    text = handler?.saving && handler?.barHint?.startsWith('正在上传') ? handler.barHint : "正在上传并等待云端确认，弱网时会自动重试…";
+    text = handler?.saving && handler?.barHint ? handler.barHint : "正在上传并等待云端确认，弱网时会自动重试…";
   } else if (error) {
     tone = "danger";
     text = error;
@@ -217,7 +218,7 @@ function GlobalCloudBar() {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button type="button" disabled={loading || saving} onClick={onSave}
           className="ops-btn ops-btn-primary" style={{ minWidth: 108 }}>
-          {saving ? "上传中…" : "保存并上传"}
+          {saving ? "上传中…" : handler?.saveLabel || "保存并上传"}
         </button>
         <button type="button" disabled={loading || saving} onClick={onReload}
           className="ops-btn" style={{ minWidth: 88 }}>

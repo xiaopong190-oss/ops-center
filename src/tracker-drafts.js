@@ -95,7 +95,7 @@ export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=
       const committed=new Set(cloud._snapshot()?.data.events.map(event=>event.id)||[]);
       const remaining=pending.filter(operation=>!committed.has(operation.id));
       if(remaining.length!==pending.length){await store.save(identity,remaining);pending=remaining;}
-      emit();if(context().autoShare&&pending.length)await flush();
+      emit();if(context().autoShare&&pending.length&&!error)await flush();
     }),
     clear(){userId='';pending=[];error='';confirmed='';cloud.clear();emit();},
     _dump:visible,_snapshot:cloud._snapshot,

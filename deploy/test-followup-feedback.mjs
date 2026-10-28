@@ -17,7 +17,11 @@ assert.doesNotMatch(render(),/上传未确认/);
 handler={isDirty:false,saving:false,hideHint:false,barHint:'上传成功 · 云端已确认'};
 assert.match(render(),/上传成功 · 云端已确认/);
 assert.match(render(),/aria-live="polite"/);
+handler={isDirty:true,error:'已保留38片，点击继续上传',saveLabel:'继续上传'};
+assert.match(render(),/已保留38片，点击继续上传/);assert.match(render(),/>继续上传</);
+handler={saving:true,barHint:'全部分片已收齐，正在校验并提交…'};assert.match(render(),/正在校验并提交/);
 for(const path of ['src/NewProductFollowupModule.jsx','src/NewProductFollowupModule.browser.jsx']){
  const source=fs.readFileSync(path,'utf8');assert.match(source,/hideHint:false/);assert.match(source,/新品页面尚未就绪/);
 }
 console.log('PASS visible upload progress, failure takes precedence over dirty state, confirmed success, accessible announcements, unready iframe rejects');
+

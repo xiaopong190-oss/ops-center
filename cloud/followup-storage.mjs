@@ -50,23 +50,36 @@ export async function uploadFollowup(req,env,user,commit) {
   const prefix=FOLLOWUP_KEY+':upload:'+id,owner=user.id;
   if(action==='start'){
     if(!Number.isSafeInteger(input.bytes)||input.bytes<1||input.bytes>MAX_BYTES||!Number.isSafeInteger(input.count)||input.count!==Math.ceil(input.bytes/PART_BYTES)||!/^[0-9a-f]{64}$/.test(input.sha256||''))fail(400,'上传大小或校验信息无效');
+    if(input.hashes&&(!Array.isArray(input.hashes)||input.hashes.length!==input.count||input.hashes.some(h=>!(/^[0-9a-f]{64}$/).test(h))))fail(400,'分片校验信息无效');
     const existing=await get(env,prefix);
-    if(existing){const m=JSON.parse(existing);if(m.owner!==owner||m.sha256!==input.sha256||m.bytes!==input.bytes)fail(409,'上传编号冲突');return Response.json({ok:true,id});}
-    await insert(env,prefix,JSON.stringify({owner,bytes:input.bytes,count:input.count,sha256:input.sha256,expires:Date.now()+86400000}));
+    if(existing){const m=JSON.parse(existing);if(m.owner!==owner)fail(403,'不能操作其它运营的上传');if(m.expires<Date.now()){await env.DB.prepare('DELETE FROM records WHERE key=? OR substr(key,1,?)=?').bind(prefix,prefix.length+1,prefix+':').run();return uploadFollowup(new Request(req.url,{method:'POST',body:text}),env,user,commit);}if(m.owner!==owner||m.sha256!==input.sha256||m.bytes!==input.bytes)fail(409,'上传编号冲突');return Response.json({ok:true,id});}
+    await insert(env,prefix,JSON.stringify({owner,bytes:input.bytes,count:input.count,sha256:input.sha256,hashes:input.hashes,expires:Date.now()+86400000}));
     return Response.json({ok:true,id});
   }
   const raw=await get(env,prefix);if(!raw)fail(404,'上传会话不存在，请重试');
   const manifest=JSON.parse(raw);
   if(manifest.owner!==owner)fail(403,'不能操作其它运营的上传');
   if(manifest.expires<Date.now())fail(410,'上传会话已过期，请重新上传');
+  if(action==='status'){
+    const parts=[];
+    for(let index=0;index<manifest.count;index++){
+      const value=await get(env,prefix+':'+index);
+      if(value!==undefined&&value!==null)parts.push({index,sha256:await sha256(Buffer.from(value,'base64'))});
+    }
+    return Response.json({ok:true,id,parts,count:manifest.count,expires:manifest.expires});
+  }
   if(action==='part'){
     if(!Number.isInteger(input.index)||input.index<0||input.index>=manifest.count||typeof input.content!=='string'||!/^[A-Za-z0-9+/]*={0,2}$/.test(input.content))fail(400,'分片格式无效');
     const bytes=Buffer.from(input.content,'base64'),expected=input.index===manifest.count-1?manifest.bytes-input.index*PART_BYTES:PART_BYTES;
     if(bytes.length!==expected||bytes.toString('base64')!==input.content)fail(400,'分片大小或编码错误');
+    const digest=await sha256(bytes);
+    if(manifest.hashes&&manifest.hashes[input.index]!==digest)fail(400,'分片校验失败');
     const key=prefix+':'+input.index;
+    const old=await get(env,key);
+    if(old&&manifest.hashes&&await sha256(Buffer.from(old,'base64'))!==manifest.hashes[input.index])await env.DB.prepare('DELETE FROM records WHERE key=? AND value=?').bind(key,old).run();
     await insert(env,key,input.content);
     if(await get(env,key)!==input.content)fail(409,'同一分片内容不一致');
-    return Response.json({ok:true,index:input.index});
+    return Response.json({ok:true,index:input.index,sha256:digest});
   }
   if(action!=='commit')fail(400,'上传操作无效');
   const bytes=Buffer.concat(await readParts(env,Array.from({length:manifest.count},(_,i)=>prefix+':'+i)));

@@ -58,10 +58,12 @@ const payload={revision:7,data:structuredClone(initial.data)};
 payload.data.trackerV1={schema:1,docs:{'links/large':{sku:'LARGE',content:{note:'中文😀'.repeat(350000)}}}};
 assert.ok(Buffer.byteLength(JSON.stringify(payload))>3000000);
 const send=sendFor(userA,largeDb);
-const result=await uploadFollowupPayload(async(path,body)=>{
+const interruptedSend=async(path,body)=>{
   if(body?.action==='part'&&body.index===1){retries++;if(!dropped){dropped=true;throw Error('Synthetic network interruption');}}
   return send(path,body);
-},payload,value=>progress.push(value));
+};
+await assert.rejects(uploadFollowupPayload(interruptedSend,payload,value=>progress.push(value)),/已保留1片/);
+const result=await uploadFollowupPayload(interruptedSend,payload,value=>progress.push(value));
 assert.equal(retries,2);assert.equal(progress.at(-1).completed,progress.at(-1).total);
 assert.equal(result.revision,8);assert.deepEqual((await readFollowup(largeDb.env)).snapshot.data,payload.data);
 const lengths=largeDb.sql.prepare('SELECT length(CAST(value AS BLOB)) AS bytes FROM records').all();

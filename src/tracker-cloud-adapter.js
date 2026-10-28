@@ -106,7 +106,7 @@ export function createTrackerCloudDb({context, backup, notify, onError}) {
           return changed.result;
         }
         } catch (error) {
-          if (context().user?.id !== userId || !context().canEdit) throw error;
+          if (error.uploadPaused || context().user?.id !== userId || !context().canEdit) throw error;
           const retryable = !error.status || error.status >= 500 || [408,429].includes(error.status) || /其它人员已更新/.test(error.message);
           if (attempt === 3 || !retryable) throw error;
           await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt));

@@ -164,7 +164,7 @@ async function handle(req,env) {
     }
     fail(405,'方法不允许');
   }
-  if(p==='/api/logistics-workspace'){const u=await session(req,env);await quota(env,'logistics-workspace:'+u.id,req.method==='GET'?3000:200,86400);return logisticsWorkspace(req,env,u);}
+  if(p==='/api/logistics-workspace'){const u=await session(req,env);await quota(env,'logistics-workspace:'+u.id,req.method==='GET'?3000:3000,86400);return logisticsWorkspace(req,env,u);}
   if(p==='/api/logistics-data'||p==='/api/logistics-data/upload'){if(req.method==='GET')return logisticsGithub(req,env);const u=await session(req,env);await quota(env,'logistics-github:'+u.id,3000,86400);return logisticsGithub(req,env,u);}
   if(p==='/api/logistics-backup'||p==='/api/logistics-backup/upload'){const u=await session(req,env);if(req.method!=='GET')fail(410,'已改为GitHub共享数据，请更新页面后重新提交');return logisticsBackup(req,env,u);}
   if(p==='/api/logistics-relations'&&req.method==='GET')return json({items:await readRelations(env)});

@@ -1,15 +1,15 @@
 (function(root){'use strict';
 const clean=v=>String(v??'').trim(),price=v=>/^\d+(?:\.\d+)?$/.test(clean(v))&&Number(v)>0;
-const dest=/仓库|目的地|目的国|国家|区域|邮编|地址|destination|warehouse|country/i,unit=/KG|CBM|公斤|立方|每柜|计费单位|计费重/i;
+const dest=/仓库|目的地|目的国|国家|区域|邮编|地址|destination|warehouse|country/i,unit=/KG|CBM|公斤|立方|每柜|柜型|20GP|40GP|40HQ|计费单位|计费重/i;
 const reference=/^(?:合计|总计|汇率|赔付|赔偿|保险|附加费|操作费|注意事项|说明|备注|船期|入仓资料)/;
 const column=c=>c.cell.match(/^[A-Z]+/)?.[0];
 function inspect(sheet){
  const rows=(sheet.rows||[]).filter(r=>r.cells.some(c=>clean(c.v))),blocks=[];let header=null,pendingDestination=null;
  for(const row of rows){const text=row.cells.map(c=>clean(c.v)).join(' ');if(reference.test(text.trim())){header=null;pendingDestination=null;continue}
-  const ownDestination=row.cells.find(c=>dest.test(clean(c.v)));if(ownDestination)pendingDestination={cell:ownDestination,row:row.row,priceHint:/单价|价格|运费|unit price|rate/i.test(text)};const destination=ownDestination||(pendingDestination&&row.row-pendingDestination.row<=6?pendingDestination.cell:null),rate=row.cells.find(c=>unit.test(clean(c.v)));
+  const ownDestination=row.cells.find(c=>/收件地址|目的地|仓库代码|仓库编号|目的国|区域|邮编|destination|warehouse/i.test(clean(c.v)))||row.cells.find(c=>dest.test(clean(c.v)));if(ownDestination)pendingDestination={cell:ownDestination,row:row.row,priceHint:/单价|价格|运费|unit price|rate/i.test(text)};const destination=ownDestination||(pendingDestination&&row.row-pendingDestination.row<=6?pendingDestination.cell:null),rate=row.cells.find(c=>unit.test(clean(c.v)));
   const rateEvidence=/\d+(?:\.\d+)?\s*(?:KG|CBM)|(?:CNY|USD|RMB|¥|￥)|单价|价格|运费|unit price|rate/i.test(clean(rate?.v))||/单价|价格|运费|unit price/i.test(text)||pendingDestination?.priceHint;
   if(destination&&rate&&rateEvidence){header={start:pendingDestination?.row||row.row,end:row.row,header:row.row,destinationCell:destination.cell,unitCell:rate.cell,priceCells:[],destinationColumn:column(destination),postal:/邮编/.test(clean(destination.v))};continue}
-  if(header){const destinationValue=row.cells.find(c=>column(c)===header.destinationColumn),prices=row.cells.filter(c=>column(c)!==header.destinationColumn&&c.valueType!=='date'&&price(c.v));
+  if(header){header.end=row.row;const destinationValue=row.cells.find(c=>column(c)===header.destinationColumn),prices=row.cells.filter(c=>column(c)!==header.destinationColumn&&c.valueType!=='date'&&price(c.v));
    if(destinationValue&&(/[A-Za-z\u4e00-\u9fa5]/.test(clean(destinationValue.v))||header.postal&&/^\d{2,}/.test(clean(destinationValue.v)))&&prices.length){if(!blocks.includes(header))blocks.push(header);header.end=row.row;header.priceCells.push(...prices.map(c=>c.cell))}}
  }
  const media=(sheet.media||[]).length>0,nonempty=rows.length>0;

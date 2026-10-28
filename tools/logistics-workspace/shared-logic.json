@@ -19,7 +19,7 @@
     "vendor/jszip.min.js": "acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e",
     "workbook-preview.js": "de531eb6fd9031d9cf872b9f30fae6f46cea17e71175adc4c174fecfd65ccab6",
     "matrix-import.js": "91af297cbb0af51545671ac9af6567d9596d57939830c6b43faff44197abdae7",
-    "extensions/quote-preflight.js": "e72dcd4c4e128877b7910f7f2f70f5e2cc13553799548b9927f7d85b208e63b0",
+    "extensions/quote-preflight.js": "c2260c76f4c40ee502470297608e85a9e26307de7fbaffd94379a51c5d42c59f",
     "extensions/quote-preflight-review.js": "67404284727e5a04538c9e3b67a28a104e850041e4381b35fd58674122204661",
     "extensions/sheet-quote-audit.js": "be2f7858cc69135f43c79b56976c378254165ba81f2dba7c47c753d5fe160f00",
     "cleaning-review.js": "c6a13b27c4e2eab93f961588c2738fca9235fa08132030d6cbfa7d9eafffaeb1",

@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-10-27T03:46:54.254Z",
+  "updatedAt": "2026-10-28T04:04:26.566Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon’s Holiday Beauty Event ends November 1: Shop top deals before it’s over",
-      "link": "https://www.aboutamazon.com/news/retail/amazon-holiday-beauty-event-2026?utm_source=rss",
-      "pubDate": "Mon, 26 Oct 2026 21:40:00 GMT",
-      "date": "10/26",
-      "summary": "Save up to 30% off skin care and makeup, with rotating 48-hour flash deals and curated holiday gift sets.",
-      "category": "Retail"
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Tue, 27 Oct 2026 22:42:00 GMT",
+      "date": "10/27",
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
     },
     {
-      "title": "Amazon's pro bono program surpasses 90,000 hours of free legal service across six continents",
-      "link": "https://www.aboutamazon.com/news/policy-news-views/amazon-pro-bono-report-2026?utm_source=rss",
-      "pubDate": "Mon, 26 Oct 2026 15:00:14 GMT",
-      "date": "10/26",
-      "summary": "Over 12 years, Amazon’s legal teams have provided free help across 26 countries, from a legal clinic supporting victims of scams to veteran ",
-      "category": "Policy news &amp; views"
-    },
-    {
-      "title": "Some of Amazon's Q3 2026 announcements, from new devices to AI breakthroughs",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-q3-2026-earnings-preview?utm_source=rss",
-      "pubDate": "Mon, 26 Oct 2026 13:00:18 GMT",
-      "date": "10/26",
-      "summary": "Amazon will announce financial results for its third quarter on October 29. Here's a look at what the company has been up to.",
+      "title": "An update from Amazon engineering leadership on the role of the developer in the age of AI",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-software-engineer-role-guideline-ai?utm_source=rss",
+      "pubDate": "Tue, 27 Oct 2026 17:50:33 GMT",
+      "date": "10/27",
+      "summary": "Amazon engineering leaders revised the role guideline for software development engineers, underscoring what matters most is the outcome, not",
       "category": "Company news"
+    },
+    {
+      "title": "How Amazon data centers in Spain are helping businesses create jobs and opportunities",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-spain?utm_source=rss",
+      "pubDate": "Tue, 27 Oct 2026 17:10:10 GMT",
+      "date": "10/27",
+      "summary": "A new independent study reveals that AWS's investment in northeastern Spain is transforming the region's economy.",
+      "category": "AWS"
     }
   ]
 }

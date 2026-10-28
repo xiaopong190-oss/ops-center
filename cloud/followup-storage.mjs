@@ -71,5 +71,11 @@ export async function uploadFollowup(req,env,user,commit) {
   if(action!=='commit')fail(400,'上传操作无效');
   const bytes=Buffer.concat(await readParts(env,Array.from({length:manifest.count},(_,i)=>prefix+':'+i)));
   if(bytes.length!==manifest.bytes||await sha256(bytes)!==manifest.sha256)fail(400,'上传校验失败，原数据未改变');
-  return commit(bytes.toString('utf8'));
+  const response=await commit(bytes.toString('utf8'));
+  // Only confirmed commits can release staging parts; live/version/history keys are separate.
+  if(response.ok){
+    try {await env.DB.prepare('DELETE FROM records WHERE key=? OR substr(key,1,?)=?').bind(prefix,prefix.length+1,prefix+':').run();}
+    catch(error){console.error('followup_staging_cleanup_failed',error.message);}
+  }
+  return response;
 }

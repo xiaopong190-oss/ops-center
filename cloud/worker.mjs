@@ -1,3 +1,4 @@
+import {cleanupFollowupUploads} from './followup-cleanup.mjs';
 import {logisticsWorkspace} from './logistics-workspace.mjs';
 import {validateRelations,readRelations,recognizeRelationsCached} from './logistics-relations.mjs';
 import {logisticsGithub} from './logistics-github.mjs';
@@ -242,14 +243,15 @@ async function handle(req,env) {
   const asset=await env.ASSETS.fetch(req);
   return asset;
 }
-export default {async scheduled(event,env,ctx){ctx.waitUntil(cleanupLogistics(env).then(result=>console.log('logistics_cleanup',JSON.stringify(result))));},async fetch(req,env){
+export default {async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([cleanupLogistics(env),cleanupFollowupUploads(env)]).then(result=>console.log('storage_cleanup',JSON.stringify(result))));},async fetch(req,env){
   const origin=req.headers.get('Origin'),own=new URL(req.url).origin;
   const localWorkspaceOrigin=origin==='http://127.0.0.1:4318'&&new URL(req.url).pathname==='/api/logistics-workspace';
   if(origin&&!origins.has(origin)&&origin!==own&&!localWorkspaceOrigin)return json({error:'来源不允许'},403);
   let r;
   try{r=req.method==='OPTIONS'?new Response(null,{status:204}):await handle(req,env);}catch(e){
     console.error('request_failed',new URL(req.url).pathname,e?.name||'Error',e?.message||String(e));
-    r=json({error:e.status?e.message:'服务请求失败，请稍后重试'},e.status||502);
+    const full=/maximum DB size|SQLITE_FULL|database or disk is full/i.test(e?.message||'');
+    r=json({error:full?'云端存储空间已满，请联系管理员释放空间；本机草稿仍保留':e.status?e.message:'服务请求失败，请稍后重试'},full?507:e.status||502);
   }
   const headers=new Headers(r.headers);if(origin)headers.set('Access-Control-Allow-Origin',origin);
   headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');headers.set('Access-Control-Allow-Headers','Content-Type,Authorization,X-Connection-Id,X-Connection-Admin,X-Proxy-Token,X-Evidence-Client,Mcp-Session-Id,MCP-Protocol-Version');headers.set('Access-Control-Expose-Headers','Mcp-Session-Id');

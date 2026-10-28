@@ -19,6 +19,7 @@ const suites=[
   'cloud/test-logistics-backup.mjs',
   'cloud/test-logistics-ai.mjs',
   'cloud/test-permissions.mjs',
+  'cloud/test-followup-cleanup.mjs',
   'deploy/test-tracker.mjs',
   'deploy/test-followup-chunks.mjs',
   'deploy/test-followup-reliability.mjs',

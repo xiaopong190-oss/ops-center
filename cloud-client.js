@@ -11,7 +11,7 @@ async function uploadFollowupPayload(send,payload,progress=()=>{}) {
   const retry=async body=>{
     for(let attempt=0;attempt<3;attempt++){
       try{return await send('/ops-api/followup/upload',body);}
-      catch(error){if(attempt===2||(error.status&&error.status<500&&error.status!==429))throw error;}
+      catch(error){if(attempt===2||(error.status&&error.status<500&&![408,429].includes(error.status)))throw error;await new Promise(resolve=>setTimeout(resolve,1000*2**attempt));}
     }
   };
   await retry({action:'start',id,bytes:bytes.length,count,sha256:hash});
@@ -30,8 +30,12 @@ async function uploadFollowupPayload(send,payload,progress=()=>{}) {
   const key = 'ops-cloud-session-v1';
   const token = () => { try { return localStorage.getItem(key)||''; } catch { return ''; } };
   async function send(path, data, method) {
-    const r=await fetch(requestBase+path,{method:method||(data?'POST':'GET'),headers:{'Content-Type':'application/json',...(token()?{Authorization:'Bearer '+token()}:{})},...(data?{body:JSON.stringify(data)}:{})});
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),45000);
+    try {
+    const r=await fetch(requestBase+path,{signal:controller.signal,method:method||(data?'POST':'GET'),headers:{'Content-Type':'application/json',...(token()?{Authorization:'Bearer '+token()}:{})},...(data?{body:JSON.stringify(data)}:{})});
     const result=await r.json();if(!r.ok)throw Object.assign(Error(result.error||'云端请求失败'),{status:r.status});return result;
+    } catch(error) {if(error.name==='AbortError')throw Error('连接超时，请检查网络后重试');throw error;} finally {clearTimeout(timer);}
   }
   async function request(path,data,method){
     if(path==='/ops-api/followup'&&data&&(!method||method==='POST'))return uploadFollowupPayload(send,data,progress=>window.dispatchEvent(new CustomEvent('ops-followup-upload-progress',{detail:progress})));

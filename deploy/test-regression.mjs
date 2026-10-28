@@ -21,6 +21,8 @@ const suites=[
   'cloud/test-permissions.mjs',
   'deploy/test-tracker.mjs',
   'deploy/test-followup-chunks.mjs',
+  'deploy/test-followup-reliability.mjs',
+  'deploy/test-followup-feedback.mjs',
   'deploy/test-followup-upload-auth.mjs',
   'deploy/test-followup-navigation.mjs',
   'deploy/test-workspace-maximize.mjs',

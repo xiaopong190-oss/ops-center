@@ -46,7 +46,7 @@ const change=snapshot.data.events.find(event=>event.actor==='Operator B'&&JSON.p
 assert.equal(JSON.parse(change.before)['links/legacy-a'].issue,'first');
 a.context.autoShare=true;await a.db.doc('links/legacy-a').update({owner:'Automatic'});assert.equal(drafts.get('A').length,0);
 a.context.autoShare=false;await a.db.doc('links/legacy-a').update({issue:'recover lost response'});loseResponse=true;
-await assert.rejects(a.db.save(),/lost response/);
+await a.db.save(); // Lost response is recovered by re-reading operation IDs.
 const count=(await readFollowup(draftDb.env)).snapshot.data.events.length;await a.db.save();
 assert.equal((await readFollowup(draftDb.env)).snapshot.data.events.length,count,'retry must not duplicate a successful operation');
 assert.equal(drafts.get('A').length,0);

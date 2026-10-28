@@ -10,7 +10,7 @@ export async function uploadFollowupPayload(send,payload,progress=()=>{}) {
   const retry=async body=>{
     for(let attempt=0;attempt<3;attempt++){
       try{return await send('/ops-api/followup/upload',body);}
-      catch(error){if(attempt===2||(error.status&&error.status<500&&error.status!==429))throw error;}
+      catch(error){if(attempt===2||(error.status&&error.status<500&&![408,429].includes(error.status)))throw error;await new Promise(resolve=>setTimeout(resolve,1000*2**attempt));}
     }
   };
   await retry({action:'start',id,bytes:bytes.length,count,sha256:hash});

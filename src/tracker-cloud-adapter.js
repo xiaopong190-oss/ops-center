@@ -83,6 +83,7 @@ export function createTrackerCloudDb({context, backup, notify, onError}) {
     const userId = context().user?.id;
     const task = queue.catch(() => {}).then(async () => {
       for (let attempt = 0; attempt < 4; attempt++) {
+        try {
         const c = context();
         if (c.user?.id !== userId || !c.canEdit) throw Error('当前用户没有编辑权限，未保存');
         const send = request(), current = await send('/ops-api/followup');
@@ -99,11 +100,17 @@ export function createTrackerCloudDb({context, backup, notify, onError}) {
         else next.events.unshift({id:crypto.randomUUID(),product_id:'',actor:c.user.name,actor_id:userId,
           action:'新品大屏更新',reason:changed.reason,created_at:new Date().toISOString(),
           before:JSON.stringify(Object.fromEntries(Object.keys(changed.patch).map(k => [k,visible[k] ?? null]))),after:JSON.stringify(changed.patch)});
-        try {
+        {
           const saved = await send('/ops-api/followup',{revision:current.revision,data:next});
           if (context().user?.id === userId) install(saved);
           return changed.result;
-        } catch (error) { if (attempt === 3 || !/其它人员已更新/.test(error.message)) throw error; }
+        }
+        } catch (error) {
+          if (context().user?.id !== userId || !context().canEdit) throw error;
+          const retryable = !error.status || error.status >= 500 || [408,429].includes(error.status) || /其它人员已更新/.test(error.message);
+          if (attempt === 3 || !retryable) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt));
+        }
       }
     });
     queue = task;

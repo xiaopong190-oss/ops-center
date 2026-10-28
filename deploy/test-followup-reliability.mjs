@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import {createTrackerCloudDb} from '../src/tracker-cloud-adapter.js';
+import {createTrackerDraftDb} from '../src/tracker-drafts.js';
+const snapshot={revision:1,data:{products:[],records:[],events:[],trackerV1:{docs:{'links/a':{sku:'A'}}}}};
+const context=()=>({user:{id:'operator',name:'运营'},canEdit:true});
+let posts=0;
+const ctx={...context(),cloudRequest:async(path,body)=>{
+ if(!body)return structuredClone(snapshot);
+ posts++;throw Object.assign(Error('登录已过期，请重新登录'),{status:401});
+}};
+const realCloud=createTrackerCloudDb({context:()=>ctx,backup:async()=>{},notify:()=>{}});
+const disk=new Map();let status;
+const store={load:async id=>structuredClone(disk.get(id)||[]),save:async(id,rows)=>disk.set(id,structuredClone(rows))};
+const db=createTrackerDraftDb({context:()=>ctx,cloud:realCloud,store,onState:value=>{status=value;}});
+await db.refresh();await db.doc('links/a').update({issue:'不能丢失的资料'});
+await assert.rejects(db.save(),/登录已过期/);
+assert.equal(posts,1,'authentication failures are not retried');
+assert.equal(status.saving,false);assert.equal(status.isDirty,true);
+assert.match(status.error,/草稿/);assert.equal(disk.get('operator').length,1);
+const restored=createTrackerDraftDb({context:()=>ctx,cloud:realCloud,store});await restored.refresh();
+assert.equal(restored._dump()['links/a'].issue,'不能丢失的资料');
+let failed=true,attempts=0;
+ctx.cloudRequest=async(path,body)=>{attempts++;if(failed){failed=false;throw new TypeError('Failed to fetch');}if(body){snapshot.revision++;snapshot.data=body.data;}return structuredClone(snapshot);};
+await restored.save();
+assert.ok(attempts>=3,'retry includes an interrupted initial read');
+assert.equal(disk.get('operator').length,0);
+assert.equal(snapshot.data.trackerV1.docs['links/a'].issue,'不能丢失的资料');
+console.log('PASS operator expired session feedback, durable failed draft, reload recovery, interrupted read retry, confirmed cloud save');

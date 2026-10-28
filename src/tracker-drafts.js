@@ -40,12 +40,12 @@ export function applyTrackerOperations(original,operations,user={}){
 }
 
 export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=()=>{}}){
-  let pending=[],userId='',error='',saving=false,chain=Promise.resolve();
+  let pending=[],userId='',error='',saving=false,confirmed='',chain=Promise.resolve();
   const listeners=new Set();
   const uncommitted=operations=>{const ids=new Set(cloud._snapshot()?.data.events.map(event=>event.id)||[]);return operations.filter(operation=>!ids.has(operation.id));};
   const visible=()=>applyTrackerOperations(cloud._dump(),uncommitted(pending),context().user).docs;
   const status=()=>{const snapshot=cloud._snapshot();onState({isDirty:pending.length>0,saving,error,meta:snapshot?{updatedBy:snapshot.updatedBy,updatedAt:snapshot.updatedAt,revision:snapshot.revision}:null,
-    barHint:context().autoShare?'已开启自动分享 · 修改按字段合并 · 操作历史保留':'沿用个人暂存 · 点「保存并上传」后共享给全员',
+    barHint:confirmed|| (context().autoShare?'已开启自动分享 · 修改按字段合并 · 操作历史保留':'沿用个人暂存 · 点「保存并上传」后共享给全员'),
     dirtyHint:pending.length+' 项修改已保存在本账号，尚未上传'});};
   const emit=()=>{for(const listener of listeners)listener();status();};
   const serialized=task=>{const result=chain.catch(()=>{}).then(task);chain=result;return result;};
@@ -57,14 +57,14 @@ export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=
     const identity=requireUser();
     if(!pending.length)return true;
     const batch=structuredClone(pending),ids=new Set(batch.map(operation=>operation.id));
-    saving=true;error='';status();
+    saving=true;error='';confirmed='';status();
     try{
       await cloud._commit(batch);
       if(context().user?.id!==identity)throw Error('帐号已变化；请回原帐号核对上传状态');
       const remaining=pending.filter(operation=>!ids.has(operation.id));
       await store.save(identity,remaining);
-      pending=remaining;emit();return true;
-    }catch(failure){error=failure.message;status();throw failure;}
+      pending=remaining;confirmed='上传成功 · 云端已确认 · '+new Date().toLocaleTimeString();emit();return true;
+    }catch(failure){error='上传未确认：'+failure.message+'；'+pending.length+' 项修改仍保存在本账号本机草稿，请重试上传';status();throw failure;}
     finally{saving=false;status();}
   };
   const stage=(type,path,value)=>serialized(async()=>{
@@ -73,7 +73,7 @@ export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=
     const applied=applyTrackerOperations(cloud._dump(),uncommitted(next),context().user);
     await store.save(identity,next); // Durable per-account draft precedes UI success.
     if(context().user?.id!==identity)throw Error('帐号已变化，修改仍保存在原帐号草稿');
-    pending=next;error='';emit();
+    pending=next;error='';confirmed='';emit();
     if(context().autoShare)await flush();
     return applied.result;
   });
@@ -97,7 +97,7 @@ export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=
       if(remaining.length!==pending.length){await store.save(identity,remaining);pending=remaining;}
       emit();if(context().autoShare&&pending.length)await flush();
     }),
-    clear(){userId='';pending=[];error='';cloud.clear();emit();},
+    clear(){userId='';pending=[];error='';confirmed='';cloud.clear();emit();},
     _dump:visible,_snapshot:cloud._snapshot,
     _load:input=>stage('import','',input).then(result=>notify('已合并补充 '+result.added+' 条；已有 '+result.skipped+' 条保持原样')),
     collection:name=>({onSnapshot:callback=>watch(()=>callback({docs:Object.entries(visible()).filter(([key])=>key.startsWith(name+'/')).map(([key,row])=>({id:key.slice(name.length+1),exists:true,data:()=>structuredClone(row)}))}))}),

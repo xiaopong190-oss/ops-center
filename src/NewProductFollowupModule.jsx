@@ -27,14 +27,14 @@ export function NewProductFollowupPanel({ active }) {
     return()=>window.removeEventListener('ops-followup-upload-progress',update);
   },[]);
   useCloudSyncPage(active,{
-    ...syncState,label:'新品跟进',hideHint:true,
+    ...syncState,label:'新品跟进',hideHint:false,
     isDirty:syncState.isDirty,
     barHint:syncState.saving&&uploadProgress?'正在上传 '+uploadProgress.completed+' / '+uploadProgress.total+' 份数据':syncState.barHint,
     save:async()=>{
-      try{return await frame.current?.contentWindow?.saveOpsFollowup?.();}
+      try{const save=frame.current?.contentWindow?.saveOpsFollowup;if(!save)throw Error('新品页面尚未就绪，请稍后重试');return await save();}
       finally{setUploadProgress(null);}
     },
-    reload:options=>frame.current?.contentWindow?.reloadOpsFollowup?.(options),
+    reload:()=>frame.current?.contentWindow?.reloadOpsFollowup?.(),
   });
   const publish = () => {
     const initialized = frame.current?.contentWindow?.setOpsFollowupContext?.(context);

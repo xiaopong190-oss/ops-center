@@ -192,18 +192,18 @@ export function GlobalCloudBar() {
       ? "已开启自动分享：改完会立刻给同事看"
       : "改完只保存在你的账号，点「保存并上传」才给同事看");
 
-  if (handler?.isDirty) {
-    tone = "warn";
-    text = `${handler.dirtyHint || "有还没给同事看的修改"} · 点「保存并上传」`;
-  } else if (loading && !saving) {
-    tone = "muted";
-    text = "正在从云端加载…";
-  } else if (saving) {
+  if (saving) {
     tone = "info";
-    text = "正在保存…";
+    text = handler?.saving && handler?.barHint?.startsWith('正在上传') ? handler.barHint : "正在上传并等待云端确认，弱网时会自动重试…";
   } else if (error) {
     tone = "danger";
-    text = `${error} · 已暂存本机，请重试上传`;
+    text = error;
+  } else if (handler?.isDirty) {
+    tone = "warn";
+    text = handler.dirtyHint || "有未上传的修改，请点保存并上传";
+  } else if (loading) {
+    tone = "muted";
+    text = "正在从云端加载…";
   } else if (handler?.barHint) {
     text = handler.barHint;
   } else if (handler?.meta?.updatedBy) {
@@ -215,7 +215,7 @@ export function GlobalCloudBar() {
 
   return (
     <div className={`ops-cloud-bar ops-cloud-bar-${tone}`} style={handler?.hideHint ? {background:"transparent",border:"none",padding:"0",justifyContent:"flex-end"} : undefined}>
-      <span hidden={!!handler?.hideHint} style={{ display:handler?.hideHint ? "none" : undefined, flex: 1, minWidth: 0 }}>{text}</span>
+      <span role="status" aria-live="polite" hidden={!!handler?.hideHint} style={{ display:handler?.hideHint ? "none" : undefined, flex: 1, minWidth: 0 }}>{text}</span>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button type="button" disabled={loading || saving} onClick={onSave}
           className="ops-btn ops-btn-primary" style={{ minWidth: 108 }}>

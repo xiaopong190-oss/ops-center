@@ -8,7 +8,7 @@
  function queue(model,result){
   const items=[],seen=new Set();let held=0,referenceRows=0;
   for(const [sheetIndex,sheet] of model.sheets.entries()){const inspection=Audit?.inspect(sheet,result);let scanned;const blocks=()=>scanned??=M.scan(sheet);
-   if((result.referenceSheets||[]).some(s=>s.name===sheet.name)||M.effectiveKind(sheet)!=='报价'&&!inspection?.candidateRows.length){referenceRows+=sheet.rows.length;continue;}if(!sheet.rows.length&&sheet.media?.length){held+=sheet.media.length;continue;}
+   if(result.preflight?.find(x=>x.sheet===sheet.name)?.status!=='quote'&&result.preflight?.some(x=>x.sheet===sheet.name)){referenceRows+=sheet.rows.length;continue;}if((result.referenceSheets||[]).some(s=>s.name===sheet.name)||M.effectiveKind(sheet)!=='报价'&&!inspection?.candidateRows.length){referenceRows+=sheet.rows.length;continue;}if(!sheet.rows.length&&sheet.media?.length){held+=sheet.media.length;continue;}
    const extraRows=new Set(inspection?.candidateRows||[]);const evidence=result.cellAudit?.sheets.find(s=>s.name===sheet.name),report=result.reports?.find(s=>s.sheet===sheet.name),rows=new Set();
    for(const cell of evidence?.cells||[])if((!result.scopePriceCells||result.scopePriceCells.includes(cell.cell))&&['价格待核对','源表公式错误','公式缺少缓存值'].includes(cell.status))rows.add(cell.row);
    for(const issue of report?.issues||[])if(Number.isInteger(Number(issue.row)))rows.add(Number(issue.row));

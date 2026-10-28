@@ -1,3 +1,4 @@
+import {validateSheetInput,recognizeSheet} from './quote-preflight.mjs';
 import {cleanupFollowupUploads} from './followup-cleanup.mjs';
 import {logisticsWorkspace} from './logistics-workspace.mjs';
 import {validateRelations,readRelations,recognizeRelationsCached} from './logistics-relations.mjs';
@@ -173,7 +174,7 @@ async function handle(req,env) {
   }
   if(p==='/api/logistics-ai/recognize'){
     const u=await session(req,env);if(req.method!=='POST')fail(405,'方法不允许');
-    const rawInput=await body(req),input=rawInput?.purpose==='relation-identity'?validateRelations(rawInput):validateLogisticsInput(rawInput);
+    const rawInput=await body(req);if(rawInput?.purpose==='sheet-quote-detection'){await quota(env,'sheet-quote-detection:'+u.id,100,86400);return json(await recognizeSheet(validateSheetInput(rawInput),env))}const input=rawInput?.purpose==='relation-identity'?validateRelations(rawInput):validateLogisticsInput(rawInput);
     if(input.purpose==='relation-identity')return json(await recognizeRelationsCached(input,env,async count=>{for(let i=0;i<count;i++)await quota(env,'logistics-relations:'+u.id,300,86400);}));
     if(input.purpose==='warehouse-identity')return json(await recognizeWarehousesCached(input,env,async count=>{for(let i=0;i<count;i++)await quota(env,'logistics-warehouse-codes:'+u.id,2000,86400);}));
     if(input.purpose==='quote-cleaning'){await quota(env,'logistics-cleaning:'+u.id,100,86400);return json(await recognizeLogistics(input,env));}

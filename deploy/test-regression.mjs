@@ -7,6 +7,8 @@ if(prepared.status!==0)process.exit(prepared.status||1);
 const suites=[
   'cloud/test-logistics-workspace.mjs',
   'cloud/test-workspace-fullstack.mjs',
+  'cloud/test-workspace-upload.mjs',
+  'tools/logistics-workspace/record-delta.test.cjs',
   'tools/logistics-workspace/snapshot.test.cjs',
   'tools/logistics-workspace/runtime.test.cjs',
   'tools/logistics-workspace/portable-server.test.cjs',

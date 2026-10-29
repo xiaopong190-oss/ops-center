@@ -1,3 +1,4 @@
+import {Buffer} from 'node:buffer';
 import D from '../tools/logistics-rating/domain.js';
 import Names from '../tools/logistics-rating/extensions/rating-provider-names.js';
 import {readWorkspace,decryptWorkspace} from './logistics-workspace.mjs';

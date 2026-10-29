@@ -37,14 +37,20 @@ export async function workspaceUpload(input,env,user,publish,verify){
   try{await put(partKey(h),{...await seal(bytes,env,partKey(h)),expires:Date.now()+86400000})}catch(error){console.error('workspace_part_store',error?.name,error?.message);fail(503,'云端分片暂存失败（UPLOAD_PART_STORE），进度保留，请稍后继续或联系管理员')}return {ok:true,index:input.index};
  }
  if(action==='status'||action==='start'){
-  const items=await readMany(job.parts.map(partKey)),missing=[];for(let i=0;i<items.length;i++){if(!items[i]||items[i].expires<Date.now())missing.push(i)}return {ok:true,missing,expires:job.expires};
+  const known=new Map();for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey),rows=await env.DB.prepare('SELECT key,json_extract(value,\'$.expires\') AS expires FROM records WHERE key IN ('+names.map(()=>'?').join(',')+')').bind(...names).all();for(const row of rows.results)known.set(row.key,row.expires)}const missing=[];for(let i=0;i<job.parts.length;i++)if(!(known.get(partKey(job.parts[i]))>=Date.now()))missing.push(i);return {ok:true,missing,expires:job.expires};
  }
  if(action!=='commit')fail(400,'上传操作无效');
- const items=await readMany(job.parts.map(partKey)),parts=[];for(let i=0;i<job.parts.length;i++){const h=job.parts[i],item=items[i];if(!item||item.expires<Date.now())fail(409,'分片尚未收齐或已过期，请继续上传');const bytes=await open(item,env,partKey(h));if(await hash(bytes)!==h)fail(400,'暂存分片内容不一致');parts.push(bytes);items[i]=null}
- const bytes=Buffer.concat(parts);if(bytes.length!==job.bytes||await hash(bytes)!==job.sha256)fail(400,'完整快照校验失败，未发布');
- let data;try{data=JSON.parse(bytes.toString('utf8'))}catch{fail(400,'快照JSON无效')}
- if(data?.protocol==='record-delta-v1'){const previous=await verify();if(previous.operationId===id){job.receipt={ok:true,sha:previous.sha,savedAt:previous.savedAt,verified:true,contentHash:job.sha256};await put(jobKey,job);return {ok:true,receipt:job.receipt,missing:[]}}if(previous.sha!==job.baseSha)fail(409,'展示快照已有更新，请重新预览');try{data=await Delta.apply(previous.data,data)}catch(error){fail(400,error.message)}}
- const receipt=await publish({baseSha:job.baseSha,operationId:id,data});
- const actual=await verify();if(actual.sha!==receipt.sha||JSON.stringify(actual.data)!==JSON.stringify(data))fail(502,'GitHub已返回回执，读回核验未完成；请继续本次任务，勿重复导入');
+ let bytes=Buffer.alloc(job.bytes),offset=0;for(let start=0;start<job.parts.length;start+=40){const hashes=job.parts.slice(start,start+40),items=await readMany(hashes.map(partKey));for(let i=0;i<items.length;i++){const h=hashes[i],item=items[i];if(!item||item.expires<Date.now())fail(409,'分片尚未收齐或已过期，请继续上传');const raw=await open(item,env,partKey(h));if(await hash(raw)!==h||raw.length!==Math.min(PART_BYTES,job.bytes-offset))fail(400,'暂存分片内容不一致');raw.copy(bytes,offset);offset+=raw.length;items[i]=null}}
+ if(offset!==job.bytes||await hash(bytes)!==job.sha256)fail(400,'完整快照校验失败，未发布');
+ let data;try{data=JSON.parse(bytes.toString('utf8'))}catch{fail(400,'快照JSON无效')}bytes=null;
+ const metadata=await verify({metadataOnly:true});
+ if(metadata.operationId===id){if(metadata.manifest&&metadata.manifest.hash!==(job.pendingReceipt?.snapshotHash||job.checkpoint?.hash))fail(502,'已发布的大快照摘要尚未核验一致，任务保留');if(job.pendingReceipt&&metadata.sha!==job.pendingReceipt.sha)fail(409,'已发布任务的云端版本不一致');job.receipt={...(job.pendingReceipt||{}),ok:true,sha:metadata.sha,savedAt:metadata.savedAt,verified:true,contentHash:job.sha256};await put(jobKey,job);return {ok:true,receipt:job.receipt,missing:[]}}
+ if(metadata.sha!==job.baseSha)fail(409,'展示快照已有更新，请重新预览');
+ if(data?.protocol==='record-delta-v1'){if(metadata.manifest)fail(409,'上次为大快照，请保留本机数据并重新预览当前完整数据；不需重新导入');const previous=await verify();try{data=await Delta.apply(previous.data,data)}catch(error){fail(400,error.message)}}
+ const receipt=await publish({baseSha:job.baseSha,operationId:id,data},job.checkpoint);
+ if(receipt.pending){job.checkpoint=receipt.checkpoint;await put(jobKey,job);return {ok:true,pending:true,confirmedParts:receipt.confirmedParts,totalParts:receipt.totalParts}}
+ // Persist a root receipt before its verification; retries can finish after response loss.
+ job.pendingReceipt=receipt;await put(jobKey,job);
+ const actual=await verify({metadataOnly:!!receipt.snapshotHash});if(actual.sha!==receipt.sha||(receipt.snapshotHash?actual.manifest?.hash!==receipt.snapshotHash||actual.operationId!==id:JSON.stringify(actual.data)!==JSON.stringify(data)))fail(502,'GitHub已返回回执，读回核验未完成；请继续本次任务，勿重复导入');
  job.receipt={...receipt,verified:true,contentHash:job.sha256};await put(jobKey,job);return {ok:true,receipt:job.receipt,missing:[]};
 }

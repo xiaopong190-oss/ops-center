@@ -1,0 +1,49 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
+import {gzipSync} from 'node:zlib';
+import {writeShards} from './workspace-shards.mjs';
+import {logisticsWorkspace} from './logistics-workspace.mjs';
+import {publishWorkspace} from './logistics-workspace.mjs';
+import Delta from '../tools/logistics-workspace/record-delta.js';
+const hash=b=>createHash('sha256').update(b).digest('hex');
+function fixture(){
+ const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE records(key TEXT PRIMARY KEY,value TEXT NOT NULL)');let calls=0,peak=0,rootWrites=0,checkpointFailure=0,loseRoot=false;const files=new Map();
+ const bump=()=>{calls++;peak=Math.max(peak,calls);if(calls>40)throw Error('synthetic per-request subrequest budget exceeded')};
+ const DB={prepare(query){let args=[];return {bind(...v){args=v;return this},async first(){bump();return sql.prepare(query).get(...args)||null},async all(){bump();return {results:sql.prepare(query).all(...args)}},async run(){bump();if(checkpointFailure&&query.startsWith('INSERT')&&JSON.parse(args[1]).checkpoint?.cursor===checkpointFailure){checkpointFailure=0;throw Error('synthetic checkpoint persistence loss')}return sql.prepare(query).run(...args)}}}};
+ const env={DB,LOGISTICS_GITHUB_TOKEN:'synthetic-only',ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')};
+ const send=async(url,options={})=>{bump();const name=url.split('/contents/')[1]?.split('?')[0];assert(name?.startsWith('data/logistics/'));if(options.method==='PUT'){const body=JSON.parse(options.body),old=files.get(name);if(old&&body.sha!==old.sha)return Response.json({error:'CAS conflict'},{status:409});const bytes=Buffer.from(body.content,'base64'),item={sha:createHash('sha1').update(body.content).digest('hex'),encoding:'base64',content:body.content,size:bytes.length};files.set(name,item);if(name.endsWith('workspace-snapshot.enc.json')){rootWrites++;if(loseRoot){loseRoot=false;throw Error('synthetic lost root response')}}return Response.json({content:{sha:item.sha},commit:{sha:'c'.repeat(40)}})}return files.has(name)?Response.json(files.get(name)):new Response(null,{status:404})};
+ const call=async(body,user={id:'synthetic-user'})=>{calls=0;const req=new Request('https://local/api/logistics-workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return (await logisticsWorkspace(req,env,user,send)).json()};
+ return {sql,env,files,send,call,failCheckpoint:n=>checkpointFailure=n,loseRootReply:()=>{loseRoot=true},reset:()=>{calls=0},peak:()=>peak,rootWrites:()=>rootWrites};
+}
+test('unbounded legacy shard publication exhausts the same finite request budget before completing a large snapshot',async()=>{
+ const f=fixture();try{await assert.rejects(writeShards({source:'x'.repeat(20*1024*1024)},f.env,{},f.send,{}),/subrequest budget/);assert.equal(f.rootWrites(),0);assert(f.files.size>0);assert(f.files.size<41)}finally{f.sql.close()}
+});
+test('31113 warehouse + 4091 regional + 571 templates, exactly 305 uploaded parts, resume commit under a bounded per-request budget',async()=>{
+ const f=fixture(),company={id:'c',name:'合成物流',aliases:[]},record=i=>({companyId:'c',company:'合成物流',country:'美国',warehouse:'ONT8',channel:'海运',price:1000+i,currency:'CNY',unit:'kg',min:10,max:20,date:'2026-10-29',terms:'普货',source:'synthetic-'+i+'x'.repeat(800)});
+ let data={space:'real',storage:{'logistics-company-directory-v1':[company],'logistics-quotes-v1':{quotes:Array.from({length:31113},(_,i)=>record(i)),regionalQuotes:Array.from({length:4091},(_,i)=>({...record(i),regionRaw:'美国区域'+i})),templates:Array.from({length:571},(_,i)=>({country:'美国',warehouse:'ONT'+i}))},'logistics-monthly-bills-v1':{rows:[],aliases:{}},'logistics-completed-ratings-v1':[]}};
+ const target=39973341,initial=Buffer.byteLength(JSON.stringify(data));assert(initial<target);const padding=target-initial;data.storage['logistics-quotes-v1'].quotes[0].source+=Array.from({length:Math.ceil(padding/(128*1024))},(_,i)=>String(i).padStart(12,'0')+'p'.repeat(128*1024-12)).join('').slice(0,padding);let bytes=Buffer.from(JSON.stringify(data));assert.equal(bytes.length,target);const parts=[];for(let i=0;i<bytes.length;i+=128*1024)parts.push(hash(bytes.subarray(i,i+128*1024)));assert.equal(parts.length,305);const id=crypto.randomUUID(),plan={action:'start',id,bytes:bytes.length,parts,sha256:hash(bytes),baseSha:null};
+ try{
+  const start=await f.call(plan);assert.equal(start.missing.length,305);for(let i=0;i<305;i++)await f.call({action:'part',id,index:i,encoding:'gzip',content:gzipSync(bytes.subarray(i*128*1024,(i+1)*128*1024)).toString('base64')});
+  assert.deepEqual((await f.call(plan)).missing,[]);
+  // Match the incident's partial GitHub state: 24 encrypted shards exist, root is still old.
+  let seed={cursor:0,parts:[]};for(let i=0;i<8;i++){f.reset();const window=await writeShards(data,f.env,{},f.send,{savedAt:'synthetic-old-attempt'},seed);assert(window.pending);seed=window.checkpoint}assert.equal(f.files.size,24);assert.equal(f.rootWrites(),0);bytes=null;data=null;
+  let result=await f.call({action:'commit',id}),commits=1;assert(result.pending);assert.equal(result.confirmedParts,3);assert.equal(f.rootWrites(),0);
+  const key=f.sql.prepare("SELECT key FROM records WHERE key LIKE '%:job:%'").get().key,checkpoint=JSON.parse(f.sql.prepare('SELECT value FROM records WHERE key=?').get(key).value).checkpoint;
+  // A fresh client/server call recovers persisted publication progress without resending any of the 305 transport parts.
+  assert.equal(checkpoint.cursor,3);assert.deepEqual((await f.call(plan)).missing,[]);
+  f.failCheckpoint(6);await assert.rejects(f.call({action:'commit',id}),/checkpoint persistence loss/);assert.equal(f.rootWrites(),0);assert.equal(JSON.parse(f.sql.prepare('SELECT value FROM records WHERE key=?').get(key).value).checkpoint.cursor,3);
+  while(result.pending){assert.equal(f.rootWrites(),0);if(result.confirmedParts+3>=result.totalParts){f.loseRootReply();await assert.rejects(f.call({action:'commit',id}),/lost root response/);result=await f.call({action:'commit',id});commits+=2;break;}result=await f.call({action:'commit',id});assert(++commits<45)}
+  assert(result.receipt?.verified);assert.equal(result.receipt.contentHash,plan.sha256);assert.equal(f.rootWrites(),1);assert(f.peak()<=40);const replay=await f.call({action:'commit',id});assert.equal(replay.receipt.sha,result.receipt.sha);assert.equal(f.rootWrites(),1);
+  f.reset();const get=async query=>(await logisticsWorkspace(new Request('https://local/api/logistics-workspace'+query),f.env,{id:'viewer',canEdit:false},f.send)).json();const meta=await get('?meta=1');assert.equal(meta.recordDelta,false);f.reset();const manifest=await get('');assert(manifest.paged);const chunks=[];for(let i=0;i<manifest.paged.parts.length;i++){f.reset();chunks.push(Buffer.from((await get('?page='+i+'&sha='+manifest.sha)).content,'base64'))}const actualBytes=Buffer.concat(chunks);assert.equal(hash(actualBytes),plan.sha256);const actual=JSON.parse(actualBytes);assert.equal(actual.storage['logistics-quotes-v1'].quotes.length,31113);assert.equal(actual.storage['logistics-quotes-v1'].regionalQuotes.length,4091);assert.equal(actual.storage['logistics-quotes-v1'].templates.length,571);
+  console.log(JSON.stringify({synthetic:true,uploadParts:305,commits,maxRequests:f.peak(),rootWrites:f.rootWrites(),counts:[31113,4091,571]}));
+ }finally{f.sql.close()}
+});
+test('staged shard checkpoints reject content changes and retain the old root',async()=>{
+ const f=fixture();try{const source={note:'x'.repeat(9*1024*1024)};const first=await writeShards(source,f.env,{},f.send,{savedAt:'test'},{cursor:0,parts:[]});assert(first.pending);f.reset();await assert.rejects(writeShards({...source,note:source.note+'changed'},f.env,{},f.send,{},first.checkpoint),e=>e.status===409);assert.equal(f.rootWrites(),0)}finally{f.sql.close()}
+});
+test('already-frozen record delta against the previous small snapshot resumes staged publication without losing baseline rows',async()=>{
+ const f=fixture(),row={companyId:'c',company:'合成物流',country:'美国',warehouse:'ONT8',channel:'海运',price:1000,currency:'CNY',unit:'kg',min:10,max:20,date:'2026-10-29',terms:'普货'},base={space:'real',storage:{'logistics-company-directory-v1':[{id:'c',name:'合成物流',aliases:[]}],'logistics-quotes-v1':{quotes:[row],templates:[]},'logistics-monthly-bills-v1':{rows:[],aliases:{}},'logistics-completed-ratings-v1':[]}};
+ try{const prior=await publishWorkspace({operationId:crypto.randomUUID(),baseSha:null,data:base},f.env,{id:'synthetic-user'},f.send);const next={...base,storage:{...base.storage,'logistics-quotes-v1':{quotes:[row,...Array.from({length:80},(_,i)=>({...row,price:1001+i,source:'virtual-'+i+'x'.repeat(130000)}))],templates:[]}}};const delta=await Delta.create(next,await Delta.index(base)),bytes=Buffer.from(JSON.stringify(delta.payload)),parts=[];for(let i=0;i<bytes.length;i+=128*1024)parts.push(hash(bytes.subarray(i,i+128*1024)));const id=crypto.randomUUID();await f.call({action:'start',id,bytes:bytes.length,parts,sha256:hash(bytes),baseSha:prior.sha});for(let i=0;i<parts.length;i++)await f.call({action:'part',id,index:i,encoding:'gzip',content:gzipSync(bytes.subarray(i*128*1024,(i+1)*128*1024)).toString('base64')});let result;do{result=await f.call({action:'commit',id});if(result.pending)assert.equal(f.rootWrites(),1)}while(result.pending);assert(result.receipt.verified);assert.equal(f.rootWrites(),2);f.reset();const latest=await (await logisticsWorkspace(new Request('https://local/api/logistics-workspace'),f.env,{id:'viewer'},f.send)).json();assert.equal(latest.paged.hash,hash(Buffer.from(JSON.stringify(next))));assert.equal(result.receipt.contentHash,hash(bytes))}finally{f.sql.close()}
+});

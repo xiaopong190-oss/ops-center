@@ -4,7 +4,7 @@ const version=require('./package.json').version;
 const root=path.resolve(__dirname,'../..'),out=process.argv[2],node=process.argv[3],license=process.argv[4];
 if(!out||!node||!license)throw Error('Usage: node pack-portable.cjs OUTPUT_DIR NODE_EXE NODE_LICENSE');
 if(fs.existsSync(out))throw Error('Output directory already exists; choose a fresh directory');
-const {routes}=require('./dev-server.cjs'),files=new Set([...routes.values(),path.join(__dirname,'dev-server.cjs'),path.join(__dirname,'portable-supervisor.cjs'),path.join(__dirname,'package.json'),path.join(__dirname,'shared-logic.json')]);
+const {routes}=require('./dev-server.cjs'),files=new Set([...routes.values(),path.join(__dirname,'dev-server.cjs'),path.join(__dirname,'portable-supervisor.cjs'),path.join(__dirname,'portable-auto-update.cjs'),path.join(__dirname,'package.json'),path.join(__dirname,'shared-logic.json')]);
 for(const file of files){const relative=path.relative(root,file);if(relative.startsWith('..')||path.isAbsolute(relative))throw Error('Resource outside application');const target=path.join(out,relative);fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(file,target)}
 fs.mkdirSync(path.join(out,'bin'),{recursive:true});fs.copyFileSync(node,path.join(out,'bin/node.exe'));fs.copyFileSync(license,path.join(out,'bin/NODE-LICENSE.txt'));
 fs.writeFileSync(path.join(out,'bin/launcher.ps1'),'\ufeff'+fs.readFileSync(path.join(__dirname,'portable-start.ps1'),'utf8'));

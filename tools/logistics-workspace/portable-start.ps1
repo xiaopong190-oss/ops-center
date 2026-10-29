@@ -1,4 +1,4 @@
-param([switch]$NoBrowser, [ValidateRange(1024,65535)][int]$Port = 4318)
+param([switch]$NoBrowser, [switch]$SkipUpdate, [ValidateRange(1024,65535)][int]$Port = 4318)
 $ErrorActionPreference = 'Stop'
 $bundleRoot = if ((Split-Path $PSScriptRoot -Leaf) -eq 'bin') { Split-Path $PSScriptRoot -Parent } else { $PSScriptRoot }
 $nodeFile = Join-Path $bundleRoot 'bin\node.exe'
@@ -27,6 +27,30 @@ function Stop-VerifiedHangxuProcess {
     }
 }
 try {
+$updater = Join-Path $bundleRoot 'tools\logistics-workspace\portable-auto-update.cjs'
+if (-not $SkipUpdate -and (Test-Path -LiteralPath $updater)) {
+    $env:LOGISTICS_UI_PORT = [string]$Port
+    Remove-Item Env:NODE_OPTIONS -ErrorAction SilentlyContinue
+    & $nodeFile $updater
+    $updateApplied = $LASTEXITCODE -eq 3
+    if ($LASTEXITCODE -eq 2) { throw '更新恢复尚未完成，已阻止启动混合版本。请保留原目录并联系管理员。' }
+    $updatedVersion = (Get-Content -LiteralPath (Join-Path $bundleRoot 'tools\logistics-workspace\package.json') -Raw | ConvertFrom-Json).version
+    if ($updateApplied -or $updatedVersion -ne $expectedVersion) {
+        # Release the startup lock before entering the verified new launcher.
+        $mutex.ReleaseMutex(); $mutex.Dispose(); $mutex = $null
+        $restartArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $bundleRoot 'bin\launcher.ps1'),'-SkipUpdate','-Port',[string]$Port)
+        if ($NoBrowser) { $restartArgs += '-NoBrowser' }
+        & powershell.exe @restartArgs
+        if ($LASTEXITCODE) {
+            & $nodeFile $updater --rollback
+            if ($LASTEXITCODE) { throw '自动更新恢复未完成，请保留原目录并联系管理员。' }
+            Write-Host '新版启动失败，已恢复原版，正在重新启动。'
+            & powershell.exe @restartArgs
+            if ($LASTEXITCODE) { throw '原版启动未完成，请查看 logs/startup.log。' }
+        } else { & $nodeFile $updater --confirm }
+        return
+    }
+}
 $ready = $false
 $ready = Test-Hangxu
 if (-not $ready -and $script:staleService) {
@@ -73,6 +97,10 @@ if (-not $ready) {
         if ($ready -or $service.HasExited) { break }
     }
 }
-if (-not $ready) { throw ('无法启动。请查看 '+$logFolder+'\startup.log；4318端口若被其他程序占用，需要先处理占用。不要清除浏览器数据。') }
+if (-not $ready) {
+    # Only stop the guardian and child tree created by this exact launch attempt.
+    if ($service -and -not $service.HasExited) { & taskkill.exe /PID $service.Id /T /F | Out-Null }
+    throw ('无法启动。请查看 '+$logFolder+'\startup.log；4318端口若被其他程序占用，需要先处理占用。不要清除浏览器数据。')
+}
 if (-not $NoBrowser) { Start-Process ('http://127.0.0.1:'+$Port+'/input') }
-} finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
+} finally { if ($mutex) { $mutex.ReleaseMutex(); $mutex.Dispose() } }

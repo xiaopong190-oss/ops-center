@@ -5,6 +5,8 @@ const prepared=spawnSync(process.execPath,['deploy/build-followup-page.mjs'],{cw
 if(prepared.error)throw prepared.error;
 if(prepared.status!==0)process.exit(prepared.status||1);
 const suites=[
+  'cloud/test-workspace-shards.mjs',
+  'tools/logistics-workspace/data-management.test.cjs',
   'cloud/test-quote-preflight.mjs',
   'cloud/test-logistics-workspace.mjs',
   'cloud/test-workspace-fullstack.mjs',

@@ -18,6 +18,14 @@ function Test-Hangxu {
         try { $reader = New-Object System.IO.StreamReader($response.GetResponseStream()); $health = $reader.ReadToEnd() | ConvertFrom-Json; if ($health.app -eq 'hangxu-input') { $current = $health.version -eq $expectedVersion -and $health.snapshotRelay -eq 'chunks-v1'; if (-not $current) { $script:staleService = $true }; return $current }; return $false } finally { $response.Close() }
     } catch { return $false }
 }
+function Stop-VerifiedHangxuProcess {
+    param([int]$ProcessId)
+    # The verified process can exit with its guardian between inspection and stop.
+    try { Stop-Process -Id $ProcessId -ErrorAction Stop }
+    catch {
+        if ($_.FullyQualifiedErrorId -notlike 'NoProcessFoundForGivenId,*') { throw }
+    }
+}
 try {
 $ready = $false
 $ready = Test-Hangxu
@@ -37,8 +45,8 @@ if (-not $ready -and $script:staleService) {
     if (-not [string]::Equals($ownerProcess.ExecutablePath,$oldNode,[StringComparison]::OrdinalIgnoreCase) -or $command.IndexOf($oldServer,[StringComparison]::OrdinalIgnoreCase) -lt 0 -or -not (Test-Path -LiteralPath (Join-Path $oldRoot 'tools\logistics-workspace\package.json'))) { throw '无法验证旧航序目录，未关闭其他程序。' }
     Write-Host ('正在从旧航序切换：'+$oldRoot)
     $candidates = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.ExecutablePath -and [string]::Equals($_.ExecutablePath,$oldNode,[StringComparison]::OrdinalIgnoreCase) -and $_.CommandLine })
-    foreach ($candidate in @($candidates | Where-Object { $_.CommandLine.IndexOf($oldSupervisor,[StringComparison]::OrdinalIgnoreCase) -ge 0 })) { Stop-Process -Id $candidate.ProcessId -ErrorAction Stop }
-    if (Get-Process -Id $ownerProcess.ProcessId -ErrorAction SilentlyContinue) { Stop-Process -Id $ownerProcess.ProcessId -ErrorAction Stop }
+    foreach ($candidate in @($candidates | Where-Object { $_.CommandLine.IndexOf($oldSupervisor,[StringComparison]::OrdinalIgnoreCase) -ge 0 })) { Stop-VerifiedHangxuProcess -ProcessId $candidate.ProcessId }
+    Stop-VerifiedHangxuProcess -ProcessId $ownerProcess.ProcessId
     Start-Sleep -Milliseconds 500
     $script:staleService = $false
     $ready = Test-Hangxu

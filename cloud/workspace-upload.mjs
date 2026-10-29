@@ -2,7 +2,7 @@ import Delta from '../tools/logistics-workspace/record-delta.js';
 // Resumable transport only. The published GitHub snapshot remains the source of truth.
 import {Buffer} from 'node:buffer';
 import {gunzipSync} from 'node:zlib';
-export const PART_BYTES=128*1024, MAX_BYTES=32*1024*1024;
+export const PART_BYTES=128*1024, MAX_BYTES=64*1024*1024;
 const hash=b=>crypto.subtle.digest('SHA-256',b).then(x=>Buffer.from(x).toString('hex'));
 const fail=(status,message)=>{throw Object.assign(Error(message),{status})};
 const validHash=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);

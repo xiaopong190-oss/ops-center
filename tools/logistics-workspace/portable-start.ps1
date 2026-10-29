@@ -1,4 +1,4 @@
-param([switch]$NoBrowser, [switch]$SkipUpdate, [ValidateRange(1024,65535)][int]$Port = 4318)
+param([switch]$NoBrowser, [switch]$SkipUpdate, [switch]$StartupLockHeld, [ValidateRange(1024,65535)][int]$Port = 4318)
 $ErrorActionPreference = 'Stop'
 $bundleRoot = if ((Split-Path $PSScriptRoot -Leaf) -eq 'bin') { Split-Path $PSScriptRoot -Parent } else { $PSScriptRoot }
 $nodeFile = Join-Path $bundleRoot 'bin\node.exe'
@@ -6,9 +6,12 @@ $serverFile = Join-Path $bundleRoot 'tools\logistics-workspace\portable-supervis
 $logFolder = Join-Path $bundleRoot 'logs'
 $expectedVersion = (Get-Content -LiteralPath (Join-Path $bundleRoot 'tools\logistics-workspace\package.json') -Raw | ConvertFrom-Json).version
 $script:staleService = $false
-$mutex = New-Object System.Threading.Mutex($false, ('Local\HangxuInputStartup'+$Port))
-try { $acquired = $mutex.WaitOne(15000) } catch [System.Threading.AbandonedMutexException] { $acquired = $true }
-if (-not $acquired) { $mutex.Dispose(); throw '另一个启动检查正在运行，请稍候重试。' }
+$mutex = $null
+if (-not $StartupLockHeld) {
+    $mutex = New-Object System.Threading.Mutex($false, ('Local\HangxuInputStartup'+$Port))
+    try { $acquired = $mutex.WaitOne(15000) } catch [System.Threading.AbandonedMutexException] { $acquired = $true }
+    if (-not $acquired) { $mutex.Dispose(); throw '另一个启动检查正在运行，请稍候重试。' }
+}
 function Test-Hangxu {
     try {
         $request = [System.Net.HttpWebRequest]::Create(('http://127.0.0.1:'+$Port+'/health'))
@@ -36,9 +39,9 @@ if (-not $SkipUpdate -and (Test-Path -LiteralPath $updater)) {
     if ($LASTEXITCODE -eq 2) { throw '更新恢复尚未完成，已阻止启动混合版本。请保留原目录并联系管理员。' }
     $updatedVersion = (Get-Content -LiteralPath (Join-Path $bundleRoot 'tools\logistics-workspace\package.json') -Raw | ConvertFrom-Json).version
     if ($updateApplied -or $updatedVersion -ne $expectedVersion) {
-        # Release the startup lock before entering the verified new launcher.
-        $mutex.ReleaseMutex(); $mutex.Dispose(); $mutex = $null
-        $restartArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $bundleRoot 'bin\launcher.ps1'),'-SkipUpdate','-Port',[string]$Port)
+        # Parent retains the mutex across first boot and rollback. Otherwise a
+        # second launch could recover the journal while the new child starts.
+        $restartArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $bundleRoot 'bin\launcher.ps1'),'-SkipUpdate','-StartupLockHeld','-Port',[string]$Port)
         if ($NoBrowser) { $restartArgs += '-NoBrowser' }
         & powershell.exe @restartArgs
         if ($LASTEXITCODE) {

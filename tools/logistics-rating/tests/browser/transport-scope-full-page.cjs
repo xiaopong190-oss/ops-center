@@ -22,6 +22,7 @@ test('full quotes render pipeline repeatedly recovers after excluding every avai
    button('空运').click();total(4130);button('卡航').click();total(4130);
    $('n001Reset').click();total(4130);
   }
+  $('scoreViewMode').value='score';$('scoreViewMode').dispatchEvent(new w.Event('change'));
   // Reproduce a hidden applied score filter: clearing its field without applying does not clear its state.
   $('scoreMin').value='6';$('scoreApply').click();total(0);
   $('scoreMin').value='';button('海运').click();button('海运').click();total(0);

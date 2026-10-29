@@ -5,9 +5,15 @@
   const bottom=frameTop===null?height-24:Math.min(height,parentHeight-frameTop)-24;
   return {top,maxHeight:Math.max(48,bottom-top)};
  }
+ function fitColumnDialog(dialog,view){
+  let top=16,left=16,width=view.innerWidth-32,height=view.innerHeight-32;
+  try{if(view.frameElement){const r=view.frameElement.getBoundingClientRect();top=Math.max(16,80-r.top);left=Math.max(16,16-r.left);width=Math.min(view.innerWidth-left-16,view.parent.innerWidth-r.left-left-16);height=Math.min(view.innerHeight-top-16,view.parent.innerHeight-r.top-top-16)}}catch{}
+  dialog.style.setProperty('position','fixed','important');dialog.style.setProperty('inset','auto','important');dialog.style.setProperty('margin','0','important');dialog.style.setProperty('transform','none','important');dialog.style.setProperty('top',top+'px','important');dialog.style.setProperty('left',left+'px','important');dialog.style.setProperty('width',Math.max(0,Math.min(680,width))+'px','important');dialog.style.setProperty('max-width',Math.max(0,width)+'px','important');dialog.style.setProperty('max-height',Math.max(0,height)+'px','important');dialog.style.setProperty('overflow','auto','important');dialog.style.setProperty('box-sizing','border-box','important');dialog.style.setProperty('overflow-wrap','anywhere','important');
+ }
  function bindScoreListColumns(doc){
   const host=doc.getElementById('comparison');if(!host)return;
   const states=new WeakMap();
+  doc.addEventListener('click',event=>{if(event.target.closest?.('[data-sort-col]')){const dialog=doc.getElementById('columnDialog');if(dialog?.open)fitColumnDialog(dialog,doc.defaultView)}});
   host.addEventListener('click',event=>{
    const button=event.target.closest?.('[data-score-column]');if(!button)return;
    const table=button.closest('table'),col=Number(button.dataset.scoreColumn),rows=[...table.tBodies[0].rows];
@@ -31,8 +37,8 @@
    const view=doc.defaultView;let viewport={height:view.innerHeight};
    try{if(view.frameElement)viewport={...viewport,frameTop:view.frameElement.getBoundingClientRect().top,parentHeight:view.parent.innerHeight};}catch(ignore){}
    const bounds=visibleDialogBounds(viewport);
-   dialog.addEventListener('cancel',()=>dialog.remove());dialog.style.top=bounds.top+'px';dialog.style.maxHeight=bounds.maxHeight+'px';dialog.style.maxWidth='90vw';doc.body.append(dialog);dialog.showModal();
+   dialog.addEventListener('cancel',()=>dialog.remove());dialog.style.top=bounds.top+'px';dialog.style.maxHeight=bounds.maxHeight+'px';dialog.style.maxWidth='90vw';doc.body.append(dialog);dialog.showModal();fitColumnDialog(dialog,view);
   });
  }
- const api={bindScoreListColumns,visibleDialogBounds};if(typeof module!=='undefined')module.exports=api;else root.ScoreListColumns=Object.freeze(api);
+ const api={bindScoreListColumns,visibleDialogBounds,fitColumnDialog};if(typeof module!=='undefined')module.exports=api;else root.ScoreListColumns=Object.freeze(api);
 })(typeof window==='undefined'?globalThis:window);

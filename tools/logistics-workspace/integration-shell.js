@@ -1,5 +1,5 @@
 (function(){'use strict';
-const releaseVersion='1.0.23';document.documentElement.dataset.hangxuVersion=releaseVersion;
+const releaseVersion='1.0.24';document.documentElement.dataset.hangxuVersion=releaseVersion;
 const params=new URLSearchParams(location.search),displayOnly=document.documentElement.dataset.entry==='display'||params.get('view')==='display';let side=displayOnly?'out':'in',route=displayOnly?'overview':'import',frame,state={},loading=true,access='view',managementRequested=false,cleanupPreview=null,backupRequested=false;
 const groups={in:[['import','数据清洗输入'],['bill-input','账单清洗输入'],['local','本地数据与备份']],out:[['overview','经营概览'],['compare','报价查询与对比'],['ratings','合作评级'],['warehouses','国家仓库'],['monthly','月度对账']]},titles=Object.fromEntries([...groups.in,...groups.out]);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

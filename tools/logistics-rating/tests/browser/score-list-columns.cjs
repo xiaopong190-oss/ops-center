@@ -19,3 +19,13 @@ test('score list columns: real rendered headers filter, sort numerically, combin
  assert.equal(doc.querySelectorAll('img,script').length,0);assert.equal(JSON.stringify(rows),before);assert.equal(w.localStorage.length,0);
  }finally{w.close();}
 });
+
+test('column popup resets centering and stays inside a scrolled embedded viewport, including grouped filters',()=>{
+ const {fitColumnDialog,bindScoreListColumns}=require('../../extensions/score-list-columns.js');
+ const dom=new JSDOM('<div id="comparison"><button data-sort-col="1">渠道</button></div><dialog id="columnDialog"></dialog>'),doc=dom.window.document,dialog=doc.querySelector('dialog');
+ try{const view={innerWidth:1400,innerHeight:6000,frameElement:{getBoundingClientRect:()=>({top:-1200,left:-200})},parent:{innerHeight:800,innerWidth:390}};
+ fitColumnDialog(dialog,view);const top=parseFloat(dialog.style.top),left=parseFloat(dialog.style.left),width=parseFloat(dialog.style.width),height=parseFloat(dialog.style.maxHeight);
+ assert(top-1200>=80);assert(left-200>=16);assert(left-200+width<=374);assert(top-1200+height<=784);assert.equal(dialog.style.margin,'0px');assert.equal(dialog.style.transform,'none');assert.equal(dialog.style.overflow,'auto');
+ bindScoreListColumns(doc);dialog.open=true;doc.querySelector('button').click();assert.equal(dialog.style.position,'fixed');assert.equal(dialog.style.getPropertyPriority('left'),'important');
+ }finally{dom.window.close()}
+});

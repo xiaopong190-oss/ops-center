@@ -13,9 +13,10 @@ const hooks=[
 ];
 const source=file=>fs.readFileSync(path.join(base,file),'utf8');
 const transportHook=["for(const b of document.querySelectorAll('[data-transport]'))b.onclick=()=>{const value=root.TransportExclusion.nextTransportExclusion(b.dataset.state);b.dataset.state=value;api.states[b.dataset.transport]=value;b.textContent=b.dataset.transport+' · '+(value==='exclude'?'排除':'不限');api.invalidate();render();};", "for(const b of document.querySelectorAll('[data-transport]'))b.onclick=()=>{const states=['neutral','include','exclude'],value=states[(states.indexOf(b.dataset.state||'neutral')+1)%3];b.dataset.state=value;api.states[b.dataset.transport]=value;b.textContent=b.dataset.transport+' · '+({neutral:'不限',include:'纳入',exclude:'排除'})[value];api.invalidate();render();};"];
+const labelHook="/* transport-label-approved */(root.TransportLinehaul||(typeof require==='function'?require('./extensions/transport-linehaul.js'):null))?.display(r,transport(r))||";
 const linehaulHook="/* transport-linehaul-approved */const linehaul=(root.TransportLinehaul||(typeof require==='function'?require('./extensions/transport-linehaul.js'):null))?.resolve(r,{sourceMode:sourceTransport(r)?.mode});if(linehaul)return linehaul;";
 const otherHook=["return mode==='待确认'?/* transport-other-approved */(root.TransportOther||(typeof require==='function'?require('./extensions/transport-other.js'):null))?.unknownStatus(states)||'unknown':", "return mode==='待确认'?'unknown':"];
-const read=file=>file==='quotes.js'?hooks.reduce((s,[hook,original])=>s.replace(hook,original),source(file)):file==='n001.js'?source(file).replace(transportHook[0],transportHook[1]).replace(otherHook[0],otherHook[1]).replace(linehaulHook,''):source(file);
+const read=file=>file==='quotes.js'?hooks.reduce((s,[hook,original])=>s.replace(hook,original),source(file)):file==='n001.js'?source(file).replace(transportHook[0],transportHook[1]).replace(otherHook[0],otherHook[1]).replace(linehaulHook,'').replace(labelHook,''):source(file);
 test('approved exclusion-only UI hook occurs once',()=>{assert.equal(source('n001.js').split(transportHook[0]).length-1,1);});
 test('approved import, name and count seams occur exactly once; historical baseline hashes remain unchanged',()=>{for(const [hook] of hooks)assert.equal(source('quotes.js').split(hook).length-1,1);});
 test('default shared logic stays at reviewed baseline; new rules belong in separate extensions',()=>{assert.deepEqual(mismatches(read),[],'Default rule changed. Propose the conflict and use a separate PR; do not silently refresh the lock.');});
@@ -24,3 +25,5 @@ test('lock detects altered logic and tolerates platform line endings',()=>{asser
 test('approved other transport visibility seam occurs once without altering classifier',()=>{assert.equal(source('n001.js').split(otherHook[0]).length-1,1)});
 
 test('approved linehaul extension seam occurs exactly once',()=>assert.equal(source('n001.js').split(linehaulHook).length-1,1));
+
+test('approved delivery label seam occurs exactly once',()=>assert.equal(source('n001.js').split(labelHook).length-1,1));

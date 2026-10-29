@@ -39,3 +39,23 @@ test('paged display retries current failed batch, verifies bytes and switches lo
 test('corrupt or version-mismatched batch keeps prior local data and never reports display ready',async()=>{const value=client().api.data(),bytes=Buffer.from(JSON.stringify(value)),hash=crypto.createHash('sha256').update(bytes).digest('hex'),storage=new Map([['ops-cloud-session-v1','session'],['logistics-company-directory-v1','[{"id":"keep"}]']]),sha='a'.repeat(40);const c=client('?audience=display',[{sha},{sha,paged:{bytes:bytes.length,hash,parts:[hash]}},{sha:'b'.repeat(40),index:0,hash,content:bytes.toString('base64')}],storage);await assert.rejects(c.api.ready,/版本或格式/);assert.equal(storage.get('logistics-company-directory-v1'),'[{"id":"keep"}]');assert.equal(c.api.state().loaded,false)});
 
 test('36MiB snapshot previews with upgraded cloud, while old cloud gives upgrade guidance instead of deleting records',async()=>{const raw=JSON.stringify({quotes:[],templates:[],note:'中'.repeat(12*1024*1024)}),newClient=client('',[{writeConfigured:true,sha:null,uploadProtocol:'chunks-v1',maxSnapshotBytes:64*1024*1024}]);newClient.storage.set('logistics-quotes-v1',raw);await newClient.api.preview();assert.equal(newClient.calls.length,1);assert.equal(newClient.storage.get('logistics-quotes-v1'),raw);const old=client('',[{writeConfigured:true,sha:null,uploadProtocol:'chunks-v1'}]);old.storage.set('logistics-quotes-v1',raw);await assert.rejects(old.api.preview(),/更新云端服务.*不要删除/);assert.equal(old.storage.get('logistics-quotes-v1'),raw)});
+
+test('frozen old task reports published scope separately from current local scope, including equal-count edits',async()=>{
+ const old=client().api.data();old.storage['logistics-quotes-v1']={quotes:[{id:'old'}],regionalQuotes:[{id:'region'}],templates:[{id:'template'}]};
+ const sha='c'.repeat(40),c=client('',[{ok:true,sha,savedAt:'today'},{data:old,sha}]);let removed=0;
+ c.w.WorkspaceUploadTasks={load:async()=>({frozen:true,raw:JSON.stringify(old),baseSha:'base',operationId:'frozen'}),remove:async()=>removed++};
+ const current=JSON.parse(JSON.stringify(old.storage['logistics-quotes-v1']));current.quotes.push({id:'new'});current.templates.push({id:'new-template'});c.storage.set('logistics-quotes-v1',JSON.stringify(current));
+ const p=await c.api.preview();assert.equal(p.resuming,true);assert.equal(p.counts.quotes,1);assert.equal(p.currentCounts.quotes,2);assert.equal(p.counts.templates,1);assert.equal(p.currentCounts.templates,2);assert.equal(p.unpublishedChanges,true);assert.equal(c.calls.length,0);
+ const r=await c.api.publish();assert.equal(r.counts.quotes,1);assert.equal(r.currentCounts.quotes,2);assert.equal(r.unpublishedChanges,true);assert.equal(c.api.state().unpublishedChanges,true);assert.equal(removed,1);assert.equal(c.storage.get('logistics-quotes-v1'),JSON.stringify(current));
+ const d=client();d.w.WorkspaceUploadTasks={load:async()=>({frozen:true,raw:JSON.stringify(old)})};current.quotes=[{id:'same-count-but-edited'}];current.templates=[{id:'template'}];d.storage.set('logistics-quotes-v1',JSON.stringify(current));const equal=await d.api.preview();assert.equal(equal.counts.quotes,equal.currentCounts.quotes);assert.equal(equal.unpublishedChanges,true);
+});
+test('valid JSON cache changed under unchanged cloud SHA is downloaded again, not silently reused',async()=>{
+ const source=client().api.data();source.storage['logistics-quotes-v1'].quotes=[{id:'keep'}];const sha='same',c=client('?audience=display',[{sha},{data:source,sha,savedAt:'today'},{sha},{data:source,sha,savedAt:'today'}]);await c.api.ready;
+ c.storage.set('logistics-quotes-v1',JSON.stringify({quotes:[],templates:[]}));await c.api.load();assert.equal(c.calls.length,4);assert.equal(c.api.state().cached,false);assert.equal(JSON.parse(c.storage.get('logistics-quotes-v1')).quotes.length,1);
+});
+
+test('frozen chunks receipt preserves old transport and exposes additions saved during upload',async()=>{
+ const source=client().api.data(),raw=JSON.stringify(source),contentHash=crypto.createHash('sha256').update(raw).digest('hex'),receipt={ok:true,verified:true,contentHash,sha:'a'.repeat(40),savedAt:'today'},c=client('',[{receipt}]);
+ c.w.WorkspaceUploadTasks={load:async()=>({frozen:true,raw,transport:raw,protocol:'chunks-v1',operationId:'frozen-chunks',persisted:true}),remove:async()=>{}};await c.api.preview();
+ c.storage.set('logistics-quotes-v1',JSON.stringify({quotes:[{id:'saved-during-upload'}],templates:[]}));const result=await c.api.publish();assert.equal(result.counts.quotes,0);assert.equal(result.currentCounts.quotes,1);assert.equal(result.unpublishedChanges,true);assert.equal(JSON.parse(c.calls[0].options.body).id,'frozen-chunks');
+});

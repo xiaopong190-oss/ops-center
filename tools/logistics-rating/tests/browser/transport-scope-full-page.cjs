@@ -22,6 +22,7 @@ test('full quotes render pipeline repeatedly recovers after excluding every avai
    button('空运').click();total(4130);button('卡航').click();total(4130);
    $('n001Reset').click();total(4130);
   }
+  $('scoreViewMode').value='score';$('scoreViewMode').dispatchEvent(new w.Event('change'));
   // Reproduce a hidden applied score filter: clearing its field without applying does not clear its state.
   $('scoreMin').value='6';$('scoreApply').click();total(0);
   $('scoreMin').value='';button('海运').click();button('海运').click();total(0);
@@ -43,11 +44,11 @@ test('other exclusion filters real comparison rows and reset restores unclassifi
  try{
   class Clock extends w.Date{constructor(...args){super(...(args.length?args:['2026-10-26T12:00:00']));}}w.Date=Clock;w.fetch=async()=>({ok:true,json:async()=>({items:[]})});
   for(const f of ['domain.js','comparison-core.js','channel-score.js','quote-core.js','companies.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
-  const rows=['海运','空运','卡航','铁路','专线A'].map((channel,i)=>({company:'测试物流',companyId:'test',country:'美国',warehouse:'ONT8',channel,terms:'档='+i+'KG+;普货',price:1000,currency:'CNY',unit:'kg',date:'2026-10-26',min:5,max:10}));w.localStorage.setItem('logistics-quotes-v1',JSON.stringify({quotes:rows,templates:[]}));
-  for(const f of ['relation-core.js','extensions/transport-exclusion.js','extensions/transport-other.js','n001.js','quotes.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
+  const rows=['海运-卡派','空派-快递派','欧洲卡车运输','铁路-快递派','专线A'].map((channel,i)=>({company:'测试物流',companyId:'test',country:'美国',warehouse:'ONT8',channel,terms:'档='+i+'KG+;普货',price:1000,currency:'CNY',unit:'kg',date:'2026-10-26',min:5,max:10}));w.localStorage.setItem('logistics-quotes-v1',JSON.stringify({quotes:rows,templates:[]}));
+  for(const f of ['relation-core.js','extensions/transport-exclusion.js','extensions/transport-other.js','extensions/transport-linehaul.js','n001.js','quotes.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
   await new Promise(r=>setTimeout(r,0));const before=w.localStorage.getItem('logistics-quotes-v1'),buttons=[...w.document.querySelectorAll('[data-transport]')],button=mode=>buttons.find(b=>b.dataset.transport===mode),total=n=>assert.match($('n001Page').textContent,new RegExp('共 '+n+' 条'));
   total(5);button('其它').click();total(4);assert.equal(w.N001UI.transport(rows[4]),'待确认');assert(![...$('comparison').querySelectorAll('tbody tr')].some(r=>r.textContent.includes('专线A')));
-  for(const mode of ['海运','卡航','铁路'])button(mode).click();total(1);assert.match($('comparison').textContent,/空运/);
+  for(const mode of ['海运','卡航','铁路'])button(mode).click();total(1);assert.match($('comparison').textContent,/空派/);
   button('空运').click();total(0);$('n001Scope').value='outside';$('n001Scope').dispatchEvent(new w.Event('change'));total(5);
   $('n001Reset').click();total(5);assert.equal(button('其它').dataset.state,'neutral');assert.equal(w.localStorage.getItem('logistics-quotes-v1'),before);
  }finally{w.close()}

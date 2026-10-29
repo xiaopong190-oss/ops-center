@@ -53,6 +53,11 @@
       "file": "n001.js",
       "approval": "User explicitly requested an Other button for channels whose logistics mode cannot be determined (2026-10-29)",
       "scope": "Single transport-other-approved visibility seam delegates already-unclassified rows to a pure extension; neutral retains original unknown visibility, exclude moves them outside; no classifier, parsing, scoring or storage changes; baseline hash retained via exact seam normalization"
+    },
+    {
+      "file": "n001.js",
+      "approval": "User confirmed distinction between trunk transport and card/express last-mile delivery, and requested updating it (2026-10-29)",
+      "scope": "Exact transport-linehaul-approved hook to pure extension; source-backed last-mile classification and explicit European truck linehaul only; default baseline fingerprints retained"
     }
   ]
 }

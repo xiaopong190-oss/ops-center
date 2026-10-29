@@ -72,7 +72,7 @@ assert.equal((await call("/api/logistics-ai/recognize",{consent:false},one)).sta
 
 assert.equal((await call("/api/logistics-backup")).status,401);
 assert.equal((await call("/api/logistics-backup",null,one)).data.revision,0);
-sql.close();
+assert.equal((await call('/api/logistics-cooperation')).status,401);sql.close();
 
 // Only the dedicated snapshot endpoint accepts the fixed local workbench origin.
 for(const [origin,path,status] of [['http://127.0.0.1:4318','/api/logistics-workspace',204],['http://127.0.0.1:4318','/api/connections',403],['http://127.0.0.1:4319','/api/logistics-workspace',403]]){const response=await worker.fetch(new Request('https://test.example'+path,{method:'OPTIONS',headers:{Origin:origin}}),env);assert.equal(response.status,status);}

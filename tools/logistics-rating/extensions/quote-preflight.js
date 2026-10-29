@@ -3,7 +3,7 @@ const clean=v=>String(v??'').trim(),price=v=>/^\d+(?:\.\d+)?$/.test(clean(v))&&N
 const dest=/仓库|目的地|目的国|国家|区域|邮编|地址|destination|warehouse|country/i,unit=/KG|CBM|公斤|立方|每柜|柜型|20GP|40GP|40HQ|计费单位|计费重/i;
 const reference=/^(?:合计|总计|汇率|赔付|赔偿|保险|附加费|操作费|注意事项|说明|备注|船期|入仓资料)/;
 const column=c=>c.cell.match(/^[A-Z]+/)?.[0];
-function inspect(sheet){
+function inspect(sheet){const grouped=root.GroupedUnitLayout||(typeof require==='function'?require('./grouped-unit-layout.js'):null),decision=grouped?.inspect(sheet);if(decision)return decision;
  const rows=(sheet.rows||[]).filter(r=>r.cells.some(c=>clean(c.v))),blocks=[];let header=null,pendingDestination=null;
  for(const row of rows){const text=row.cells.map(c=>clean(c.v)).join(' ');if(reference.test(text.trim())){header=null;pendingDestination=null;continue}
   const ownDestination=row.cells.find(c=>/收件地址|目的地|仓库代码|仓库编号|目的国|区域|邮编|destination|warehouse/i.test(clean(c.v)))||row.cells.find(c=>dest.test(clean(c.v)));if(ownDestination)pendingDestination={cell:ownDestination,row:row.row,priceHint:/单价|价格|运费|unit price|rate/i.test(text)};const destination=ownDestination||(pendingDestination&&row.row-pendingDestination.row<=6?pendingDestination.cell:null),rate=row.cells.find(c=>unit.test(clean(c.v)));

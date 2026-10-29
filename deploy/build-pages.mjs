@@ -171,6 +171,7 @@ for (const f of fs.readdirSync(path.join(root, "src")).filter(n => n.endsWith(".
 }
 
 copyDir(path.join(root, "tools"), path.join(out, "tools"));
+run('node tools/logistics-workspace/build-auto-update.cjs');
 copyDir(path.join(root, "packages"), path.join(out, "packages"));
 
 if (ciGist) {

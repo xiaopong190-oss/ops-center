@@ -53,3 +53,16 @@ body{background:#f5f7fa;color:#25334b}main{max-width:1440px;margin:auto;padding:
 #scenarioRating{margin:0 0 18px!important;padding:13px 18px!important;background:#fff!important;border-color:#e1e7ef!important}
 @media(max-width:900px){main{padding:14px}.n001-search,.comparison-results{padding:16px}.n001-filters{grid-template-columns:1fr 1fr}.comparison-results-heading{align-items:flex-start}.comparison-export-actions{justify-content:flex-end}.comparison-pagination{justify-content:flex-start}.comparison-actions{gap:8px}#n001Compare{margin-left:0}#cargoFilter legend{float:none;width:100%;margin:0 0 4px}.n001-modes>b{width:100%}#scoreViewControls{padding:10px}.comparison-pagination #n001Page{flex-basis:100%;order:3}}
 @media(max-width:520px){main{padding:10px}.comparison-results-heading{flex-direction:column}.comparison-actions label{width:100%}.comparison-actions select{flex:1}.comparison-actions button{flex:1}.n001-filters{gap:8px}.comparison-export-actions{width:100%}#scoreViewControls label:first-child{width:100%}}
+.column-filter-dialog{border:1px solid #dce4ef;border-radius:14px;padding:20px;color:#243650;background:#fff;box-shadow:0 16px 60px #142b4b33;font-size:14px}
+.column-filter-dialog h2,.column-filter-dialog h3{font-size:17px;margin:0 0 10px;line-height:1.5}
+.column-filter-dialog p{line-height:1.6;white-space:normal;margin:8px 0;color:#64758b}
+.column-filter-search{display:block;box-sizing:border-box;width:100%;margin:12px 0 6px;padding:10px 12px;border:1px solid #cbd7e8;border-radius:8px}
+.column-filter-options{max-height:260px!important;overflow:auto;overscroll-behavior:contain;border:1px solid #e3e9f2;border-radius:8px;padding:6px;margin:10px 0!important}
+.column-filter-options label{padding:7px 8px;line-height:1.6;white-space:normal;overflow-wrap:anywhere;border-radius:5px;cursor:pointer}
+.column-filter-options label:hover{background:#eef4ff}.column-filter-options label[hidden]{display:none!important}
+.column-filter-options input{vertical-align:middle;margin:0 8px 0 0}.column-filter-count{font-size:12px}.column-filter-empty{padding:12px;background:#fff7e8}
+.column-filter-dialog button{padding:8px 12px;margin:5px 5px 0 0;border-radius:8px;min-height:36px}
+.column-filter-dialog button:focus-visible,.column-filter-search:focus-visible{outline:2px solid #2450d8;outline-offset:2px}
+#comparison th .quote-sort{min-width:26px;min-height:28px;margin-left:5px;border-radius:5px}#comparison th .quote-sort.column-active{background:#2450d8!important;color:#fff!important;box-shadow:0 0 0 2px #dce7ff}
+.column-filter-summary{caption-side:top;text-align:left;padding:10px 12px;background:#eef4ff;color:#355987;font-size:12px;line-height:1.7;white-space:normal}
+.column-filter-scope{padding:10px 12px;background:#f2f6fc;border-radius:8px;font-size:12px}

@@ -1,13 +1,13 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),N=require('../n001.js'),T=require('../extensions/transport-exclusion.js');
-const modes=['海运','空运','卡航','铁路'];
-const rows=modes.map((channel,id)=>({id,channel})).concat({id:4,channel:'渠道代码'});
-test('16 exclusion combinations × four scopes preserve exact membership, partition and source data',()=>{
+const modes=['海运','空运','卡航','铁路','其它'];
+const rows=modes.slice(0,4).map((channel,id)=>({id,channel})).concat({id:4,channel:'渠道代码'});
+test('32 exclusion combinations × four scopes preserve exact membership, partition and source data',()=>{
  const before=JSON.stringify(rows);
- for(let mask=0;mask<16;mask++){
+ for(let mask=0;mask<32;mask++){
   const states=Object.fromEntries(modes.map((m,i)=>[m,mask&(1<<i)?'exclude':'neutral']));
-  const outside=rows.filter((r,i)=>i<4&&(mask&(1<<i))).map(r=>r.id);
+  const outside=rows.filter((r,i)=>i<5&&(mask&(1<<i))).map(r=>r.id);
   for(const scope of ['inside','unknown','outside','all']){
-   const expected=scope==='all'?[0,1,2,3,4]:scope==='unknown'?[4]:scope==='outside'?outside:[0,1,2,3,4].filter(i=>!outside.includes(i));
+   const expected=scope==='all'?[0,1,2,3,4]:scope==='unknown'?(mask&16?[]:[4]):scope==='outside'?outside:[0,1,2,3,4].filter(i=>!outside.includes(i));
    assert.deepEqual(rows.filter(r=>N.matches(r,states,scope)).map(r=>r.id),expected,`${mask}/${scope}`);
   }
   assert.equal(rows.filter(r=>N.matches(r,states,'inside')).length+outside.length,5);
@@ -26,9 +26,9 @@ test('stale and hostile toggle values recover to two states during 10000 rapid t
  }
 });
 test('100k quotes: all excluded leaves unknown rows visible; no duplicates or mutations',()=>{
- const large=Array.from({length:100000},(_,i)=>({id:i,channel:rows[i%5].channel})),states=Object.fromEntries(modes.map(m=>[m,'exclude']));
+ const large=Array.from({length:100000},(_,i)=>({id:i,channel:rows[i%5].channel})),states=Object.fromEntries(modes.slice(0,4).map(m=>[m,'exclude']));
  const inside=large.filter(r=>N.matches(r,states,'inside')),outside=large.filter(r=>N.matches(r,states,'outside'));
  assert.equal(inside.length,20000);assert.equal(outside.length,80000);assert.equal(new Set(inside.concat(outside).map(r=>r.id)).size,100000);
- assert.ok(inside.every(r=>r.channel==='渠道代码'));assert.equal(large[0].channel,'海运');
+ states['其它']='exclude';assert.equal(large.filter(r=>N.matches(r,states,'inside')).length,0);assert.equal(large.filter(r=>N.matches(r,states,'outside')).length,100000);assert.ok(inside.every(r=>r.channel==='渠道代码'));assert.equal(large[0].channel,'海运');
  assert.equal([].filter(r=>N.matches(r,states,'all')).length,0);
 });

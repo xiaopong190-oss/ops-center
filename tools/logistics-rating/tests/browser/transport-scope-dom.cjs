@@ -7,14 +7,14 @@ test('real transport controls: exhaustive exclusions/scopes, reset, score invali
   const modes=['海运','空运','卡航','铁路'],rows=modes.concat('渠道代码').map((channel,id)=>({id,channel}));let visible=[],renders=0;
   w.localStorage.setItem('business-sentinel',JSON.stringify(rows));const snapshot=w.localStorage.getItem('business-sentinel');
   w.ComparisonStore={render(){renders++;visible=w.N001UI.rows(rows);w.N001UI.paint(rows);}};
-  for(const f of ['extensions/transport-exclusion.js','n001.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
-  const N=w.N001UI,buttons=[...w.document.querySelectorAll('[data-transport]')];assert.equal(buttons.length,4);
-  for(let mask=0;mask<16;mask++){
-   $('n001Reset').click();for(let i=0;i<4;i++)if(mask&(1<<i))buttons[i].click();
+  for(const f of ['extensions/transport-exclusion.js','extensions/transport-other.js','n001.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
+  const N=w.N001UI,buttons=[...w.document.querySelectorAll('[data-transport]')];assert.equal(buttons.length,5);
+  for(let mask=0;mask<32;mask++){
+   $('n001Reset').click();for(let i=0;i<5;i++)if(mask&(1<<i))buttons[i].click();
    for(const scope of ['inside','unknown','outside','all']){
     N.confirmed=true;N.page=9;$('n001Scope').value=scope;$('n001Scope').dispatchEvent(new w.Event('change'));
     assert.equal(N.confirmed,false);assert.equal(N.page,0);
-    const excluded=rows.filter((r,i)=>i<4&&(mask&(1<<i))).map(r=>r.id),expected=scope==='all'?[0,1,2,3,4]:scope==='unknown'?[4]:scope==='outside'?excluded:[0,1,2,3,4].filter(i=>!excluded.includes(i));
+    const excluded=rows.filter((r,i)=>i<5&&(mask&(1<<i))).map(r=>r.id),expected=scope==='all'?[0,1,2,3,4]:scope==='unknown'?(mask&16?[]:[4]):scope==='outside'?excluded:[0,1,2,3,4].filter(i=>!excluded.includes(i));
     assert.deepEqual(Array.from(visible,r=>r.id),expected,`${mask}/${scope}`);
     assert.equal($('n001Counts').textContent.includes('范围外 '+excluded.length),true);
    }

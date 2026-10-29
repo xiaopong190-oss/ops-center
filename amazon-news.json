@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-10-28T04:04:26.566Z",
+  "updatedAt": "2026-10-29T04:27:47.805Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Tue, 27 Oct 2026 22:42:00 GMT",
-      "date": "10/27",
-      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
-      "category": "AWS"
+      "title": "Amazon's most advanced chip helps power the AI behind Prime 360—here's how",
+      "link": "https://www.aboutamazon.com/news/innovation/trainium-ai-chip-prime-360-nba-highlights?utm_source=rss",
+      "pubDate": "Wed, 28 Oct 2026 16:00:00 GMT",
+      "date": "10/28",
+      "summary": "Amazon's purpose-built Trainium AI chip helps power the diffusion models that deliver NBA on Prime’s breakthrough highlight technology.",
+      "category": "Innovation at Amazon"
     },
     {
-      "title": "An update from Amazon engineering leadership on the role of the developer in the age of AI",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-software-engineer-role-guideline-ai?utm_source=rss",
-      "pubDate": "Tue, 27 Oct 2026 17:50:33 GMT",
-      "date": "10/27",
-      "summary": "Amazon engineering leaders revised the role guideline for software development engineers, underscoring what matters most is the outcome, not",
-      "category": "Company news"
+      "title": "Amazon unveils its newest lineup of Alexa devices",
+      "link": "https://www.aboutamazon.com/news/devices/new-alexa-devices-2026?utm_source=rss",
+      "pubDate": "Wed, 28 Oct 2026 11:57:05 GMT",
+      "date": "10/28",
+      "summary": "Five new products purpose-built for the home, powered by the latest Alexa, that help make daily life easier.",
+      "category": "Devices"
     },
     {
-      "title": "How Amazon data centers in Spain are helping businesses create jobs and opportunities",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-spain?utm_source=rss",
-      "pubDate": "Tue, 27 Oct 2026 17:10:10 GMT",
-      "date": "10/27",
-      "summary": "A new independent study reveals that AWS's investment in northeastern Spain is transforming the region's economy.",
-      "category": "AWS"
+      "title": "Amazon introduces Alexa Photo Frame—the smartest way to bring your photos into the home",
+      "link": "https://www.aboutamazon.com/news/devices/amazon-alexa-photo-frame?utm_source=rss",
+      "pubDate": "Wed, 28 Oct 2026 11:55:51 GMT",
+      "date": "10/28",
+      "summary": "Alexa intelligently picks the photos worth seeing from Amazon Photos, keeps them current, and makes any moment easy to find, relive, and sha",
+      "category": "Devices"
     }
   ]
 }

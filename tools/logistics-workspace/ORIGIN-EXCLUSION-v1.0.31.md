@@ -30,6 +30,7 @@ Read-only verification with the original 35-sheet sea-workbook model ran the ful
 
 ## Deployment and rollback
 
-Separate PR; release is pending review under tools/logistics-rating/AGENTS.md. Deploy matching v1.0.31 input/display assets and cloud projection after approval. Existing snapshot data need not be reuploaded just to hide these origins in the updated display; future publications physically omit excluded active rows from the new encrypted snapshot. GitHub history is not purged.
+Separate PR under tools/logistics-rating/AGENTS.md; the user explicitly authorized code changes, regression and release on 2026-10-30 after reviewing the Shenzhen override and real-source cross-check. Deploy matching v1.0.31 input/display assets and cloud projection after release checks. Existing snapshot data need not be reuploaded just to hide these origins in the updated display; future publications physically omit excluded active rows from the new encrypted snapshot. GitHub history is not purged.
 
 Rollback removes this extension and its workspace/worker/cloud integration, restoring the previous visibility projection. Local original rows remain in the ten-day exclusion audit or source/backup; restoration must use normal validation and deduplication rather than blindly reinserting stale rows. No changes to encryption, free Actions publishing, cache namespaces or account permissions.
+

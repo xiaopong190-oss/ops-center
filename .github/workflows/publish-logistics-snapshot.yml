@@ -1,0 +1,33 @@
+name: Publish encrypted logistics snapshot
+on:
+  repository_dispatch:
+    types: [logistics-snapshot-publish]
+  workflow_dispatch:
+    inputs:
+      ticket:
+        description: Cloud-issued publication task ID (contains no credentials)
+        required: true
+        type: string
+permissions:
+  contents: write
+  id-token: write
+concurrency:
+  group: logistics-snapshot-${{ inputs.ticket || github.event.client_payload.ticket }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate, encrypt in bounded requests, verify and publish
+        env:
+          WORKSPACE_TICKET: ${{ inputs.ticket || github.event.client_payload.ticket }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node deploy/publish-logistics-snapshot.mjs

@@ -1,4 +1,5 @@
 export async function cleanupLogistics(env,now=Date.now()){
+ await env.DB.prepare("DELETE FROM records WHERE key GLOB '_workspace-runner:*' AND json_extract(value,'$.expires')<?").bind(now).run();
  await env.DB.prepare("DELETE FROM records WHERE key GLOB '_workspace-upload:*' AND json_extract(value,'$.expires')<?").bind(now).run();
  const cutoff=now-30*86400000,rows=(await env.DB.prepare("SELECT key,value FROM records WHERE key GLOB '_logistics-backup:*' AND key NOT GLOB '*:version:*' AND key NOT GLOB '*:upload:*:*'").all()).results;
  const protect=new Set(),remove=[],expiredUploads=[];

@@ -27,7 +27,7 @@
     "cleaning-review.js": "7f7c8cf00af1294841e6993ff7b807a91c36b7b4b90d015e3847ee9019075431",
     "extensions/supplier-confirmation.js": "c794801fe3e71945d285079820d57e6692d6540536f837a8602a34ffe5169077",
     "extensions/intake-feedback.js": "bc54507542fccdc8484ced6cb830621576b0c5a1051dcea2ec818b6ed0dad797",
-    "extensions/workbook-cleaning.js": "d4258cc1b5b80a5dae2b3e05d0211c501ae49ded2341e8bdd5b520938f03dc00",
+    "extensions/workbook-cleaning.js": "7fba9c04b36ebd86b96c8f3e4ded9d91e7317d1841d0774c0d6d45d7db78037d",
     "extensions/import-evidence.js": "2e15e9a471994c9d87f5a4a92d0069b0efb3c24486f754ebcd7533231f70d43e",
     "extensions/prefixed-rate-layout.js": "a84f4aa462346d54aa5730a663bc747ff59a6a739af0f994de220c519e487099",
     "intake-ui.js": "1310043d4938550a9855748d922d851fe3e0576ec0ab04a60857f80601d3251c",
@@ -53,7 +53,8 @@
     "extensions/cooperation-rating-view.js": "466677cd191c2244b95b3388d22c65c04af94de82633a28a000ae4f17e11ee99",
     "extensions/cooperation-rating-live.js": "889b7e28240a5df5f7f4405712e2548dff7b38568aa908aa614592efb60254fb",
     "ratings.js": "65481fac893ef85fa92ec1d5c3cf63249038d40e851ca46b3505d237ec9b282c",
-    "monthly.js": "58aae0d6f3391c5dbbfaae27fa617a4b3aae76b15f00ef1e3480f2f0441fbfb9"
+    "monthly.js": "58aae0d6f3391c5dbbfaae27fa617a4b3aae76b15f00ef1e3480f2f0441fbfb9",
+    "extensions/origin-exclusions.js": "0067e32f93253b0e760fbc17ef59f854e81526b15ea05553afec53020e386c38"
   },
   "replacedTransports": [
     "github-data.js",

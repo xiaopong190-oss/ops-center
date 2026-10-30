@@ -2,6 +2,8 @@
 
 Requested behavior: hide warehouse and regional quotes explicitly originating in Ningbo or Xiamen in every logistics workspace display, and omit them from subsequent cleaning/admission/publication.
 
+User refinement: if any string value anywhere in the same quote record contains 深圳, retain that quote before evaluating any origin exclusion. This includes company, source filename, source notes, nested evidence, and negative phrases containing 深圳. It does not inherit unrelated cells from the whole workbook. Thus even an explicit Ningbo/Xiamen origin is retained when the quote also mentions 深圳.
+
 ## Before and after
 
 | Evidence | Result |
@@ -24,7 +26,7 @@ Both local and web display paths use the same projection when loading a snapshot
 
 Dedicated tests cover affirmative/negative evidence, mixed origins, structured row priority, source notes and coordinates, immutable projections, local audit retention/idempotency, old-client cloud publication enforcement, existing-snapshot client load, and the actual two-stage workbook cleaning Worker. Original rule-lock suite passed all 431 tests. Full workspace and release results are recorded in the PR after completion. No real quote was removed or republished while preparing this change.
 
-Read-only verification with the original 35-sheet sea-workbook model ran the full two-stage cleaning Worker: 9,639 accepted rows before this policy, 2,667 origin exclusions, 6,972 retained. An independent check matched 1,986 generated quotes against original city price-column headers and merged-cell spans in 美西专线 and 英国不包税: all Ningbo/Xiamen columns were excluded and the other city columns retained. The source model remained unchanged. This check exposed and fixed the initially missing 起运/服务 marker; it is covered by regression tests. These counts describe this source workbook, not the published snapshot. Ambiguous origins remain visible pending human confirmation.
+Read-only verification with the original 35-sheet sea-workbook model ran the full two-stage cleaning Worker: 9,639 accepted rows before this policy, 2,281 origin exclusions, 7,358 retained. An independent check matched 1,986 generated quotes against original city price-column headers and merged-cell spans in 美西专线 and 英国不包税, with an independent serialized-record Shenzhen check taking priority. All 4,063 records containing 深圳 were retained; zero excluded records contained 深圳. This retains 386 more rows than the prior policy. The source model remained unchanged. This check also exposed and fixed the initially missing 起运/服务 marker; it is covered by regression tests. These counts describe this source workbook, not the published snapshot. Ambiguous origins remain visible pending human confirmation.
 
 ## Deployment and rollback
 

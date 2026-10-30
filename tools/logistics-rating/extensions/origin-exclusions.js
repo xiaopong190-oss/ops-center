@@ -12,6 +12,9 @@
   return [...new Set(result)];
  }
  function classify(row){
+  // User override: any Shenzhen mention on this quote wins over origin exclusion.
+  const seen=new Set(),hasShenzhen=value=>{if(typeof value==='string')return value.includes('深圳');if(!value||typeof value!=='object'||seen.has(value))return false;seen.add(value);return Object.values(value).some(hasShenzhen)};
+  if(hasShenzhen(row))return {excluded:false,cities:['深圳'],evidence:'报价记录含深圳，优先保留'};
   const fields=['originCity','originPort','originLocation','departureCity','departurePort','departureLocation','startPort','portOfLoading','shippingOrigin','origin','始发地','始发港','始发城市','起运地','起运港','起运城市','发货地','发货城市','POL'];
   for(const key of fields){const raw=row?.[key];if(typeof raw!=='string'||!raw.trim()||/^(?:未知|待确认|未注明|不详)$/.test(raw.trim()))continue;if(/不是|不从|不在|^非|除外|以外/.test(raw))return {excluded:false,cities:[],evidence:key+'='+raw};const found=cities(raw);return {excluded:found.length>0&&found.every(c=>blocked.has(c)),cities:found,evidence:key+'='+raw}}
   // Some legacy parsers use originRaw for receiving-warehouse price labels;

@@ -1,4 +1,13 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),O=require('../logistics-rating/extensions/origin-exclusions.js'),M=require('./data-management.js');
+test('any Shenzhen text in a quote overrides explicit blocked origins across all projections',()=>{
+ for(const extra of [{company:'深圳物流'},{source:'深圳报价.xlsx'},{channel:'宁波起运，深圳交仓'},{terms:'非深圳起运'},{sourceSheet:'深圳附表'},{sourceNotes:[{value:'深圳'}]},{values:['深圳']},{custom:{nested:['深圳']}}]){
+  const row={originCity:'宁波',...extra},input={records:[row],regionalRecords:[row],reports:[]};
+  assert.equal(O.classify(row).excluded,false);assert.equal(O.projectWorkbook(input),input);
+  assert.equal(O.projectDatabase({quotes:[row],regionalQuotes:[row]}).quotes.length,1);
+  assert.equal(O.cleanDatabase({quotes:[row]},'2026-10-30').quotes.length,1);
+ }
+ assert.equal(O.classify({originCity:'厦门',terms:'广州交仓'}).excluded,true);
+});
 test('only explicit affirmative excluded origins are hidden; aliases and original source fields are supported',()=>{
  for(const row of [{originCity:'宁波'},{originPort:'XIAMEN'},{originRaw:'厦门港'},{channel:'宁波起运美国海派'},{terms:'起运港：厦门'},{sourceSheet:'宁波/厦门起运报价'},{values:['物流','美国','宁波至美国','ONT8','10','CNY','kg',1,2,'2026-10-30','普货']},{terms:'Origin: Ningbo'},{terms:'POL=Xiamen'},{channel:'宁波',terms:'档=100KG+;条件=包税;起运/服务=宁波'},{channel:'厦门',terms:'起运/服务=厦门'},{sourceNotes:'始发地：厦门'},{sourceNotes:[{cell:'B3',value:'起运港：宁波'}]}])assert(O.classify(row).excluded,JSON.stringify(row));
  for(const row of [{company:'宁波物流公司',channel:'海派'},{source:'厦门物流报价.xlsx'},{terms:'客服地址厦门，电话123'},{terms:'非宁波起运'},{terms:'不从厦门起运'},{terms:'不是从宁波起运'},{terms:'宁波起运除外'},{originCity:'非宁波'},{originCity:'深圳',sourceSheet:'宁波起运附表'},{terms:'深圳起运；目的地宁波'},{terms:'宁波/深圳起运'},{originRaw:'宁波交货价'},{channel:'厦门交仓价'},{terms:'卸货港：厦门'},{terms:'目的地：宁波'},{channel:'深圳/宁波',terms:'起运/服务=深圳/宁波'},{terms:'起运/服务=海运;备注=厦门联系地址'}])assert.equal(O.classify(row).excluded,false,JSON.stringify(row));

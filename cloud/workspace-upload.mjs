@@ -1,4 +1,5 @@
 import Delta from '../tools/logistics-workspace/record-delta.js';
+import {backgroundCommit} from './workspace-runner.mjs';
 // Resumable transport only. The published GitHub snapshot remains the source of truth.
 import {Buffer} from 'node:buffer';
 import {gunzipSync} from 'node:zlib';
@@ -8,7 +9,7 @@ const fail=(status,message)=>{throw Object.assign(Error(message),{status})};
 const validHash=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 async function seal(bytes,env,aad){const key=await crypto.subtle.importKey('raw',Buffer.from(env.ENCRYPTION_KEY||'','base64'),'AES-GCM',false,['encrypt']),iv=crypto.getRandomValues(new Uint8Array(12));return {iv:Buffer.from(iv).toString('base64'),content:Buffer.from(await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:Buffer.from(aad)},key,bytes)).toString('base64')}}
 async function open(value,env,aad){try{const key=await crypto.subtle.importKey('raw',Buffer.from(env.ENCRYPTION_KEY||'','base64'),'AES-GCM',false,['decrypt']);return Buffer.from(await crypto.subtle.decrypt({name:'AES-GCM',iv:Buffer.from(value.iv,'base64'),additionalData:Buffer.from(aad)},key,Buffer.from(value.content,'base64')))}catch{fail(502,'暂存分片校验失败，请重新上传该分片')}}
-export async function workspaceUpload(input,env,user,publish,verify){
+export async function workspaceUpload(input,env,user,publish,verify,runnerSend=fetch){
  if(!user||typeof user.id!=='string'||!user.id)fail(401,'请先登录运营中心');if(user.canEdit===false&&user.auth!=='super')fail(403,'此账号只允许查看展示端');
  if(!env.DB||!env.LOGISTICS_GITHUB_TOKEN||Buffer.from(env.ENCRYPTION_KEY||'','base64').length!==32)fail(503,'分片发布服务未配置，本机数据保留');
  const {action,id}=input;if(!/^[a-f0-9-]{36}$/i.test(id||''))fail(400,'上传编号无效');
@@ -40,6 +41,7 @@ export async function workspaceUpload(input,env,user,publish,verify){
   const known=new Map();for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey),rows=await env.DB.prepare('SELECT key,json_extract(value,\'$.expires\') AS expires FROM records WHERE key IN ('+names.map(()=>'?').join(',')+')').bind(...names).all();for(const row of rows.results)known.set(row.key,row.expires)}const missing=[];for(let i=0;i<job.parts.length;i++)if(!(known.get(partKey(job.parts[i]))>=Date.now()))missing.push(i);return {ok:true,missing,expires:job.expires};
  }
  if(action!=='commit')fail(400,'上传操作无效');
+ if(env.WORKSPACE_COMMIT_RUNNER==='github-actions')return backgroundCommit(env,user,id,jobKey,job,runnerSend);
  let bytes=Buffer.alloc(job.bytes),offset=0;for(let start=0;start<job.parts.length;start+=40){const hashes=job.parts.slice(start,start+40),items=await readMany(hashes.map(partKey));for(let i=0;i<items.length;i++){const h=hashes[i],item=items[i];if(!item||item.expires<Date.now())fail(409,'分片尚未收齐或已过期，请继续上传');const raw=await open(item,env,partKey(h));if(await hash(raw)!==h||raw.length!==Math.min(PART_BYTES,job.bytes-offset))fail(400,'暂存分片内容不一致');raw.copy(bytes,offset);offset+=raw.length;items[i]=null}}
  if(offset!==job.bytes||await hash(bytes)!==job.sha256)fail(400,'完整快照校验失败，未发布');
  let data;try{data=JSON.parse(bytes.toString('utf8'))}catch{fail(400,'快照JSON无效')}bytes=null;

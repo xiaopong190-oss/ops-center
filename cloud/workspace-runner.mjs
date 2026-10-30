@@ -2,7 +2,7 @@
 // handles one existing upload part or one compressed publication part per call.
 import {Buffer} from 'node:buffer';
 import {runnerIdentity,RUNNER_REPO} from './workspace-runner-auth.mjs';
-import {readWorkspace} from './logistics-workspace.mjs';
+import {readWorkspace,logisticsWorkspace} from './logistics-workspace.mjs';
 import {checkManifest,SHARD_BYTES} from './workspace-shards.mjs';
 const api='https://api.github.com/repos/'+RUNNER_REPO+'/',shardAAD=Buffer.from('logistics-workspace-shard-v1'),rootAAD=Buffer.from('ops-center/logistics-workspace/snapshot/v1');
 const fail=(status,message)=>{throw Object.assign(Error(message),{status})};
@@ -36,6 +36,11 @@ export async function backgroundCommit(env,user,id,jobKey,job,send=fetch){
 async function bodyBytes(req,max){const chunks=[];let n=0;for await(const b of req.body||[]){n+=b.length;if(n>max)fail(413,'后台批次超过上限');chunks.push(b)}return Buffer.concat(chunks)}
 export async function workspaceRunner(req,env,send=fetch,identity=runnerIdentity){
  if(!env.DB)fail(503,'后台暂存服务不可用');const claims=await identity(req,send),url=new URL(req.url);
+ if(url.pathname==='/api/logistics-workspace-runner/audit-read'){
+  if(req.method!=='GET')fail(405,'核对仅允许读取');
+  const query=url.search;if(query&&!/^\?page=(?:0|[1-9]\d*)&sha=[a-f0-9]{40,64}$/.test(query))fail(400,'核对参数无效');
+  return logisticsWorkspace(new Request('https://worker/api/logistics-workspace'+query),env,{id:'signed-publication-audit',canEdit:false},send);
+ }
  if(url.pathname==='/api/logistics-workspace-runner/self-test'){
   if(req.method==='GET')return Response.json({ok:true,protocol:'free-actions-v1'},{headers:{'Cache-Control':'no-store'}});
   if(req.method!=='POST')fail(405,'后台方法无效');const packed=await bodyBytes(req,SHARD_BYTES+2048),envelope=await encrypt(packed,env),back=await decrypt(envelope,env,shardAAD);if(!back.equals(packed))fail(502,'加密自检未通过');return Response.json({ok:true,hash:await hash(back),bytes:back.length},{headers:{'Cache-Control':'no-store'}});

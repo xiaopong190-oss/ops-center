@@ -1,5 +1,6 @@
 import {cooperation} from './logistics-cooperation.mjs';
-import {publicRecordsSql,publicRecordsBounds,dailyD1Limit} from './d1-budget.mjs';
+import {dailyD1Limit} from './d1-budget.mjs';
+import {publicRows,invalidatePublicRows} from './shared-read-cache.mjs';
 import {validateSheetInput,recognizeSheet} from './quote-preflight.mjs';
 import {cleanupFollowupUploads} from './followup-cleanup.mjs';
 import {logisticsWorkspace} from './logistics-workspace.mjs';
@@ -27,7 +28,7 @@ async function passwordHash(password, salt=crypto.randomUUID()) {
 }
 async function matches(value, stored) { return !!stored && await passwordHash(String(value),stored.split(':')[0])===stored; }
 async function get(env,key) { const row=await env.DB.prepare('SELECT value FROM records WHERE key=?').bind(key).first();return row?JSON.parse(row.value):null; }
-async function put(env,key,value) { await env.DB.prepare('INSERT INTO records(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(value)).run(); }
+async function put(env,key,value) { await env.DB.prepare('INSERT INTO records(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(value)).run();invalidatePublicRows(env); }
 async function body(req) { const text=await req.text();if(text.length>3000000)fail(413,'请求过大');try{return JSON.parse(text);}catch{fail(400,'无效 JSON');} }
 async function quota(env,key,max,seconds) {
   const bucket=key+':'+Math.floor(Date.now()/1000/seconds);
@@ -149,8 +150,8 @@ async function handle(req,env) {
   if(p.startsWith('/ops-api/gist/')){
     const u=await session(req,env,true);
     if(req.method==='GET'){
-      const rows=await env.DB.prepare(publicRecordsSql).bind(...publicRecordsBounds).all();const files={};
-      for(const row of rows.results){try{fileAccess(row.key,u);}catch{continue;}const v=JSON.parse(row.value);files[row.key]={content:JSON.stringify(row.key==='global-config.json'?publicConfig(v):v)};}
+      const rows=await publicRows(env);const files={};
+      for(const row of rows){try{fileAccess(row.key,u);}catch{continue;}const v=JSON.parse(row.value);files[row.key]={content:JSON.stringify(row.key==='global-config.json'?publicConfig(v):v)};}
       return json({files});
     }
     if(req.method==='PATCH'){
@@ -164,7 +165,7 @@ async function handle(req,env) {
         if(k==='global-config.json')record=await secureConfig(record.data,await get(env,k));
         statements.push(env.DB.prepare('INSERT INTO records VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(k,JSON.stringify(record)));
       }
-      await env.DB.batch(statements);return json({ok:true});
+      await env.DB.batch(statements);invalidatePublicRows(env);return json({ok:true});
     }
     fail(405,'方法不允许');
   }

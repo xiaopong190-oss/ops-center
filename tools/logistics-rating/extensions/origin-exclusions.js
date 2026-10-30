@@ -7,7 +7,7 @@
  const negative=s=>/(?:不是从|不是|不从|不在|不经|不走|不支持|禁止|非|除)\s*$/.test(s);
  function explicit(text){
   const result=[];text=String(text||'');
-  const rules=[new RegExp('(?:始发(?:地|港)?|起运(?:地|港)?|启运(?:地|港)?|装运港|装货港|出运港|发货地|origin(?:\\s+port)?|port\\s+of\\s+loading|\\bPOL)\\s*[:：=为是在自从]?\\s*('+list+')','gi'),new RegExp('('+list+')\\s*(?:始发|起运|启运|出运|发船|装船|直发|出发|发运|发货|出货)','gi'),new RegExp('('+list+')\\s*(?:→|->|—|–|-|至|到)\\s*(?:美国|加拿大|英国|欧洲|德国|美西|美东|US\\b|UK\\b|EU\\b)','gi')];
+  const rules=[new RegExp('(?:始发(?:地|港)?|起运(?:地|港|[/／]服务)?|启运(?:地|港)?|装运港|装货港|出运港|发货地|origin(?:\\s+port)?|port\\s+of\\s+loading|\\bPOL)\\s*[:：=为是在自从]?\\s*('+list+')','gi'),new RegExp('('+list+')\\s*(?:始发|起运|启运|出运|发船|装船|直发|出发|发运|发货|出货)','gi'),new RegExp('('+list+')\\s*(?:→|->|—|–|-|至|到)\\s*(?:美国|加拿大|英国|欧洲|德国|美西|美东|US\\b|UK\\b|EU\\b)','gi')];
   for(const re of rules)for(const m of text.matchAll(re)){const before=text.slice(Math.max(0,m.index-8),m.index);if(negative(before)||/^\s*(?:以外|除外|之外)/.test(text.slice(m.index+m[0].length)))continue;result.push(...cities(m[1]))}
   return [...new Set(result)];
  }

@@ -8,6 +8,7 @@ Requested behavior: hide warehouse and regional quotes explicitly originating in
 |---|---|
 | originCity=宁波 / originPort=Xiamen | Exclude |
 | 起运港：厦门 / 宁波起运 / 厦门始发 / Origin: Ningbo | Exclude |
+| City price-column evidence preserved as 起运/服务=宁波 or 起运/服务=厦门 | Exclude |
 | 工作表“美国海运 宁波起运” with no stronger row origin | Exclude |
 | Structured originCity=深圳, sheet mentions 宁波起运 | Keep: explicit row origin wins |
 | 宁波/深圳起运 | Keep: mixed allowed/excluded origins are not unambiguous |
@@ -22,6 +23,8 @@ Both local and web display paths use the same projection when loading a snapshot
 ## Verification
 
 Dedicated tests cover affirmative/negative evidence, mixed origins, structured row priority, source notes and coordinates, immutable projections, local audit retention/idempotency, old-client cloud publication enforcement, existing-snapshot client load, and the actual two-stage workbook cleaning Worker. Original rule-lock suite passed all 431 tests. Full workspace and release results are recorded in the PR after completion. No real quote was removed or republished while preparing this change.
+
+Read-only verification with the original 35-sheet sea-workbook model ran the full two-stage cleaning Worker: 9,639 accepted rows before this policy, 2,667 origin exclusions, 6,972 retained. An independent check matched 1,986 generated quotes against original city price-column headers and merged-cell spans in 美西专线 and 英国不包税: all Ningbo/Xiamen columns were excluded and the other city columns retained. The source model remained unchanged. This check exposed and fixed the initially missing 起运/服务 marker; it is covered by regression tests. These counts describe this source workbook, not the published snapshot. Ambiguous origins remain visible pending human confirmation.
 
 ## Deployment and rollback
 

@@ -5,6 +5,7 @@ const prepared=spawnSync(process.execPath,['deploy/build-followup-page.mjs'],{cw
 if(prepared.error)throw prepared.error;
 if(prepared.status!==0)process.exit(prepared.status||1);
 const suites=[
+  'cloud/test-d1-budget.mjs',
   'cloud/test-origin-exclusions.mjs',
   'tools/logistics-workspace/origin-exclusions.test.cjs',
   'tools/logistics-workspace/loader.test.cjs',

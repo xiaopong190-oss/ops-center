@@ -2,6 +2,13 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),vm=requir
 function client(search='',responses=[],persisted,hostname){const storage=persisted||new Map([['ops-cloud-session-v1','session']]),calls=[];const w={location:{search,hostname},URLSearchParams,TextEncoder,TextDecoder,atob,AbortSignal,crypto:crypto.webcrypto,Domain:{directory(){},bills(){},ratings(){}},QuoteCore:{validate(){}},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},fetch:async(url,options)=>{calls.push({url,options});const r=responses.shift();if(!r)throw Error('unexpected request');if(r instanceof Response)return r;return {status:r.status||(r.ok===false?409:200),ok:r.ok!==false,json:async()=>r}},setTimeout:(fn)=>setTimeout(fn,0),Date,JSON,Promise,Error};w.window=w;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'snapshot-client.js'),'utf8'),w);return {api:w.WorkspaceSnapshot,storage,calls,w}}
 test('local master never fetches or publishes on startup',async()=>{const c=client();await c.api.ready;assert.equal(c.calls.length,0);await assert.rejects(c.api.publish(),/预览/)});
 
+test('daily D1 budget exhaustion stops after one request and preserves local data without a network diagnosis',async()=>{
+ const c=client(),before=JSON.stringify([...c.storage]);await c.api.ready;
+ c.w.fetch=async()=>{c.calls.push({});return Response.json({code:'D1_DAILY_READ_LIMIT',retryable:false,resetAt:'2026-10-31T00:00:00.000Z',error:'今日读取额度已用尽，UTC 00:00重置'},{status:503})};
+ await assert.rejects(c.api.preview(),e=>e.code==='D1_DAILY_READ_LIMIT'&&!e.message.includes('网络')&&e.retryable===false);
+ assert.equal(c.calls.length,1);assert.equal(JSON.stringify([...c.storage]),before);
+});
+
 test('empty local master cannot overwrite an existing published snapshot',async()=>{const c=client('',[{writeConfigured:true,sha:'a'.repeat(40)}]);await assert.rejects(c.api.preview(),/本机数据为空/);assert.equal(c.calls.length,1);assert(!c.storage.has('workspace-last-publication'))});
 
 test('new frontend on old local server handles plain 404 and uses only the fixed cloud fallback',async()=>{const c=client('',[new Response('Not found',{status:404}),Response.json({writeConfigured:true,sha:null,uploadProtocol:'chunks-v1'})],undefined,'127.0.0.1');await c.api.preview();assert.equal(c.calls.length,2);assert.equal(c.calls[0].url,'/local-workspace?meta=1');assert.equal(c.calls[1].url,'https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/api/logistics-workspace?meta=1');assert.equal(c.calls[0].options.headers.Authorization,c.calls[1].options.headers.Authorization)});

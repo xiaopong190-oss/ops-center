@@ -1,4 +1,5 @@
 import {cooperation} from './logistics-cooperation.mjs';
+import {publicRecordsSql,publicRecordsBounds,dailyD1Limit} from './d1-budget.mjs';
 import {validateSheetInput,recognizeSheet} from './quote-preflight.mjs';
 import {cleanupFollowupUploads} from './followup-cleanup.mjs';
 import {logisticsWorkspace} from './logistics-workspace.mjs';
@@ -148,7 +149,7 @@ async function handle(req,env) {
   if(p.startsWith('/ops-api/gist/')){
     const u=await session(req,env,true);
     if(req.method==='GET'){
-      const rows=await env.DB.prepare('SELECT key,value FROM records WHERE substr(key,1,1) <> ?').bind('_').all();const files={};
+      const rows=await env.DB.prepare(publicRecordsSql).bind(...publicRecordsBounds).all();const files={};
       for(const row of rows.results){try{fileAccess(row.key,u);}catch{continue;}const v=JSON.parse(row.value);files[row.key]={content:JSON.stringify(row.key==='global-config.json'?publicConfig(v):v)};}
       return json({files});
     }
@@ -256,7 +257,9 @@ export default {async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([cleanu
   try{r=req.method==='OPTIONS'?new Response(null,{status:204}):await handle(req,env);}catch(e){
     console.error('request_failed',new URL(req.url).pathname,e?.name||'Error',e?.message||String(e));
     const full=/maximum DB size|SQLITE_FULL|database or disk is full/i.test(e?.message||'');
-    r=json({error:full?'云端存储空间已满，请联系管理员释放空间；本机草稿仍保留':e.status?e.message:'服务请求失败，请稍后重试'},full?507:e.status||502);
+    const daily=dailyD1Limit(e);
+    r=daily?json(daily,daily.status):json({error:full?'云端存储空间已满，请联系管理员释放空间；本机草稿仍保留':e.status?e.message:'服务请求失败，请稍后重试'},full?507:e.status||502);
+    if(daily)r.headers.set('Retry-After',String(daily.retryAfter));
   }
   const headers=new Headers(r.headers);if(origin)headers.set('Access-Control-Allow-Origin',origin);
   headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');headers.set('Access-Control-Allow-Headers','Content-Type,Authorization,X-Connection-Id,X-Connection-Admin,X-Proxy-Token,X-Evidence-Client,Mcp-Session-Id,MCP-Protocol-Version');headers.set('Access-Control-Expose-Headers','Mcp-Session-Id');

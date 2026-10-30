@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { GITHUB_GIST_ID } from "./cloud-sync-config.js";
+import {createSharedReadCache} from './utils/shared-read-cache.mjs';
+const sharedReadCache=createSharedReadCache();
 
 export const CONFIG_STORAGE_KEY = "ops-center-global-config";
 /** 超级 / 运营 M 码默认值；正式以云端 global-config 为准，家里和会议室都能登 */
@@ -52,9 +54,12 @@ function gistHeaders(json = false) {
 }
 
 async function gistFetchAll() {
-  const res = await fetch(`${GIST_API}/${getGistId()}`, { headers: gistHeaders() });
-  if (!res.ok) throw new Error(`云端读取失败，请检查网络后重试`);
-  return res.json();
+  const url=`${GIST_API}/${getGistId()}`,headers=gistHeaders();
+  return sharedReadCache.read(url+'\n'+(headers.Authorization||''),async()=>{
+    const res=await fetch(url,{headers});
+    if(!res.ok)throw new Error('云端读取失败，请稍后重试');
+    return res.json();
+  });
 }
 
 async function gistReadRecord(key) {
@@ -69,6 +74,7 @@ async function gistReadRecord(key) {
 }
 
 async function gistWriteRecord(key, payload) {
+  sharedReadCache.clear();
   const fileName = GIST_SHARED_FILES[key];
   if (!fileName) throw new Error(`未知共享键: ${key}`);
   const res = await fetch(`${GIST_API}/${getGistId()}`, {
@@ -84,6 +90,7 @@ async function gistWriteRecord(key, payload) {
     const detail = await res.text().catch(() => "");
     throw new Error(`云端保存失败，请检查网络后重试`);
   }
+  sharedReadCache.clear();
   return payload;
 }
 
@@ -134,12 +141,14 @@ function purgeLocalPlaybook(userId) {
 }
 
 async function gistPatchFiles(files) {
+  sharedReadCache.clear();
   const res = await fetch(`${GIST_API}/${getGistId()}`, {
     method: "PATCH",
     headers: gistHeaders(true),
     body: JSON.stringify({ files }),
   });
   if (!res.ok) throw new Error("云端保存失败，请检查网络后重试");
+  sharedReadCache.clear();
 }
 
 export const opsPlaybookCloud = {

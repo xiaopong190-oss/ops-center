@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-10-29T04:27:47.805Z",
+  "updatedAt": "2026-10-30T04:27:20.301Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon's most advanced chip helps power the AI behind Prime 360—here's how",
-      "link": "https://www.aboutamazon.com/news/innovation/trainium-ai-chip-prime-360-nba-highlights?utm_source=rss",
-      "pubDate": "Wed, 28 Oct 2026 16:00:00 GMT",
-      "date": "10/28",
-      "summary": "Amazon's purpose-built Trainium AI chip helps power the diffusion models that deliver NBA on Prime’s breakthrough highlight technology.",
-      "category": "Innovation at Amazon"
+      "title": "When is Black Friday 2026? Here’s everything you need to know",
+      "link": "https://www.aboutamazon.com/news/retail/when-is-amazon-black-friday-faq?utm_source=rss",
+      "pubDate": "Fri, 30 Oct 2026 00:12:47 GMT",
+      "date": "10/30",
+      "summary": "Black Friday 2026 falls on November 27. Here’s what to expect, how to prepare, and how to save.",
+      "category": "Retail"
     },
     {
-      "title": "Amazon unveils its newest lineup of Alexa devices",
-      "link": "https://www.aboutamazon.com/news/devices/new-alexa-devices-2026?utm_source=rss",
-      "pubDate": "Wed, 28 Oct 2026 11:57:05 GMT",
-      "date": "10/28",
-      "summary": "Five new products purpose-built for the home, powered by the latest Alexa, that help make daily life easier.",
-      "category": "Devices"
+      "title": "The official ‘James Bond’ films in order: How to watch 007 on Prime Video",
+      "link": "https://www.aboutamazon.com/news/entertainment/james-bond-movies-watch-prime-video?utm_source=rss",
+      "pubDate": "Thu, 29 Oct 2026 23:54:12 GMT",
+      "date": "10/29",
+      "summary": "You can watch 25 official ‘James Bond’ films on Prime Video. Here is how to stream them in chronological order.",
+      "category": "Entertainment"
     },
     {
-      "title": "Amazon introduces Alexa Photo Frame—the smartest way to bring your photos into the home",
-      "link": "https://www.aboutamazon.com/news/devices/amazon-alexa-photo-frame?utm_source=rss",
-      "pubDate": "Wed, 28 Oct 2026 11:55:51 GMT",
-      "date": "10/28",
-      "summary": "Alexa intelligently picks the photos worth seeing from Amazon Photos, keeps them current, and makes any moment easy to find, relive, and sha",
-      "category": "Devices"
+      "title": "Highlights from Amazon's third quarter",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-q3-2026-earnings-preview?utm_source=rss",
+      "pubDate": "Thu, 29 Oct 2026 22:44:00 GMT",
+      "date": "10/29",
+      "summary": "Amazon announced financial results for its third quarter on October 29. Here's a look at what the company has been up to.",
+      "category": "Company news"
     }
   ]
 }

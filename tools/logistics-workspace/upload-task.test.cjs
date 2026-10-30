@@ -1,3 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{IDBFactory}=require('../../modules/new-product-followup/work/qa/node_modules/fake-indexeddb'),{create}=require('./upload-task.js');
 test('frozen large task survives a new store instance and isolates session fingerprints',async()=>{const db=new IDBFactory(),first=create(db),value={raw:'x'.repeat(20*1024*1024),operationId:'test-task',confirmed:38,total:145};await first.save('fingerprint-A',value);const reopened=create(db);assert.deepEqual(await reopened.load('fingerprint-A'),value);assert.equal(await reopened.load('fingerprint-B'),null);await reopened.remove('fingerprint-A');assert.equal(await first.load('fingerprint-A'),null)});
 test('unavailable durable storage blocks a new upload rather than pretending progress was saved',async()=>{await assert.rejects(create(null).save('fingerprint',{}),/不能保存续传任务/)});
+
+test('stalled task read reports actionable timeout without deleting the task',async()=>{let deletes=0;const db={open(){return {}},deleteDatabase(){deletes++}};await assert.rejects(create(db,10).load('fingerprint'),/读取上次上传任务超时.*均保留/);assert.equal(deletes,0)});

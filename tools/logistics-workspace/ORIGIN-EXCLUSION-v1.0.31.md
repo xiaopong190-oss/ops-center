@@ -1,0 +1,30 @@
+# Explicit Ningbo / Xiamen origin exclusion — release review
+
+Requested behavior: hide warehouse and regional quotes explicitly originating in Ningbo or Xiamen in every logistics workspace display, and omit them from subsequent cleaning/admission/publication.
+
+## Before and after
+
+| Evidence | Result |
+|---|---|
+| originCity=宁波 / originPort=Xiamen | Exclude |
+| 起运港：厦门 / 宁波起运 / 厦门始发 / Origin: Ningbo | Exclude |
+| 工作表“美国海运 宁波起运” with no stronger row origin | Exclude |
+| Structured originCity=深圳, sheet mentions 宁波起运 | Keep: explicit row origin wins |
+| 宁波/深圳起运 | Keep: mixed allowed/excluded origins are not unambiguous |
+| 非宁波起运 / 不从厦门起运 / 宁波起运除外 | Keep |
+| 宁波物流公司 / filename 厦门物流报价 / destination 宁波 | Keep |
+| 宁波交货价 / 厦门交仓价 only | Keep: receiving location alone is not proof of origin |
+
+The pure module is tools/logistics-rating/extensions/origin-exclusions.js. No locked business function or fingerprint changed. The non-locked workbook-worker entry applies a pure result projection and retains source coordinates/reasons in cleaning reports. The workspace quality adapter moves already-saved excluded rows into a local originExcludedQuotes audit, preserving the full original row and the existing ten-day cutoff. Templates, company directory, bills, ratings and score events remain untouched.
+
+Both local and web display paths use the same projection when loading a snapshot, including existing published snapshots. It applies to warehouse and regional rows. The local exclusion audit is removed from publication. The cloud/Actions display projection enforces the rule for old upload clients as well. Frozen-task previews and post-publication scope checks compare the same effective projection, avoiding a false difference just from this policy. Input and display should both update to v1.0.31 so local cleaning and counts use the same policy.
+
+## Verification
+
+Dedicated tests cover affirmative/negative evidence, mixed origins, structured row priority, source notes and coordinates, immutable projections, local audit retention/idempotency, old-client cloud publication enforcement, existing-snapshot client load, and the actual two-stage workbook cleaning Worker. Original rule-lock suite passed all 431 tests. Full workspace and release results are recorded in the PR after completion. No real quote was removed or republished while preparing this change.
+
+## Deployment and rollback
+
+Separate PR; release is pending review under tools/logistics-rating/AGENTS.md. Deploy matching v1.0.31 input/display assets and cloud projection after approval. Existing snapshot data need not be reuploaded just to hide these origins in the updated display; future publications physically omit excluded active rows from the new encrypted snapshot. GitHub history is not purged.
+
+Rollback removes this extension and its workspace/worker/cloud integration, restoring the previous visibility projection. Local original rows remain in the ten-day exclusion audit or source/backup; restoration must use normal validation and deduplication rather than blindly reinserting stale rows. No changes to encryption, free Actions publishing, cache namespaces or account permissions.

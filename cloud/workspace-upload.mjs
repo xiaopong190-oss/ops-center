@@ -38,6 +38,7 @@ export async function workspaceUpload(input,env,user,publish,verify,runnerSend=f
   try{await put(partKey(h),{...await seal(bytes,env,partKey(h)),expires:Date.now()+86400000})}catch(error){console.error('workspace_part_store',error?.name,error?.message);fail(503,'云端分片暂存失败（UPLOAD_PART_STORE），进度保留，请稍后继续或联系管理员')}return {ok:true,index:input.index};
  }
  if(action==='status'||action==='start'){
+  if(action==='start'){for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey);await env.DB.prepare('UPDATE records SET value=json_set(value,\'$.expires\',?) WHERE key IN ('+names.map(()=>'?').join(',')+') AND json_extract(value,\'$.expires\')>=? AND json_extract(value,\'$.expires\')<?').bind(job.expires,...names,Date.now(),job.expires).run()}}
   const known=new Map();for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey),rows=await env.DB.prepare('SELECT key,json_extract(value,\'$.expires\') AS expires FROM records WHERE key IN ('+names.map(()=>'?').join(',')+')').bind(...names).all();for(const row of rows.results)known.set(row.key,row.expires)}const missing=[];for(let i=0;i<job.parts.length;i++)if(!(known.get(partKey(job.parts[i]))>=Date.now()))missing.push(i);return {ok:true,missing,expires:job.expires};
  }
  if(action!=='commit')fail(400,'上传操作无效');

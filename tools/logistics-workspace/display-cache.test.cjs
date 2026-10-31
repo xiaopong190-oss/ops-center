@@ -5,6 +5,7 @@ test('immutable source persists across page instances, isolates sessions and ret
  await b.save('session-one',{sha:'second'});assert.equal((await a.load('session-one')).sha,'second');
 });
 test('unsupported storage cannot pretend a downloaded source was saved',async()=>{await assert.rejects(create(null).save('session',{}),/不支持/)});
+test('storage probe writes, reads back and removes its own sentinel without touching existing batches',async()=>{const db=new IDBFactory(),cache=create(db);await cache.savePart('one','existing',new Uint8Array([8,9]));assert.equal(await cache.verify('one'),true);assert.equal(await cache.loadPart('one','storage-probe-v1'),null);assert.deepEqual([...await cache.loadPart('one','existing')],[8,9]);await cache.save('one',{sha:'source',data:{quotes:[]}});assert.equal((await cache.load('one')).sha,'source');});
 
 test('saved batches persist across reopen, isolate accounts, cap disk usage and release only committed source batches',async()=>{
  const db=new IDBFactory(),a=create(db);await a.savePart('one','hash',new Uint8Array([1,2,3]));const b=create(db);assert.deepEqual([...await b.loadPart('one','hash')],[1,2,3]);assert.equal(await b.loadPart('two','hash'),null);

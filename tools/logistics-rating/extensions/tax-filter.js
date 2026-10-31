@@ -1,5 +1,5 @@
 (function(root){'use strict';
- const labels={included:'包税',excluded:'不包税',deferred:'递延',unknown:'未明确'};
+ const labels={included:'包税',excluded:'不包税／递延',unknown:'未明确'};
  function evidence(row){return [row.comparisonProfile?.tax,row.taxType,row.taxMode,row.taxTreatment,row.comparisonOriginal?.channel||row.channel,row.terms].filter(v=>typeof v==='string'&&v.trim()).map(v=>v.slice(0,4000));}
  function classifyTax(row){
   const sources=evidence(row),found=new Set();
@@ -12,13 +12,13 @@
    if(/不包税|没有包税|未包税|不含税|未含税|未税|非包税|不是包税|税费(?:自理|自付|另计)/.test(text))found.add('excluded');
    text=text.replace(/不是包税|不包税|没有包税|未包税|不含税|未含税|非包税/g,'');
    if(/(?:不支持|不接受|不做|不能|不可)\s*(?:包税|含税)/.test(text))text=text.replace(/(?:不支持|不接受|不做|不能|不可)\s*(?:包税|含税)/g,'');
-   if(/递延/.test(text))found.add('deferred');
+   if(/递延/.test(text))found.add('excluded');
    if(/包税|含税/.test(text))found.add('included');
   }
   return {mode:found.size===1?[...found][0]:'unknown',reason:found.size>1?'税务表达冲突':found.size?'原报价明确注明':'未明确税务方式',evidence:sources};
  }
- function filterTaxRows(rows,mode=''){if(!mode)return rows;if(!Object.hasOwn(labels,mode))return [];const cache=new Map();return rows.filter(row=>{const key=JSON.stringify(evidence(row));if(!cache.has(key))cache.set(key,classifyTax(row).mode);return cache.get(key)===mode;});}
- const europe=new Set(['英国','德国','法国','意大利','西班牙','荷兰','比利时','波兰','捷克','奥地利','瑞典','丹麦','芬兰','爱尔兰','葡萄牙','匈牙利','罗马尼亚','斯洛伐克','希腊','欧洲','UK','GB','DE','FR','IT','ES','NL','PL']);
- function optionsFor(country,rows=[]){const c=String(country||'').trim().toUpperCase(),us=['美国','US','USA'].includes(c);if(!us&&!europe.has(c))return ['included','excluded','deferred','unknown'];const preferred=us?['included','excluded']:['included','deferred'],available=new Set(rows.filter(r=>String(r.country||'').trim().toUpperCase()===c).map(r=>classifyTax(r).mode));return [...preferred,...['excluded','deferred'].filter(m=>!preferred.includes(m)&&available.has(m)),'unknown'];}
+ function filterTaxRows(rows,mode=''){if(!mode)return rows;const wanted=mode==='deferred'?'excluded':mode;if(!Object.hasOwn(labels,wanted))return [];const cache=new Map();return rows.filter(row=>{const key=JSON.stringify(evidence(row));if(!cache.has(key))cache.set(key,classifyTax(row).mode);const actual=cache.get(key);return actual===wanted||(wanted!=='unknown'&&actual==='unknown');});}
+ function optionsFor(){return ['included','excluded','unknown'];}
+
  const api={labels,classifyTax,filterTaxRows,optionsFor};if(typeof module!=='undefined')module.exports=api;else root.TaxFilter=Object.freeze(api);
 })(typeof window==='undefined'?globalThis:window);

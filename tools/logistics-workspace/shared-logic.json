@@ -54,7 +54,7 @@
     "extensions/cooperation-rating-live.js": "889b7e28240a5df5f7f4405712e2548dff7b38568aa908aa614592efb60254fb",
     "ratings.js": "65481fac893ef85fa92ec1d5c3cf63249038d40e851ca46b3505d237ec9b282c",
     "monthly.js": "58aae0d6f3391c5dbbfaae27fa617a4b3aae76b15f00ef1e3480f2f0441fbfb9",
-    "extensions/origin-exclusions.js": "819eb5ceabbccabb73680859ccc19c491e7e734c3db22505a516309021c2aa22"
+    "extensions/origin-exclusions.js": "79a8063036e8ff50dc9fbe2d9b7a1ed53664bdbac9b8a3cee8d227b76e0c9ba2"
   },
   "replacedTransports": [
     "github-data.js",

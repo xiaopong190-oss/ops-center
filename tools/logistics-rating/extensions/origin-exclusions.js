@@ -26,7 +26,7 @@
   const channel=[row?.channel,row?.values?.[2]].filter(v=>typeof v==='string').join('；');
   if(channel.includes('深圳'))return {excluded:false,cities:['深圳'],evidence:'渠道含深圳，保留非cbm报价'};
   const text=quoteText(row);
-  const regions=[...new Set(text.match(/常州|上海|金华|义乌|华东/g)||[])];
+  const regions=[...new Set((text.match(/常州|上海|金华|义乌|华东/g)||[]).concat(channel.match(/青岛/g)||[]))];
   if(regions.length)return {excluded:true,cities:regions,evidence:'报价记录含'+regions.join('、'),reason:'报价记录含'+regions.join('、')+'，按运营范围排除'};
   const fields=['originCity','originPort','originLocation','departureCity','departurePort','departureLocation','startPort','portOfLoading','shippingOrigin','origin','始发地','始发港','始发城市','起运地','起运港','起运城市','发货地','发货城市','POL'];
   for(const key of fields){const raw=row?.[key];if(typeof raw!=='string'||!raw.trim()||/^(?:未知|待确认|未注明|不详)$/.test(raw.trim()))continue;if(/不是|不从|不在|^非|除外|以外/.test(raw))return {excluded:false,cities:[],evidence:key+'='+raw};const found=cities(raw);return {excluded:found.length>0&&found.every(c=>blocked.has(c)),cities:found,evidence:key+'='+raw}}

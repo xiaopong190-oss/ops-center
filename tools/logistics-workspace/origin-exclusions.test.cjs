@@ -18,8 +18,14 @@ test('only actual Shenzhen channel fields can override geographical exclusions f
 });
 
 test('volume conversion notes alone do not turn a kilogram-priced quotation into cbm pricing',()=>{
- for(const row of [{unit:'kg',channel:'深圳海运',terms:'体积1cbm等于167kg'},{unit:'kg',priceText:'CBM conversion only'},{channel:'青岛起运'},{unit:'kg/cbm'}])assert.equal(O.classify(row).excluded,false,JSON.stringify(row));
+ for(const row of [{unit:'kg',channel:'深圳海运',terms:'体积1cbm等于167kg'},{unit:'kg',priceText:'CBM conversion only'},{channel:'广州起运'},{unit:'kg/cbm'}])assert.equal(O.classify(row).excluded,false,JSON.stringify(row));
  for(const city of ['常州','上海','金华','义乌','华东'])assert.equal(O.classify({unit:'kg',channel:'海运',sourceNotes:[{value:city+'报价'}]}).excluded,true);
+});
+
+test('Qingdao is excluded only in the channel, with channel-only Shenzhen exception below CBM priority',()=>{
+ const drop=[{unit:'kg',channel:'青岛海运'},{unit:'kg',values:['物流','美国','青岛海运']},{unit:'kg',channel:'青岛',company:'深圳物流'},{unit:'kg',channel:'青岛',source:'深圳报价.xlsx'},{unit:'kg',channel:'青岛',sourceNotes:'深圳交仓'},{unit:'cbm',channel:'青岛深圳海运'}];
+ for(const raw of drop){const row={...raw,date:'2026-10-31'};assert.equal(O.classify(row).excluded,true,JSON.stringify(row));const projected=O.projectDatabase({quotes:[row],regionalQuotes:[row]});assert.equal(projected.quotes.length,0);assert.equal(projected.regionalQuotes.length,0);const clean=O.cleanDatabase({quotes:[row]},'2026-10-31');assert.equal(clean.originExcludedQuotes[0].row,row);assert.equal(O.projectWorkbook({records:[row],regionalRecords:[row],reports:[]}).records.length,0);}
+ for(const row of [{unit:'kg',channel:'青岛深圳海运'},{unit:'kg',values:['物流','美国','青岛/深圳海运']},{unit:'kg',channel:'海运',company:'青岛物流'},{unit:'kg',channel:'海运',source:'青岛报价.xlsx'},{unit:'kg',channel:'海运',sourceNotes:'青岛联系地址'},{unit:'kg',channel:'海运',originCity:'青岛'}])assert.equal(O.classify(row).excluded,false,JSON.stringify(row));
 });
 
 test('only explicit affirmative excluded origins are hidden; aliases and original source fields are supported',()=>{

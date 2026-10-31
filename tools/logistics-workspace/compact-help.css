@@ -1,0 +1,37 @@
+/* Shared by the shell and embedded workspace. */
+.hx-help-copy{display:none!important}
+button.hx-help-trigger{display:inline-flex;align-items:center;justify-content:center;gap:6px;vertical-align:middle;min-height:28px;margin:0 0 0 8px;padding:4px 7px;border:1px solid transparent;border-radius:7px;background:transparent;color:#77869d;font:12px/1.4 'Microsoft YaHei',system-ui,sans-serif;cursor:pointer;flex:0 0 auto;white-space:nowrap}
+.hx-help-trigger>span:first-child{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid currentColor;border-radius:50%;font:600 11px/1 Georgia,serif}
+button.hx-help-trigger:hover,button.hx-help-trigger[aria-expanded=true]{background:#edf3ff;border-color:#dbe5fa;color:#2857da}
+button.hx-help-trigger:focus-visible{outline:3px solid #a6bdff;outline-offset:2px}
+button.hx-help-trigger[hidden]{display:none!important}
+.hx-help-bubble{position:fixed;inset:auto;margin:0;z-index:10000;width:360px;max-width:calc(100vw - 20px);max-height:min(360px,calc(100dvh - 24px));overflow:auto;padding:16px 18px;border:1px solid #dbe4f2;border-radius:12px;background:#fff;color:#52627c;box-shadow:0 12px 36px #203b6926;font:12px/1.85 'Microsoft YaHei',system-ui,sans-serif;overflow-wrap:anywhere;white-space:pre-line;text-align:left;font-weight:400}
+.hx-help-bubble[hidden]{display:none!important}.hx-help-bubble>strong{display:block;margin-bottom:6px;color:#243958;font-size:13px}
+.hx-help-bubble:focus-visible{outline:3px solid #a6bdff;outline-offset:-3px}
+/* A quieter shell gives the quote filters and results more room. */
+html[data-entry=display] main{padding-top:22px}
+html[data-entry=display] .heading{justify-content:flex-start;gap:6px;margin-bottom:12px}
+html[data-entry=display] .heading>div:first-child{margin-right:auto}
+html[data-entry=display] .heading>.badge{order:3;margin-left:8px}
+html[data-entry=display] .heading h1{font-size:25px;margin-bottom:0}
+html[data-entry=display] .logicnotice{margin:10px 0 16px;padding:9px 14px;background:#f0f5ff}
+html[data-entry=display] .panel{margin:14px 0;padding:20px}
+.hangxu-engine #n001Search{padding:18px 20px;margin:0 0 16px;border-radius:12px}
+.hangxu-engine #n001Search h2{display:flex;align-items:center;gap:6px;margin:0 0 12px;font-size:16px}
+.hangxu-engine #n001Search h2 small{display:none}
+.hangxu-engine .n001-modes{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #edf0f6}
+.hangxu-engine .n001-modes>button[data-transport]{margin:0;padding:7px 11px;font-size:12px}
+.hangxu-engine #n001Search>.muted:not(.hx-help-copy):empty{display:none}
+.hangxu-engine #n001Search #n001Counts{margin:10px 0 0;font-size:11px;line-height:1.7}
+.hangxu-engine #comparisonPanel>.hx-help-trigger{margin:4px 8px 8px 0}
+@media(max-width:760px){.hx-help-bubble{width:320px;padding:13px 15px}.hx-help-label{display:none}button.hx-help-trigger{min-width:30px;min-height:30px;margin-left:3px;padding:5px}.hangxu-engine #n001Search{padding:14px}html[data-entry=display] .heading h1{font-size:23px}html[data-entry=display] .heading>.badge{margin-left:0}}
+.switch[hidden],.sidefoot:empty,.heading p:empty{display:none!important}
+.navtitle{display:none}.top>.muted{margin-left:auto;font-size:11px;color:#94a0b2}.top>a{font-size:12px;color:#61738e;text-decoration:none}.top>a:hover{color:#2857da}
+#main>.panel .panelhead>.badge,#workspace-counts .card>span.muted{display:none}
+.workspace-tools{position:relative;font-size:12px;color:#61738e}.workspace-tools>summary{cursor:pointer;list-style:none;padding:6px}.workspace-tools[open]>div{position:absolute;right:0;top:100%;z-index:30;min-width:130px;padding:6px;background:white;border:1px solid #e3e8f0;border-radius:9px;box-shadow:0 8px 24px #203b691a}.workspace-tools a{display:block;padding:7px 9px;color:#526789;text-decoration:none;white-space:nowrap}.workspace-tools a:hover{background:#f0f5ff;border-radius:5px}
+html[data-access=view] .n001-manage{display:none}
+/* Quote search: give useful controls and results the space previously used by copy. */
+.hangxu-engine .n001-filters{gap:8px}.hangxu-engine .n001-filters>select{margin:0;padding:8px 10px;flex:1 1 130px;min-width:0}.hangxu-engine .n001-filters>#warehousePicker{flex:1 1 160px}.hangxu-engine .n001-filters>#warehousePicker>button{width:100%;margin:0;padding:8px 10px}
+.hangxu-engine #cargoFilter{margin:12px 0;padding:10px 0;border:0;border-top:1px solid #edf0f6;border-bottom:1px solid #edf0f6}.hangxu-engine #cargoFilter legend{font-size:12px;font-weight:600;color:#52627c}.hangxu-engine #cargoFilter>label{display:inline-flex;align-items:center;gap:4px;font-size:12px}.hangxu-engine #cargoFilter>label input{margin:4px}.hangxu-engine #cargoFilter>p{margin:5px 0 0;font-size:11px}
+.hangxu-engine .comparison-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.hangxu-engine .comparison-actions>#n001Compare{margin-left:auto}.hangxu-engine .comparison-notes{margin-top:8px;font-size:12px;color:#7a8ba2}.hangxu-engine .comparison-results-heading{margin-bottom:10px}.hangxu-engine #scoreViewControls{padding:12px 14px;margin:0 0 10px}.hangxu-engine .comparison-pagination{margin:8px 0;font-size:12px}.hangxu-engine #comparison>.country-group{margin-top:14px}.hangxu-engine #comparison .warehouse-group{content-visibility:auto;contain-intrinsic-size:auto 420px}
+@media(max-width:760px){.hangxu-engine .comparison-actions>#n001Compare{margin-left:0}.hangxu-engine .n001-filters>select{flex-basis:calc(50% - 8px)}.hangxu-engine .n001-filters>#warehousePicker{flex-basis:100%}}

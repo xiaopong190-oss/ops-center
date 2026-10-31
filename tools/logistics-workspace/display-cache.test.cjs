@@ -5,3 +5,10 @@ test('immutable source persists across page instances, isolates sessions and ret
  await b.save('session-one',{sha:'second'});assert.equal((await a.load('session-one')).sha,'second');
 });
 test('unsupported storage cannot pretend a downloaded source was saved',async()=>{await assert.rejects(create(null).save('session',{}),/不支持/)});
+
+test('saved batches persist across reopen, isolate accounts, cap disk usage and release only committed source batches',async()=>{
+ const db=new IDBFactory(),a=create(db);await a.savePart('one','hash',new Uint8Array([1,2,3]));const b=create(db);assert.deepEqual([...await b.loadPart('one','hash')],[1,2,3]);assert.equal(await b.loadPart('two','hash'),null);
+ await b.savePart('one','other',new Uint8Array([4]));await b.save('one',{sha:'complete'},['hash']);assert.equal(await a.loadPart('one','hash'),null);assert.deepEqual([...await a.loadPart('one','other')],[4]);
+ for(let i=0;i<140;i++)await b.savePart('one','part-'+i,new Uint8Array([i]));
+ const raw=await new Promise((resolve,reject)=>{const r=db.open('workspace-display-parts-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=reject});try{const count=await new Promise(resolve=>{const r=raw.transaction('parts').objectStore('parts').count();r.onsuccess=()=>resolve(r.result)});assert.equal(count,128)}finally{raw.close()}
+});

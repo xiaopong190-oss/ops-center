@@ -2,6 +2,43 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),vm=requir
 function client(search='',responses=[],persisted,hostname,extensions={}){const storage=persisted||new Map([['ops-cloud-session-v1','session']]),calls=[];const w={location:{search,hostname},URLSearchParams,TextEncoder,TextDecoder,atob,AbortSignal,crypto:crypto.webcrypto,Domain:{directory(){},bills(){},ratings(){}},QuoteCore:{validate(){}},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},fetch:async(url,options)=>{calls.push({url,options});const r=responses.shift();if(!r)throw Error('unexpected request');if(r instanceof Response)return r;return {status:r.status||(r.ok===false?409:200),ok:r.ok!==false,json:async()=>r}},...extensions,setTimeout:(fn)=>setTimeout(fn,0),Date,JSON,Promise,Error};w.window=w;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'snapshot-client.js'),'utf8'),w);return {api:w.WorkspaceSnapshot,storage,calls,w}}
 test('local master never fetches or publishes on startup',async()=>{const c=client();await c.api.ready;assert.equal(c.calls.length,0);await assert.rejects(c.api.publish(),/预览/)});
 
+test('a real display page with missing cache or delta adapter stops before a full download',async()=>{
+ for(const ext of [{document:{},WorkspaceDisplayCache:undefined,WorkspaceDelta:{}},{document:{},WorkspaceDisplayCache:{},WorkspaceDelta:undefined}]){const c=client('?audience=display',[{sha:'a'}],undefined,undefined,ext);await assert.rejects(c.api.ready,/模块未初始化.*已停止下载/);assert.equal(c.calls.length,1)}
+});
+
+test('same verified account reuses a completed snapshot after relogin, while other accounts and revoked sessions cannot',async()=>{
+ const {IDBFactory}=require('../../modules/new-product-followup/work/qa/node_modules/fake-indexeddb'),{create}=require('./display-cache.js'),db=new IDBFactory(),store=create(db),scope='d'.repeat(64),source=client().api.data();source.storage['logistics-quotes-v1'].quotes=[{id:'original'}];
+ const a=client('?audience=display',[{sha:'a',cacheScope:scope},{sha:'a',data:source}],undefined,undefined,{WorkspaceDisplayCache:store});await a.api.ready;
+ a.storage.set('ops-cloud-session-v1','renewed-token-same-person');a.storage.set('logistics-quotes-v1',JSON.stringify({quotes:[{id:'working-normalization'}],templates:[]}));
+ const b=client('?audience=display',[{sha:'a',cacheScope:scope}],a.storage,undefined,{WorkspaceDisplayCache:create(db)});await b.api.ready;assert.equal(b.calls.length,1);assert.equal(b.api.state().cached,true);assert.equal(b.api.data().storage['logistics-quotes-v1'].quotes[0].id,'original');
+ const c=client('?audience=display',[{sha:'a',cacheScope:'e'.repeat(64)},{sha:'a',data:source}],a.storage,undefined,{WorkspaceDisplayCache:create(db)});await c.api.ready;assert.equal(c.calls.length,2);
+ const denied=client('?audience=display',[{ok:false,status:401,error:'revoked'}],a.storage,undefined,{WorkspaceDisplayCache:{load:async()=>{throw Error('must not access cache before authorization')}}});await assert.rejects(denied.api.ready,/revoked/);assert.equal(denied.calls.length,1);
+});
+
+test('existing token-bound completed source migrates after fresh same-session authorization without downloading batches',async()=>{
+ const {IDBFactory}=require('../../modules/new-product-followup/work/qa/node_modules/fake-indexeddb'),{create}=require('./display-cache.js'),store=create(new IDBFactory()),source=client().api.data();
+ const a=client('?audience=display',[{sha:'a'},{sha:'a',data:source}],undefined,undefined,{WorkspaceDisplayCache:store});await a.api.ready;
+ const scope='f'.repeat(64),b=client('?audience=display',[{sha:'a',cacheScope:scope}],a.storage,undefined,{WorkspaceDisplayCache:store});await b.api.ready;assert.equal(b.calls.length,1);assert.equal((await store.load(scope)).sha,'a');
+});
+
+test('an account change during an authorized cache read cannot install the prior account source',async()=>{
+ let saved=null;const scope='9'.repeat(64),source=client().api.data(),store={load:async()=>saved,save:async(_,v)=>{saved=v}},a=client('?audience=display',[{sha:'a',cacheScope:scope},{sha:'a',data:source}],undefined,undefined,{WorkspaceDisplayCache:store});await a.api.ready;
+ const prior=a.storage.get('logistics-quotes-v1');const b=client('?audience=display',[{sha:'a',cacheScope:scope}],a.storage,undefined,{WorkspaceDisplayCache:{load:async()=>{a.storage.set('ops-cloud-session-v1','another-account-token');return saved}}});await assert.rejects(b.api.ready,/账号已变化/);assert.equal(a.storage.get('logistics-quotes-v1'),prior);
+});
+
+test('a corrupt saved batch is downloaded again instead of trusting its cache key',async()=>{
+ const {IDBFactory}=require('../../modules/new-product-followup/work/qa/node_modules/fake-indexeddb'),{create}=require('./display-cache.js'),store=create(new IDBFactory()),source=client().api.data(),bytes=Buffer.from(JSON.stringify(source)),hash=crypto.createHash('sha256').update(bytes).digest('hex'),scope='7'.repeat(64);
+ await store.savePart(scope,hash,new Uint8Array(bytes.length));const c=client('?audience=display',[{sha:'a',cacheScope:scope},{sha:'a',paged:{bytes:bytes.length,hash,parts:[hash]}},{sha:'a',index:0,hash,content:bytes.toString('base64')}],undefined,undefined,{WorkspaceDisplayCache:store});await c.api.ready;assert.equal(c.calls.length,3);assert.equal(c.api.state().loaded,true);assert.equal(await store.loadPart(scope,hash),null);
+});
+
+test('a new page resumes verified saved batches after interruption and relogin instead of downloading them again',async()=>{
+ const {IDBFactory}=require('../../modules/new-product-followup/work/qa/node_modules/fake-indexeddb'),{create}=require('./display-cache.js'),db=new IDBFactory(),store=create(db),scope='b'.repeat(64),source=client().api.data();source.storage['logistics-quotes-v1'].quotes=[{id:'large',source:'x'.repeat(1100000)}];
+ const bytes=Buffer.from(JSON.stringify(source)),hash=b=>crypto.createHash('sha256').update(b).digest('hex'),parts=[];for(let i=0;i<bytes.length;i+=512*1024)parts.push(bytes.subarray(i,i+512*1024));const manifest={sha:'a',paged:{bytes:bytes.length,hash:hash(bytes),parts:parts.map(hash)}},part=i=>({sha:'a',index:i,hash:hash(parts[i]),content:parts[i].toString('base64')});
+ const a=client('?audience=display',[{sha:'a',cacheScope:scope},manifest,part(0),{ok:false,status:401,error:'interrupted'}],undefined,undefined,{WorkspaceDisplayCache:store});await assert.rejects(a.api.ready,/interrupted/);assert.equal(await store.load(scope),null);assert.equal((await store.loadPart(scope,hash(parts[0]))).length,parts[0].length);
+ a.storage.set('ops-cloud-session-v1','new-token-same-account');const b=client('?audience=display',[{sha:'a',cacheScope:scope},manifest,part(1),part(2)],a.storage,undefined,{WorkspaceDisplayCache:create(db)});await b.api.ready;assert.equal(b.calls.length,4);assert(b.calls[2].url.includes('?page=1&'));assert(!b.calls.some(c=>c.url.includes('?page=0&')));assert.equal(b.api.state().loaded,true);assert.equal(await store.loadPart(scope,hash(parts[0])),null,'completed source commit releases redundant saved batches');
+ const c=client('?audience=display',[{sha:'a',cacheScope:scope}],b.storage,undefined,{WorkspaceDisplayCache:create(db)});await c.api.ready;assert.equal(c.calls.length,1);
+});
+
 test('startup plus repeated refresh clicks share one snapshot load',async()=>{const source=client().api.data(),c=client('?audience=display',[{sha:'same'},{sha:'same',data:source}]);await Promise.all([c.api.ready,c.api.load(),c.api.load()]);assert.equal(c.calls.length,2);assert.equal(c.api.state().loaded,true)});
 
 test('republishing identical content under a new root SHA does not download any data batches',async()=>{

@@ -1,4 +1,11 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),O=require('../logistics-rating/extensions/origin-exclusions.js'),M=require('./data-management.js');
+test('cbm-priced rows and requested East-China mentions are excluded with source evidence; Shenzhen override wins',()=>{
+ for(const row of [{unit:'cbm'},{unit:'CBM'},{unit:'CNY / cbm'},{unit:'m³'},{priceText:'120 CNY/cbm'},{currency:'CNY/cbm'},{values:['物流','美国','海运','ONT8',120,'CNY','cbm']},...['常州','上海','金华','义乌','华东'].map(city=>({sourceNotes:[{value:city+'报价'}]}))]){
+  assert.equal(O.classify(row).excluded,true,JSON.stringify(row));assert.equal(O.classify({...row,channel:'深圳'}).excluded,false);
+  const raw={...row,date:'2026-10-30'},out=O.cleanDatabase({quotes:[raw],regionalQuotes:[raw]},'2026-10-30');assert.equal(out.quotes.length,0);assert.equal(out.regionalQuotes.length,0);assert.equal(out.originExcludedQuotes[0].row,raw);assert(out.originExcludedQuotes[0].reason.length>0);
+ }
+ for(const row of [{unit:'kg',terms:'体积1cbm等于167kg'},{unit:'kg',priceText:'CBM conversion only'},{channel:'青岛起运'},{unit:'kg/cbm'},{channel:'上海',company:'深圳物流'},{unit:'cbm',source:'深圳报价.xlsx'}])assert.equal(O.classify(row).excluded,false,JSON.stringify(row));
+});
 test('any Shenzhen text in a quote overrides explicit blocked origins across all projections',()=>{
  for(const extra of [{company:'深圳物流'},{source:'深圳报价.xlsx'},{channel:'宁波起运，深圳交仓'},{terms:'非深圳起运'},{sourceSheet:'深圳附表'},{sourceNotes:[{value:'深圳'}]},{values:['深圳']},{custom:{nested:['深圳']}}]){
   const row={originCity:'宁波',...extra},input={records:[row],regionalRecords:[row],reports:[]};

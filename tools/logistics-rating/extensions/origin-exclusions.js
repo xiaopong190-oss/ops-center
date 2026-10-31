@@ -5,6 +5,15 @@
  const normalize=s=>/^(?:ningbo)$/i.test(s)?'宁波':/^(?:xiamen|amoy)$/i.test(s)?'厦门':s;
  const cities=s=>[...new Set((String(s).match(new RegExp(cityPattern,'gi'))||[]).map(normalize))];
  const negative=s=>/(?:不是从|不是|不从|不在|不经|不走|不支持|禁止|非|除)\s*$/.test(s);
+ function quoteText(value,seen=new Set()){if(typeof value==='string')return value;if(!value||typeof value!=='object'||seen.has(value))return '';seen.add(value);return Object.values(value).map(v=>quoteText(v,seen)).join('；')}
+ function excludedUnit(row){
+  const fields=[row?.unit,row?.priceUnit,row?.pricingUnit,row?.quoteUnit,row?.['计价单位'],row?.['报价单位'],row?.values?.[6]];
+  const normalized=v=>String(v??'').normalize('NFKC').replace(/\s+/g,'').toLowerCase();
+  for(const raw of fields){if(/^(?:(?:cny|rmb|usd|eur|gbp|cad|¥|元)\/)?(?:cbm|m3|立方米)$/.test(normalized(raw)))return String(raw)}
+  const prices=[row?.currency,row?.priceText,row?.priceRaw,row?.rateRaw,row?.quotedPrice,row?.unitRaw,row?.values?.[5]].filter(v=>typeof v==='string');
+  for(const raw of prices)if(/(?:CNY|RMB|USD|EUR|GBP|CAD|¥|￥|元)\s*[/／]\s*(?:CBM|m[³3]|立方米)(?![A-Za-z])/i.test(raw))return raw;
+  return null;
+ }
  function explicit(text){
   const result=[];text=String(text||'');
   const rules=[new RegExp('(?:始发(?:地|港)?|起运(?:地|港|[/／]服务)?|启运(?:地|港)?|装运港|装货港|出运港|发货地|origin(?:\\s+port)?|port\\s+of\\s+loading|\\bPOL)\\s*[:：=为是在自从]?\\s*('+list+')','gi'),new RegExp('('+list+')\\s*(?:始发|起运|启运|出运|发船|装船|直发|出发|发运|发货|出货)','gi'),new RegExp('('+list+')\\s*(?:→|->|—|–|-|至|到)\\s*(?:美国|加拿大|英国|欧洲|德国|美西|美东|US\\b|UK\\b|EU\\b)','gi')];
@@ -13,8 +22,11 @@
  }
  function classify(row){
   // User override: any Shenzhen mention on this quote wins over origin exclusion.
-  const seen=new Set(),hasShenzhen=value=>{if(typeof value==='string')return value.includes('深圳');if(!value||typeof value!=='object'||seen.has(value))return false;seen.add(value);return Object.values(value).some(hasShenzhen)};
-  if(hasShenzhen(row))return {excluded:false,cities:['深圳'],evidence:'报价记录含深圳，优先保留'};
+  const text=quoteText(row);
+  if(text.includes('深圳'))return {excluded:false,cities:['深圳'],evidence:'报价记录含深圳，优先保留'};
+  const unit=excludedUnit(row);if(unit)return {excluded:true,cities:[],evidence:'计价单位='+unit,reason:'按立方米计价（cbm），按运营范围排除'};
+  const regions=[...new Set(text.match(/常州|上海|金华|义乌|华东/g)||[])];
+  if(regions.length)return {excluded:true,cities:regions,evidence:'报价记录含'+regions.join('、'),reason:'报价记录含'+regions.join('、')+'，按运营范围排除'};
   const fields=['originCity','originPort','originLocation','departureCity','departurePort','departureLocation','startPort','portOfLoading','shippingOrigin','origin','始发地','始发港','始发城市','起运地','起运港','起运城市','发货地','发货城市','POL'];
   for(const key of fields){const raw=row?.[key];if(typeof raw!=='string'||!raw.trim()||/^(?:未知|待确认|未注明|不详)$/.test(raw.trim()))continue;if(/不是|不从|不在|^非|除外|以外/.test(raw))return {excluded:false,cities:[],evidence:key+'='+raw};const found=cities(raw);return {excluded:found.length>0&&found.every(c=>blocked.has(c)),cities:found,evidence:key+'='+raw}}
   // Some legacy parsers use originRaw for receiving-warehouse price labels;
@@ -26,7 +38,7 @@
   if(!found.length){evidence=Array.isArray(row?.sourceNotes)?row.sourceNotes.map(n=>typeof n==='string'?n:n?.value??n?.v??n?.raw??'').join('；'):String(row?.sourceNotes||'');found=explicit(evidence)}
   return {excluded:found.length>0&&found.every(c=>blocked.has(c)),cities:found,evidence};
  }
- const reason=decision=>'始发地明确为'+decision.cities.join('、')+'，按运营范围排除';
+ const reason=decision=>decision.reason||'始发地明确为'+decision.cities.join('、')+'，按运营范围排除';
  function projectDatabase(db){return {...db,quotes:(db.quotes||[]).filter(r=>!classify(r).excluded),...(db.regionalQuotes?{regionalQuotes:db.regionalQuotes.filter(r=>!classify(r).excluded)}:{})}}
  function cleanDatabase(db,today){
   const cutoff=new Date(Date.parse(today+'T00:00:00Z')-9*86400000).toISOString().slice(0,10),audit=(db.originExcludedQuotes||[]).filter(e=>e?.row?.date>=cutoff),next=projectDatabase(db);let count=0;
@@ -36,7 +48,7 @@
  function projectWorkbook(result){
   const excluded=[],keep=(rows,kind)=>(rows||[]).filter(row=>{const decision=classify(row);if(!decision.excluded)return true;excluded.push({kind,row,reason:reason(decision)});return false});
   const records=keep(result.records,'warehouse'),regionalRecords=keep(result.regionalRecords,'regional');if(!excluded.length)return result;
-  const reports=(result.reports||[]).map(report=>{const removed=excluded.filter(e=>e.row.sourceSheet===report.sheet);return removed.length?{...report,status:(report.status||'已清洗')+'；按始发地排除 '+removed.length+' 条',count:records.filter(r=>r.sourceSheet===report.sheet).length,regionalCount:regionalRecords.filter(r=>r.sourceSheet===report.sheet).length,exclusions:[...(report.exclusions||[]),...removed.map(e=>({row:e.row.sourceRow,priceCell:e.row.priceCell,reason:e.reason}))],originExcluded:removed.length}:report});
+  const reports=(result.reports||[]).map(report=>{const removed=excluded.filter(e=>e.row.sourceSheet===report.sheet);return removed.length?{...report,status:(report.status||'已清洗')+'；按运营范围排除 '+removed.length+' 条',count:records.filter(r=>r.sourceSheet===report.sheet).length,regionalCount:regionalRecords.filter(r=>r.sourceSheet===report.sheet).length,exclusions:[...(report.exclusions||[]),...removed.map(e=>({row:e.row.sourceRow,priceCell:e.row.priceCell,reason:e.reason}))],originExcluded:removed.length}:report});
   return {...result,records,regionalRecords,reports,originExclusions:[...(result.originExclusions||[]),...excluded]};
  }
  const api={classify,projectDatabase,cleanDatabase,projectWorkbook};root.OriginExclusions=Object.freeze(api);if(typeof module!=='undefined')module.exports=api;

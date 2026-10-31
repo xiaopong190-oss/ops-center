@@ -21,10 +21,11 @@
   return [...new Set(result)];
  }
  function classify(row){
-  // User override: any Shenzhen mention on this quote wins over origin exclusion.
-  const text=quoteText(row);
-  if(text.includes('深圳'))return {excluded:false,cities:['深圳'],evidence:'报价记录含深圳，优先保留'};
+  // Pricing unit is unconditional; only the actual channel can override geography.
   const unit=excludedUnit(row);if(unit)return {excluded:true,cities:[],evidence:'计价单位='+unit,reason:'按立方米计价（cbm），按运营范围排除'};
+  const channel=[row?.channel,row?.values?.[2]].filter(v=>typeof v==='string').join('；');
+  if(channel.includes('深圳'))return {excluded:false,cities:['深圳'],evidence:'渠道含深圳，保留非cbm报价'};
+  const text=quoteText(row);
   const regions=[...new Set(text.match(/常州|上海|金华|义乌|华东/g)||[])];
   if(regions.length)return {excluded:true,cities:regions,evidence:'报价记录含'+regions.join('、'),reason:'报价记录含'+regions.join('、')+'，按运营范围排除'};
   const fields=['originCity','originPort','originLocation','departureCity','departurePort','departureLocation','startPort','portOfLoading','shippingOrigin','origin','始发地','始发港','始发城市','起运地','起运港','起运城市','发货地','发货城市','POL'];

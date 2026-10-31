@@ -1,30 +1,30 @@
 {
-  "updatedAt": "2026-10-30T04:27:20.301Z",
+  "updatedAt": "2026-10-31T04:08:19.604Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "When is Black Friday 2026? Here’s everything you need to know",
-      "link": "https://www.aboutamazon.com/news/retail/when-is-amazon-black-friday-faq?utm_source=rss",
-      "pubDate": "Fri, 30 Oct 2026 00:12:47 GMT",
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Fri, 30 Oct 2026 20:15:00 GMT",
       "date": "10/30",
-      "summary": "Black Friday 2026 falls on November 27. Here’s what to expect, how to prepare, and how to save.",
-      "category": "Retail"
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
     },
     {
-      "title": "The official ‘James Bond’ films in order: How to watch 007 on Prime Video",
-      "link": "https://www.aboutamazon.com/news/entertainment/james-bond-movies-watch-prime-video?utm_source=rss",
-      "pubDate": "Thu, 29 Oct 2026 23:54:12 GMT",
-      "date": "10/29",
-      "summary": "You can watch 25 official ‘James Bond’ films on Prime Video. Here is how to stream them in chronological order.",
-      "category": "Entertainment"
+      "title": "Q3 Earnings: Andy Jassy on why demand for Amazon’s custom chips keeps growing",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-custom-chips-demand-q3-2026-earnings?utm_source=rss",
+      "pubDate": "Fri, 30 Oct 2026 16:31:49 GMT",
+      "date": "10/30",
+      "summary": "Amazon’s chips business continues to grow triple-digit percentages year over year, and revenue commitments for Graviton and Trainium have ea",
+      "category": "Company news"
     },
     {
-      "title": "Highlights from Amazon's third quarter",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-q3-2026-earnings-preview?utm_source=rss",
-      "pubDate": "Thu, 29 Oct 2026 22:44:00 GMT",
-      "date": "10/29",
-      "summary": "Amazon announced financial results for its third quarter on October 29. Here's a look at what the company has been up to.",
+      "title": "Q3 Earnings: Andy Jassy on faster delivery, lowering cost to serve, groceries, pharmacy, and AI shopping",
+      "link": "https://www.aboutamazon.com/news/company-news/amazon-stores-growth-q3-2026-earnings?utm_source=rss",
+      "pubDate": "Fri, 30 Oct 2026 16:31:01 GMT",
+      "date": "10/30",
+      "summary": "Year to date, units have grown nearly 15% year over year, having sold more than 30 billion items last year.",
       "category": "Company news"
     }
   ]

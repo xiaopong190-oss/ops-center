@@ -2,6 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const base=path.resolve(__dirname,'..'),lock=JSON.parse(fs.readFileSync(path.join(base,'default-rule-lock.json'),'utf8'));
 function mismatches(read){return Object.entries(lock.files).filter(([file,expected])=>crypto.createHash('sha256').update(read(file).replace(/\r\n/g,'\n'),'utf8').digest('hex')!==expected).map(([file])=>file);}
 const hooks=[
+ ["/* tax-filter-approved */rows=window.TaxFilter?TaxFilter.filterTaxRows(rows,document.querySelector('#taxFilter input:checked')?.value||''):rows;",''],
  ["LegacyReclean.explain(window.ImportEvidence?ImportEvidence.pendingOnly(db):db,today())", "LegacyReclean.explain(db,today())"],
  ["/* import-evidence-merge-approved */result.db.importExceptions=window.ImportEvidence?ImportEvidence.mergeExceptions(result.db.importExceptions||[],pendingExceptions):Q.mergeExceptions(result.db.importExceptions||[],pendingExceptions);", "result.db.importExceptions=Q.mergeExceptions(result.db.importExceptions||[],pendingExceptions);"],
  ["另有 '+pendingExceptions.filter(e=>!e.status||e.status==='pending').length+' 条待处理", "另有 '+pendingExceptions.length+' 条待处理"],
@@ -27,3 +28,5 @@ test('approved other transport visibility seam occurs once without altering clas
 test('approved linehaul extension seam occurs exactly once',()=>assert.equal(source('n001.js').split(linehaulHook).length-1,1));
 
 test('approved delivery label seam occurs exactly once',()=>assert.equal(source('n001.js').split(labelHook).length-1,1));
+
+test('approved tax filter projection seam occurs once',()=>assert.equal(source('quotes.js').split("/* tax-filter-approved */rows=window.TaxFilter?TaxFilter.filterTaxRows(rows,document.querySelector('#taxFilter input:checked')?.value||''):rows;").length-1,1));

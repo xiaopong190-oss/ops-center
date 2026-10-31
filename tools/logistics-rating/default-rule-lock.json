@@ -63,6 +63,11 @@
       "file": "n001.js",
       "approval": "User approved displaying linehaul plus last-mile labels based on explicit original evidence, with price auxiliary only (2026-10-29)",
       "scope": "Exact transport-label-approved display-only hook preserves raw channel. Existing linehaul extension also recognizes explicit service/channel fields in billing terms for last-mile rows; ambiguous/negative fields remain undetermined. No price threshold or storage writes; historical hashes retained."
+    },
+    {
+      "file": "quotes.js",
+      "approval": "User requested independent tax filtering with functional/adversarial/regression tests and release (2026-10-31)",
+      "scope": "Exact tax-filter-approved projection seam before cargo filtering; no scoring formula, saved data, import, deletion or baseline hash changes"
     }
   ]
 }

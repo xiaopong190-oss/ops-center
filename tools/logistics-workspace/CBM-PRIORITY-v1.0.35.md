@@ -1,0 +1,13 @@
+# CBM priority and channel-only Shenzhen retention
+
+The user corrected the prior broad Shenzhen exception and explicitly authorized implementation, deduplication, regression and release after reviewing this priority:
+
+1. Explicit CBM/cubic-metre pricing, including CNY/cbm, is excluded unconditionally. A Shenzhen channel or any other Shenzhen text cannot override the pricing unit.
+2. For non-CBM rows only, 深圳 in the actual `channel` or standard import channel column `values[2]` retains the quotation against geographical exclusions.
+3. Company, filename, sheet, note and other incidental Shenzhen text no longer trigger retention. Existing geography evidence/negative/structured-origin behavior otherwise remains, including the requested 常州、上海、金华、义乌、华东 exclusions.
+
+Implementation reorders the two existing checks and narrows the existing override; it does not add a second policy, modify a locked business function, change retention/scoring/deduplication, or change display download/cache protocols. Cleaning, saved-data projection, old published snapshot display and cloud publication already call this same pure module. The broad text walker is now reached only when unit and channel have not decided the result. Original excluded rows remain in the same local audit with reasons.
+
+Focused tests cover unit aliases/raw pricing fields and standard channel columns, CBM+Shenzhen conflict, kg-channel overrides across geographical evidence, incidental Shenzhen that must not retain, volume-conversion notes that are not CBM pricing, and both warehouse/regional publication. The read-only actual 35-sheet cleaning run accepts 9,639 rows before policy, retains 1,982 and excludes 7,657; zero CBM rows remain. All 1,582 non-CBM rows with Shenzhen in the channel remain; 1,812 CBM rows with Shenzhen in the channel are excluded. 669 excluded rows mention Shenzhen outside the channel. An independent source-header/unit/channel check covers 1,986 generated rows, and the original source model remains unchanged. These are source-workbook QA counts, not a new published business snapshot.
+
+Release uses the existing Free plan. Existing snapshots need no reupload to apply the updated display projection; future cleaning/publication uses the same decision. Do not automatically restore already-archived historical rows as part of this change. If needed, normal reimport/validation can recover still-current quotes from original files rather than bypassing original age/deduplication rules. Rollback restores the prior unit/exception order and channel scope, with original audit/source evidence retained.

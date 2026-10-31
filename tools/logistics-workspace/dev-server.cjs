@@ -1,7 +1,7 @@
 // Local preview serves the same release files as Pages; never exposes business files.
-const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
+const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const routes=new Map(),base=__dirname,engine=path.resolve(base,'../logistics-rating');
-for(const file of ['cloud-cooperation.js','cooperation.css','runtime/cloud-ratings.html','index.html','input.html','display.html','integration-shell.js','simulation.css','local-bootstrap.js','local-data-policy.js','data-management.js','local-view-mode.js','runtime-ready.js','quality-workflow.js','engine-theme.css','workspace-loader.js','snapshot-client.js','record-delta.js','display-cache.js','upload-task.js',...['import','compare','warehouses','ratings','monthly','overview'].map(n=>'runtime/'+n+'.html')])routes.set('/tools/logistics-workspace/'+file,path.join(base,file));
+for(const file of ['compact-help.js','compact-help.css','cloud-cooperation.js','cooperation.css','runtime/cloud-ratings.html','index.html','input.html','display.html','integration-shell.js','simulation.css','local-bootstrap.js','local-data-policy.js','data-management.js','local-view-mode.js','runtime-ready.js','quality-workflow.js','engine-theme.css','workspace-loader.js','snapshot-client.js','record-delta.js','display-cache.js','upload-task.js',...['import','compare','warehouses','ratings','monthly','overview'].map(n=>'runtime/'+n+'.html')])routes.set('/tools/logistics-workspace/'+file,path.join(base,file));
 const scripts=Object.keys(JSON.parse(fs.readFileSync(path.join(base,'shared-logic.json'))).sharedSourceHashes);
 routes.set('/login',path.join(base,'portable-login.html'));routes.set('/index.html',path.join(base,'portable-login.html'));
 routes.set('/portable-login.js',path.join(base,'portable-login.js'));
@@ -41,7 +41,12 @@ function createServer({send=fetch}={}){return http.createServer(async(req,res)=>
  if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);return res.end('Read-only preview')}
  if(url.pathname==='/health')return json(200,{app:'hangxu-input',version:require('./package.json').version,supervised:process.env.HANGXU_SUPERVISED==='1',snapshotRelay:'chunks-v1'});
  if(aliases[url.pathname]){res.writeHead(302,{Location:'/tools/logistics-workspace/'+aliases[url.pathname]+url.search,'Cache-Control':'no-store'});return res.end()}
- const file=routes.get(url.pathname);if(!file||!fs.existsSync(file)){res.writeHead(404);return res.end('Not found')}const type={'.html':'text/html','.js':'text/javascript','.css':'text/css'}[path.extname(file)]||'text/plain';res.writeHead(200,{'Content-Type':type+'; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':policy,'X-Content-Type-Options':'nosniff'});if(req.method==='HEAD')return res.end();fs.createReadStream(file).pipe(res)
+ const file=routes.get(url.pathname);if(!file||!fs.existsSync(file)){res.writeHead(404);return res.end('Not found')}const ext=path.extname(file),type={'.html':'text/html','.js':'text/javascript','.css':'text/css'}[ext]||'text/plain';
+ // Public application assets may be reused only after validating their exact content.
+ // HTML, login, health and every business-data response retain no-store.
+ const headers={'Content-Type':type+'; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':policy,'X-Content-Type-Options':'nosniff'};
+ if(ext==='.js'||ext==='.css'){try{const bytes=await fs.promises.readFile(file),etag='"'+crypto.createHash('sha256').update(bytes).digest('hex')+'"';headers['Cache-Control']='private, no-cache';headers.ETag=etag;const matched=String(req.headers['if-none-match']||'').split(',').some(v=>v.trim()==='*'||v.trim().replace(/^W\//,'')===etag);if(matched){res.writeHead(304,headers);return res.end()}headers['Content-Length']=bytes.length;res.writeHead(200,headers);return res.end(req.method==='HEAD'?undefined:bytes)}catch{res.writeHead(500,{'Cache-Control':'no-store'});return res.end('Asset unavailable')}}
+ res.writeHead(200,headers);if(req.method==='HEAD')return res.end();fs.createReadStream(file).pipe(res)
 })}
 const server=createServer();
 if(require.main===module)server.listen(Number(process.env.LOGISTICS_UI_PORT||4318),'127.0.0.1',()=>console.log('Shared release preview on http://127.0.0.1:'+(process.env.LOGISTICS_UI_PORT||4318)+'/input'));

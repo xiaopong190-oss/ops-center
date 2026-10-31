@@ -7,8 +7,10 @@ import {workspaceUpload} from './workspace-upload.mjs';
 import {workspaceRunner} from './workspace-runner.mjs';
 import {runnerIdentity,RUNNER_AUDIENCE} from './workspace-runner-auth.mjs';
 import {publishSnapshot,blobHash} from '../deploy/publish-logistics-snapshot.mjs';
-import {publishWorkspace,decryptWorkspace} from './logistics-workspace.mjs';
+import {publishWorkspace,decryptWorkspace,displayData} from './logistics-workspace.mjs';
 import Delta from '../tools/logistics-workspace/record-delta.js';
+import {assembleShards} from './workspace-shards.mjs';
+import {logisticsWorkspace} from './logistics-workspace.mjs';
 const sha=b=>createHash('sha256').update(b).digest('hex'),root='data/logistics/workspace-snapshot.enc.json';
 function fixture(){
  const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE records(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
@@ -56,6 +58,20 @@ test('Free commit dispatches once under concurrent clicks, never assembles whole
 });
 test('frozen legacy delta reuses original uploaded parts and preserves the published baseline',async()=>{
  const f=fixture();try{const base=snapshot(),prior=await publishWorkspace({baseSha:null,operationId:crypto.randomUUID(),data:base},f.env,{id:'synthetic-owner'},f.send);const next=structuredClone(base);next.storage['logistics-quotes-v1'].quotes.push(row(2));const delta=await Delta.create(next,await Delta.index(base));await f.prepare(delta.payload,prior.sha);await f.upload({action:'commit'});const result=await publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github:f.github,delay:async()=>{}});assert(result.receipt.verified);const actual=await decryptWorkspace(JSON.parse(f.blobs.get(f.files.get(root))),f.env,f.send);assert.deepEqual(actual,next)}finally{f.sql.close()}
+});
+
+test('publication produces a verified record delta with unchanged records omitted and modified/deleted rows reflected',async()=>{
+ const f=fixture();try{
+ const base=snapshot();base.storage['logistics-quotes-v1'].quotes=Array.from({length:1200},(_,i)=>({...row(i),source:'virtual-'+i+'x'.repeat(900)}));
+ const prior=await publishWorkspace({baseSha:null,operationId:crypto.randomUUID(),data:base},f.env,{id:'synthetic-owner'},f.send);
+ const next=structuredClone(base),rows=next.storage['logistics-quotes-v1'].quotes;rows.splice(2,1);rows[0].price=765;rows.push({...row(9000),source:'new'});rows.push({...row(9001),originCity:'宁波'});next.storage['logistics-quotes-v1'].originExcludedQuotes=[{raw:'local evidence'}];const expected=displayData(next);
+ await f.prepare(next,prior.sha);await f.upload({action:'commit'});const receipt=await publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github:f.github,delay:async()=>{}});assert(receipt.receipt.verified);
+ const manifest=JSON.parse(f.blobs.get(f.files.get(root))),d=manifest.incremental;assert(d);assert(d.bytes<Buffer.byteLength(JSON.stringify(next))/5);assert.equal(d.baseHash,sha(Buffer.from(JSON.stringify(base))));
+ const payload=await assembleShards({schemaVersion:2,storage:'encrypted-parts-v1',...d},f.env,{},f.send);assert.equal(payload.changes['logistics-quotes-v1/quotes'].added.length,2);assert.deepEqual(await Delta.apply(base,payload),expected);assert.equal(sha(Buffer.from(JSON.stringify(await Delta.apply(base,payload)))),manifest.hash);
+ const result=await (await logisticsWorkspace(new Request('https://worker/api/logistics-workspace'),f.env,{id:'reader'},f.send)).json();assert.deepEqual(result.incremental,d);
+ const part=await (await logisticsWorkspace(new Request('https://worker/api/logistics-workspace?page=0&sha='+result.sha+'&delta=1'),f.env,{id:'reader'},f.send)).json();assert.equal(part.hash,d.parts[0]);
+ console.log(JSON.stringify({synthetic:true,baselineRows:1200,addedOrChangedValues:2,deltaBytes:d.bytes,fullBytes:Buffer.byteLength(JSON.stringify(next)),deletionApplied:true}));
+ }finally{f.sql.close()}
 });
 test('invalid business data and corrupt GitHub ciphertext cannot replace the previous root',async()=>{
  for(const kind of ['business','ciphertext']){const f=fixture();try{const data=snapshot();if(kind==='business')data.storage['logistics-quotes-v1'].quotes[0].price=-1;await f.prepare(data);await f.upload({action:'commit'});if(kind==='ciphertext')f.corruptBlob();await assert.rejects(publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github:f.github,delay:async()=>{}}));assert.equal(f.rootWrites(),0);assert.equal(f.files.has(root),false)}finally{f.sql.close()}}

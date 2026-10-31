@@ -1,3 +1,4 @@
+import {buildIncremental} from './snapshot-incremental.mjs';
 import {createHash,randomBytes} from 'node:crypto';
 import {gzipSync,gunzipSync} from 'node:zlib';
 import {pathToFileURL} from 'node:url';
@@ -28,10 +29,14 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
   data=await Delta.apply(base,data);
  }
  // Preserve the same full server-side business validation and display projection.
- const plain=Buffer.from(JSON.stringify(displayData(data)));if(plain.length<1||plain.length>max)throw failure('SNAPSHOT_SIZE_INVALID');
+ const published=displayData(data),plain=Buffer.from(JSON.stringify(published));if(plain.length<1||plain.length>max)throw failure('SNAPSHOT_SIZE_INVALID');
+ const incremental=await buildIncremental(published,meta.baseSha,request);
  const manifest={schemaVersion:2,storage:'encrypted-parts-v1',bytes:plain.length,hash:hash(plain),parts:[],operationId:meta.operationId,savedAt:new Date().toISOString()},entries=[];
- for(let i=0;i<Math.ceil(plain.length/chunkSize);i++){
-  const bytes=plain.subarray(i*chunkSize,Math.min((i+1)*chunkSize,plain.length)),h=hash(bytes),packed=gzipSync(bytes);
+ const fullParts=Math.ceil(plain.length/chunkSize),deltaParts=incremental?Math.ceil(incremental.bytes.length/chunkSize):0;
+ if(incremental)manifest.incremental={baseHash:incremental.baseHash,bytes:incremental.bytes.length,hash:hash(incremental.bytes),parts:[]};
+ for(let i=0;i<fullParts+deltaParts;i++){
+  const delta=i>=fullParts,index=delta?i-fullParts:i,source=delta?incremental.bytes:plain;
+  const bytes=source.subarray(index*chunkSize,Math.min((index+1)*chunkSize,source.length)),h=hash(bytes),packed=gzipSync(bytes);
   const encrypted=Buffer.from(await (await request('seal/'+i,{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Plain-Hash':h,'X-Plain-Bytes':String(bytes.length)},body:packed})).arrayBuffer());
   let envelope;try{envelope=JSON.parse(encrypted)}catch{throw failure('ENVELOPE_INVALID')}if(typeof envelope.iv!=='string'||typeof envelope.content!=='string')throw failure('ENVELOPE_INVALID');
   // GitHub blob readback happens before publishing the root. Plaintext is never
@@ -41,7 +46,7 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
   if(stored.sha!==blobHash(encrypted))throw failure('BLOB_WRITE_MISMATCH');
   const back=await github('git/blobs/'+stored.sha);if(back.encoding!=='base64')throw failure('BLOB_ENCODING_INVALID');const actual=Buffer.from(back.content.replace(/\s/g,''),'base64');if(!actual.equals(encrypted)||blobHash(actual)!==stored.sha)throw failure('BLOB_READBACK_MISMATCH');
   await request('verify/'+i,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:actual});
-  entries.push({path:shardPrefix+h+'.enc.json',mode:'100644',type:'blob',sha:stored.sha});manifest.parts.push(h);await progress(35+Math.floor((i+1)/Math.ceil(plain.length/chunkSize)*55));
+  entries.push({path:shardPrefix+h+'.enc.json',mode:'100644',type:'blob',sha:stored.sha});(delta?manifest.incremental.parts:manifest.parts).push(h);await progress(35+Math.floor((i+1)/(fullParts+deltaParts)*55));
  }
  await request('ready',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(manifest)});
  const rootBytes=Buffer.from(JSON.stringify(manifest)+'\n'),rootBlob=await github('git/blobs',{method:'POST',body:{encoding:'base64',content:rootBytes.toString('base64')}});if(rootBlob.sha!==blobHash(rootBytes))throw failure('ROOT_BLOB_MISMATCH');

@@ -1,7 +1,7 @@
 // Local preview serves the same release files as Pages; never exposes business files.
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const routes=new Map(),base=__dirname,engine=path.resolve(base,'../logistics-rating');
-for(const file of ['cloud-cooperation.js','cooperation.css','runtime/cloud-ratings.html','index.html','input.html','display.html','integration-shell.js','simulation.css','local-bootstrap.js','local-data-policy.js','data-management.js','local-view-mode.js','runtime-ready.js','quality-workflow.js','engine-theme.css','workspace-loader.js','snapshot-client.js','record-delta.js','upload-task.js',...['import','compare','warehouses','ratings','monthly','overview'].map(n=>'runtime/'+n+'.html')])routes.set('/tools/logistics-workspace/'+file,path.join(base,file));
+for(const file of ['cloud-cooperation.js','cooperation.css','runtime/cloud-ratings.html','index.html','input.html','display.html','integration-shell.js','simulation.css','local-bootstrap.js','local-data-policy.js','data-management.js','local-view-mode.js','runtime-ready.js','quality-workflow.js','engine-theme.css','workspace-loader.js','snapshot-client.js','record-delta.js','display-cache.js','upload-task.js',...['import','compare','warehouses','ratings','monthly','overview'].map(n=>'runtime/'+n+'.html')])routes.set('/tools/logistics-workspace/'+file,path.join(base,file));
 const scripts=Object.keys(JSON.parse(fs.readFileSync(path.join(base,'shared-logic.json'))).sharedSourceHashes);
 routes.set('/login',path.join(base,'portable-login.html'));routes.set('/index.html',path.join(base,'portable-login.html'));
 routes.set('/portable-login.js',path.join(base,'portable-login.js'));
@@ -19,7 +19,7 @@ function createServer({send=fetch}={}){return http.createServer(async(req,res)=>
   if(!['GET','POST'].includes(req.method))return json(405,{error:'方法不允许'});
   if(!/^127\.0\.0\.1:\d+$/.test(req.headers.host||'')||(req.headers.origin&&req.headers.origin!=='http://'+req.headers.host)||(req.method==='POST'&&req.headers.origin!=='http://'+req.headers.host))return json(403,{error:'只允许本机工作台请求'});
   if(!/^Bearer [^\s]{1,512}$/.test(req.headers.authorization||''))return json(401,{error:'请先登录运营中心'});
-  if(url.search&&url.search!=='?meta=1'&&!/^\?page=(?:0|[1-9]\d*)&sha=[a-f0-9]{40,64}$/.test(url.search))return json(400,{error:'不支持的快照参数'});
+  if(url.search&&url.search!=='?meta=1'&&!/^\?page=(?:0|[1-9]\d*)&sha=[a-f0-9]{40,64}(?:&delta=1)?$/.test(url.search))return json(400,{error:'不支持的快照参数'});
   try{
    let body;if(req.method==='POST'){if(!String(req.headers['content-type']).startsWith('application/json'))return json(415,{error:'需要JSON请求'});const chunks=[];let bytes=0;for await(const part of req){bytes+=part.length;if(bytes>(ai?200000:32*1024*1024))return json(413,{error:ai?'AI复核片段过大':'发布请求超过32MiB'});chunks.push(part)}body=Buffer.concat(chunks).toString('utf8')}
    if(ai){const data=JSON.parse(body||'{}');if(!['quote-cleaning','sheet-quote-detection'].includes(data.purpose)||data.purpose==='quote-cleaning'&&data.exception!==true)return json(400,{error:'只允许物流报价AI复核'})}

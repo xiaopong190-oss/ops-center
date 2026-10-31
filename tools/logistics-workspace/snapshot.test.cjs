@@ -1,6 +1,44 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-function client(search='',responses=[],persisted,hostname){const storage=persisted||new Map([['ops-cloud-session-v1','session']]),calls=[];const w={location:{search,hostname},URLSearchParams,TextEncoder,TextDecoder,atob,AbortSignal,crypto:crypto.webcrypto,Domain:{directory(){},bills(){},ratings(){}},QuoteCore:{validate(){}},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},fetch:async(url,options)=>{calls.push({url,options});const r=responses.shift();if(!r)throw Error('unexpected request');if(r instanceof Response)return r;return {status:r.status||(r.ok===false?409:200),ok:r.ok!==false,json:async()=>r}},setTimeout:(fn)=>setTimeout(fn,0),Date,JSON,Promise,Error};w.window=w;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'snapshot-client.js'),'utf8'),w);return {api:w.WorkspaceSnapshot,storage,calls,w}}
+function client(search='',responses=[],persisted,hostname,extensions={}){const storage=persisted||new Map([['ops-cloud-session-v1','session']]),calls=[];const w={location:{search,hostname},URLSearchParams,TextEncoder,TextDecoder,atob,AbortSignal,crypto:crypto.webcrypto,Domain:{directory(){},bills(){},ratings(){}},QuoteCore:{validate(){}},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},fetch:async(url,options)=>{calls.push({url,options});const r=responses.shift();if(!r)throw Error('unexpected request');if(r instanceof Response)return r;return {status:r.status||(r.ok===false?409:200),ok:r.ok!==false,json:async()=>r}},...extensions,setTimeout:(fn)=>setTimeout(fn,0),Date,JSON,Promise,Error};w.window=w;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'snapshot-client.js'),'utf8'),w);return {api:w.WorkspaceSnapshot,storage,calls,w}}
 test('local master never fetches or publishes on startup',async()=>{const c=client();await c.api.ready;assert.equal(c.calls.length,0);await assert.rejects(c.api.publish(),/预览/)});
+
+test('startup plus repeated refresh clicks share one snapshot load',async()=>{const source=client().api.data(),c=client('?audience=display',[{sha:'same'},{sha:'same',data:source}]);await Promise.all([c.api.ready,c.api.load(),c.api.load()]);assert.equal(c.calls.length,2);assert.equal(c.api.state().loaded,true)});
+
+test('republishing identical content under a new root SHA does not download any data batches',async()=>{
+ let saved=null;const store={load:async()=>saved,save:async(_,v)=>{saved=v}},source=client().api.data(),a=client('?audience=display',[{sha:'a'},{sha:'a',data:source}],undefined,undefined,{WorkspaceDisplayCache:store});await a.api.ready;
+ const bytes=Buffer.from(JSON.stringify(source)),hash=crypto.createHash('sha256').update(bytes).digest('hex');const b=client('?audience=display',[{sha:'b'},{sha:'b',paged:{bytes:bytes.length,hash,parts:[hash]}}],a.storage,undefined,{WorkspaceDisplayCache:store});await b.api.ready;assert.equal(b.calls.length,2);assert.equal(b.api.state().cached,true);assert.equal(saved.sha,'b');
+});
+
+test('immutable durable source survives reopen and working-data normalization without redownloading',async()=>{
+ const {IDBFactory}=require('../../modules/new-product-followup/work/qa/node_modules/fake-indexeddb'),{create}=require('./display-cache.js'),db=new IDBFactory(),store=create(db),source=client().api.data();source.storage['logistics-quotes-v1'].quotes=[{id:'original'}];
+ const a=client('?audience=display',[{sha:'a'},{sha:'a',savedAt:'today',data:source}],undefined,undefined,{WorkspaceDisplayCache:store});await a.api.ready;
+ a.storage.set('logistics-quotes-v1',JSON.stringify({quotes:[{id:'working-data-modified'}],templates:[]}));
+ const b=client('?audience=display',[{sha:'a'}],a.storage,undefined,{WorkspaceDisplayCache:create(db)});await b.api.ready;
+ assert.equal(b.calls.length,1);assert.equal(b.api.state().cached,true);assert.equal(b.api.data().storage['logistics-quotes-v1'].quotes[0].id,'original');
+ const c=client('?audience=display',[{sha:'a'},{sha:'a',data:source}],new Map([['ops-cloud-session-v1','another-account']]),undefined,{WorkspaceDisplayCache:create(db)});await c.api.ready;assert.equal(c.calls.length,2);
+});
+
+test('new snapshot transfers only added/modified record values and applies deletion before switching the durable baseline',async()=>{
+ const {IDBFactory}=require('../../modules/new-product-followup/work/qa/node_modules/fake-indexeddb'),{create}=require('./display-cache.js'),store=create(new IDBFactory()),Delta=require('./record-delta.js'),source=client().api.data();source.storage['logistics-quotes-v1'].quotes=[{id:'keep'},{id:'change',price:10},{id:'delete'}];
+ const a=client('?audience=display',[{sha:'a'},{sha:'a',data:source}],undefined,undefined,{WorkspaceDisplayCache:store});await a.api.ready;
+ const next=JSON.parse(JSON.stringify(source));next.storage['logistics-quotes-v1'].quotes=[{id:'keep'},{id:'change',price:20},{id:'added'}];const delta=(await Delta.create(next,await Delta.index(source))).payload,bytes=Buffer.from(JSON.stringify(delta)),hash=b=>crypto.createHash('sha256').update(b).digest('hex'),target=Buffer.from(JSON.stringify(next));
+ assert.equal(delta.changes['logistics-quotes-v1/quotes'].added.length,2);
+ const b=client('?audience=display',[{sha:'b'},{sha:'b',paged:{bytes:target.length,hash:hash(target),parts:[hash(target)]},incremental:{baseHash:hash(Buffer.from(JSON.stringify(source))),bytes:bytes.length,hash:hash(bytes),parts:[hash(bytes)]}},{sha:'b',index:0,hash:hash(bytes),content:bytes.toString('base64')}],a.storage,undefined,{WorkspaceDisplayCache:store,WorkspaceDelta:Delta});await b.api.ready;
+ assert.equal(b.calls.length,3);assert(b.calls[2].url.endsWith('&delta=1'));assert.equal(b.api.state().incremental,true);assert.equal(JSON.stringify(b.api.data()),JSON.stringify(next));
+ const c=client('?audience=display',[{sha:'b'}],b.storage,undefined,{WorkspaceDisplayCache:store});await c.api.ready;assert.equal(c.calls.length,1);assert.equal(JSON.stringify(c.api.data()),JSON.stringify(next));
+});
+
+test('corrupt increment and failed durable commit preserve the previous full source and working data',async()=>{
+ const Delta=require('./record-delta.js'),hash=b=>crypto.createHash('sha256').update(b).digest('hex');
+ for(const failure of ['target-hash','record-hash','durable-write']){
+  let saved=null,failSave=false;const store={load:async()=>saved,save:async(_,v)=>{if(failSave)throw Error('durable write failed');saved=JSON.parse(JSON.stringify(v))}},source=client().api.data();source.storage['logistics-quotes-v1'].quotes=[{id:'old'}];
+  const a=client('?audience=display',[{sha:'a'},{sha:'a',data:source}],undefined,undefined,{WorkspaceDisplayCache:store});await a.api.ready;const before=JSON.stringify([...a.storage]),prior=JSON.stringify(saved),next=JSON.parse(JSON.stringify(source));next.storage['logistics-quotes-v1'].quotes.push({id:'new'});
+  const payload=(await Delta.create(next,await Delta.index(source))).payload;if(failure==='record-hash')payload.changes['logistics-quotes-v1/quotes'].added[0].hash='f'.repeat(64);
+  const bytes=Buffer.from(JSON.stringify(payload)),target=Buffer.from(JSON.stringify(next));failSave=failure==='durable-write';
+  const b=client('?audience=display',[{sha:'b'},{sha:'b',paged:{bytes:target.length,hash:failure==='target-hash'?'e'.repeat(64):hash(target),parts:[hash(target)]},incremental:{baseHash:hash(Buffer.from(JSON.stringify(source))),bytes:bytes.length,hash:hash(bytes),parts:[hash(bytes)]}},{sha:'b',index:0,hash:hash(bytes),content:bytes.toString('base64')}],a.storage,undefined,{WorkspaceDisplayCache:store,WorkspaceDelta:Delta});
+  await assert.rejects(b.api.ready);assert.equal(JSON.stringify([...a.storage]),before);assert.equal(JSON.stringify(saved),prior);assert.equal(b.calls.length,3);
+ }
+});
 
 test('daily D1 budget exhaustion stops after one request and preserves local data without a network diagnosis',async()=>{
  const c=client(),before=JSON.stringify([...c.storage]);await c.api.ready;

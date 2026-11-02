@@ -7,6 +7,7 @@ import {workspaceUpload} from './workspace-upload.mjs';
 import {workspaceRunner} from './workspace-runner.mjs';
 import {runnerIdentity,RUNNER_AUDIENCE} from './workspace-runner-auth.mjs';
 import {publishSnapshot,blobHash} from '../deploy/publish-logistics-snapshot.mjs';
+import {createGitHubClient} from '../deploy/workspace-github-client.mjs';
 import {publishWorkspace,decryptWorkspace,displayData} from './logistics-workspace.mjs';
 import Delta from '../tools/logistics-workspace/record-delta.js';
 import {assembleShards} from './workspace-shards.mjs';
@@ -47,6 +48,18 @@ function fixture(){
 }
 const row=i=>({companyId:'c',company:'合成物流',country:'美国',warehouse:'ONT8',channel:'海运',price:1000+i,currency:'CNY',unit:'kg',min:10,max:20,date:'2026-10-29',terms:'普货',source:'synthetic-'+i});
 const snapshot=()=>({space:'real',storage:{'logistics-company-directory-v1':[{id:'c',name:'合成物流',aliases:[]}],'logistics-quotes-v1':{quotes:[row(0)],templates:[]},'logistics-monthly-bills-v1':{rows:[],aliases:{}},'logistics-completed-ratings-v1':[]}});
+
+test('diagnostic identifies a simulated readback 404 through the complete publisher and preserves old root',async()=>{
+ const f=fixture(),logs=[];try{await f.prepare(snapshot());await f.upload({action:'commit'});
+ const github=createGitHubClient({token:'synthetic',report:d=>logs.push(d),send:async(url,options)=>{
+  const path=url.split('/repos/xiaopong190-oss/ops-center/')[1];if(path.startsWith('git/blobs/'))return new Response(null,{status:404,headers:{'x-github-request-id':'AB12:CD34'}});
+  const result=await f.github(path,{...options,...(options.body?{body:JSON.parse(options.body)}:{})});return Response.json(result);
+ }});
+ await assert.rejects(publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github,delay:async()=>{}}),e=>e.code==='GITHUB_404');
+ assert.deepEqual(logs,[{sequence:2,method:'GET',endpoint:'git/blobs/:sha',stage:'part-readback',part:0,kind:'http',status:404,requestId:'AB12:CD34'}]);assert.equal(f.rootWrites(),0);assert.equal(f.files.has(root),false);
+ console.log('Synthetic injected failure, not the production cause: '+JSON.stringify(logs[0]));
+ }finally{f.sql.close()}
+});
 test('Free commit dispatches once under concurrent clicks, never assembles whole data and atomically publishes after ciphertext verification',async()=>{
  const f=fixture();try{const d=snapshot();d.storage['logistics-quotes-v1'].quotes=Array.from({length:31113},(_,i)=>({...row(i),source:'synthetic-'+i+'x'.repeat(800)}));d.storage['logistics-quotes-v1'].regionalQuotes=Array.from({length:4091},(_,i)=>({...row(i),regionRaw:'合成区域'+i,source:'synthetic-'+i+'x'.repeat(800)}));d.storage['logistics-quotes-v1'].templates=Array.from({length:571},(_,i)=>({country:'美国',warehouse:'ONT'+i}));
  const target=39973361;d.storage['logistics-quotes-v1'].padding='';const size=Buffer.byteLength(JSON.stringify(d));assert(size<target);d.storage['logistics-quotes-v1'].padding='x'.repeat(target-size);

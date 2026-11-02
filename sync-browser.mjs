@@ -84,8 +84,13 @@ function cloudSyncConfigBlock() {
 }
 
 function globalConfigBrowserBlock() {
+  // Classic browser scripts have no module loader: include this dependency
+  // before GlobalConfig initializes its shared cache (also used by the bundle).
+  const sharedReadCache = fs.readFileSync(path.join(dir, "utils/shared-read-cache.mjs"), "utf8")
+    .replace(/^export /gm, "");
   let gc = fs.readFileSync(path.join(dir, "GlobalConfig.jsx"), "utf8");
   gc = gc
+    .replace(/^import\s+\{\s*createSharedReadCache\s*\}\s+from\s+["']\.\/utils\/shared-read-cache\.mjs["'];?\r?\n/m, "")
     .replace(/^import \{ GITHUB_GIST_ID(?:, GITHUB_GIST_TOKEN as \w+)? \} from "\.\/cloud-sync-config\.js";\r?\n+/m, "")
     .replace(/^import \{ GITHUB_GIST_ID \} from "\.\/cloud-sync-config\.js";\r?\n+/m, "")
     .replace(/^function getGistToken\(\) \{[\s\S]*?^}\r?\n+/m, "")
@@ -105,6 +110,7 @@ function globalConfigBrowserBlock() {
     .replace(/onSaved\?\.\(\)/g, "onSaved && onSaved()");
   return (
     cloudSyncConfigBlock() +
+    sharedReadCache + "\n\n" +
     "// ─── GLOBAL CONFIG (全站共享：员工名单等) ─────────────────────────────\n" +
     gc.trim() +
     "\n\nwindow.ROLE_COLORS = ROLE_COLORS;\n" +

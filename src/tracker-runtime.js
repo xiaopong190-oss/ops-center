@@ -91,8 +91,26 @@ window.setOpsFollowupContext = async function(context) {
     }
   }
 };
+document.addEventListener('change',event=>{
+  const control=event.target;
+  if(!control.matches?.('#app input,#app select,#app textarea'))return;
+  if(control.hasAttribute('data-import')&&control.files?.[0]?.size>16*1024*1024){event.stopImmediatePropagation();toast('导入文件超过 16MB，请拆分后重试');return;}
+  if(!trackerContext.canEdit&&!control.dataset.filter&&!control.hasAttribute('data-import')){
+    event.stopImmediatePropagation();toast('当前帐号仅可查看，未保存');return;
+  }
+  const error=validateTrackerControl(control);control.setCustomValidity(error);
+  if(error){event.stopImmediatePropagation();toast(error);}
+},true);
 document.addEventListener('submit',event => {
   if (!trackerContext.canEdit) {event.preventDefault();event.stopImmediatePropagation();toast('当前帐号仅可查看');}
+  else{
+    for(const control of event.target.querySelectorAll('input,select,textarea')){
+      const error=validateTrackerControl(control);control.setCustomValidity(error);
+      if(error||!control.checkValidity()){event.preventDefault();event.stopImmediatePropagation();toast(error||'请检查必填项与输入格式');return;}
+    }
+    const from=event.target.elements.namedItem('from')?.value,to=event.target.elements.namedItem('to')?.value;
+    if(from&&to&&to<from){event.preventDefault();event.stopImmediatePropagation();toast('结束日期不能早于起始日期');}
+  }
 },true);
 setInterval(() => {
   if (trackerContext.active && trackerContext.user?.id && !document.querySelector('input:focus,textarea:focus,select:focus')) {

@@ -18,8 +18,9 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
  const meta=await (await request('meta')).json();
  if(!Number.isSafeInteger(meta.bytes)||meta.bytes<1||meta.bytes>max||!Array.isArray(meta.parts)||meta.parts.length!==Math.ceil(meta.bytes/(128*1024))||!/^[a-f0-9]{64}$/.test(meta.sha256)||!meta.parts.every(h=>/^[a-f0-9]{64}$/.test(h)))throw failure('INVALID_SOURCE_MANIFEST');
  const source=Buffer.alloc(meta.bytes);
- // Sequential bounded downloads avoid retaining separate copies of every part.
- for(let i=0;i<meta.parts.length;i++){const b=Buffer.from(await (await request('part/'+i)).arrayBuffer());if(b.length!==Math.min(128*1024,meta.bytes-i*128*1024)||hash(b)!==meta.parts[i])throw failure('SOURCE_PART_MISMATCH');b.copy(source,i*128*1024);if(i%20===0)await progress(Math.floor(i/meta.parts.length*35))}
+ // At most two bounded reads overlap. Each verified part goes directly into its
+ // original offset; no write or publication happens before the full hash check.
+ for(let start=0;start<meta.parts.length;start+=2){await Promise.all(Array.from({length:Math.min(2,meta.parts.length-start)},async(_,offset)=>{const i=start+offset,b=Buffer.from(await (await request('part/'+i)).arrayBuffer());if(b.length!==Math.min(128*1024,meta.bytes-i*128*1024)||hash(b)!==meta.parts[i])throw failure('SOURCE_PART_MISMATCH');b.copy(source,i*128*1024)}));if(start%20===0||start+2>=meta.parts.length)await progress(Math.floor(Math.min(start+2,meta.parts.length)/meta.parts.length*35))}
  if(hash(source)!==meta.sha256)throw failure('SOURCE_HASH_MISMATCH');
  let data;try{data=JSON.parse(source.toString('utf8'))}catch{throw failure('SOURCE_JSON_INVALID')}
  if(data?.protocol==='record-delta-v1'){

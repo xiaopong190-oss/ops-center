@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-11-02T04:31:26.843Z",
+  "updatedAt": "2026-11-03T05:25:34.954Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US",
+      "title": "Amazon CEO Andy Jassy: ‘I had to change how I worked, or I was going to be a lousy dad’",
+      "link": "https://www.aboutamazon.com/news/workplace/amazon-ceo-andy-jassy-work-life-balance?utm_source=rss",
+      "pubDate": "Mon, 02 Nov 2026 18:12:51 GMT",
+      "date": "11/2",
+      "summary": "From Tuesday date nights to weekly breakfasts with his kids, Jassy shared the boundaries and traditions that keep his family close.",
+      "category": "Workplace"
+    },
+    {
+      "title": "Is Amazon Grocery worth it? Yes—here’s what to know.",
+      "link": "https://www.aboutamazon.com/news/retail/is-amazon-grocery-worth-it?utm_source=rss",
+      "pubDate": "Mon, 02 Nov 2026 14:00:05 GMT",
+      "date": "11/2",
+      "summary": "With everyday low prices and Same-Day Delivery in more than 2,300 U.S. cities and towns, Amazon Grocery is helping customers save more and s",
+      "category": "Retail"
+    },
+    {
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
       "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
       "pubDate": "Fri, 30 Oct 2026 20:15:00 GMT",
       "date": "10/30",
       "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
       "category": "AWS"
-    },
-    {
-      "title": "Q3 Earnings: Andy Jassy on why demand for Amazon’s custom chips keeps growing",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-custom-chips-demand-q3-2026-earnings?utm_source=rss",
-      "pubDate": "Fri, 30 Oct 2026 16:31:49 GMT",
-      "date": "10/30",
-      "summary": "Amazon’s chips business continues to grow triple-digit percentages year over year, and revenue commitments for Graviton and Trainium have ea",
-      "category": "Company news"
-    },
-    {
-      "title": "Q3 Earnings: Andy Jassy on faster delivery, lowering cost to serve, groceries, pharmacy, and AI shopping",
-      "link": "https://www.aboutamazon.com/news/company-news/amazon-stores-growth-q3-2026-earnings?utm_source=rss",
-      "pubDate": "Fri, 30 Oct 2026 16:31:01 GMT",
-      "date": "10/30",
-      "summary": "Year to date, units have grown nearly 15% year over year, having sold more than 30 billion items last year.",
-      "category": "Company news"
     }
   ]
 }

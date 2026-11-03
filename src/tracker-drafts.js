@@ -7,7 +7,26 @@ function mergeTrackerFields(previous,patch){
   }
   return result;
 }
-export function applyTrackerOperations(original,operations,user={}){
+// Keep only fields actually changed in the editor. Arrays cannot be blindly
+// replaced when another operator has changed that list since editing began.
+function mergeTrackerEdit(current,base,desired,allowListConflict=false){
+  const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  if(equal(base,desired))return structuredClone(current);
+  if(Array.isArray(desired)){
+    if(!allowListConflict&&!equal(current,base)&&!equal(current,desired))throw Object.assign(Error('列表已被其它运营修改，本账号草稿已保留；请核对云端最新列表后重新编辑'),{status:409});
+    return structuredClone(desired);
+  }
+  if(desired&&typeof desired==='object'){
+    const out={...current};
+    for(const key of Object.keys(desired)){
+      if(['__proto__','constructor','prototype'].includes(key))throw Error('无效字段');
+      if(!equal(base?.[key],desired[key]))out[key]=mergeTrackerEdit(current?.[key],base?.[key],desired[key],allowListConflict);
+    }
+    return out;
+  }
+  return structuredClone(desired);
+}
+export function applyTrackerOperations(original,operations,user={},options={}){
   const visible=structuredClone(original),patch={},events=[];
   let result;
   for(const operation of operations){
@@ -19,7 +38,7 @@ export function applyTrackerOperations(original,operations,user={}){
       if(!/^(links|ships|perf)\/[^/]+$/.test(path||''))throw Error('记录路径无效');
       if(type==='update'){
         if(!visible[path])throw Error('记录已被隐藏，请先刷新后重新处理');
-        visible[path]=mergeTrackerFields(visible[path],value);patch[path]=visible[path];
+        visible[path]=Object.hasOwn(operation,'base')?mergeTrackerEdit(visible[path],operation.base,value,options.allowListConflict):mergeTrackerFields(visible[path],value);patch[path]=visible[path];
       }else if(type==='set'){
         if(visible[path])throw Error('记录已存在，请刷新后编辑');
         visible[path]=structuredClone(value);patch[path]=visible[path];
@@ -43,7 +62,7 @@ export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=
   let pending=[],userId='',error='',saving=false,confirmed='',chain=Promise.resolve();
   const listeners=new Set();
   const uncommitted=operations=>{const ids=new Set(cloud._snapshot()?.data.events.map(event=>event.id)||[]);return operations.filter(operation=>!ids.has(operation.id));};
-  const visible=()=>applyTrackerOperations(cloud._dump(),uncommitted(pending),context().user).docs;
+  const visible=()=>applyTrackerOperations(cloud._dump(),uncommitted(pending),context().user,{allowListConflict:true}).docs;
   const status=()=>{const snapshot=cloud._snapshot();onState({isDirty:pending.length>0,saving,error,meta:snapshot?{updatedBy:snapshot.updatedBy,updatedAt:snapshot.updatedAt,revision:snapshot.revision}:null,
     barHint:confirmed|| (context().autoShare?'已开启自动分享 · 修改按字段合并 · 操作历史保留':'沿用个人暂存 · 点「保存并上传」后共享给全员'),
     dirtyHint:pending.length+' 项修改已保存在本账号，尚未上传'});};
@@ -69,8 +88,9 @@ export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=
   };
   const stage=(type,path,value)=>serialized(async()=>{
     const identity=requireUser(),operation={id:crypto.randomUUID(),type,path,value:structuredClone(value??null),createdAt:new Date().toISOString()};
+    if(type==='update')operation.base=structuredClone(visible()[path]);
     const next=[...pending,operation];
-    const applied=applyTrackerOperations(cloud._dump(),uncommitted(next),context().user);
+    const applied=applyTrackerOperations(cloud._dump(),uncommitted(next),context().user,{allowListConflict:true});
     await store.save(identity,next); // Durable per-account draft precedes UI success.
     if(context().user?.id!==identity)throw Error('帐号已变化，修改仍保存在原帐号草稿');
     pending=next;error='';confirmed='';emit();
@@ -83,11 +103,11 @@ export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=
     refresh:options=>serialized(async()=>{
       const identity=context().user?.id;
       if(identity!==userId){
-        userId=identity;pending=[];error='';await cloud.refresh();
+        pending=[];error='';await cloud.refresh();
         if(context().user?.id!==identity)return;
         const restored=await store.load(identity)||[];
         if(context().user?.id!==identity)return;
-        pending=restored;
+        pending=restored;userId=identity;
       }
       else {if(options?.discardDraft){await store.save(identity,[]);pending=[];}await cloud.refresh();}
       if(context().user?.id!==identity)return;

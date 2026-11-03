@@ -7,6 +7,7 @@ import {workspaceUpload} from './workspace-upload.mjs';
 import {workspaceRunner} from './workspace-runner.mjs';
 import {runnerIdentity,RUNNER_AUDIENCE} from './workspace-runner-auth.mjs';
 import {publishSnapshot,blobHash} from '../deploy/publish-logistics-snapshot.mjs';
+import {buildIncremental} from '../deploy/snapshot-incremental.mjs';
 import {createGitHubClient} from '../deploy/workspace-github-client.mjs';
 import {publishWorkspace,decryptWorkspace,displayData} from './logistics-workspace.mjs';
 import Delta from '../tools/logistics-workspace/record-delta.js';
@@ -71,6 +72,19 @@ test('Free commit dispatches once under concurrent clicks, never assembles whole
 });
 test('frozen legacy delta reuses original uploaded parts and preserves the published baseline',async()=>{
  const f=fixture();try{const base=snapshot(),prior=await publishWorkspace({baseSha:null,operationId:crypto.randomUUID(),data:base},f.env,{id:'synthetic-owner'},f.send);const next=structuredClone(base);next.storage['logistics-quotes-v1'].quotes.push(row(2));const delta=await Delta.create(next,await Delta.index(base));await f.prepare(delta.payload,prior.sha);await f.upload({action:'commit'});const result=await publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github:f.github,delay:async()=>{}});assert(result.receipt.verified);const actual=await decryptWorkspace(JSON.parse(f.blobs.get(f.files.get(root))),f.env,f.send);assert.deepEqual(actual,next)}finally{f.sql.close()}
+});
+
+test('two source reads overlap safely with out-of-order responses and corrupt source still blocks publication',async()=>{
+ for(const corrupt of [false,true]){const f=fixture();try{const data=snapshot();data.storage['logistics-quotes-v1'].quotes=Array.from({length:3},(_,i)=>({...row(i),source:'synthetic-'+i+'x'.repeat(150000)}));await f.prepare(data);await f.upload({action:'commit'});let active=0,peak=0;const order=[];const cloud=async(path,options)=>{if(!path.startsWith('part/'))return f.cloud(path,options);const i=Number(path.slice(5));active++;peak=Math.max(peak,active);try{await new Promise(r=>setTimeout(r,i%2===0?15:1));const r=await f.cloud(path,options);order.push(i);if(corrupt&&i===0){const b=Buffer.from(await r.arrayBuffer());b[0]^=1;return new Response(b)}return r}finally{active--}};
+ if(corrupt){await assert.rejects(publishSnapshot({ticket:f.ticket(),cloud,github:f.github,delay:async()=>{}}),e=>e.code==='SOURCE_PART_MISMATCH');assert.equal(f.rootWrites(),0)}else{const receipt=await publishSnapshot({ticket:f.ticket(),cloud,github:f.github,delay:async()=>{}});assert(receipt.receipt.verified);const actual=await decryptWorkspace(JSON.parse(f.blobs.get(f.files.get(root))),f.env,f.send);assert.deepEqual(actual,data);assert(order.indexOf(1)<order.indexOf(0));assert.equal(f.rootWrites(),1)}assert.equal(peak,2);
+ }finally{f.sql.close()}}
+});
+
+test('baseline reads use at most two requests, preserve ordered hash and reject corrupt pages',async()=>{
+ const base=snapshot();base.storage['logistics-quotes-v1'].quotes=Array.from({length:3},(_,i)=>({...row(i),source:'synthetic-'+i+'x'.repeat(400000)}));const next=structuredClone(base);next.storage['logistics-quotes-v1'].quotes[0].price=765;const bytes=Buffer.from(JSON.stringify(base)),parts=[];for(let i=0;i<bytes.length;i+=512*1024)parts.push(bytes.subarray(i,i+512*1024));const baseSha='a'.repeat(40);
+ for(const corrupt of [false,true]){let active=0,peak=0;const order=[];const request=async path=>{if(path==='previous')return Response.json({sha:baseSha,paged:{bytes:bytes.length,hash:sha(bytes),parts:parts.map(sha)}});const i=Number(new URL('https://test/'+path).searchParams.get('page'));active++;peak=Math.max(peak,active);try{await new Promise(r=>setTimeout(r,i%2===0?15:1));const b=Buffer.from(parts[i]);if(corrupt&&i===0)b[0]^=1;order.push(i);return Response.json({sha:baseSha,index:i,hash:sha(parts[i]),content:b.toString('base64')})}finally{active--}};
+ if(corrupt)await assert.rejects(buildIncremental(next,baseSha,request),/INCREMENTAL_BASE_PART/);else{const result=await buildIncremental(next,baseSha,request);assert.equal(result.baseHash,sha(bytes));assert.deepEqual(await Delta.apply(base,JSON.parse(result.bytes)),next);assert(order.indexOf(1)<order.indexOf(0))}assert.equal(peak,2);
+ }
 });
 
 test('publication produces a verified record delta with unchanged records omitted and modified/deleted rows reflected',async()=>{

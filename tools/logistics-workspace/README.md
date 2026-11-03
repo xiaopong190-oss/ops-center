@@ -26,3 +26,5 @@ Version 1.0.44: background commit progress is a percentage, and pausing the wait
 Version 1.0.45 adds a supplier selector with per-supplier row counts to the regional/postal quote table. It filters all loaded regional rows before pagination, so suppliers beyond the first page remain reachable. Warehouse comparison filters remain scoped to currently eligible warehouse quotes.
 
 Version 1.0.46 links upper provider, country, region and channel filters to regional query results. With an upper provider selected, the regional provider selector follows it and is disabled; a supplier with no regional rates returns zero rows. Reset clears local regional search and supplier state.
+
+Version 1.0.47 completes regional cargo/tax linkage and shares comparison-name projection for country/region/channel filters. The functional matrix loads the full shipped query runtime under operate and view access, covers 42 user scenarios, and verifies stored data remains identical under query actions. Warehouse-number filtering remains limited to warehouse quotes.

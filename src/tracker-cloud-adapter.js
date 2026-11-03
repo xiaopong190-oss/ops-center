@@ -44,6 +44,21 @@ export function mergeTrackerImport(current, incoming) {
   let added = 0, skipped = 0;
   const entries = Object.entries(incoming);
   if (!entries.length || entries.some(([key, value]) => !/^(links|ships|perf)\/[^/]+$/.test(key) || !value || typeof value !== 'object' || Array.isArray(value))) throw Error('文件包含无效记录');
+  const inspect=(value,path='',depth=0)=>{
+    if(depth>12)throw Error('导入记录嵌套过深');
+    if(!value||typeof value!=='object')return;
+    for(const [key,field] of Object.entries(value)){
+      if(['__proto__','constructor','prototype'].includes(key))throw Error('导入包含无效字段');
+      const at=path?path+'.'+key:key;
+      if(['content','promo','reviews','econ','logistics','content.owners','content.dues'].includes(at)&&(!field||typeof field!=='object'||Array.isArray(field)))throw Error('导入分区格式无效：'+at);
+      if(/(^|\.)(phases|actions|plan|bad|steps|checks|logs)$/.test(at)&&(!Array.isArray(field)||field.some(row=>!row||typeof row!=='object'||Array.isArray(row))))throw Error('导入列表格式无效：'+at);
+      if(/(^|\.)(date|from|to|launchDate|etaPlanned|etaLatest)$/.test(at)||/\.dues\.(copy|image|video)$/.test(at)){
+        if(field!==''&&field!==null&&field!==undefined){const date=new Date(String(field)+'T00:00:00Z');if(typeof field!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(field)||!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==field)throw Error('导入日期无效：'+at);}
+      }
+      inspect(field,at,depth+1);
+    }
+  };
+  for(const [,row] of entries)inspect(row);
   const identity = row => JSON.stringify([row.sku || '',row.account || '',row.store || '',row.site || '']);
   for (const [path, row] of entries.filter(([key]) => key.startsWith('links/'))) {
     const match = Object.entries(result).find(([key, old]) => key.startsWith('links/') && identity(old) === identity(row));

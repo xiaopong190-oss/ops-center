@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 export function buildTrackerDocument(root) {
   let html = fs.readFileSync(new URL('modules/new-product-tracker/index.html',root),'utf8');
+  // Imported document IDs are data too; escape them inside HTML attributes.
+  html = html.replace(/\$\{(s?fid\([^}]*\))\}/g,'${esc($1)}');
   const inline=path=>fs.readFileSync(new URL(path,root),'utf8').replace(/^import .*;\r?\n/gm,'').replaceAll('export function','function');
   const adapter=inline('src/tracker-input-validation.js')+'\n'+inline('src/tracker-cloud-adapter.js')+'\n'+inline('src/tracker-drafts.js');
   const runtime = fs.readFileSync(new URL('src/tracker-runtime.js',root),'utf8');

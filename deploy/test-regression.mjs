@@ -44,6 +44,7 @@ const suites=[
   'deploy/test-followup-chunks.mjs',
   'deploy/test-followup-save-integrity.mjs',
   'deploy/test-tracker-all-inputs.mjs',
+  'deploy/test-tracker-import-id.mjs',
   'deploy/test-followup-idb-accounts.mjs',
   'deploy/test-followup-upload-stress.mjs',
   'deploy/test-followup-resume.mjs',

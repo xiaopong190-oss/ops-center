@@ -149,7 +149,7 @@ test('staged commit automatically advances pending steps and never treats progre
 });
 test('pause during staged commit retains one frozen task, resumes only commit and does not report success early',async()=>{
  const raw=JSON.stringify(client().api.data()),contentHash=crypto.createHash('sha256').update(raw).digest('hex'),c=client('',[{writeConfigured:true,sha:null,uploadProtocol:'chunks-v1'},{missing:[]},{ok:true,pending:true,confirmedParts:3,totalParts:6},{missing:[]},{receipt:{ok:true,verified:true,contentHash,sha:'b'.repeat(40),savedAt:'today'}}]);
- const fetch=c.w.fetch;let commits=0;c.w.fetch=async(...args)=>{const result=await fetch(...args);if(args[1].body&&JSON.parse(args[1].body).action==='commit'&&++commits===1)c.api.pause();return result};await c.api.preview();await assert.rejects(c.api.publish(),/提交已暂停/);assert(!c.storage.has('workspace-last-publication'));await c.api.publish();assert.equal(c.calls.filter(x=>x.options.body&&JSON.parse(x.options.body).action==='part').length,0);assert(c.storage.has('workspace-last-publication'));
+ const fetch=c.w.fetch;let commits=0;c.w.fetch=async(...args)=>{const result=await fetch(...args);if(args[1].body&&JSON.parse(args[1].body).action==='commit'&&++commits===1)c.api.pause();return result};await c.api.preview();await assert.rejects(c.api.publish(),/已暂停等待发布结果/);assert(!c.storage.has('workspace-last-publication'));await c.api.publish();assert.equal(c.calls.filter(x=>x.options.body&&JSON.parse(x.options.body).action==='part').length,0);assert(c.storage.has('workspace-last-publication'));
 });
 test('non-JSON commit 503 preserves fixed task and points to commit recovery, not restarting an already-working local relay',async()=>{const c=client('',[{writeConfigured:true,sha:null,uploadProtocol:'chunks-v1'},{missing:[]},...Array.from({length:3},()=>new Response('worker unavailable',{status:503}))],undefined,'127.0.0.1');await c.api.preview();await assert.rejects(c.api.publish(),e=>/commit.*HTTP 503/.test(e.message)&&/固定任务保留/.test(e.message)&&!e.message.includes('启动航序.cmd'));assert(!c.storage.has('workspace-last-publication'));assert(c.storage.has('workspace-pending-upload-v1'))});
 
@@ -168,3 +168,24 @@ test('publication status detects same-count data edits and treats legacy receipt
 test('another publishing tab blocks preview, publish and task deletion before touching network or progress',async()=>{const c=client('',[],undefined,undefined,{navigator:{locks:{request:async(name,options,fn)=>{assert.equal(name,'hangxu-publish-v1');assert.equal(options.ifAvailable,true);return fn(null)}}}});c.storage.set('workspace-pending-upload-v1','keep');for(const fn of [()=>c.api.preview(),()=>c.api.publish(),()=>c.api.discard()])await assert.rejects(fn(),/另一个航序页面/);assert.equal(c.calls.length,0);assert.equal(c.storage.get('workspace-pending-upload-v1'),'keep')});
 
 test('changed publisher login cannot save a frozen task under the new login',async()=>{let saved=0;const c=client('',[{writeConfigured:true,sha:null,uploadProtocol:'chunks-v1'}],undefined,undefined,{WorkspaceUploadTasks:{load:async()=>null,save:async()=>saved++,remove:async()=>{}}});await c.api.preview();c.storage.set('ops-cloud-session-v1','other');await assert.rejects(c.api.publish(),/登录已变化/);assert.equal(saved,0);assert.equal(c.calls.length,1);assert(!c.storage.has('workspace-pending-upload-v1'))});
+
+test('version checks are metadata-only, throttled, and leave loaded rows unchanged',async()=>{
+ const source=client().api.data(),c=client('?audience=display',[{sha:'old'},{sha:'old',data:source},{sha:'new'}]);await c.api.ready;const before=JSON.stringify(c.api.data());await c.api.checkVersion();await c.api.checkVersion();assert.equal(c.calls.length,3);assert(c.calls[2].url.endsWith('?meta=1'));assert.equal(c.api.state().sha,'old');assert.equal(c.api.state().availableSha,'new');assert.equal(JSON.stringify(c.api.data()),before);
+});
+test('version checks do not run on input and reject an account change during the request',async()=>{
+ const local=client();await local.api.checkVersion();assert.equal(local.calls.length,0);
+ const c=client('?audience=display',[{sha:'old'},{sha:'old',data:client().api.data()},{sha:'new'}]);await c.api.ready;const fetch=c.w.fetch;c.w.fetch=async(...args)=>{const r=await fetch(...args);c.storage.set('ops-cloud-session-v1','other');return r};await assert.rejects(c.api.checkVersion(),/账号已变化/);assert.equal(c.api.state().sha,'old');assert(!c.api.state().availableSha);
+});
+test('background progress is percentage and pausing only stops waiting',async()=>{
+ const messages=[],c=client('',[{writeConfigured:true,sha:null,uploadProtocol:'chunks-v1'},{missing:[]},{pending:true,background:true,confirmedParts:0,totalParts:100}],undefined,undefined,{parent:{postMessage:m=>messages.push(m)}});
+ const fetch=c.w.fetch;c.w.fetch=async(...args)=>{const r=await fetch(...args);if(args[1].body&&JSON.parse(args[1].body).action==='commit')c.api.pause();return r};await c.api.preview();await assert.rejects(c.api.publish(),/后台任务仍会继续/);assert(messages.some(m=>m.message.includes('0%')&&!m.message.includes('100 批')));assert(!c.storage.has('workspace-last-publication'));
+});
+test('explicit cache repair downloads safely after automatic load stops',async()=>{
+ const {create}=require('./display-cache.js'),{IDBFactory}=require('../../modules/new-product-followup/work/qa/node_modules/fake-indexeddb'),store=create(new IDBFactory()),source=client().api.data(),scope='a'.repeat(64),responses=[{sha:'old',cacheScope:scope},{sha:'old',data:source}];
+ const a=client('?audience=display',responses,undefined,undefined,{WorkspaceDisplayCache:store});await a.api.ready;
+ a.storage.set('logistics-quotes-v1','{}');
+ const broken={load:async()=>null,save:store.save,loadPart:store.loadPart,savePart:store.savePart,verify:store.verify};
+ const replies=[{sha:'new',cacheScope:scope},{sha:'new',cacheScope:scope},{ok:false,status:401,error:'download denied'},{sha:'new',cacheScope:scope},{sha:'new',data:source}];
+ const b=client('?audience=display',replies,a.storage,undefined,{document:{},WorkspaceDisplayCache:broken,WorkspaceDelta:{apply(){}}});
+ await assert.rejects(b.api.ready,e=>e.code==='CACHE_REPAIR_REQUIRED');assert.equal(b.calls.length,1);const prior=b.storage.get('logistics-quotes-v1');await assert.rejects(b.api.load({repair:true}),/download denied/);assert.equal(b.storage.get('logistics-quotes-v1'),prior);await b.api.load({repair:true});assert.equal(b.api.state().sha,'new');assert.equal(b.calls.length,5);
+});

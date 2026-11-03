@@ -42,6 +42,7 @@ const suites=[
   'cloud/test-followup-cleanup.mjs',
   'deploy/test-tracker.mjs',
   'deploy/test-followup-chunks.mjs',
+  'deploy/test-followup-save-integrity.mjs',
   'deploy/test-followup-resume.mjs',
   'deploy/test-followup-reliability.mjs',
   'deploy/test-followup-feedback.mjs',

@@ -1,7 +1,7 @@
 {
-  "version": "2026.10.21.1",
-  "tag": "ops-v2026.10.21.1",
-  "description": "移除亚马逊增长页面重复标题与简介，扩大操作区域",
+  "version": "2026.11.03.1",
+  "tag": "ops-v2026.11.03.1",
+  "description": "新品跟进按实际改动合并、并发列表覆盖保护与草稿加载失败恢复；保存和清理完整性回归",
   "workerVersionId": "6953c67d-d3e2-4853-aec1-82dab51efd1b",
   "workerSourceCommit": "89e76c8",
   "workerSourceTag": "ops-v2026.10.20.3-worker",

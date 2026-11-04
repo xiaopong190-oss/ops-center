@@ -2,6 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const base=path.resolve(__dirname,'..'),lock=JSON.parse(fs.readFileSync(path.join(base,'default-rule-lock.json'),'utf8'));
 function mismatches(read){return Object.entries(lock.files).filter(([file,expected])=>crypto.createHash('sha256').update(read(file).replace(/\r\n/g,'\n'),'utf8').digest('hex')!==expected).map(([file])=>file);}
 const hooks=[
+ ["mappedRegions=pendingRegions.map(r=>({...r,companyId:Companies.imported(r.company).id})),result=Q.merge(/* provider-batch-replacement-approved */window.ProviderBatchReplacement?ProviderBatchReplacement.replaceBase(db,mapped,mappedRegions,name=>Companies.find(name)?.id):db,mapped,today());", "result=Q.merge(db,mapped,today());const mappedRegions=pendingRegions.map(r=>({...r,companyId:Companies.imported(r.company).id}));"],
  ["/* tax-filter-approved */rows=window.TaxFilter?TaxFilter.filterTaxRows(rows,document.querySelector('#taxFilter input:checked')?.value||''):rows;",''],
  ["LegacyReclean.explain(window.ImportEvidence?ImportEvidence.pendingOnly(db):db,today())", "LegacyReclean.explain(db,today())"],
  ["/* import-evidence-merge-approved */result.db.importExceptions=window.ImportEvidence?ImportEvidence.mergeExceptions(result.db.importExceptions||[],pendingExceptions):Q.mergeExceptions(result.db.importExceptions||[],pendingExceptions);", "result.db.importExceptions=Q.mergeExceptions(result.db.importExceptions||[],pendingExceptions);"],

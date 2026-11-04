@@ -33,3 +33,29 @@ test('tax filtering precedes pagination and both exports; country switch replace
 test('tax selection prevents legacy broad deletion and unknown selection never invents a tax mode',async()=>{const e=await taxScenario('operate');try{e.choose('country','美国');e.tax('unknown');assert.match(e.doc.querySelector('#comparison').textContent,/海运未明/);assert.doesNotMatch(e.doc.querySelector('#comparison').textContent,/海运包税乙|海运不包税甲/);let prompts=0;e.w.confirm=()=>{prompts++;return true};e.doc.querySelector('#deleteQuotes').click();assert.equal(prompts,0);assert.match(e.doc.querySelector('#deleteStatus').textContent,/先清除税务筛选/);e.choose('scoreViewMode','score');assert.match(e.doc.querySelector('#comparison').textContent,/海运未明/);assert.equal(JSON.stringify(e.w.ComparisonStore.read()),e.before);}finally{e.close()}});
 
 test('screenshot dual tax quotation appears in both groups and exports but never unclear-only',async()=>{const e=await openRuntime('compare','view');try{const day=new e.w.Date().toLocaleDateString('sv-SE'),c=e.w.Companies.ensure('税务截图回归物流'),specs=[['英国海运-卡派-不包税(递延)','档=100KG+;条件=包税,起运/服务=英国海运-卡派-不包税(递延)'],['英国海运包税','档=100KG+;条件=不含税;服务=英国海运包税'],['英国海运未注明','档=100KG+;普货']];const rows=specs.map(([channel,terms])=>({...e.w.QuoteCore.normalize([c.name,'英国',channel,'BHX1','5.50','CNY','kg',null,null,day,terms]),companyId:c.id}));e.w.ComparisonStore.commit(e.w.QuoteCore.merge({quotes:[],templates:[]},rows,day).db);await e.w.LocalQuoteStore.flush();const before=JSON.stringify(e.w.ComparisonStore.read()),select=mode=>{const n=e.doc.querySelector('#taxFilter input[value="'+mode+'"]');n.checked=true;n.dispatchEvent(new e.w.Event('change',{bubbles:true}))};select('unknown');assert.match(e.doc.querySelector('#comparison').textContent,/英国海运未注明/);assert.doesNotMatch(e.doc.querySelector('#comparison').textContent,/不包税|英国海运包税/);select('excluded');assert.match(e.doc.querySelector('#comparison').textContent,/不包税/);assert.match(e.doc.querySelector('#comparison').textContent,/英国海运未注明/);assert.match(e.doc.querySelector('#comparison').textContent,/英国海运包税/);select('included');assert.match(e.doc.querySelector('#comparison').textContent,/英国海运包税/);assert.match(e.doc.querySelector('#comparison').textContent,/英国海运-卡派-不包税/);const blobs=[];e.w.Blob=Blob;e.w.URL.createObjectURL=b=>{blobs.push(b);return 'blob:tax-test'};e.w.URL.revokeObjectURL=()=>{};e.doc.addEventListener('click',x=>{if(x.target.closest('a[download]'))x.preventDefault()});e.doc.querySelector('#exportQuotes').click();const csv=await blobs.at(-1).text();assert.match(csv,/英国海运包税/);assert.match(csv,/英国海运-卡派-不包税/);assert.equal(JSON.stringify(e.w.ComparisonStore.read()),before);}finally{e.close()}});
+
+test('new accepted supplier batch replaces both old quote types while keeping other suppliers and templates',async()=>{
+ const e=await openRuntime();
+ try {
+  const {w,doc}=e, day=new w.Date().toLocaleDateString('sv-SE');
+  const values=(name,mode,warehouse)=>[name,'美国',mode,warehouse,'10','CNY','kg',10,20,day,'普货'];
+  const a=w.Companies.ensure('整批更新甲'),b=w.Companies.ensure('独立报价乙');
+  const row=(company,warehouse)=>({...w.QuoteCore.normalize(values(company.name,'海运',warehouse)),companyId:company.id});
+  const first=row(a,'LGB8'),other=row(b,'SBD1');
+  const db=w.QuoteCore.merge({quotes:[],templates:[]},[first,other],day).db;
+  db.regionalQuotes=[first,other].map(r=>({...r,regionRaw:'邮编前缀=8'}));
+  w.ComparisonStore.commit(db);
+  await w.LocalQuoteStore.flush();
+  w.dispatchEvent(new w.CustomEvent('matrix-batch-ready',{detail:{records:[{values:values(a.name,'空运','ONT8'),sourceSheet:'空运',priceCell:'C3'}],regionalRecords:[],fileName:'新版.xlsx'}}));
+  await e.wait(()=>doc.querySelector('#warehouseAcknowledge')||!doc.querySelector('#commit').disabled);
+  const ack=doc.querySelector('#warehouseAcknowledge');
+  if(ack){ack.checked=true;ack.dispatchEvent(new w.Event('change'));}
+  await doc.querySelector('#commit').onclick();
+  await w.LocalQuoteStore.flush();
+  const saved=w.ComparisonStore.read();
+  assert.deepEqual(Array.from(saved.quotes.filter(r=>r.companyId===a.id),r=>r.warehouse),['ONT8']);
+  assert.deepEqual(Array.from(saved.regionalQuotes,r=>r.companyId),[b.id]);
+  assert(saved.quotes.some(r=>r.companyId===b.id&&r.warehouse==='SBD1'));
+  assert(saved.templates.some(t=>t.warehouse==='LGB8'));
+ } finally {e.close()}
+});

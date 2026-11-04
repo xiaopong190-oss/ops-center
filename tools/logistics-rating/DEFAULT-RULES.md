@@ -41,3 +41,9 @@ New rules use named pure functions/modules in extensions/. Inputs specify rows, 
 ## Screenshot investigation limit
 
 Only the screenshots and deployed source were available. No live user local-storage snapshot was read. We cannot yet state that quotes vanished, warehouses changed, or the new score failed. Await the user's exact failing operation before choosing a behavior change.
+
+Approved provider batch replacement: the user explicitly selected whole-provider replacement for each confirmed import, including partial transport sheets, and separate provider names for independent batches. The exact provider-batch-replacement seam supplies a filtered base to the existing merge after both accepted quote types have been mapped to directory identities. An evidence-only import does not replace quotes. Other providers and permanent templates are retained. This applies to the Excel and CSV confirmation entry point. Rollback removes the extension and seam. Recovering rows superseded by completed imports requires a pre-import backup or the original workbook.
+
+Origin metadata correction (2026-11-03): geographical text extraction skips supplier identity and source filenames, including nested evidence and the supplier slot in standard import values. Channel, terms and source notes retain the existing scope rules. Workbook Worker cache keys are advanced with this correction. Regression covers local projections and cloud publication.
+
+Workbook reference context (2026-11-03): an explicitly named country warehouse sheet with FBA/AMZ code and address columns supplies warehouse reference entries. Existing archive conflicts remain rejected. Country-specific tables headed by a transport label can pass preflight only when the original country rows and numeric weight-tier prices agree. The original parser receives unchanged source cells and coordinates. This does not infer country for codes absent from the reference table or normalize arbitrary monetary precision.

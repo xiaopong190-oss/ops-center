@@ -5,7 +5,17 @@
  const normalize=s=>/^(?:ningbo)$/i.test(s)?'宁波':/^(?:xiamen|amoy)$/i.test(s)?'厦门':s;
  const cities=s=>[...new Set((String(s).match(new RegExp(cityPattern,'gi'))||[]).map(normalize))];
  const negative=s=>/(?:不是从|不是|不从|不在|不经|不走|不支持|禁止|非|除)\s*$/.test(s);
- function quoteText(value,seen=new Set()){if(typeof value==='string')return value;if(!value||typeof value!=='object'||seen.has(value))return '';seen.add(value);return Object.values(value).map(v=>quoteText(v,seen)).join('；')}
+ const identityFields=new Set(['company','companyId','companyName','provider','providerId','providerName','supplier','supplierId','supplierName','source','fileName','filename','sourceFile','sourceFileName','sourceFilename','filePath','sourcePath','sourceFilePath']);
+ function quoteText(value,seen=new Set()){
+  if(typeof value==='string')return value;
+  if(!value||typeof value!=='object'||seen.has(value))return '';
+  seen.add(value);
+  return Object.entries(value).filter(([field])=>!identityFields.has(field)).map(([field,content])=>{
+   // The first standard import value is the supplier name, including in saved evidence.
+   const quotation=field==='values'&&Array.isArray(content)?content.slice(1):content;
+   return quoteText(quotation,seen);
+  }).join('；');
+ }
  function excludedUnit(row){
   const fields=[row?.unit,row?.priceUnit,row?.pricingUnit,row?.quoteUnit,row?.['计价单位'],row?.['报价单位'],row?.values?.[6]];
   const normalized=v=>String(v??'').normalize('NFKC').replace(/\s+/g,'').toLowerCase();

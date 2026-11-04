@@ -1,4 +1,12 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),O=require('../logistics-rating/extensions/origin-exclusions.js'),M=require('./data-management.js');
+
+test('supplier identity and file metadata never become geographical exclusion evidence',()=>{
+ for(const city of ['常州','上海','金华','义乌','华东']){
+  const metadata=[{company:city+'物流'},{companyName:city+'物流'},{providerName:city+'物流'},{supplierName:city+'物流'},{source:city+'报价.xlsx'},{fileName:city+'报价.xlsx'},{sourceFileName:city+'报价.xlsx'},{comparisonOriginal:{company:city+'物流',source:city+'报价.xlsx'}},{values:[city+'物流','美国','海运','ONT8','10','CNY','kg']}];
+  for(const fields of metadata){const row={channel:'海运',unit:'kg',...fields},before=JSON.stringify(row);assert.equal(O.classify(row).excluded,false,JSON.stringify(fields));assert.equal(O.projectWorkbook({records:[row],regionalRecords:[row],reports:[]}).records.length,1);assert.equal(O.projectDatabase({quotes:[row],regionalQuotes:[row]}).regionalQuotes.length,1);assert.equal(JSON.stringify(row),before)}
+  for(const fields of [{channel:city+'海运'},{originCity:city},{terms:city+'报价'},{sourceNotes:[{cell:'B4',value:city+'报价'}]},{values:['物流','美国',city+'海运','ONT8','10','CNY','kg']}])assert.equal(O.classify({company:city+'物流',source:city+'报价.xlsx',...fields}).excluded,true,JSON.stringify(fields));
+ }
+});
 test('cbm pricing is unconditional even for Shenzhen channels and retains the original evidence',()=>{
  const priced=[{unit:'cbm'},{unit:'CBM'},{unit:'CNY / cbm'},{unit:'m³'},{priceText:'120 CNY/cbm'},{currency:'CNY/cbm'},{pricingUnit:'cbm'},{values:['深圳物流','美国','深圳海运','ONT8',120,'CNY','cbm']}];
  for(const price of priced){const row={...price,channel:'深圳海运',company:'深圳物流',source:'深圳报价.xlsx',date:'2026-10-30'};assert.equal(O.classify(row).excluded,true,JSON.stringify(row));assert.match(O.classify(row).evidence,/计价单位/);

@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-11-03T05:25:34.954Z",
+  "updatedAt": "2026-11-04T04:54:03.391Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon CEO Andy Jassy: ‘I had to change how I worked, or I was going to be a lousy dad’",
-      "link": "https://www.aboutamazon.com/news/workplace/amazon-ceo-andy-jassy-work-life-balance?utm_source=rss",
-      "pubDate": "Mon, 02 Nov 2026 18:12:51 GMT",
-      "date": "11/2",
-      "summary": "From Tuesday date nights to weekly breakfasts with his kids, Jassy shared the boundaries and traditions that keep his family close.",
-      "category": "Workplace"
+      "title": "5 ways Amazon is investing in Wisconsin",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-wisconsin-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Tue, 03 Nov 2026 19:13:47 GMT",
+      "date": "11/3",
+      "summary": "Amazon’s investments are boosting the Badger State’s economy while creating opportunities for those who call Wisconsin home.",
+      "category": "Community"
     },
     {
-      "title": "Is Amazon Grocery worth it? Yes—here’s what to know.",
-      "link": "https://www.aboutamazon.com/news/retail/is-amazon-grocery-worth-it?utm_source=rss",
-      "pubDate": "Mon, 02 Nov 2026 14:00:05 GMT",
-      "date": "11/2",
-      "summary": "With everyday low prices and Same-Day Delivery in more than 2,300 U.S. cities and towns, Amazon Grocery is helping customers save more and s",
-      "category": "Retail"
+      "title": "5 ways Amazon is investing in Michigan",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-michigan-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Tue, 03 Nov 2026 19:11:57 GMT",
+      "date": "11/3",
+      "summary": "Amazon’s investments are boosting the Great Lakes State’s economy while creating opportunities for those who call Michigan home.",
+      "category": "Community"
     },
     {
-      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Fri, 30 Oct 2026 20:15:00 GMT",
-      "date": "10/30",
-      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
-      "category": "AWS"
+      "title": "5 ways Amazon is investing in Oklahoma",
+      "link": "https://www.aboutamazon.com/news/community/amazon-investment-oklahoma-jobs-infrastructure-small-business?utm_source=rss",
+      "pubDate": "Tue, 03 Nov 2026 19:08:10 GMT",
+      "date": "11/3",
+      "summary": "Amazon’s investments are boosting the Sooner State’s economy while creating opportunities for those who call Oklahoma home.",
+      "category": "Community"
     }
   ]
 }

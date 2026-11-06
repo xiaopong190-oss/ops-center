@@ -47,7 +47,7 @@
     "n001.js": "b914a519988443c51a9141af81544469538cc3a34da34e073534732c49252847",
     "extensions/score-filter.js": "93ae4baa91583500eaae9c05e8686149bc39b607ea8250d24efafb33dca11644",
     "extensions/tax-filter.js": "50dfd6f83d30798926e8c25f44ea9a32cd983cdd76af1c3a7cc1f4cbf3a92737",
-    "extensions/comparison-filter-reset.js": "0b4abd0e537e94c3c01be64942ac03d481e2296408b73c5eaccd5ccb39d29bef",
+    "extensions/comparison-filter-reset.js": "2874e236e30278452da376965b479d398dbf4a01a0aa0b2d2bbb381aab868db9",
     "extensions/score-list-columns.js": "4bac03fc8c44a0de9f39d70a090c0ff81b3f251d397fe3f93c78224736e585bb",
     "extensions/cargo-filter.js": "72dc5d9f2df1d164121dc0222989473bed8fbfe277f03b9c5c74b530f849a773",
     "extensions/cargo-filter-ui.js": "0e9e4cd417bae3a8e0ee7e008b441edcd3a6d28cd2f29b899af2b1648e46b1f5",
@@ -62,7 +62,8 @@
     "monthly.js": "58aae0d6f3391c5dbbfaae27fa617a4b3aae76b15f00ef1e3480f2f0441fbfb9",
     "extensions/origin-exclusions.js": "a98198c93503469dfa057f97eb4decad2598cd04b9339ca91d0db8999355d0f4",
     "extensions/service-country-layout.js": "d55f3dd44d41e6b0334a1e176354d89d8139ef0435401d2efabc1adf3c200a5f",
-    "extensions/result-transport-filter.js": "e7021a9abace6e16fdead53185d433111dc1eee4b2f9c603d8f4b0e4aa6da78e"
+    "extensions/result-transport-filter.js": "e7021a9abace6e16fdead53185d433111dc1eee4b2f9c603d8f4b0e4aa6da78e",
+    "extensions/async-quote-selectors.js": "363b531566c0af0e8902edf8ac172f852d59568d088251a8fed58f069e3c2ebf"
   },
   "replacedTransports": [
     "github-data.js",

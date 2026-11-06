@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-11-05T05:12:22.980Z",
+  "updatedAt": "2026-11-06T05:12:05.563Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "When is Cyber Monday 2026? Here’s everything you need to know",
-      "link": "https://www.aboutamazon.com/news/retail/when-is-amazon-cyber-monday-faq?utm_source=rss",
-      "pubDate": "Wed, 04 Nov 2026 19:14:04 GMT",
-      "date": "11/4",
-      "summary": "Cyber Monday 2026 falls on November 30. Here’s what to expect, how to prepare, and how to save big on the year’s final major deal event.",
-      "category": "Retail"
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Thu, 05 Nov 2026 22:40:00 GMT",
+      "date": "11/5",
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
     },
     {
-      "title": "‘Keep your cool’: The advice Amazon CEO Andy Jassy's dad gave him that stuck for life",
-      "link": "https://www.aboutamazon.com/news/workplace/amazon-ceo-andy-jassy-dad-advice?utm_source=rss",
-      "pubDate": "Wed, 04 Nov 2026 14:00:13 GMT",
-      "date": "11/4",
-      "summary": "At Amazon's “Bring Your Parents to Work Day,” Jassy shared some of his father's advice, which has helped shape how he leads.",
-      "category": "Workplace"
+      "title": "‘Clarkson’s Farm’ star Kaleb Cooper headlines new series ‘Kaleb Off the Farm,’ coming to Prime Video January 8",
+      "link": "https://www.aboutamazon.com/news/entertainment/kaleb-cooper-off-the-farm-clarksons-farm-prime-video?utm_source=rss",
+      "pubDate": "Thu, 05 Nov 2026 18:25:10 GMT",
+      "date": "11/5",
+      "summary": "Kaleb trades the English countryside for the Outback, with a dream of making it in Australian farming.",
+      "category": "Entertainment"
     },
     {
-      "title": "Amazon’s new Shop Direct Merchant Workspace makes it even easier for stores across the web to have their products discovered by customers on Alexa for Shopping and Amazon",
-      "link": "https://www.aboutamazon.com/news/retail/amazon-shop-direct-merchant-workspace?utm_source=rss",
-      "pubDate": "Wed, 04 Nov 2026 14:00:07 GMT",
-      "date": "11/4",
-      "summary": "Tens of millions of customers have already discovered hundreds of millions of products from stores across the web through Amazon’s Shop Dire",
-      "category": "Retail"
+      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
+      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
+      "pubDate": "Thu, 05 Nov 2026 17:23:00 GMT",
+      "date": "11/5",
+      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
+      "category": "Community"
     }
   ]
 }

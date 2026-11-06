@@ -5,7 +5,7 @@ for(const access of ['operate','view'])test('result transport dropdown composes 
  try{
   const day=new w.Date().toLocaleDateString('sv-SE'),company=w.Companies.ensure('模拟运输筛选'),modes=['空运','海运','卡航','铁路','未披露'],rows=[];
   for(let i=0;i<215;i++)rows.push({...w.QuoteCore.normalize([company.name,'英国',modes[i%5]+'渠道'+i,i%2?'MAN1':'BHX1','10','CNY','kg',10,20,day,'唯一证据-'+i]),companyId:company.id});
-  let db=w.QuoteCore.merge({quotes:[],templates:[]},rows,day).db;db.regionalQuotes=rows.map(r=>({...r,regionRaw:r.warehouse}));db=w.ChannelScore.add(db,rows[0],1,'模拟高分');w.ComparisonStore.commit(db);await w.LocalQuoteStore.flush();
+  let db=w.QuoteCore.merge({quotes:[],templates:[]},rows,day).db;db.regionalQuotes=rows.map(r=>({...r,regionRaw:r.warehouse}));db=w.ChannelScore.add(db,rows[0],1,'模拟高分');db=w.OriginExclusions.cleanDatabase(w.QuoteDataQuality.archive(db,{today:day}),day);w.ComparisonStore.commit(db);await w.LocalQuoteStore.flush();
   const before=JSON.stringify(w.ComparisonStore.read()),stored=[...Array(w.localStorage.length)].map((_,i)=>[w.localStorage.key(i),w.localStorage.getItem(w.localStorage.key(i))]);
   let csv='';w.Blob=class{constructor(parts){this.parts=parts}};w.URL.createObjectURL=blob=>{csv=blob.parts.join('');return 'blob:test'};w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=()=>{};
   const change=(id,value)=>{$(id).value=value;$(id).dispatchEvent(new w.Event('change',{bubbles:true}))};

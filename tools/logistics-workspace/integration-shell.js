@@ -1,5 +1,5 @@
 (function(){'use strict';
-const releaseVersion='1.0.59';document.documentElement.dataset.hangxuVersion=releaseVersion;
+const releaseVersion='1.0.60';document.documentElement.dataset.hangxuVersion=releaseVersion;
 const params=new URLSearchParams(location.search),displayOnly=document.documentElement.dataset.entry==='display'||params.get('view')==='display';let side=displayOnly?'out':'in',route=displayOnly?'overview':'import',frame,state={},loading=true,access='view',managementRequested=false,cleanupPreview=null,backupRequested=false,previewPending=false,publishActive=false,publishMessage='',loadTimer;
 const published=()=>displayOnly||side==='out';
 const checkVersion=()=>{if(published()&&!loading&&document.visibilityState!=='hidden')frame?.contentWindow.postMessage({type:'hangxu-engine-command',action:'checkSnapshotVersion'},location.origin)};addEventListener('focus',checkVersion);document.addEventListener('visibilitychange',checkVersion);

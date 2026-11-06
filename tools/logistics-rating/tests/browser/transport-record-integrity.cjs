@@ -38,7 +38,8 @@ for(const view of ['grouped','score'])for(const patched of [false,true])test(`re
    for(const value of ['unknown','outside','all','inside']){scope=value;$('n001Scope').value=value;$('n001Scope').dispatchEvent(new w.Event('change'));await verify(`round ${round}, mask ${mask}, scope ${value}`);}
   }
   $('n001Reset').click();states.fill(false);scope='inside';assert.equal($('scoreViewMode').value,patched?'grouped':view);await verify('reset exact restoration');
-  assert.deepEqual(exported(),baseline,'original full record sequence restored');
+  if(patched&&view==='score'){$('scoreViewMode').value='score';$('scoreViewMode').dispatchEvent(new w.Event('change'));await verify('explicit return to score mode');}
+  assert.deepEqual(exported(),baseline,'original full record sequence restored in the same view');
   console.log(`Verified ${checks} successive states, full exports, every page, record content, storage and source IDs (${patched?'patched':'deployed'})`);
  }finally{w.close();}
 });

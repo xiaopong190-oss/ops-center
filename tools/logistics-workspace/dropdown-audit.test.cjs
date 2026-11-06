@@ -52,6 +52,20 @@ for(const access of ['operate','view'])test('whole quote page dropdown linkage a
   for(const [name,act] of cases)await t.test(name,async()=>{act();await verify(name)});
   await t.test('warehouse picker selects and clears through the visible menu',async()=>{await reset();$('warehousePickerTrigger').click();const input=$('warehousePickerInput');input.value='BH';input.dispatchEvent(new w.Event('input',{bubbles:true}));const option=[...$('warehousePickerList').querySelectorAll('button')].find(b=>b.textContent==='BHX1');assert(option);option.click();assert.equal($('country').value,'英国');await verify('warehouse picker BHX1');$('warehousePickerTrigger').click();$('warehousePickerList').querySelector('button').click();await verify('warehouse picker clear')});
   await t.test('reset clears every main and regional condition',async()=>{await reset();assert.equal($('resultTransport').value,'');assert.equal($('scoreViewMode').value,'grouped');for(const id of ['provider','country','region','channel','warehouse'])assert.equal($(id).value,'');for(const selector of ['[data-region-mode]','[data-region-provider]','[data-region-query]'])assert.equal(q(selector).value,'');await verify('full reset')});
+  await t.test('score adjustment dropdown cancels without writes and view mode blocks edits',async()=>{await reset();const button=doc.querySelector('[data-score-edit]');assert(button);button.click();if(access==='view'){assert.equal($('scoreDialog').open,false)}else{assert.equal($('scoreDialog').open,true);for(const value of ['-5','-0.5','0.5','5'])choose('scoreDelta',value);$('scoreClose').click();assert.equal($('scoreDialog').open,false)}assert.equal(JSON.stringify(w.ComparisonStore.read()),before)});
   assert.equal(e.errors.length,0);
+ }finally{e.close()}
+});
+
+test('rating rule dropdown persists its preference across reload while retaining business data',()=>{
+ const {env}=require('../logistics-rating/tests/harness.cjs'),business=JSON.stringify({quotes:[],templates:[{country:'英国',warehouse:'BHX1',variants:['BHX1'],demo:false}]}),a=env({'logistics-quotes-v1':business});let reloads=0;a.context.location.reload=()=>reloads++;a.run('quote-core.js');a.run('quotes.js');a.el('ratingMode').value='strict';a.el('ratingMode').onchange();assert.equal(reloads,1);assert.equal(a.map['logistics-rating-mode'],'strict');assert.equal(a.map['logistics-quotes-v1'],business);
+ const b=env({...a.map});b.context.location.reload=()=>reloads++;b.run('quote-core.js');b.run('quotes.js');assert.equal(b.el('ratingMode').value,'strict');b.el('ratingMode').value='price';b.el('ratingMode').onchange();assert.equal(reloads,2);assert.equal(b.map['logistics-rating-mode'],'price');assert.equal(b.map['logistics-quotes-v1'],business);
+});
+test('saved mapping target dropdown reloads its confirmed profile without saving drafts',async()=>{
+ const e=await openRuntime('compare','operate'),{w,doc}=e,$=id=>doc.getElementById(id);
+ try{
+  const day=new w.Date().toLocaleDateString('sv-SE'),c=w.Companies.ensure('映射下拉模拟物流'),row={...w.QuoteCore.normalize([c.name,'英国','海运','BHX1','10','CNY','kg',10,20,day,'21KG+；包税']),companyId:c.id};
+  let db=w.QuoteCore.merge({quotes:[],templates:[]},[row],day).db;const profile={...w.ComparisonCore.suggest(row),service:'空运'},signature=w.ComparisonCore.signature(row);db={...db,comparisonMappings:[{signature,profile,confirmed:true,at:new Date().toISOString()}]};db=w.OriginExclusions.cleanDatabase(w.QuoteDataQuality.archive(db,{today:day}),day);w.ComparisonStore.commit(db);await e.wait(()=>$('mappingTarget').options.length===2);
+  const before=JSON.stringify(w.ComparisonStore.read());$('mapping_service').value='海运';$('mapping_service').dispatchEvent(new w.Event('input',{bubbles:true}));$('mappingTarget').value=signature;$('mappingTarget').dispatchEvent(new w.Event('change',{bubbles:true}));assert.equal($('mapping_service').value,'空运');assert.equal($('saveMapping').disabled,true);$('previewMapping').click();assert.match($('mappingStatus').textContent,/预览/);assert.equal(JSON.stringify(w.ComparisonStore.read()),before);
  }finally{e.close()}
 });

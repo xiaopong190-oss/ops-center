@@ -25,6 +25,18 @@ for(const access of ['operate','view'])test('result transport dropdown composes 
   $('scoreMin').value='5.5';$('scoreApply').click();assert.equal($('scoreViewMode').value,'score');assert.deepEqual(exported(),[rows[0].terms]);
   change('resultTransport','海运');assert.deepEqual(exported(),[]);assert.equal(doc.querySelectorAll('#comparison tbody tr').length,0);
   $('n001Reset').click();await new Promise(r=>setTimeout(r,30));assert.equal($('resultTransport').value,'');assert.equal($('warehouse').value,'');assert.equal($('scoreViewMode').value,'grouped');assert.deepEqual(exported(),all);
+  // Reproduce the published-snapshot race: the extension loads before delayed score controls.
+  const controls=$('scoreViewControls');controls.replaceChildren();await new Promise(r=>setTimeout(r,20));
+  assert.equal($('resultTransport'),null,'wait for the real score toolbar, not an early orphan control');
+  w.LogisticsScoreView.createScoreListController(doc,()=>w.ComparisonStore.render());await new Promise(r=>setTimeout(r,0));
+  assert.equal(doc.querySelectorAll('#resultTransport').length,1,'mounted after delayed toolbar initialization');
+  change('resultTransport','空运');
+  for(let rebuild=0;rebuild<3;rebuild++){
+   w.LogisticsScoreView.createScoreListController(doc,()=>w.ComparisonStore.render());await new Promise(r=>setTimeout(r,0));
+   assert.equal(doc.querySelectorAll('#resultTransport').length,1,'exactly one control after toolbar rebuild');assert.equal($('resultTransport').value,'空运','selected transport survives rebuild');
+   assert.deepEqual(exported(),rows.filter(r=>w.N001UI.transport(r)==='空运').map(r=>r.terms).sort());
+  }
+  $('n001Reset').click();await new Promise(r=>setTimeout(r,30));assert.equal($('resultTransport').value,'');assert.deepEqual(exported(),all);
   assert.equal(JSON.stringify(w.ComparisonStore.read()),before,'business records unchanged');for(const [key,value] of stored)assert.equal(w.localStorage.getItem(key),value,'persistent data unchanged: '+key);
   assert.equal(e.errors.length,0);
  }finally{e.close()}

@@ -263,7 +263,7 @@ export default {async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([cleanu
     if(daily)r.headers.set('Retry-After',String(daily.retryAfter));
   }
   const headers=new Headers(r.headers);if(origin)headers.set('Access-Control-Allow-Origin',origin);
-  headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');headers.set('Access-Control-Allow-Headers','Content-Type,Authorization,X-Connection-Id,X-Connection-Admin,X-Proxy-Token,X-Evidence-Client,Mcp-Session-Id,MCP-Protocol-Version');headers.set('Access-Control-Expose-Headers','Mcp-Session-Id');
+  headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');headers.set('Access-Control-Allow-Headers','Content-Type,Authorization,X-Connection-Id,X-Connection-Admin,X-Proxy-Token,X-Evidence-Client,Mcp-Session-Id,MCP-Protocol-Version');headers.set('Access-Control-Expose-Headers','Mcp-Session-Id,Retry-After');
   headers.set('X-Content-Type-Options','nosniff');
   return new Response(r.body,{status:r.status,headers});
 }};

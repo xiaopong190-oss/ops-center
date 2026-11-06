@@ -59,3 +59,79 @@ test('new accepted supplier batch replaces both old quote types while keeping ot
   assert(saved.templates.some(t=>t.warehouse==='LGB8'));
  } finally {e.close()}
 });
+
+test('CSV replacement preserves the previous snapshot through invalid input, preview and failed save',async()=>{
+ const runtime=await openRuntime();
+ try {
+  const {w,doc}=runtime,day=new w.Date().toLocaleDateString('sv-SE'),key='logistics-quotes-v1';
+  const values=(name,mode,warehouse,price)=>[name,'美国',mode,warehouse,price,'CNY','kg',10,20,day,'普货'];
+  const supplier=w.Companies.ensure('上海测试物流'),other=w.Companies.ensure('独立测试物流');
+  const first={...w.QuoteCore.normalize(values(supplier.name,'海运','ONT8','8')),companyId:supplier.id};
+  const second={...w.QuoteCore.normalize(values(other.name,'海运','LAX9','9')),companyId:other.id};
+  const base=w.QuoteCore.merge({quotes:[],templates:[]},[first,second],day).db;
+  base.regionalQuotes=[{...first,regionRaw:'邮编前缀=8'},{...second,regionRaw:'邮编前缀=9'}];
+  w.ComparisonStore.commit(w.ChannelScore.add(base,first,0.5,'测试手工调整'));
+  await w.WorkspaceQuality.run();
+  await w.LocalQuoteStore.flush();
+  const commit=doc.querySelector('#commit'),file=doc.querySelector('#file'),original=w.localStorage.getItem(key);
+  const load=async rows=>{
+   const csv=[w.QuoteCore.HEADER,...rows].map(row=>row.join(',')).join('\r\n');
+   const bytes=w.Uint8Array.from(Buffer.from(csv));
+   await file.onchange({target:{files:[{name:'华东报价测试.csv',size:bytes.length,arrayBuffer:async()=>bytes.buffer}]}});
+  };
+  doc.querySelector('#standardTab').click();
+  await load([values(supplier.name,'空运','SBD1','错误单价')]);
+  assert.equal(w.localStorage.getItem(key),original);
+  assert.match(doc.querySelector('#message').textContent,/可保存 0 行/);
+  if(!commit.disabled)await commit.onclick();
+  await w.LocalQuoteStore.flush();
+  assert.deepEqual(Array.from(w.ComparisonStore.read().quotes,row=>row.companyId),[supplier.id,other.id]);
+  assert.equal(w.ComparisonStore.read().regionalQuotes.length,2);
+  const beforeReplacement=w.localStorage.getItem(key);
+
+  const fresh=values(supplier.name,'空运','SBD1','17.25');
+  await load([fresh,fresh]);
+  assert.equal(w.localStorage.getItem(key),beforeReplacement);
+  const ack=doc.querySelector('#warehouseAcknowledge');
+  if(ack){ack.checked=true;ack.dispatchEvent(new w.Event('change'));}
+  assert.equal(commit.disabled,false);
+  const setItem=w.localStorage.setItem;
+  w.localStorage.setItem=function(name,value){if(name===key)throw Error('模拟保存失败');return setItem.call(this,name,value);};
+  try{await commit.onclick();}finally{w.localStorage.setItem=setItem;}
+  assert.match(doc.querySelector('#message').textContent,/未保存报价.*模拟保存失败/);
+  assert.equal(w.localStorage.getItem(key),beforeReplacement);
+
+  await commit.onclick();
+  await w.LocalQuoteStore.flush();
+  await w.LocalQuoteStore.refresh();
+  const saved=JSON.parse(w.localStorage.getItem(key));
+  assert.deepEqual(saved.quotes.filter(row=>row.companyId===supplier.id).map(row=>[row.warehouse,row.channel,row.price]),[['SBD1','空运',1725]]);
+  assert.equal(saved.quotes.find(row=>row.companyId===other.id).price,900);
+  assert.deepEqual(saved.regionalQuotes.map(row=>row.companyId),[other.id]);
+  assert(saved.templates.some(row=>row.warehouse==='ONT8'));
+  assert.deepEqual(saved.channelScoreEvents,JSON.parse(original).channelScoreEvents);
+
+  await load([values(supplier.name,'上海海运','SBD1','7')]);
+  const excludedAck=doc.querySelector('#warehouseAcknowledge');
+  if(excludedAck){excludedAck.checked=true;excludedAck.dispatchEvent(new w.Event('change'));}
+  assert.equal(commit.disabled,false);
+  await commit.onclick();
+  await w.WorkspaceQuality.run();
+  await w.LocalQuoteStore.flush();
+  const afterExcluded=w.ComparisonStore.read();
+  assert.equal(afterExcluded.quotes.find(row=>row.companyId===supplier.id)?.price,1725,'a batch with only excluded quotes must not replace previously usable quotes');
+  assert(afterExcluded.originExcludedQuotes.some(item=>item.row.companyId===supplier.id&&item.row.price===700));
+
+  await load([values(supplier.name,'广州海运','LGB8','12'),values(supplier.name,'上海海运','SBD1','7'),values(other.name,'上海空运','ONT8','30')]);
+  const mixedAck=doc.querySelector('#warehouseAcknowledge');
+  if(mixedAck){mixedAck.checked=true;mixedAck.dispatchEvent(new w.Event('change'));}
+  assert.equal(commit.disabled,false);
+  await commit.onclick();
+  await w.LocalQuoteStore.flush();
+  const mixed=JSON.parse(w.localStorage.getItem(key));
+  assert.deepEqual(mixed.quotes.filter(row=>row.companyId===supplier.id).map(row=>[row.warehouse,row.price]),[['LGB8',1200]]);
+  assert.equal(mixed.quotes.find(row=>row.companyId===other.id).price,900);
+  assert.deepEqual(mixed.regionalQuotes.map(row=>row.companyId),[other.id]);
+  assert(mixed.originExcludedQuotes.some(item=>item.row.companyId===other.id&&item.row.price===3000));
+ } finally {runtime.close();}
+});

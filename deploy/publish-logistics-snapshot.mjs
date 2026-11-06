@@ -31,8 +31,8 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
  }
  // Preserve the same full server-side business validation and display projection.
  const published=displayData(data),plain=Buffer.from(JSON.stringify(published));if(plain.length<1||plain.length>max)throw failure('SNAPSHOT_SIZE_INVALID');
- const incremental=await buildIncremental(published,meta.baseSha,request);
- const manifest={schemaVersion:2,storage:'encrypted-parts-v1',bytes:plain.length,hash:hash(plain),parts:[],operationId:meta.operationId,savedAt:new Date().toISOString()},entries=[];
+ const incremental=await buildIncremental(published,meta.baseSha,request,meta.baseContentHash);
+ const manifest={publicationSafety:'verified-base-v1',schemaVersion:2,storage:'encrypted-parts-v1',bytes:plain.length,hash:hash(plain),parts:[],operationId:meta.operationId,savedAt:new Date().toISOString()},entries=[];
  const fullParts=Math.ceil(plain.length/chunkSize),deltaParts=incremental?Math.ceil(incremental.bytes.length/chunkSize):0;
  if(incremental)manifest.incremental={baseHash:incremental.baseHash,bytes:incremental.bytes.length,hash:hash(incremental.bytes),parts:[]};
  for(let i=0;i<fullParts+deltaParts;i++){
@@ -78,6 +78,6 @@ async function main(){
   const packed=gzipSync(randomBytes(chunkSize));let ok=false;for(let i=0;i<4;i++){const r=await fetch(endpoint+'self-test',{method:'POST',headers:auth,body:packed,redirect:'error',signal:AbortSignal.timeout(30000)});if(r.ok){const result=await r.json();if(result.ok&&result.hash===hash(packed)&&result.bytes===packed.length){ok=true;break}}await sleep(1000)}if(!ok)throw failure('SELF_TEST_CPU_OR_CRYPTO_FAILED');console.log('Free Worker identity and 512 KiB high-entropy encryption roundtrip verified. No publication task or business data was accessed.');return;
  }
  const github=createGitHubClient({token:process.env.GITHUB_TOKEN});
- try{await publishSnapshot({ticket,cloud,github});console.log('Verified encrypted snapshot publication completed.')}catch(error){try{await cloud('failed',{method:'POST'})}catch{}console.error('Snapshot publication failed: '+(/^[A-Z_0-9]+$/.test(error.code||'')?error.code:'VALIDATION_OR_PROCESSING'));process.exitCode=1}
+ try{await publishSnapshot({ticket,cloud,github});console.log('Verified encrypted snapshot publication completed.')}catch(error){try{await cloud('failed',{method:'POST',headers:{'X-Workspace-Failure':['PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED'].includes(error.code)?error.code:'RUNNER_FAILED'}})}catch{}console.error('Snapshot publication failed: '+(/^[A-Z_0-9]+$/.test(error.code||'')?error.code:'VALIDATION_OR_PROCESSING'));process.exitCode=1}
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(error=>{console.error('Snapshot publisher initialization failed: '+(/^[A-Z_0-9]+$/.test(error.code||'')?error.code:'INITIALIZATION'));process.exitCode=1});

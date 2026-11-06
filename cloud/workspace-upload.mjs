@@ -20,10 +20,11 @@ export async function workspaceUpload(input,env,user,publish,verify,runnerSend=f
  let job=await get(jobKey);
  if(action==='start'){
   if(!Number.isSafeInteger(input.bytes)||input.bytes<1||input.bytes>MAX_BYTES||!validHash(input.sha256)||!Array.isArray(input.parts)||input.parts.length!==Math.ceil(input.bytes/PART_BYTES)||input.parts.some(x=>!validHash(x))||!(input.baseSha===null||/^[a-f0-9]{40,64}$/.test(input.baseSha||'')))fail(400,'快照大小、版本或分片清单无效');
-  if(job&&(job.sha256!==input.sha256||job.baseSha!==input.baseSha||job.bytes!==input.bytes||JSON.stringify(job.parts)!==JSON.stringify(input.parts)))fail(409,'上传编号与原任务不一致');
+  if(input.baseContentHash!=null&&!validHash(input.baseContentHash))fail(400,'共享基线摘要无效');
+  if(job&&(job.sha256!==input.sha256||job.baseSha!==input.baseSha||job.bytes!==input.bytes||JSON.stringify(job.parts)!==JSON.stringify(input.parts)||(job.baseContentHash||null)!==(input.baseContentHash||null)))fail(409,'上传编号与原任务不一致');
   if(!job||job.expires<Date.now()){
    await env.DB.prepare('DELETE FROM records WHERE substr(key,1,?)=? AND json_extract(value,\'$.expires\')<?').bind(prefix.length,prefix,Date.now()).run();
-   job={bytes:input.bytes,sha256:input.sha256,parts:input.parts,baseSha:input.baseSha,expires:Date.now()+86400000};await put(jobKey,job);
+   job={baseContentHash:input.baseContentHash||null,bytes:input.bytes,sha256:input.sha256,parts:input.parts,baseSha:input.baseSha,expires:Date.now()+86400000};await put(jobKey,job);
   }
  }else if(!job)fail(404,'上传任务不存在，请重新预览');
  if(job.expires<Date.now())fail(410,'上传任务已过期，请重新预览');
@@ -39,7 +40,7 @@ export async function workspaceUpload(input,env,user,publish,verify,runnerSend=f
  }
  if(action==='status'||action==='start'){
   if(action==='start'){for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey);await env.DB.prepare('UPDATE records SET value=json_set(value,\'$.expires\',?) WHERE key IN ('+names.map(()=>'?').join(',')+') AND json_extract(value,\'$.expires\')>=? AND json_extract(value,\'$.expires\')<?').bind(job.expires,...names,Date.now(),job.expires).run()}}
-  const known=new Map();for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey),rows=await env.DB.prepare('SELECT key,json_extract(value,\'$.expires\') AS expires FROM records WHERE key IN ('+names.map(()=>'?').join(',')+')').bind(...names).all();for(const row of rows.results)known.set(row.key,row.expires)}const missing=[];for(let i=0;i<job.parts.length;i++)if(!(known.get(partKey(job.parts[i]))>=Date.now()))missing.push(i);return {ok:true,missing,expires:job.expires};
+  const known=new Map();for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey),rows=await env.DB.prepare('SELECT key,json_extract(value,\'$.expires\') AS expires FROM records WHERE key IN ('+names.map(()=>'?').join(',')+')').bind(...names).all();for(const row of rows.results)known.set(row.key,row.expires)}const missing=[];for(let i=0;i<job.parts.length;i++)if(!(known.get(partKey(job.parts[i]))>=Date.now()))missing.push(i);return {ok:true,publicationSafety:'verified-base-v1',missing,expires:job.expires};
  }
  if(action!=='commit')fail(400,'上传操作无效');
  if(env.WORKSPACE_COMMIT_RUNNER==='github-actions')return backgroundCommit(env,user,id,jobKey,job,runnerSend);
@@ -50,7 +51,7 @@ export async function workspaceUpload(input,env,user,publish,verify,runnerSend=f
  if(metadata.operationId===id){if(metadata.manifest&&metadata.manifest.hash!==(job.pendingReceipt?.snapshotHash||job.checkpoint?.hash))fail(502,'已发布的大快照摘要尚未核验一致，任务保留');if(job.pendingReceipt&&metadata.sha!==job.pendingReceipt.sha)fail(409,'已发布任务的云端版本不一致');job.receipt={...(job.pendingReceipt||{}),ok:true,sha:metadata.sha,savedAt:metadata.savedAt,verified:true,contentHash:job.sha256};await put(jobKey,job);return {ok:true,receipt:job.receipt,missing:[]}}
  if(metadata.sha!==job.baseSha)fail(409,'展示快照已有更新，请重新预览');
  if(data?.protocol==='record-delta-v1'){if(metadata.manifest)fail(409,'上次为大快照，请保留本机数据并重新预览当前完整数据；不需重新导入');const previous=await verify();try{data=await Delta.apply(previous.data,data)}catch(error){fail(400,error.message)}}
- const receipt=await publish({baseSha:job.baseSha,operationId:id,data},job.checkpoint);
+ const receipt=await publish({baseSha:job.baseSha,baseContentHash:job.baseContentHash,operationId:id,data},job.checkpoint);
  if(receipt.pending){job.checkpoint=receipt.checkpoint;await put(jobKey,job);return {ok:true,pending:true,confirmedParts:receipt.confirmedParts,totalParts:receipt.totalParts}}
  // Persist a root receipt before its verification; retries can finish after response loss.
  job.pendingReceipt=receipt;await put(jobKey,job);

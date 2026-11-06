@@ -24,7 +24,8 @@ function createServer({send=fetch}={}){return http.createServer(async(req,res)=>
    let body;if(req.method==='POST'){if(!String(req.headers['content-type']).startsWith('application/json'))return json(415,{error:'需要JSON请求'});const chunks=[];let bytes=0;for await(const part of req){bytes+=part.length;if(bytes>(ai?200000:32*1024*1024))return json(413,{error:ai?'AI复核片段过大':'发布请求超过32MiB'});chunks.push(part)}body=Buffer.concat(chunks).toString('utf8')}
    if(ai){const data=JSON.parse(body||'{}');if(!['quote-cleaning','sheet-quote-detection'].includes(data.purpose)||data.purpose==='quote-cleaning'&&data.exception!==true)return json(400,{error:'只允许物流报价AI复核'})}
    const response=await send('https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/api/'+(ai?'logistics-ai/recognize':'logistics-workspace')+url.search,{method:req.method,headers:{'Content-Type':'application/json',Authorization:req.headers.authorization},...(body?{body}:{}),redirect:'manual',signal:AbortSignal.timeout(180000)});
-   res.writeHead(response.status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':policy});if(response.body)require('node:stream').Readable.fromWeb(response.body).on('error',()=>res.destroy()).pipe(res);else res.end();return;
+   const retryAfter=response.headers?.get('Retry-After');
+   res.writeHead(response.status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':policy,...(retryAfter?{'Retry-After':retryAfter}:{})});if(response.body)require('node:stream').Readable.fromWeb(response.body).on('error',()=>res.destroy()).pipe(res);else res.end();return;
   }catch{return json(502,{code:ai?'LOCAL_AI_NETWORK':'LOCAL_CLOUD_NETWORK',error:ai?'AI复核连接失败（LOCAL_AI_NETWORK）；已清洗报价保留，请检查网络后重试':'本机连接云端失败（LOCAL_CLOUD_NETWORK）；上传进度保留，请检查此电脑网络后继续'})}
  }
  if(url.pathname==='/local-session'){

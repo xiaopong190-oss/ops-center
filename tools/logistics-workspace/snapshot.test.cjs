@@ -1,6 +1,67 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-function client(search='',responses=[],persisted,hostname,extensions={}){const storage=persisted||new Map([['ops-cloud-session-v1','session']]),calls=[];const w={location:{search,hostname},URLSearchParams,TextEncoder,TextDecoder,atob,AbortSignal,crypto:crypto.webcrypto,Domain:{directory(){},bills(){},ratings(){}},QuoteCore:{validate(){}},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},fetch:async(url,options)=>{calls.push({url,options});const r=responses.shift();if(!r)throw Error('unexpected request');if(r instanceof Response)return r;return {status:r.status||(r.ok===false?409:200),ok:r.ok!==false,json:async()=>r}},...extensions,setTimeout:(fn)=>setTimeout(fn,0),Date,JSON,Promise,Error};w.window=w;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'snapshot-client.js'),'utf8'),w);return {api:w.WorkspaceSnapshot,storage,calls,w}}
+function client(search='',responses=[],persisted,hostname,extensions={}){const storage=persisted||new Map([['ops-cloud-session-v1','session']]),calls=[];const w={location:{search,hostname},URLSearchParams,TextEncoder,TextDecoder,atob,AbortSignal,crypto:crypto.webcrypto,Domain:{directory(){},bills(){},ratings(){}},QuoteCore:{validate(){}},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},fetch:async(url,options)=>{calls.push({url,options});const r=responses.shift();if(!r)throw Error('unexpected request');if(r instanceof Response)return r;return {status:r.status||(r.ok===false?409:200),ok:r.ok!==false,json:async()=>({...r,...(r.writeConfigured!==undefined||r.missing?{publicationSafety:'verified-base-v1'}:{})})}},...extensions,setTimeout:(fn)=>setTimeout(fn,0),Date,JSON,Promise,Error};w.window=w;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'snapshot-client.js'),'utf8'),w);return {api:w.WorkspaceSnapshot,storage,calls,w}}
 test('local master never fetches or publishes on startup',async()=>{const c=client();await c.api.ready;assert.equal(c.calls.length,0);await assert.rejects(c.api.publish(),/预览/)});
+
+test('a new client cannot publish over an existing snapshot through an older unprotected backend',async()=>{
+ const source=client().api.data(),c=client('',[Response.json({sha:'a'.repeat(40),writeConfigured:true})]);
+ c.storage.set('logistics-company-directory-v1',JSON.stringify([{id:'synthetic'}]));
+ await assert.rejects(c.api.preview(),/云端尚未启用完整数据发布保护/);
+ assert.equal(c.calls.length,1);
+ await assert.rejects(c.api.publish(),/预览/);
+});
+
+test('explicit shared-baseline load verifies a complete local backup and preserves original local evidence',async()=>{
+ const source=client().api.data(),shared=JSON.parse(JSON.stringify(source)),tasks=new Map();
+ shared.storage['logistics-company-directory-v1']=[{id:'shared',name:'合成共享物流'}];
+ source.storage['logistics-quotes-v1'].importExceptions=[{raw:'合成本机证据'}];
+ const store={load:async key=>tasks.get(key)||null,save:async(key,value)=>tasks.set(key,value),remove:async key=>tasks.delete(key)};
+ const c=client('',[{sha:'a'},{sha:'a',data:shared},{sha:'a'},{sha:'a',writeConfigured:true}],undefined,undefined,{WorkspaceUploadTasks:store});
+ for(const [key,value]of Object.entries(source.storage))c.storage.set(key,JSON.stringify(value));
+ const before=JSON.stringify([...c.storage]);const plan=await c.api.syncBase();
+ assert.equal(plan.sha,'a');assert.equal(JSON.stringify([...c.storage]),before);
+ await c.api.syncBase({apply:true});
+ assert.equal(c.api.data().storage['logistics-company-directory-v1'][0].id,'shared');
+ assert.equal((await c.api.baselineBackup()).storage['logistics-quotes-v1'].importExceptions[0].raw,'合成本机证据');
+ const marker=JSON.parse(c.storage.get('workspace-publication-base-v1'));
+ assert.equal(marker.dataHash,crypto.createHash('sha256').update(JSON.stringify(shared)).digest('hex'));
+ await c.api.preview();
+});
+
+test('shared-baseline load stops before replacing local rows when backup fails, data changes or a fixed upload exists',async()=>{
+ for(const failure of ['backup','local-change','pending']){
+  const shared=client().api.data(),store={load:async()=>failure==='pending'?{frozen:true}:null,save:async()=>{throw Error('synthetic backup failure')}};
+  const c=client('',[{sha:'a'},{sha:'a',data:shared},{sha:'a'}],undefined,undefined,{WorkspaceUploadTasks:store});
+  await c.api.syncBase();
+  if(failure==='local-change')c.storage.set('logistics-company-directory-v1','[{"id":"new-local"}]');
+  const before=JSON.stringify([...c.storage]);
+  await assert.rejects(c.api.syncBase({apply:true}));
+  assert.equal(JSON.stringify([...c.storage]),before);
+ }
+});
+
+test('the current partial cloud snapshot cannot replace a more complete local master during baseline loading',async()=>{
+ const local=client().api.data(),shared=client().api.data();
+ local.storage['logistics-quotes-v1'].quotes=Array.from({length:2000},(_,id)=>({id}));
+ shared.storage['logistics-quotes-v1'].regionalQuotes=Array.from({length:62},(_,id)=>({id}));
+ const c=client('',[{sha:'partial'},{sha:'partial',data:shared}],undefined,undefined,{WorkspaceUploadTasks:{load:async()=>null,save:async()=>{throw Error('must not save or replace');}}});
+ for(const [key,value]of Object.entries(local.storage))c.storage.set(key,JSON.stringify(value));
+ const before=JSON.stringify([...c.storage]),plan=await c.api.syncBase();
+ assert(plan.reduction.includes('quotes'));
+ await assert.rejects(c.api.syncBase({apply:true}),/共享快照明显少于本机/);
+ assert.equal(JSON.stringify([...c.storage]),before);
+});
+
+test('a publication safety rejection preserves the task and stops suggesting repeated continuation',async()=>{
+ const c=client('',[{writeConfigured:true,sha:null,uploadProtocol:'chunks-v1'},{missing:[]},{ok:false,status:428,error:'已阻止覆盖共享数据，请清除旧任务后载入共享完整数据'}]);
+ await c.api.preview();
+ await assert.rejects(c.api.publish(),error=>error.status===428&&!error.message.includes('请点击继续上传'));
+ const task=JSON.parse(c.storage.get('workspace-pending-upload-v1'));
+ assert.equal(task.blocked,true);assert.match(task.blockReason,/载入共享完整数据/);
+ const calls=c.calls.length;
+ await assert.rejects(c.api.publish(),/载入共享完整数据/);
+ assert.equal(c.calls.length,calls);
+ assert(!c.storage.has('workspace-last-publication'));
+});
 
 test('a real display page with missing cache or delta adapter stops before a full download',async()=>{
  for(const ext of [{document:{},WorkspaceDisplayCache:undefined,WorkspaceDelta:{}},{document:{},WorkspaceDisplayCache:{},WorkspaceDelta:undefined}]){const c=client('?audience=display',[{sha:'a'}],undefined,undefined,ext);await assert.rejects(c.api.ready,/模块未初始化.*已停止下载/);assert.equal(c.calls.length,1)}
@@ -73,7 +134,7 @@ test('corrupt increment and failed durable commit preserve the previous full sou
   const payload=(await Delta.create(next,await Delta.index(source))).payload;if(failure==='record-hash')payload.changes['logistics-quotes-v1/quotes'].added[0].hash='f'.repeat(64);
   const bytes=Buffer.from(JSON.stringify(payload)),target=Buffer.from(JSON.stringify(next));failSave=failure==='durable-write';
   const b=client('?audience=display',[{sha:'b'},{sha:'b',paged:{bytes:target.length,hash:failure==='target-hash'?'e'.repeat(64):hash(target),parts:[hash(target)]},incremental:{baseHash:hash(Buffer.from(JSON.stringify(source))),bytes:bytes.length,hash:hash(bytes),parts:[hash(bytes)]}},{sha:'b',index:0,hash:hash(bytes),content:bytes.toString('base64')}],a.storage,undefined,{WorkspaceDisplayCache:store,WorkspaceDelta:Delta});
-  await assert.rejects(b.api.ready);assert.equal(JSON.stringify([...a.storage]),before);assert.equal(JSON.stringify(saved),prior);assert.equal(b.calls.length,3);
+  await b.api.ready;assert.equal(b.api.state().sha,'a');assert.equal(b.api.state().loaded,true);assert.equal(b.api.state().availableSha,'b');assert.match(b.api.state().warning,/本次更新未完成/);assert.equal(JSON.stringify([...a.storage]),before);assert.equal(JSON.stringify(saved),prior);assert.equal(b.calls.length,3);
  }
 });
 
@@ -105,7 +166,20 @@ test('missing snapshot preserves prior cache and gives explicit error',async()=>
 test('reopening display with same version authenticates metadata but skips full download',async()=>{const source=client().api.data(),responses=[{sha:'a',savedAt:'today'},{data:source,sha:'a',savedAt:'today'},{sha:'a',savedAt:'today'}],c=client('?audience=display',responses);await c.api.ready;assert.equal(c.calls.length,2);assert(c.storage.has('workspace-display-cache-v1'));await c.api.load();assert.equal(c.calls.length,3);assert.match(c.calls[2].url,/meta=1/);assert.equal(c.api.state().cached,true)});
 test('a new display page reuses persisted cache and corrupt cache triggers a fresh download',async()=>{const source=client().api.data(),first=client('?audience=display',[{sha:'a'},{data:source,sha:'a',savedAt:'today'}]);await first.api.ready;const second=client('?audience=display',[{sha:'a'}],first.storage);await second.api.ready;assert.equal(second.calls.length,1);assert.equal(second.api.state().cached,true);second.storage.set('logistics-quotes-v1','invalid JSON');const repaired=client('?audience=display',[{sha:'a'},{data:source,sha:'a',savedAt:'today'}],second.storage);await repaired.api.ready;assert.equal(repaired.calls.length,2);assert.equal(repaired.api.state().cached,false)});
 test('changed version downloads once and persists the latest data and version',async()=>{const source=client().api.data(),next=JSON.parse(JSON.stringify(source));next.storage['logistics-company-directory-v1']=[{id:'new'}];const c=client('?audience=display',[{sha:'a'},{data:source,sha:'a',savedAt:'old'},{sha:'b'},{data:next,sha:'b',savedAt:'new'},{sha:'b'}]);await c.api.ready;await c.api.load();assert.equal(c.api.state().sha,'b');assert.equal(c.storage.get('logistics-company-directory-v1'),'[{"id":"new"}]');await c.api.load();assert.equal(c.calls.length,5);assert.equal(c.api.state().cached,true)});
-test('new version download failure blocks stale results and preserves cache; revoked session never uses cache',async()=>{const source=client().api.data(),c=client('?audience=display',[{sha:'a'},{data:source,sha:'a',savedAt:'old'},{sha:'b'},...Array.from({length:3},()=>({ok:false,status:502,error:'offline'})),{ok:false,status:401,error:'session revoked'}]);await c.api.ready;await assert.rejects(c.api.load(),/已停止展示旧结果/);assert.equal(c.api.state().sha,'a');assert.equal(c.api.state().loaded,false);assert.equal(c.api.state().expectedSha,'b');await assert.rejects(c.api.load(),/session revoked/)});
+test('new version failure keeps the authorized verified snapshot available and retry switches it',async()=>{
+ const source=client().api.data(),next=JSON.parse(JSON.stringify(source));next.storage['logistics-company-directory-v1']=[{id:'new'}];
+ const c=client('?audience=display',[{sha:'a'},{data:source,sha:'a',savedAt:'old'},{sha:'b'},...Array.from({length:3},()=>({ok:false,status:502,error:'offline'})),{sha:'b'},{data:next,sha:'b',savedAt:'new'},{ok:false,status:401,error:'session revoked'}]);
+ await c.api.ready;await c.api.load();assert.equal(c.api.state().sha,'a');assert.equal(c.api.state().loaded,true);assert.equal(c.api.state().availableSha,'b');assert.match(c.api.state().warning,/正在显示已核验/);assert.equal(c.api.diagnostics().download.outcome,'cached-fallback');
+ await c.api.load();assert.equal(c.api.state().sha,'b');assert.equal(c.api.state().warning,undefined);assert.equal(c.api.diagnostics().download.outcome,'completed');assert('install' in c.api.diagnostics().download.stages);
+ await assert.rejects(c.api.load(),/session revoked/);assert.equal(c.api.state().loaded,false);
+});
+test('408 and 429 retry in place with Retry-After; longer cooldown preserves the HTTP status',async()=>{
+ const limited=seconds=>Response.json({error:'slow down'},{status:429,headers:{'Retry-After':String(seconds)}});
+ const c=client('',[Response.json({error:'timeout'},{status:408}),limited(2),{writeConfigured:true,sha:null}]),delays=[];
+ c.w.setTimeout=(fn,delay)=>{delays.push(delay);return setTimeout(fn,0)};
+ await c.api.preview();assert.equal(c.calls.length,3);assert(delays[0]>=0&&delays[0]<1000);assert.equal(delays[1],2000);
+ const d=client('',[limited(60)]);await assert.rejects(d.api.preview(),e=>e.status===429&&/60 秒/.test(e.message));assert.equal(d.calls.length,1);
+});
 test('cache is session-bound and cannot replace a fresh authorization after logout',async()=>{const source=client().api.data(),c=client('?audience=display',[{sha:'a'},{data:source,sha:'a',savedAt:'today'},{sha:'a'},{data:source,sha:'a',savedAt:'today'}]);await c.api.ready;c.storage.set('ops-cloud-session-v1','different-session');await c.api.load();assert.equal(c.calls.length,4);assert.equal(c.api.state().cached,false);c.storage.delete('ops-cloud-session-v1');await assert.rejects(c.api.load(),/登录/);assert.equal(c.calls.length,4)});
 test('upload excludes local evidence before network and preserves it in local storage',async()=>{const source=client().api.data();source.storage['logistics-quotes-v1'].quotes=[{id:'valid'}];const c=client('',[{writeConfigured:true,sha:null},{ok:true,sha:'a'.repeat(40),savedAt:'today'},{data:source,sha:'a'.repeat(40)}]);const master={...source.storage['logistics-quotes-v1'],importExceptions:[{raw:'private source evidence'}],deletedQuotes:[{id:'deleted'}]};c.storage.set('logistics-quotes-v1',JSON.stringify(master));await c.api.preview();await c.api.publish();const sent=JSON.parse(c.calls[1].options.body).data.storage['logistics-quotes-v1'];assert.equal(sent.importExceptions,undefined);assert.equal(sent.deletedQuotes,undefined);assert.deepEqual(sent.quotes,[{id:'valid'}]);assert.equal(c.storage.get('logistics-quotes-v1'),JSON.stringify(master))});
 test('script preloads start together while execution and storage readiness remain ordered',async()=>{const events=[],sources=['large-cache.js','storage-space.js','snapshot-client.js','consumer.js'];const w={location:{search:'',origin:'http://test'},parent:{postMessage(){}},setTimeout,clearTimeout,URLSearchParams,LocalQuoteStoreReady:Promise.resolve().then(()=>events.push('storage-ready')),WorkspaceSnapshot:{ready:Promise.resolve()},document:{getElementById:()=>({textContent:JSON.stringify(sources)}),createElement:tag=>({tag}),head:{append:node=>events.push('preload:'+node.href)},body:{append:node=>{events.push('execute:'+node.src);queueMicrotask(()=>node.onload())}}}};w.window=w;await vm.runInNewContext(fs.readFileSync(path.join(__dirname,'workspace-loader.js'),'utf8'),w);assert.deepEqual(events.filter(x=>x.startsWith('preload:')),sources.map(s=>'preload:'+s));assert.deepEqual(events.filter(x=>x.startsWith('execute:')),sources.map(s=>'execute:'+s));assert(events.indexOf('storage-ready')<events.indexOf('execute:storage-space.js'))});

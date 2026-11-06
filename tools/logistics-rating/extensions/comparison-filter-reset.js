@@ -2,7 +2,7 @@
  'use strict';
  function bindComparisonFilterReset(doc){
   const reset=doc.getElementById('n001Reset');if(!reset)return;
-  reset.addEventListener('click',()=>{doc.getElementById('scoreClear')?.click();});
+  reset.addEventListener('click',()=>{const mode=doc.getElementById('scoreViewMode');if(mode){mode.value='grouped';mode.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));}doc.getElementById('scoreClear')?.click();});
   for(const id of ['scoreMin','scoreMax']){
    const field=doc.getElementById(id);
    field?.addEventListener('input',()=>{if(field.value===''&&!field.validity?.badInput)doc.getElementById('scoreApply')?.click();});

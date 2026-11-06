@@ -32,6 +32,7 @@ const suites=[
   'tools/logistics-workspace/runtime.test.cjs',
   'tools/logistics-workspace/service-country-layout.test.cjs',
   'tools/logistics-workspace/warehouse-score-view.test.cjs',
+  'tools/logistics-workspace/result-transport.test.cjs',
   'tools/logistics-workspace/filter-functional.test.cjs',
   'tools/logistics-workspace/portable-server.test.cjs',
   'tools/logistics-workspace/portable-supervisor.test.cjs',

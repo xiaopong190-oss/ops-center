@@ -13,7 +13,18 @@
   };
  }
 
- const api = {replaceBase};
+ function prepare(db, warehouseRows, regionalRows, resolveCompany, originPolicy, today) {
+  const incoming = {quotes: warehouseRows, regionalQuotes: regionalRows};
+  const allowed = originPolicy ? originPolicy.cleanDatabase(incoming, today) : incoming;
+  let base = replaceBase(db, allowed.quotes, allowed.regionalQuotes, resolveCompany);
+  const excluded = allowed.originExcludedQuotes || [];
+  if (excluded.length) {
+   base = {...base, originExcludedQuotes: [...(base.originExcludedQuotes || []), ...excluded]};
+  }
+  return {base, warehouseRows: allowed.quotes, regionalRows: allowed.regionalQuotes, excludedCount: excluded.length};
+ }
+
+ const api = {prepare};
  if (typeof module !== 'undefined') module.exports = api;
  else root.ProviderBatchReplacement = api;
 })(typeof window === 'undefined' ? globalThis : window);

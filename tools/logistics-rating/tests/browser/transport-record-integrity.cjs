@@ -24,7 +24,7 @@ for(const view of ['grouped','score'])for(const patched of [false,true])test(`re
    for(const row of actual)assert.equal(JSON.stringify(row),canonical.get(row[10]),label+' content unchanged');
    // Inspect every actual rendered page, not only the first 200 rows or counter.
    w.N001UI.page=0;w.ComparisonStore.render();let displayed=[];
-   do{displayed.push(...Array.from($('comparison').querySelectorAll('tbody tr'),tr=>tr.children[view==='grouped'?2:5].textContent));if($('n001Next').disabled)break;$('n001Next').click();}while(true);
+   do{displayed.push(...Array.from($('comparison').querySelectorAll('tbody tr'),tr=>tr.children[$('scoreViewMode').value==='grouped'?2:5].textContent));if($('n001Next').disabled)break;$('n001Next').click();}while(true);
    assert.deepEqual(displayed.sort(),expected,label+' every displayed record');
    assert.equal(storage(),snapshot,label+' persistent data unchanged');assert.equal(JSON.stringify(w.ComparisonStore.read()),memory,label+' in-memory source unchanged');checks++;
    // Let DOM observer deliveries release removed grouped tables between states.
@@ -37,8 +37,9 @@ for(const view of ['grouped','score'])for(const patched of [false,true])test(`re
    for(let i=0;i<4;i++)if(states[i]!==!!(mask&(1<<i))){buttons[i].click();states[i]=!states[i];await verify(`round ${round}, toggle ${modes[i]}`);}
    for(const value of ['unknown','outside','all','inside']){scope=value;$('n001Scope').value=value;$('n001Scope').dispatchEvent(new w.Event('change'));await verify(`round ${round}, mask ${mask}, scope ${value}`);}
   }
-  $('n001Reset').click();states.fill(false);scope='inside';await verify('reset exact restoration');
-  assert.deepEqual(exported(),baseline,'original full record sequence restored');
+  $('n001Reset').click();states.fill(false);scope='inside';assert.equal($('scoreViewMode').value,patched?'grouped':view);await verify('reset exact restoration');
+  if(patched&&view==='score'){$('scoreViewMode').value='score';$('scoreViewMode').dispatchEvent(new w.Event('change'));await verify('explicit return to score mode');}
+  assert.deepEqual(exported(),baseline,'original full record sequence restored in the same view');
   console.log(`Verified ${checks} successive states, full exports, every page, record content, storage and source IDs (${patched?'patched':'deployed'})`);
  }finally{w.close();}
 });

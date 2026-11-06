@@ -1,8 +1,9 @@
 import {createHash} from 'node:crypto';
 import {gunzipSync} from 'node:zlib';
 import Delta from '../tools/logistics-workspace/record-delta.js';
+import {assertPublicationBase} from '../cloud/publication-safety.mjs';
 const hash=b=>createHash('sha256').update(b).digest('hex');
-export async function buildIncremental(data,baseSha,request){
+export async function buildIncremental(data,baseSha,request,baseContentHash){
  if(!baseSha)return null;
  const previous=await (await request('previous')).json();if(previous.sha!==baseSha)throw Error('INCREMENTAL_BASE_CHANGED');
  let base=previous.data;
@@ -12,6 +13,7 @@ export async function buildIncremental(data,baseSha,request){
   const bytes=Buffer.concat(all);if(bytes.length!==m.bytes||hash(bytes)!==m.hash)throw Error('INCREMENTAL_BASE_HASH');base=JSON.parse(bytes);
  }
  if(!base)return null;
+ assertPublicationBase(base,data,baseContentHash);
  const payload=(await Delta.create(data,await Delta.index(base))).payload,bytes=Buffer.from(JSON.stringify(payload));
  if(bytes.length>=Buffer.byteLength(JSON.stringify(data)))return null;
  return {bytes,baseHash:hash(Buffer.from(JSON.stringify(base)))};

@@ -44,11 +44,50 @@ function fixture(){
  const user={id:'synthetic-owner'},id=crypto.randomUUID(),jobKey='_workspace-upload:'+Buffer.from(user.id).toString('base64url')+':job:'+id;
  const upload=input=>workspaceUpload({...input,id},env,user,()=>{throw Error('Free path must not reconstruct the full snapshot in the Worker')},()=>{throw Error('Unexpected full verification')},send);
  const cloud=async(path,options={})=>{largestRequest=Math.max(largestRequest,Buffer.byteLength(options.body||''));const req=new Request('https://worker/api/logistics-workspace-runner/'+ticket+'/'+path,{...options,headers:{...options.headers,Authorization:'Bearer synthetic-oidc'}});const r=await workspaceRunner(req,env,send,async()=>({run_id:'77'}));if(path.startsWith('part/'))largestPart=Math.max(largestPart,Number(r.headers.get('Content-Length'))||128*1024);return r};
- const prepare=async(data,baseSha=null)=>{const bytes=Buffer.isBuffer(data)?data:Buffer.from(JSON.stringify(data)),parts=[];for(let i=0;i<bytes.length;i+=128*1024)parts.push(sha(bytes.subarray(i,i+128*1024)));await upload({action:'start',bytes:bytes.length,sha256:sha(bytes),parts,baseSha});for(let i=0;i<parts.length;i++)await upload({action:'part',index:i,encoding:'gzip',content:gzipSync(bytes.subarray(i*128*1024,(i+1)*128*1024)).toString('base64')});return {parts,bytes}};
+ const prepare=async(data,baseSha=null,baseContentHash=null)=>{const bytes=Buffer.isBuffer(data)?data:Buffer.from(JSON.stringify(data)),parts=[];for(let i=0;i<bytes.length;i+=128*1024)parts.push(sha(bytes.subarray(i,i+128*1024)));await upload({action:'start',bytes:bytes.length,sha256:sha(bytes),parts,baseSha,baseContentHash});for(let i=0;i<parts.length;i++)await upload({action:'part',index:i,encoding:'gzip',content:gzipSync(bytes.subarray(i*128*1024,(i+1)*128*1024)).toString('base64')});return {parts,bytes}};
  return {sql,env,files,blobs,send,github,cloud,upload,prepare,id,jobKey,ticket:()=>ticket,dispatches:()=>dispatches,rootWrites:()=>rootWrites,largestRequest:()=>largestRequest,largestPart:()=>largestPart,loseRef:()=>{loseRef=true},corruptBlob:()=>{corruptBlob=true}};
 }
 const row=i=>({companyId:'c',company:'合成物流',country:'美国',warehouse:'ONT8',channel:'海运',price:1000+i,currency:'CNY',unit:'kg',min:10,max:20,date:'2026-10-29',terms:'普货',source:'synthetic-'+i});
 const snapshot=()=>({space:'real',storage:{'logistics-company-directory-v1':[{id:'c',name:'合成物流',aliases:[]}],'logistics-quotes-v1':{quotes:[row(0)],templates:[]},'logistics-monthly-bills-v1':{rows:[],aliases:{}},'logistics-completed-ratings-v1':[]}});
+
+test('real background publisher rejects partial and stale masters before changing any GitHub root or writing ciphertext',async()=>{
+ for(const kind of ['62-only','one-retained','stale-copy']){
+  const f=fixture();try{
+   const base=snapshot(),q=base.storage['logistics-quotes-v1'];
+   q.quotes=Array.from({length:2500},(_,i)=>row(i));
+   q.regionalQuotes=Array.from({length:300},(_,i)=>({...row(i),regionRaw:'合成区域'+i}));
+   q.templates=Array.from({length:20},(_,i)=>({country:'美国',warehouse:'ABC'+i}));
+   const prior=await publishWorkspace({baseSha:null,operationId:crypto.randomUUID(),data:base},f.env,{id:'synthetic-owner'},f.send);
+   const next=structuredClone(base),n=next.storage['logistics-quotes-v1'];
+   if(kind==='stale-copy')n.quotes[0].price=9999;
+   else{n.quotes=kind==='one-retained'?[n.quotes[0]]:[];n.regionalQuotes=n.regionalQuotes.slice(0,62);n.templates=kind==='one-retained'?[n.templates[0]]:[];}
+   await f.prepare(next,prior.sha);await f.upload({action:'commit'});
+   const rootBefore=f.files.get(root),blobsBefore=f.blobs.size;
+   let reason;
+   await assert.rejects(publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github:f.github,delay:async()=>{}}),error=>{reason=error.code;return ['PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED'].includes(error.code);});
+   await f.cloud('failed',{method:'POST',headers:{'X-Workspace-Failure':reason}});
+   await assert.rejects(f.upload({action:'commit'}),error=>[422,428].includes(error.status)&&/载入共享完整数据/.test(error.message));
+   assert.equal(f.files.get(root),rootBefore);
+   assert.equal(f.blobs.size,blobsBefore);
+   assert.equal(f.rootWrites(),0);
+  }finally{f.sql.close();}
+ }
+});
+
+test('upgraded Worker refuses an older publisher missing safety validation before any root switch',async()=>{
+ const f=fixture();try{
+  await f.prepare(snapshot());await f.upload({action:'commit'});
+  const oldPublisher=async(path,options)=>{
+   if(path==='ready'){
+    const manifest=JSON.parse(options.body);delete manifest.publicationSafety;
+    options={...options,body:JSON.stringify(manifest)};
+   }
+   return f.cloud(path,options);
+  };
+  await assert.rejects(publishSnapshot({ticket:f.ticket(),cloud:oldPublisher,github:f.github,delay:async()=>{}}),error=>error.status===428);
+  assert.equal(f.files.has(root),false);assert.equal(f.rootWrites(),0);
+ }finally{f.sql.close();}
+});
 
 test('diagnostic identifies a simulated readback 404 through the complete publisher and preserves old root',async()=>{
  const f=fixture(),logs=[];try{await f.prepare(snapshot());await f.upload({action:'commit'});
@@ -83,7 +122,7 @@ test('two source reads overlap safely with out-of-order responses and corrupt so
 test('baseline reads use at most two requests, preserve ordered hash and reject corrupt pages',async()=>{
  const base=snapshot();base.storage['logistics-quotes-v1'].quotes=Array.from({length:3},(_,i)=>({...row(i),source:'synthetic-'+i+'x'.repeat(400000)}));const next=structuredClone(base);next.storage['logistics-quotes-v1'].quotes[0].price=765;const bytes=Buffer.from(JSON.stringify(base)),parts=[];for(let i=0;i<bytes.length;i+=512*1024)parts.push(bytes.subarray(i,i+512*1024));const baseSha='a'.repeat(40);
  for(const corrupt of [false,true]){let active=0,peak=0;const order=[];const request=async path=>{if(path==='previous')return Response.json({sha:baseSha,paged:{bytes:bytes.length,hash:sha(bytes),parts:parts.map(sha)}});const i=Number(new URL('https://test/'+path).searchParams.get('page'));active++;peak=Math.max(peak,active);try{await new Promise(r=>setTimeout(r,i%2===0?15:1));const b=Buffer.from(parts[i]);if(corrupt&&i===0)b[0]^=1;order.push(i);return Response.json({sha:baseSha,index:i,hash:sha(parts[i]),content:b.toString('base64')})}finally{active--}};
- if(corrupt)await assert.rejects(buildIncremental(next,baseSha,request),/INCREMENTAL_BASE_PART/);else{const result=await buildIncremental(next,baseSha,request);assert.equal(result.baseHash,sha(bytes));assert.deepEqual(await Delta.apply(base,JSON.parse(result.bytes)),next);assert(order.indexOf(1)<order.indexOf(0))}assert.equal(peak,2);
+ if(corrupt)await assert.rejects(buildIncremental(next,baseSha,request,sha(bytes)),/INCREMENTAL_BASE_PART/);else{const result=await buildIncremental(next,baseSha,request,sha(bytes));assert.equal(result.baseHash,sha(bytes));assert.deepEqual(await Delta.apply(base,JSON.parse(result.bytes)),next);assert(order.indexOf(1)<order.indexOf(0))}assert.equal(peak,2);
  }
 });
 
@@ -92,7 +131,7 @@ test('publication produces a verified record delta with unchanged records omitte
  const base=snapshot();base.storage['logistics-quotes-v1'].quotes=Array.from({length:1200},(_,i)=>({...row(i),source:'virtual-'+i+'x'.repeat(900)}));
  const prior=await publishWorkspace({baseSha:null,operationId:crypto.randomUUID(),data:base},f.env,{id:'synthetic-owner'},f.send);
  const next=structuredClone(base),rows=next.storage['logistics-quotes-v1'].quotes;rows.splice(2,1);rows[0].price=765;rows.push({...row(9000),source:'new'});rows.push({...row(9001),originCity:'宁波'});next.storage['logistics-quotes-v1'].originExcludedQuotes=[{raw:'local evidence'}];const expected=displayData(next);
- await f.prepare(next,prior.sha);await f.upload({action:'commit'});const receipt=await publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github:f.github,delay:async()=>{}});assert(receipt.receipt.verified);
+ await f.prepare(next,prior.sha,sha(Buffer.from(JSON.stringify(base))));await f.upload({action:'commit'});const receipt=await publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github:f.github,delay:async()=>{}});assert(receipt.receipt.verified);
  const manifest=JSON.parse(f.blobs.get(f.files.get(root))),d=manifest.incremental;assert(d);assert(d.bytes<Buffer.byteLength(JSON.stringify(next))/5);assert.equal(d.baseHash,sha(Buffer.from(JSON.stringify(base))));
  const payload=await assembleShards({schemaVersion:2,storage:'encrypted-parts-v1',...d},f.env,{},f.send);assert.equal(payload.changes['logistics-quotes-v1/quotes'].added.length,2);assert.deepEqual(await Delta.apply(base,payload),expected);assert.equal(sha(Buffer.from(JSON.stringify(await Delta.apply(base,payload)))),manifest.hash);
  const result=await (await logisticsWorkspace(new Request('https://worker/api/logistics-workspace'),f.env,{id:'reader'},f.send)).json();assert.deepEqual(result.incremental,d);

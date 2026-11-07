@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-11-06T05:12:05.563Z",
+  "updatedAt": "2026-11-07T04:43:20.929Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How to watch Camp Flog Gnaw 2026 festival on Amazon Music, Prime Video, and Twitch",
+      "link": "https://www.aboutamazon.com/news/entertainment/camp-flog-gnaw-tyler-the-creator-livestream-amazon-music?utm_source=rss",
+      "pubDate": "Fri, 06 Nov 2026 15:00:43 GMT",
+      "date": "11/6",
+      "summary": "For the fourth consecutive year, Amazon Music will exclusively livestream Tyler, The Creator's sold-out festival for free.",
+      "category": "Entertainment"
+    },
+    {
+      "title": "Text, shop, done: Alexa for Shopping is now just a text away",
+      "link": "https://www.aboutamazon.com/news/retail/alexa-for-shopping-text-to-shop?utm_source=rss",
+      "pubDate": "Fri, 06 Nov 2026 13:55:08 GMT",
+      "date": "11/6",
+      "summary": "Starting today, a subset of customers can text Amazon’s personal AI shopping agent to get their shopping done quickly and easily, ahead of t",
+      "category": "Retail"
+    },
     {
       "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
       "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "11/5",
       "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
       "category": "AWS"
-    },
-    {
-      "title": "‘Clarkson’s Farm’ star Kaleb Cooper headlines new series ‘Kaleb Off the Farm,’ coming to Prime Video January 8",
-      "link": "https://www.aboutamazon.com/news/entertainment/kaleb-cooper-off-the-farm-clarksons-farm-prime-video?utm_source=rss",
-      "pubDate": "Thu, 05 Nov 2026 18:25:10 GMT",
-      "date": "11/5",
-      "summary": "Kaleb trades the English countryside for the Outback, with a dream of making it in Australian farming.",
-      "category": "Entertainment"
-    },
-    {
-      "title": "Amazon in the community: Here’s what’s happening in Seattle, Bellevue, and the Puget Sound",
-      "link": "https://www.aboutamazon.com/news/community/amazon-seattle-bellevue-puget-sound-news?utm_source=rss",
-      "pubDate": "Thu, 05 Nov 2026 17:23:00 GMT",
-      "date": "11/5",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the Puget Sound region.",
-      "category": "Community"
     }
   ]
 }

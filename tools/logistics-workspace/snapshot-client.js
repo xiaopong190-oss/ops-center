@@ -28,7 +28,7 @@
    }
   }
  }
- function displayProjection(snapshot){if(root.WorkspaceDataManagement)return root.WorkspaceDataManagement.projection(snapshot);const quotes=Object.fromEntries(Object.entries(snapshot.storage[keys[1]]).filter(([key])=>!['importExceptions','deletedQuotes','originExcludedQuotes'].includes(key)));return {...snapshot,storage:{...snapshot.storage,[keys[1]]:quotes}}}
+ function displayProjection(snapshot){if(root.WorkspaceDataManagement)return root.WorkspaceDataManagement.projection(snapshot);const quotes=Object.fromEntries(Object.entries(snapshot.storage[keys[1]]).filter(([key])=>!['importExceptions','deletedQuotes','originExcludedQuotes','weeklyCarryover'].includes(key)));return {...snapshot,storage:{...snapshot.storage,[keys[1]]:quotes}}}
  function comparable(snapshot){return JSON.stringify(displayProjection(snapshot))}
  const cacheKey='workspace-display-cache-v1';
  async function sessionKey(){const token=localStorage.getItem('ops-cloud-session-v1');if(!token)throw Object.assign(Error('请先登录运营中心；展示快照需要受控访问'),{status:401});const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('')}

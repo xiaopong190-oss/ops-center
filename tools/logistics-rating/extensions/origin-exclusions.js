@@ -50,7 +50,7 @@
   return {excluded:found.length>0&&found.every(c=>blocked.has(c)),cities:found,evidence};
  }
  const reason=decision=>decision.reason||'始发地明确为'+decision.cities.join('、')+'，按运营范围排除';
- function projectDatabase(db){return {...db,quotes:(db.quotes||[]).filter(r=>!classify(r).excluded),...(db.regionalQuotes?{regionalQuotes:db.regionalQuotes.filter(r=>!classify(r).excluded)}:{})}}
+ function projectDatabase(db){const carry=db.weeklyCarryover;return {...db,...(carry?{weeklyCarryover:{...carry,quotes:(carry.quotes||[]).filter(r=>!classify(r).excluded),regionalQuotes:(carry.regionalQuotes||[]).filter(r=>!classify(r).excluded)}}:{}),quotes:(db.quotes||[]).filter(r=>!classify(r).excluded),...(db.regionalQuotes?{regionalQuotes:db.regionalQuotes.filter(r=>!classify(r).excluded)}:{})}}
  function cleanDatabase(db,today){
   const cutoff=new Date(Date.parse(today+'T00:00:00Z')-9*86400000).toISOString().slice(0,10),audit=(db.originExcludedQuotes||[]).filter(e=>e?.row?.date>=cutoff),next=projectDatabase(db);let count=0;
   for(const [field,kind]of [['quotes','warehouse'],['regionalQuotes','regional']])for(const row of db[field]||[]){const decision=classify(row);if(decision.excluded){audit.push({kind,row,reason:reason(decision),excludedOn:today});count++}}

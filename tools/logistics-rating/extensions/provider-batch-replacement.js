@@ -17,6 +17,8 @@
   const incoming = {quotes: warehouseRows, regionalQuotes: regionalRows};
   const allowed = originPolicy ? originPolicy.cleanDatabase(incoming, today) : incoming;
   let base = replaceBase(db, allowed.quotes, allowed.regionalQuotes, resolveCompany);
+  const carry=root.WeeklyCarryover||(typeof require==='function'?require('./weekly-carryover.js'):null);
+  if(carry)base=carry.replaceProviders(base,[...allowed.quotes,...allowed.regionalQuotes],resolveCompany,today);
   const excluded = allowed.originExcludedQuotes || [];
   if (excluded.length) {
    base = {...base, originExcludedQuotes: [...(base.originExcludedQuotes || []), ...excluded]};

@@ -18,3 +18,21 @@ test('readonly account cannot publish; fixed GitHub path, valid receipt and CAS 
 test('retry operation is idempotent, network failure never reports publication success',async()=>{const id=crypto.randomUUID(),sealed=await encryptWorkspace(data(),env,{operationId:id,savedAt:new Date().toISOString()}),send=async(url,opts)=>{assert.notEqual(opts.method,'PUT');return Response.json({sha,encoding:'base64',content:Buffer.from(JSON.stringify(sealed)).toString('base64')})};assert.equal((await publishWorkspace({operationId:id,baseSha:null,data:data()},env,{id:'writer'},send)).replayed,true);await assert.rejects(()=>readWorkspace(env,async()=>new Response(null,{status:503})),e=>e.status===502)});
 test('initial missing snapshot is explicit; metadata omits decoded business payload',async()=>{const result=await logisticsWorkspace(new Request('https://service/api/logistics-workspace'),env,{id:'viewer'},async()=>new Response(null,{status:404}));assert.equal((await result.json()).data,null);const sealed=await encryptWorkspace(data(),env,{operationId:crypto.randomUUID(),savedAt:new Date().toISOString()}),response=await logisticsWorkspace(new Request('https://service/api/logistics-workspace?meta=1'),env,{id:'viewer'},async()=>Response.json({sha,encoding:'base64',content:Buffer.from(JSON.stringify(sealed)).toString('base64')}));assert(!Object.hasOwn(await response.json(),'data'))});
 test('invalid and demo data cannot become the shared real snapshot',async()=>{const d=data();d.storage['logistics-quotes-v1'].quotes[0].demo=true;await assert.rejects(()=>encryptWorkspace(d,env,{}),e=>e.status===400);const bad=data();bad.storage['logistics-completed-ratings-v1'][0].price=99;assert.throws(()=>displayData(bad))});
+
+test('weekly reminder confirms once across editors without reading or writing quote snapshots',async()=>{
+ const {default:W}=await import('../tools/logistics-rating/extensions/weekly-carryover.js');
+ const now=new Date().toISOString().slice(0,10),week=W.weeks(now).start,url='https://service/api/logistics-workspace?weekly='+week;
+ const records=new Map(),db={prepare(sql){return {bind(key,value){return {
+  first:async()=>records.has(key)?{value:records.get(key)}:null,
+  run:async()=>{assert.match(sql,/ON CONFLICT\(key\) DO NOTHING/);if(!records.has(key))records.set(key,value)}
+ }}}}};
+ const environment={DB:db},editor={id:'a'},other={id:'b'},reader={id:'r',canEdit:false};
+ const call=(user,method='GET',target=url)=>logisticsWorkspace(new Request(target,{method}),environment,user,()=>{throw Error('unexpected snapshot access')});
+ assert.deepEqual(await (await call(editor)).json(),{confirmed:false});
+ await assert.rejects(()=>call(reader,'POST'),e=>e.status===403);
+ await assert.rejects(()=>call(null),e=>e.status===401);
+ await assert.rejects(()=>call(editor,'POST','https://service/api/logistics-workspace?weekly=2026-01-03'),e=>e.status===400);
+ await Promise.all([call(editor,'POST'),call(other,'POST')]);
+ assert.deepEqual(await (await call(other)).json(),{confirmed:true});
+ assert.deepEqual([...records], [['logistics:weekly-reminder:'+week,'1']]);
+});

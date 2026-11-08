@@ -182,5 +182,13 @@
  async function baselineBackup(){const session=await sessionKey(),marker=JSON.parse(localStorage.getItem('workspace-publication-base-v1')||'null');if(marker?.session!==session||!marker.backupKey)throw Error('当前登录没有载入前备份');const saved=await root.WorkspaceUploadTasks?.load(marker.backupKey);if(!saved?.raw)throw Error('载入前备份读取失败');return JSON.parse(saved.raw);}
  let versionCheck=null,lastVersionCheck=0;
  async function checkVersion(){if(!display||!state.loaded||loading)return state;if(versionCheck)return versionCheck;if(Date.now()-lastVersionCheck<60000)return state;lastVersionCheck=Date.now();versionCheck=(async()=>{const session=await sessionKey();if(state.session&&state.session!==session)throw Object.assign(Error('登录账号已变化，请重新打开查询'),{status:401});const meta=await request('?meta=1');if(await sessionKey()!==session)throw Object.assign(Error('登录账号已变化，请重新打开查询'),{status:401});state={...state,availableSha:meta.sha&&meta.sha!==state.sha?meta.sha:null};return state})().finally(()=>{versionCheck=null});return versionCheck}
- const ready=display?load():Promise.resolve(state);root.WorkspaceSnapshot={ready,load,checkVersion,syncBase:options=>publicationLock(()=>syncBase(options)),baselineBackup,preview,publish,publicationStatus,discard,pause:()=>{paused=true},isBusy:()=>busy,state:()=>state,diagnostics:()=>JSON.parse(JSON.stringify(timings)),data};
+ async function weeklyReminder(week,confirm=false){
+  if(display)throw Error('展示端无需处理每周提醒');
+  if(testing&&!localStorage.getItem('ops-cloud-session-v1'))return {confirmed:confirm};
+  const session=await sessionKey();
+  const result=await request('?weekly='+encodeURIComponent(week),confirm?{action:'confirm-weekly'}:undefined);
+  if(await sessionKey()!==session||typeof result.confirmed!=='boolean')throw Error('团队提醒状态尚未核验');
+  return result;
+ }
+ const ready=display?load():Promise.resolve(state);root.WorkspaceSnapshot={ready,load,checkVersion,weeklyReminder,syncBase:options=>publicationLock(()=>syncBase(options)),baselineBackup,preview,publish,publicationStatus,discard,pause:()=>{paused=true},isBusy:()=>busy,state:()=>state,diagnostics:()=>JSON.parse(JSON.stringify(timings)),data};
 })(window);

@@ -28,7 +28,7 @@
   const result={decided,currentQuoteCount:quotes.length,quotes:quotes.concat(carriedQuotes),regionalQuotes:regionalQuotes.concat(carriedRegions),carriedQuotes,carriedRegions,providers:[...new Set([...carriedQuotes,...carriedRegions].map(row=>row.company))],week:w};projections.set(db,{today,quotes:db.quotes,regionalQuotes:db.regionalQuotes,saved:db.weeklyCarryover,deleted:db.deletedQuotes,result});return result;
  }
  function replaceProviders(db,rows,resolve,today){const saved=db.weeklyCarryover;if(!saved||saved.weekStart!==weeks(today).start)return db;const ids=new Set(Q.weekQuotes(rows,today).filter(usable).map(row=>provider(row,resolve)));if(!ids.size)return db;validate(db);return {...db,weeklyCarryover:{...saved,quotes:saved.quotes.filter(row=>!ids.has(provider(row,resolve))),regionalQuotes:saved.regionalQuotes.filter(row=>!ids.has(provider(row,resolve)))}}}
- function shouldAsk(db,today){if(db.weeklyCarryover?.weekStart===weeks(today).start)return false;const c=candidates(db,today);return c.quotes.length+c.regionalQuotes.length>0}
+ function shouldAsk(db,today){const week=weeks(today).start;if(today!==week||db.weeklyCarryover?.weekStart===week)return false;const c=candidates(db,today);return c.quotes.length+c.regionalQuotes.length>0}
  function message(db,today){const e=effective(db,today);return '本周 '+e.week.start+' 至 '+e.week.end+'：本周及沿用仓库报价 '+e.quotes.length+' 条，其中沿用上周 '+e.carriedQuotes.length+' 条；原始日期保留。'}
  function label(row,text){return text+(row.carryover?' · 沿用上周（'+row.date+'）':'')}
  // Keep published data independent of the reader clock and of local recovery records.

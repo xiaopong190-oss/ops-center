@@ -19,7 +19,7 @@ function createServer({send=fetch}={}){return http.createServer(async(req,res)=>
   if(!['GET','POST'].includes(req.method))return json(405,{error:'方法不允许'});
   if(!/^127\.0\.0\.1:\d+$/.test(req.headers.host||'')||(req.headers.origin&&req.headers.origin!=='http://'+req.headers.host)||(req.method==='POST'&&req.headers.origin!=='http://'+req.headers.host))return json(403,{error:'只允许本机工作台请求'});
   if(!/^Bearer [^\s]{1,512}$/.test(req.headers.authorization||''))return json(401,{error:'请先登录运营中心'});
-  if(url.search&&url.search!=='?meta=1'&&!/^\?page=(?:0|[1-9]\d*)&sha=[a-f0-9]{40,64}(?:&delta=1)?$/.test(url.search))return json(400,{error:'不支持的快照参数'});
+  if(url.search&&url.search!=='?meta=1'&&!(!ai&&/^\?weekly=\d{4}-\d{2}-\d{2}$/.test(url.search))&&!/^\?page=(?:0|[1-9]\d*)&sha=[a-f0-9]{40,64}(?:&delta=1)?$/.test(url.search))return json(400,{error:'不支持的快照参数'});
   try{
    let body;if(req.method==='POST'){if(!String(req.headers['content-type']).startsWith('application/json'))return json(415,{error:'需要JSON请求'});const chunks=[];let bytes=0;for await(const part of req){bytes+=part.length;if(bytes>(ai?200000:32*1024*1024))return json(413,{error:ai?'AI复核片段过大':'发布请求超过32MiB'});chunks.push(part)}body=Buffer.concat(chunks).toString('utf8')}
    if(ai){const data=JSON.parse(body||'{}');if(!['quote-cleaning','sheet-quote-detection'].includes(data.purpose)||data.purpose==='quote-cleaning'&&data.exception!==true)return json(400,{error:'只允许物流报价AI复核'})}

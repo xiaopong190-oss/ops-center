@@ -64,7 +64,7 @@
     "extensions/service-country-layout.js": "d55f3dd44d41e6b0334a1e176354d89d8139ef0435401d2efabc1adf3c200a5f",
     "extensions/result-transport-filter.js": "e7021a9abace6e16fdead53185d433111dc1eee4b2f9c603d8f4b0e4aa6da78e",
     "extensions/async-quote-selectors.js": "eacf2ef3b38dbffdb6589e790185c378f16e1cc34d652adda1f195d7e32b2086",
-    "extensions/weekly-carryover.js": "dc3bd689b7e50f1e60a1025583e7f0a2f66c883d153b341f20215201dfe82ba5"
+    "extensions/weekly-carryover.js": "3001332e8f7d366049b3ead3583b52d8b27370ec52779596b6f36ad43c63d437"
   },
   "replacedTransports": [
     "github-data.js",

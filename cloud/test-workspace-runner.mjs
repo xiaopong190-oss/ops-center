@@ -47,7 +47,7 @@ function fixture(){
  const prepare=async(data,baseSha=null,baseContentHash=null)=>{const bytes=Buffer.isBuffer(data)?data:Buffer.from(JSON.stringify(data)),parts=[];for(let i=0;i<bytes.length;i+=128*1024)parts.push(sha(bytes.subarray(i,i+128*1024)));await upload({action:'start',bytes:bytes.length,sha256:sha(bytes),parts,baseSha,baseContentHash});for(let i=0;i<parts.length;i++)await upload({action:'part',index:i,encoding:'gzip',content:gzipSync(bytes.subarray(i*128*1024,(i+1)*128*1024)).toString('base64')});return {parts,bytes}};
  return {sql,env,files,blobs,send,github,cloud,upload,prepare,id,jobKey,ticket:()=>ticket,dispatches:()=>dispatches,rootWrites:()=>rootWrites,largestRequest:()=>largestRequest,largestPart:()=>largestPart,loseRef:()=>{loseRef=true},corruptBlob:()=>{corruptBlob=true}};
 }
-const row=i=>({companyId:'c',company:'合成物流',country:'美国',warehouse:'ONT8',channel:'海运',price:1000+i,currency:'CNY',unit:'kg',min:10,max:20,date:'2026-10-29',terms:'普货',source:'synthetic-'+i});
+const row=i=>({companyId:'c',company:'合成物流',country:'美国',warehouse:'ONT8',channel:'海运',price:1000+i,currency:'CNY',unit:'kg',min:10,max:20,date:new Date().toISOString().slice(0,10),terms:'普货',source:'synthetic-'+i});
 const snapshot=()=>({space:'real',storage:{'logistics-company-directory-v1':[{id:'c',name:'合成物流',aliases:[]}],'logistics-quotes-v1':{quotes:[row(0)],templates:[]},'logistics-monthly-bills-v1':{rows:[],aliases:{}},'logistics-completed-ratings-v1':[]}});
 
 test('real background publisher rejects partial and stale masters before changing any GitHub root or writing ciphertext',async()=>{

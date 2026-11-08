@@ -31,5 +31,18 @@
  function shouldAsk(db,today){if(db.weeklyCarryover?.weekStart===weeks(today).start)return false;const c=candidates(db,today);return c.quotes.length+c.regionalQuotes.length>0}
  function message(db,today){const e=effective(db,today);return '本周 '+e.week.start+' 至 '+e.week.end+'：本周及沿用仓库报价 '+e.quotes.length+' 条，其中沿用上周 '+e.carriedQuotes.length+' 条；原始日期保留。'}
  function label(row,text){return text+(row.carryover?' · 沿用上周（'+row.date+'）':'')}
- const api={weeks,candidates,choose,effective,replaceProviders,shouldAsk,validate,label,message};if(typeof module!=='undefined')module.exports=api;root.WeeklyCarryover=Object.freeze(api);
+ // Keep published data independent of the reader clock and of local recovery records.
+ function displayDatabase(db){
+  validate(db);
+  const saved=db.weeklyCarryover,excluded=saved?.choice==='keep'?deleted(db):null;
+  const {importExceptions,deletedQuotes,originExcludedQuotes,...shared}=db;
+  if(saved){
+   const {schema,weekStart,sourceStart,decidedOn,choice}=saved;
+   shared.weeklyCarryover={schema,weekStart,sourceStart,decidedOn,choice,
+    quotes:excluded?saved.quotes.filter(row=>!excluded.has(Q.identity(row))):[],
+    regionalQuotes:excluded?saved.regionalQuotes:[]};
+  }
+  return shared;
+ }
+ const api={displayDatabase,weeks,candidates,choose,effective,replaceProviders,shouldAsk,validate,label,message};if(typeof module!=='undefined')module.exports=api;root.WeeklyCarryover=Object.freeze(api);
 })(typeof window==='undefined'?globalThis:window);

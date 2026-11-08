@@ -1,4 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto'),M=require('./data-management.js'),D=require('./record-delta.js');
+const W=require('../logistics-rating/extensions/weekly-carryover.js');
 const hash=async row=>crypto.createHash('sha256').update(JSON.stringify(row)).digest('hex');
 function fixture(n=4){return {space:'real',storage:{[M.keys[0]]:[{id:'a',name:'甲物流',aliases:['甲旧称']},{id:'b',name:'乙物流',aliases:[]}],[M.keys[1]]:{quotes:Array.from({length:n},(_,i)=>({companyId:i%2?'b':'a',company:i%2?'乙物流':'甲物流',price:i,source:'虚拟报价'})),regionalQuotes:[{companyId:'a'},{companyId:'b'}],templates:[{warehouse:'ABE8',country:'美国'}],importExceptions:[{raw:JSON.stringify({values:['甲旧称']})},{raw:JSON.stringify({company:'乙物流'})},{raw:'invalid'}],deletedQuotes:[{companyId:'a'}]},[M.keys[2]]:{rows:[{company:'甲旧称'},{company:'乙物流'}],aliases:{shared:'keep'}},[M.keys[3]]:[{companyId:'a'},{companyId:'b'}]}}}
 test('capacity uses exact UTF8 projected bytes and keeps evidence local',()=>{const f=fixture(),before=JSON.stringify(f);f.storage[M.keys[1]].importExceptions[0].raw='中'.repeat(100000);const r=M.inspect(f);assert.equal(r.bytes,Buffer.byteLength(JSON.stringify(M.projection(f))));assert(r.localBytes>r.bytes+200000);assert.equal(r.over,false);assert(M.projection(f).storage[M.keys[1]].importExceptions===undefined);assert(M.projection(f).storage[M.keys[1]].deletedQuotes===undefined);assert(before.length>0)});
@@ -10,4 +11,21 @@ test('unpublished mode requires verified baseline and never deletes matching pub
 test('50000 synthetic rows over capacity can be reduced without touching 25000 other-provider quotes',async()=>{const f=fixture(50000);for(const row of f.storage[M.keys[1]].quotes)row.source='虚拟'.repeat(250);const before=M.inspect(f);assert(before.over);const p=await M.plan(f,{mode:'provider',providerId:'a',sections:['quotes']});assert.equal(p.next.storage[M.keys[1]].quotes.length,25000);assert(!p.after.over);assert(p.after.bytes<p.before.bytes);console.log(JSON.stringify({scenario:'50000-quotes',beforeMiB:p.before.bytes/1048576,afterMiB:p.after.bytes/1048576,removed:p.total}))});
 test('deletion delta reconstructs exact cleaned cloud projection; no removed record retransmitted',async()=>{const f=fixture(),p=await M.plan(f,{mode:'provider',providerId:'a',sections:['quotes','bills','ratings']}),old=M.projection(f),next=M.projection(p.next),delta=await D.create(next,await D.index(old));assert.deepEqual(await D.apply(old,delta.payload),next);assert.equal(delta.payload.changes[M.keys[1]+'/quotes'].added.length,0)});
 
-test('local weekly carry is excluded from the display snapshot and explicit supplier cleanup removes its copies',async()=>{const f=fixture(),db=f.storage[M.keys[1]];db.weeklyCarryover={quotes:[{companyId:'a'},{companyId:'b'}],regionalQuotes:[{companyId:'a'}]};assert.equal(M.projection(f).storage[M.keys[1]].weeklyCarryover,undefined);const p=await M.plan(f,{mode:'provider',providerId:'a',sections:['quotes']});assert.deepEqual(p.next.storage[M.keys[1]].weeklyCarryover,{quotes:[{companyId:'b'}],regionalQuotes:[]});assert.equal(db.weeklyCarryover.quotes.length,2)});
+test('published carry retains original dates while supplier cleanup removes its matching copies',async()=>{
+ const f=fixture(),db=f.storage[M.keys[1]],today='2026-11-09';
+ const row=(id,company)=>({companyId:id,company,country:'美国',warehouse:'ABE8',channel:'海运',price:1000,currency:'CNY',unit:'kg',min:10,max:20,date:'2026-11-06',terms:'普货'});
+ const a=row('a','甲物流'),b=row('b','乙物流');
+ db.weeklyCarryover=W.choose({quotes:[a,b],regionalQuotes:[{...a,regionRaw:'美国'}],templates:[]},today,'keep').weeklyCarryover;
+ const projected=M.projection(f).storage[M.keys[1]];
+ assert.deepEqual(projected.weeklyCarryover,db.weeklyCarryover);
+ assert.equal(projected.importExceptions,undefined);
+ db.deletedQuotes=[{...a,deletedAt:'2026-11-09T10:00:00Z'}];
+ assert.deepEqual(M.projection(f).storage[M.keys[1]].weeklyCarryover.quotes,[b]);
+ const p=await M.plan(f,{mode:'provider',providerId:'a',sections:['quotes']});
+ assert.deepEqual(p.next.storage[M.keys[1]].weeklyCarryover.quotes,[b]);
+ assert.equal(p.next.storage[M.keys[1]].weeklyCarryover.regionalQuotes.length,0);
+ assert.equal(db.weeklyCarryover.quotes.length,2);
+ db.weeklyCarryover={...db.weeklyCarryover,choice:'skip'};
+ assert.deepEqual(M.projection(f).storage[M.keys[1]].weeklyCarryover.quotes,[]);
+ assert.equal(M.projection(f).storage[M.keys[1]].weeklyCarryover.choice,'skip');
+});

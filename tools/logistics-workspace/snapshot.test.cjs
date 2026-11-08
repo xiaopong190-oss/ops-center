@@ -281,3 +281,55 @@ test('explicit cache repair downloads safely after automatic load stops',async()
  const b=client('?audience=display',replies,a.storage,undefined,{document:{},WorkspaceDisplayCache:broken,WorkspaceDelta:{apply(){}}});
  await assert.rejects(b.api.ready,e=>e.code==='CACHE_REPAIR_REQUIRED');assert.equal(b.calls.length,1);const prior=b.storage.get('logistics-quotes-v1');await assert.rejects(b.api.load({repair:true}),/download denied/);assert.equal(b.storage.get('logistics-quotes-v1'),prior);await b.api.load({repair:true});assert.equal(b.api.state().sha,'new');assert.equal(b.calls.length,5);
 });
+
+test('confirmed carry survives encrypted publication and matches two separate viewers; skip and expiry take effect',async()=>{
+ const W=require('../logistics-rating/extensions/weekly-carryover.js'),M=require('./data-management.js');
+ const {encryptWorkspace,decryptWorkspace}=await import('../../cloud/logistics-workspace.mjs');
+ const env={ENCRYPTION_KEY:Buffer.alloc(32,9).toString('base64')};
+ const extensions={WeeklyCarryover:W,WorkspaceDataManagement:M};
+ const q='logistics-quotes-v1',companies='logistics-company-directory-v1',sha='a'.repeat(40),secondSha='b'.repeat(40),thirdSha='c'.repeat(40),today='2026-11-09',savedAt='2026-11-09T12:00:00Z';
+ const row={companyId:'a',company:'测试公司',country:'英国',warehouse:'BHX1',channel:'海运',price:1000,currency:'CNY',unit:'kg',min:10,max:20,date:'2026-11-06',terms:'普货'};
+ const original={quotes:[row],regionalQuotes:[{...row,regionRaw:'BHX1'}],templates:[{country:'英国',warehouse:'BHX1'}]};
+ const retained=W.choose(original,today,'keep'),responses=[{writeConfigured:true,weeklyCarryover:1,sha:null}];
+ const publisher=client('',responses,undefined,undefined,extensions);
+ publisher.storage.set(companies,JSON.stringify([{id:'a',name:row.company,aliases:[]}]));
+ publisher.storage.set(q,JSON.stringify(retained));
+ await publisher.api.preview();
+ const cloudSource=await decryptWorkspace(await encryptWorkspace(M.projection(publisher.api.data()),env,{savedAt}),env);
+ responses.push({ok:true,sha,savedAt},{sha,savedAt,data:cloudSource});
+ const receipt=await publisher.api.publish();
+ assert.equal(receipt.sha,sha);
+ assert.equal((await publisher.api.publicationStatus()).status,'published');
+ assert.deepEqual(JSON.parse(publisher.calls[1].options.body).data,cloudSource);
+ const declined=W.choose(retained,today,'skip');
+ publisher.storage.set(q,JSON.stringify(declined));
+ assert.equal((await publisher.api.publicationStatus()).status,'changed');
+ const after=await decryptWorkspace(await encryptWorkspace(M.projection(publisher.api.data()),env,{savedAt}),env);
+ const fresh={...row,date:today,price:1200};
+ publisher.storage.set(q,JSON.stringify(W.replaceProviders({...retained,quotes:[fresh],regionalQuotes:[]},[fresh],()=>null,today)));
+ const replaced=await decryptWorkspace(await encryptWorkspace(M.projection(publisher.api.data()),env,{savedAt}),env);
+ const first=client('?audience=display',[{sha},{sha,savedAt,data:cloudSource},{sha:secondSha},{sha:secondSha,savedAt,data:after},{sha:thirdSha},{sha:thirdSha,savedAt,data:replaced}],undefined,undefined,extensions);
+ const second=client('?audience=display',[{sha},{sha,savedAt,data:cloudSource}],new Map([['ops-cloud-session-v1','second-viewer']]),undefined,extensions);
+ await Promise.all([first.api.ready,second.api.ready]);
+ assert.equal(second.calls[0].options.headers.Authorization,'Bearer second-viewer');
+ for(const viewer of [first,second]){
+  const local=W.effective(retained,today),remote=W.effective(viewer.api.data().storage[q],today);
+  assert.deepEqual(remote.quotes,local.quotes);assert.deepEqual(remote.regionalQuotes,local.regionalQuotes);
+  assert.equal(remote.quotes[0].date,'2026-11-06');
+  assert.equal(W.effective(viewer.api.data().storage[q],'2026-11-16').carriedQuotes.length,0);
+ }
+ await first.api.load();assert.equal(first.api.state().sha,secondSha);
+ assert.equal(W.effective(first.api.data().storage[q],today).quotes.length,0);
+ assert.equal(W.effective(first.api.data().storage[q],today).regionalQuotes.length,0);
+ await first.api.load();assert.equal(first.api.state().sha,thirdSha);
+ assert.deepEqual(W.effective(first.api.data().storage[q],today).quotes,[fresh]);
+ assert.equal(W.effective(first.api.data().storage[q],today).carriedRegions.length,0);
+});
+test('an older backend is rejected before publishing a carry decision and the local copy is preserved',async()=>{
+ const W=require('../logistics-rating/extensions/weekly-carryover.js');
+ const c=client('',[{writeConfigured:true,sha:null}],undefined,undefined,{WeeklyCarryover:W});
+ const key='logistics-quotes-v1',value=JSON.stringify(W.choose({quotes:[],templates:[]},'2026-11-09','skip'));
+ c.storage.set(key,value);await assert.rejects(c.api.preview(),/线上尚未启用上周报价同步/);
+ assert.equal(c.calls.length,1);assert.equal(c.storage.get(key),value);
+ assert.equal(c.storage.has('workspace-last-publication'),false);
+});

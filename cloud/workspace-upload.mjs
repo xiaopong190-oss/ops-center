@@ -40,7 +40,7 @@ export async function workspaceUpload(input,env,user,publish,verify,runnerSend=f
  }
  if(action==='status'||action==='start'){
   if(action==='start'){for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey);await env.DB.prepare('UPDATE records SET value=json_set(value,\'$.expires\',?) WHERE key IN ('+names.map(()=>'?').join(',')+') AND json_extract(value,\'$.expires\')>=? AND json_extract(value,\'$.expires\')<?').bind(job.expires,...names,Date.now(),job.expires).run()}}
-  const known=new Map();for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey),rows=await env.DB.prepare('SELECT key,json_extract(value,\'$.expires\') AS expires FROM records WHERE key IN ('+names.map(()=>'?').join(',')+')').bind(...names).all();for(const row of rows.results)known.set(row.key,row.expires)}const missing=[];for(let i=0;i<job.parts.length;i++)if(!(known.get(partKey(job.parts[i]))>=Date.now()))missing.push(i);return {ok:true,publicationSafety:'verified-base-v1',missing,expires:job.expires};
+  const known=new Map();for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey),rows=await env.DB.prepare('SELECT key,json_extract(value,\'$.expires\') AS expires FROM records WHERE key IN ('+names.map(()=>'?').join(',')+')').bind(...names).all();for(const row of rows.results)known.set(row.key,row.expires)}const missing=[];for(let i=0;i<job.parts.length;i++)if(!(known.get(partKey(job.parts[i]))>=Date.now()))missing.push(i);return {ok:true,publicationSafety:'verified-base-v1',weeklyCarryover:1,missing,expires:job.expires};
  }
  if(action!=='commit')fail(400,'上传操作无效');
  if(env.WORKSPACE_COMMIT_RUNNER==='github-actions')return backgroundCommit(env,user,id,jobKey,job,runnerSend);

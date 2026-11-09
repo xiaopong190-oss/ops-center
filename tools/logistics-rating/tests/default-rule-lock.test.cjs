@@ -2,6 +2,10 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const base=path.resolve(__dirname,'..'),lock=JSON.parse(fs.readFileSync(path.join(base,'default-rule-lock.json'),'utf8'));
 function mismatches(read){return Object.entries(lock.files).filter(([file,expected])=>crypto.createHash('sha256').update(read(file).replace(/\r\n/g,'\n'),'utf8').digest('hex')!==expected).map(([file])=>file);}
 const hooks=[
+ ["/* weekly-carryover-message-approved */if(window.WeeklyCarryover&&WeeklyCarryover.effective(db,today()).carriedQuotes.length)$('weekWarning').textContent=WeeklyCarryover.message(db,today());",''],
+ ["/* weekly-carryover-count-approved */(window.WeeklyCarryover?WeeklyCarryover.effective(db,today()).currentQuoteCount:current.length)","current.length"],
+ ["/* weekly-carryover-current-approved */(window.WeeklyCarryover?WeeklyCarryover.effective(db,today()).quotes:Q.weekQuotes(db.quotes,today()))","Q.weekQuotes(db.quotes,today())"],
+ ["/* weekly-carryover-label-approved */(window.WeeklyCarryover?WeeklyCarryover.label(r,r.channelDisplay||r.channel):r.channelDisplay||r.channel)","r.channelDisplay||r.channel"],
  ["+'。区域报价另存 '+regionalSaved+' 条（不参与同仓比价）。'+(batch?.excludedCount?'本次范围排除 '+batch.excludedCount+' 条，已留档。':'')+'本次通过校验 '", "+'。区域报价另存 '+regionalSaved+' 条（不参与同仓比价）。本次通过校验 '"],
  ["mappedRegions=pendingRegions.map(r=>({...r,companyId:Companies.imported(r.company).id}));/* provider-batch-replacement-approved */const batch=window.ProviderBatchReplacement?.prepare(db,mapped,mappedRegions,name=>Companies.find(name)?.id,window.OriginExclusions,today());if(batch){mapped=batch.warehouseRows;mappedRegions=batch.regionalRows;}let result=Q.merge(batch?.base||db,mapped,today());", "result=Q.merge(db,mapped,today());const mappedRegions=pendingRegions.map(r=>({...r,companyId:Companies.imported(r.company).id}));"],
  ["/* tax-filter-approved */rows=window.TaxFilter?TaxFilter.filterTaxRows(rows,document.querySelector('#taxFilter input:checked')?.value||''):rows;",''],

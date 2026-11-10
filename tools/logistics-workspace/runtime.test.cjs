@@ -151,6 +151,9 @@ test('regional-only validation puts the enabled confirmation next to the summary
   button.click();
   await e.wait(()=>w.ComparisonStore.read().regionalQuotes?.length===1);
   assert.equal(w.ComparisonStore.read().regionalQuotes[0].price,1570);
+  const [batch]=w.ComparisonStore.read().pendingQuoteBatches;
+  assert.equal(batch.regionalQuotes[0].price,1570);assert.equal(batch.quotes.length,0);
+  await w.LocalQuoteStore.flush();assert.equal(JSON.parse(w.localStorage.getItem('logistics-quotes-v1')).pendingQuoteBatches[0].id,batch.id);
   assert(button.disabled);
  }finally{e.close()}
 });

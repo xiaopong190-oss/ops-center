@@ -1,5 +1,5 @@
 (function(root){'use strict';const cloudEndpoint='https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/api/logistics-workspace';let endpoint=location.hostname==='127.0.0.1'?'/local-workspace':cloudEndpoint,relayMissing=false,relayNetwork=false;const params=new URLSearchParams(location.search),display=params.get('audience')==='display',testing=params.get('testing')==='1',keys=['logistics-company-directory-v1','logistics-quotes-v1','logistics-monthly-bills-v1','logistics-completed-ratings-v1'];let state={mode:display?'snapshot':'local',sha:null,savedAt:null,loaded:!display},prepared=null,busy=false,paused=false;const uploadKey='workspace-pending-upload-v1',partBytes=128*1024,maxBytes=64*1024*1024;
- if(!display){try{const last=JSON.parse(localStorage.getItem('workspace-last-publication'));if(last?.sha&&last.savedAt)state.lastPublication=last}catch{}}
+ if(!display){try{const last=JSON.parse(localStorage.getItem('workspace-last-publication'));if(last?.sha&&last.savedAt)state.lastPublication=last}catch{}try{const last=JSON.parse(localStorage.getItem('workspace-last-batch-publication'));if(last?.batch&&last.sha&&last.savedAt)state.lastBatchPublication=last}catch{}}
  const data=()=>({space:'real',storage:Object.fromEntries(keys.map((k,i)=>[k,JSON.parse(localStorage.getItem(k)||(i===0||i===3?'[]':i===1?'{"quotes":[],"templates":[]}':'{"rows":[],"aliases":{}}'))]))});
  function validate(d){Domain.directory(d.storage[keys[0]]);QuoteCore.validate(d.storage[keys[1]]);root.WeeklyCarryover?.validate(d.storage[keys[1]]);Domain.bills(d.storage[keys[2]]);Domain.ratings(d.storage[keys[3]],new Date(Date.now()+14*3600000).toISOString().slice(0,10));return d}
  async function once(query='',body){
@@ -75,10 +75,10 @@
  }
  return state;
  }
- async function install(raw,session,sha,savedAt,persistSource=true,expectedToken=session,completedParts=[]){
+ async function install(raw,session,sha,savedAt,persistSource=true,expectedToken=session,completedParts=[],pendingBatches){
   if(display&&await sessionKey()!==expectedToken)throw Object.assign(Error('登录账号已变化，本次下载未替换缓存，请重新打开'),{status:401});
   const next=displayProjection(validate(JSON.parse(JSON.stringify(raw)))),prior=keys.map(k=>localStorage.getItem(k)),priorMeta=localStorage.getItem(cacheKey);
-  try{for(const k of keys)localStorage.setItem(k,JSON.stringify(next.storage[k]));await root.LocalQuoteStore?.flush();
+  try{for(const k of keys)localStorage.setItem(k,JSON.stringify(k===keys[1]&&pendingBatches?.length?{...next.storage[k],pendingQuoteBatches:pendingBatches}:next.storage[k]));await root.LocalQuoteStore?.flush();
    if(display){localStorage.setItem(cacheKey,JSON.stringify({session,sha,savedAt,contentHash:await digest(new TextEncoder().encode(comparable(next)))}));
     if(persistSource&&root.WorkspaceDisplayCache)await root.WorkspaceDisplayCache.save(session,{session,sha,savedAt,hash:await digest(new TextEncoder().encode(JSON.stringify(raw))),data:raw},completedParts);}
   }catch(error){for(let i=0;i<keys.length;i++)prior[i]===null?localStorage.removeItem(keys[i]):localStorage.setItem(keys[i],prior[i]);priorMeta===null?localStorage.removeItem(cacheKey):localStorage.setItem(cacheKey,priorMeta);await root.LocalQuoteStore?.flush();throw error}
@@ -88,10 +88,27 @@
 
  function counts(snapshot){const q=snapshot.storage[keys[1]];return {companies:snapshot.storage[keys[0]].length,quotes:q.quotes.length,regional:q.regionalQuotes?.length||0,templates:q.templates?.length||0,bills:snapshot.storage[keys[2]].rows.length,ratings:snapshot.storage[keys[3]].length}}
  function publicationScope(){const current=displayProjection(validate(data()));return {counts:counts(displayProjection(prepared.snapshot)),currentCounts:counts(current),unpublishedChanges:comparable(prepared.snapshot)!==comparable(current)}}
- function plan(meta={}){return {previousCounts:prepared.previousCounts||null,sha:prepared.baseSha,savedAt:meta.savedAt,resuming:!!prepared.frozen,alreadyPublished:!!prepared.alreadyPublished,phase:prepared.phase||null,confirmed:prepared.confirmed||0,total:prepared.total||0,...publicationScope(),encrypted:true}}
+ function plan(meta={}){if(prepared.batch)return {batch:true,sha:prepared.baseSha,resuming:!!prepared.frozen,confirmed:prepared.confirmed||0,total:prepared.total||0,counts:{quotes:prepared.batch.quotes.length,regional:prepared.batch.regionalQuotes.length},providers:prepared.batch.companies.map(c=>c.name)};return {previousCounts:prepared.previousCounts||null,sha:prepared.baseSha,savedAt:meta.savedAt,resuming:!!prepared.frozen,alreadyPublished:!!prepared.alreadyPublished,phase:prepared.phase||null,confirmed:prepared.confirmed||0,total:prepared.total||0,...publicationScope(),encrypted:true}}
  async function remember(){if(root.WorkspaceUploadTasks&&!prepared.persisted){if(prepared?.session&&await sessionKey()!==prepared.session)throw Object.assign(Error('登录已变化，请重新预览发布；原任务保留'),{status:401});const session=prepared.session||await sessionKey();await root.WorkspaceUploadTasks.save(session,{...prepared,snapshot:undefined,persisted:true});prepared.persisted=true;} }
  async function performPreview(options={}){if(display)throw Error('展示端没有发布入口，请使用完整输入工作台');if(busy)throw Error('上传正在进行，请先暂停并等待当前请求完成');progress('preview-save','正在等待本机数据保存完成…');await root.LocalQuoteStore?.flush();
-  progress('preview-task','正在读取上次固定上传任务…');if(root.WorkspaceUploadTasks){const session=await sessionKey();if(options.fresh){await root.WorkspaceUploadTasks.remove(session);localStorage.removeItem(uploadKey);prepared=null}else{const pending=await root.WorkspaceUploadTasks.load(session);if(pending?.frozen&&pending.raw){prepared={...pending,session,snapshot:JSON.parse(pending.raw)};try{const info=JSON.parse(localStorage.getItem(uploadKey));if(info?.id===prepared.operationId&&info.session===session){prepared.confirmed=info.confirmed||0;prepared.blocked=!!info.blocked;prepared.blockReason=info.blockReason||null;prepared.phase=info.phase||null}}catch{}if(await sessionKey()!==session)throw Object.assign(Error('登录已变化，请重新预览发布'),{status:401});return plan()}}}
+  progress('preview-task','正在读取上次固定上传任务…');if(root.WorkspaceUploadTasks){const session=await sessionKey();if(options.fresh){const pending=await root.WorkspaceUploadTasks.load(session);if(pending?.batch){const info=JSON.parse(localStorage.getItem(uploadKey)||'null');if(!info?.blocked||info.id!==pending.operationId)throw Error('本批仍可续传，请继续原任务核对结果');prepared=pending;}await root.WorkspaceUploadTasks.remove(session);localStorage.removeItem(uploadKey);if(!prepared?.batch)prepared=null}else{const pending=await root.WorkspaceUploadTasks.load(session);if(pending?.frozen&&pending.raw){prepared={...pending,session,snapshot:pending.batch?undefined:JSON.parse(pending.raw)};try{const info=JSON.parse(localStorage.getItem(uploadKey));if(info?.id===prepared.operationId&&info.session===session){prepared.confirmed=info.confirmed||0;prepared.blocked=!!info.blocked;prepared.blockReason=info.blockReason||null;prepared.phase=info.phase||null}}catch{}if(await sessionKey()!==session)throw Object.assign(Error('登录已变化，请重新预览发布'),{status:401});return plan()}}}
+  const batch=!options.full&&root.SupplierQuoteBatch&&data().storage[keys[1]].pendingQuoteBatches?.[0];
+  if(batch){
+   const session=await sessionKey(),meta=await request('?meta=1');
+   if(await sessionKey()!==session)throw Error('登录已变化，请重新预览');
+   if(!meta.sha)throw Error('线上尚无完整基线，请由管理员完成首次建库');
+   if(!meta.writeConfigured||!meta.supplierQuoteBatch||meta.uploadProtocol!=='chunks-v1')throw Error('云端尚未启用批次提交，本机批次已保留');
+   let shared=await request();if(shared.paged)shared=await downloadPages(shared);
+   if(shared.sha!==meta.sha||await sessionKey()!==session)throw Error('共享版本或登录已变化，请重新预览');
+   const today=new Date().toLocaleDateString('sv-SE');
+   const expectedScope=await root.SupplierQuoteBatch.scopeHash(validate(shared.data),batch,today);
+   const scopeKey='hangxu-batch-scope:'+batch.id,prior=localStorage.getItem(scopeKey);
+   if(prior&&prior!==expectedScope)throw Error('同一服务商的同类型报价已变更，本批保留，请核对后处理');
+   if(!prior)localStorage.setItem(scopeKey,expectedScope);
+   prepared={batch,expectedScope,session,baseSha:meta.sha,raw:JSON.stringify({...batch,expectedScope}),operationId:crypto.randomUUID(),protocol:meta.uploadProtocol};
+   return plan();
+  }
+  if(root.SupplierQuoteBatch&&!options.full)throw Error('本机暂无待发布的报价批次。首次建库、备份恢复或发布其他数据，请在「数据与上传」选择「预览整库发布」。');
   const snapshot=displayProjection(validate(data()));if(new TextEncoder().encode(JSON.stringify(snapshot)).length>maxBytes){prepared=null;throw Object.assign(Error('快照超过64MiB容量保护；本机数据保留，请联系管理员检查快照字段占用'),{code:'SNAPSHOT_CAPACITY'})}progress('preview-cloud','正在连接云端并检查发布权限；网络异常会显示错误，请稍候…');const publishSession=await sessionKey(),meta=await request('?meta=1');if(await sessionKey()!==publishSession)throw Object.assign(Error('登录已变化，请重新预览发布'),{status:401});if(!meta.writeConfigured)throw Error('服务端未配置GitHub发布凭证，本地内容保留');if(snapshot.storage[keys[1]].weeklyCarryover&&meta.weeklyCarryover!==1)throw Error('线上尚未启用上周报价同步，本机报价已保留。服务升级后请重新预览发布。');if(new TextEncoder().encode(JSON.stringify(snapshot)).length>(meta.maxSnapshotBytes||32*1024*1024))throw Error('云端尚未启用新版64MiB分批存储，请更新云端服务；不要删除有效数据');const q=snapshot.storage[keys[1]];if(meta.sha&&!snapshot.storage[keys[0]].length&&!q.quotes.length&&!q.regionalQuotes?.length&&!q.templates.length&&!snapshot.storage[keys[2]].rows.length&&!snapshot.storage[keys[3]].length)throw Error('本机数据为空，已阻止覆盖现有云端快照；请先检查旧数据');if(meta.sha&&meta.publicationSafety!=='verified-base-v1')throw Error('云端尚未启用完整数据发布保护，请管理员更新云端后再发布；本机数据保留');prepared={session:publishSession,baseSha:meta.sha,snapshot,raw:JSON.stringify(snapshot),operationId:crypto.randomUUID(),protocol:meta.uploadProtocol,recordDelta:meta.recordDelta};const last=state.lastPublication;let baseline;try{baseline=JSON.parse(localStorage.getItem('workspace-publication-base-v1'))}catch{}prepared.baseContentHash=last?.sha===meta.sha?last.dataHash:baseline?.session===publishSession&&baseline.sha===meta.sha?baseline.dataHash:null;prepared.previousCounts=last?.sha===meta.sha?last.counts:baseline?.session===publishSession&&baseline.sha===meta.sha?baseline.counts:null;prepared.alreadyPublished=!!(last?.dataHash&&last.sha===meta.sha&&last.dataHash===await digest(new TextEncoder().encode(prepared.raw)));return plan(meta)}
  const timings={};let measurement=null;
  const now=()=>root.performance?.now?.()??Date.now();
@@ -115,7 +132,7 @@
   const id=prepared.operationId;prepared.transport=transport;prepared.frozen=true;prepared.total=parts.length;await remember();
   const saveProgress=()=>localStorage.setItem(uploadKey,JSON.stringify({session,id,sha256,baseSha:prepared.baseSha,confirmed:prepared.confirmed||0,total:parts.length,phase:prepared.phase||null,expires:Date.now()+86400000}));saveProgress();
   progress('resume','正在查询服务端已确认的分片，可恢复上次进度…');let remote=await request('',{action:'start',id,bytes:bytes.length,sha256,parts,baseSha:prepared.baseSha,baseContentHash:prepared.baseContentHash||null});
-  if(remote.receipt)return checkedReceipt(remote.receipt,sha256);if(prepared.snapshot.storage[keys[1]].weeklyCarryover&&remote.weeklyCarryover!==1)throw Error('线上尚未启用上周报价同步，原任务保留。服务升级后可继续。');if(prepared.baseSha&&remote.publicationSafety!=='verified-base-v1')throw Error('云端尚未启用完整数据发布保护，原任务保留，请管理员更新后继续');
+  if(remote.receipt)return checkedReceipt(remote.receipt,sha256);if(prepared.snapshot?.storage[keys[1]].weeklyCarryover&&remote.weeklyCarryover!==1)throw Error('线上尚未启用上周报价同步，原任务保留。服务升级后可继续。');if(prepared.baseSha&&remote.publicationSafety!=='verified-base-v1')throw Error('云端尚未启用完整数据发布保护，原任务保留，请管理员更新后继续');
   let confirmed=parts.length-remote.missing.length;prepared.confirmed=confirmed;saveProgress();progress('upload','服务端已确认 '+confirmed+' / '+parts.length+' 片，只补传缺少部分');
   for(const index of remote.missing){
    if(paused)throw Error('本次上传已暂停，进度已保存；点击继续发布即可恢复');
@@ -137,16 +154,47 @@
  }
  function checkedReceipt(receipt,sha256){if(!receipt?.ok||!receipt.verified||receipt.contentHash!==sha256||!receipt.sha||!receipt.savedAt)throw Error('未取得内容一致的GitHub核验回执，请继续本次发布');return receipt}
  async function publicationStatus(){const last=state.lastPublication;if(!last?.sha)return {status:'never',unpublishedChanges:true};if(!last.dataHash)return {status:'unknown',unpublishedChanges:null};const current=await digest(new TextEncoder().encode(comparable(validate(data()))));return {status:current===last.dataHash?'published':'changed',unpublishedChanges:current!==last.dataHash};}
- async function performPublish(){if(display||!prepared)throw Error('请先预览本次快照发布');if(busy)throw Error('正在发布，请等待回执');if(prepared.blocked)throw Error(prepared.blockReason||'云端版本冲突，请核对后选择“改发当前数据”；旧任务保留');if(!prepared.frozen&&prepared.raw!==comparable(data())){prepared=null;throw Error('本地数据已变化，请重新预览发布')}busy=true;paused=false;try{
+ async function performPublish(){if(display||!prepared)throw Error('请先预览本次快照发布');if(busy)throw Error('正在发布，请等待回执');if(prepared.blocked)throw Error(prepared.blockReason||'云端版本冲突，请核对后选择“改发当前数据”；旧任务保留');if(!prepared.frozen&&(prepared.batch?JSON.stringify(prepared.batch)!==JSON.stringify(data().storage[keys[1]].pendingQuoteBatches?.[0]):prepared.raw!==comparable(data()))){prepared=null;throw Error('本地数据已变化，请重新预览发布')}busy=true;paused=false;try{
   progress('prepare','正在核对发布任务…');let receipt;if(prepared?.session&&await sessionKey()!==prepared.session)throw Object.assign(Error('登录已变化，请重新预览发布；原任务保留'),{status:401});
   if(prepared.alreadyPublished){progress('verify','正在核验云端仍为上次成功版本；内容未变时无需重新上传或排队…');const meta=await request('?meta=1');if(meta.sha!==prepared.baseSha)throw Error('云端版本已变化，请重新预览发布');receipt={ok:true,verified:true,unchanged:true,sha:meta.sha,savedAt:state.lastPublication.savedAt};}
   else if(prepared.protocol==='chunks-v1')receipt=await chunkPublish();
   else{progress('upload','正在上传完整快照…');receipt=await request('',{baseSha:prepared.baseSha,baseContentHash:prepared.baseContentHash||null,operationId:prepared.operationId,data:prepared.snapshot});if(!receipt.ok||!receipt.sha||!receipt.savedAt)throw Error('未取得有效发布回执，请刷新版本后再试');progress('verify','已取得上传回执，正在下载核验…');let verified=await request();if(verified.paged)verified=await downloadPages(verified);if(verified.sha!==receipt.sha||!verified.data||comparable(validate(verified.data))!==prepared.raw)throw Error('上传回执已取得，但GitHub读回内容或版本未核验一致；请重试本次发布，本机数据保留')}
-  progress('receipt','正在确认并保存发布回执…');await root.LocalQuoteStore?.flush();if(prepared?.session&&await sessionKey()!==prepared.session)throw Object.assign(Error('登录已变化，请重新预览发布；原任务保留'),{status:401});receipt={...receipt,...publicationScope()};state={mode:'local',loaded:true,sha:receipt.sha,savedAt:receipt.savedAt,counts:receipt.counts,currentCounts:receipt.currentCounts,unpublishedChanges:receipt.unpublishedChanges,dataHash:await digest(new TextEncoder().encode(prepared.raw))};localStorage.setItem('workspace-last-publication',JSON.stringify(state));state.lastPublication={...state};localStorage.removeItem(uploadKey);if(root.WorkspaceUploadTasks){try{await root.WorkspaceUploadTasks.remove(await sessionKey())}catch{progress('saved','发布已成功，旧任务清理失败；再次继续可核实成功回执')}}if(prepared.nextIndex){try{localStorage.setItem('workspace-record-baseline-v1',JSON.stringify({sha:receipt.sha,session:await sessionKey(),index:prepared.nextIndex}))}catch{progress('saved','发布成功；本机同步索引未保存，下次将安全重新建立')}}prepared=null;return receipt
- }catch(error){if([422,428].includes(error.status)&&prepared?.frozen){prepared.blocked=true;prepared.blockReason=error.message;try{const info=JSON.parse(localStorage.getItem(uploadKey));localStorage.setItem(uploadKey,JSON.stringify({...info,blocked:true,blockReason:error.message}))}catch{}}if(error.status===409&&!prepared?.frozen){prepared=null;error.message+='；请重新预览发布'}else if(error.status===409){prepared.blocked=true;try{const info=JSON.parse(localStorage.getItem(uploadKey));localStorage.setItem(uploadKey,JSON.stringify({...info,blocked:true}))}catch{}error.message+='；云端版本冲突，固定任务和本机数据保留；请核对后选择“改发当前数据”'}error.message='['+(state.stage||'prepare')+'] '+error.message+(prepared?.frozen&&(!root.WorkspaceUploadTasks||prepared.persisted)?'。已确认 '+(prepared.confirmed||0)+' / '+prepared.total+' 片；'+(prepared.blocked?'已阻止本次覆盖，固定任务保留，请核对后重新准备发布':'任务已保留，请点击继续上传'):'');throw error}finally{busy=false}}
+  progress('receipt','正在确认并保存发布回执…');await root.LocalQuoteStore?.flush();if(prepared?.session&&await sessionKey()!==prepared.session)throw Object.assign(Error('登录已变化，请重新预览发布；原任务保留'),{status:401});if(prepared.batch){
+   const {id,quotes,regionalQuotes}=prepared.batch;
+   await Domain.withWriteLock(async()=>{
+    const db=root.ComparisonStore.read();
+    root.ComparisonStore.commit({...db,pendingQuoteBatches:(db.pendingQuoteBatches||[]).filter(b=>b.id!==id)});
+    await root.LocalQuoteStore?.flush();
+   });
+   localStorage.removeItem(uploadKey);localStorage.removeItem('hangxu-batch-scope:'+id);
+   await root.WorkspaceUploadTasks?.remove(await sessionKey());
+   prepared=null;
+   const verified={...receipt,batch:true,warehouseQuotes:quotes.length,regionalQuotes:regionalQuotes.length};
+   state.lastBatchPublication=verified;
+   localStorage.setItem('workspace-last-batch-publication',JSON.stringify(verified));
+   return verified;
+  }
+  receipt={...receipt,...publicationScope()};state={mode:'local',loaded:true,lastBatchPublication:state.lastBatchPublication,sha:receipt.sha,savedAt:receipt.savedAt,counts:receipt.counts,currentCounts:receipt.currentCounts,unpublishedChanges:receipt.unpublishedChanges,dataHash:await digest(new TextEncoder().encode(prepared.raw))};localStorage.setItem('workspace-last-publication',JSON.stringify(state));state.lastPublication={...state};localStorage.removeItem(uploadKey);if(root.WorkspaceUploadTasks){try{await root.WorkspaceUploadTasks.remove(await sessionKey())}catch{progress('saved','发布已成功，旧任务清理失败；再次继续可核实成功回执')}}if(prepared.nextIndex){try{localStorage.setItem('workspace-record-baseline-v1',JSON.stringify({sha:receipt.sha,session:await sessionKey(),index:prepared.nextIndex}))}catch{progress('saved','发布成功；本机同步索引未保存，下次将安全重新建立')}}prepared=null;return receipt
+ }catch(error){if([422,428].includes(error.status)&&prepared?.frozen){prepared.blocked=true;prepared.blockReason=error.message;try{const info=JSON.parse(localStorage.getItem(uploadKey));localStorage.setItem(uploadKey,JSON.stringify({...info,blocked:true,blockReason:error.message}))}catch{}}if(error.status===409&&!prepared?.frozen){prepared=null;error.message+='；请重新预览发布'}else if(error.status===409){prepared.blocked=true;try{const info=JSON.parse(localStorage.getItem(uploadKey));localStorage.setItem(uploadKey,JSON.stringify({...info,blocked:true}))}catch{}error.message+=prepared.batch?'；固定批次和本机数据保留，请核对后选择“重新预览”':'；云端版本冲突，固定任务和本机数据保留；请核对后选择“改发当前数据”'}error.message='['+(state.stage||'prepare')+'] '+error.message+(prepared?.frozen&&(!root.WorkspaceUploadTasks||prepared.persisted)?'。已确认 '+(prepared.confirmed||0)+' / '+prepared.total+' 片；'+(prepared.blocked?'已阻止本次覆盖，固定任务保留，请核对后重新准备发布':'任务已保留，请点击继续上传'):'');throw error}finally{busy=false}}
  async function performDiscard(){if(display)throw Error('展示端不能清理上传任务');if(busy)throw Error('上传正在进行，请先暂停并等待当前请求结束');if(root.WorkspaceUploadTasks&&localStorage.getItem('ops-cloud-session-v1'))await root.WorkspaceUploadTasks.remove(await sessionKey());localStorage.removeItem(uploadKey);prepared=null;state={...state,stage:null,progress:'旧上传任务已清除，本机数据保留'};return state}
  function publicationLock(run){return root.navigator?.locks?.request?root.navigator.locks.request('hangxu-publish-v1',{ifAvailable:true},lock=>{if(!lock)throw Error('另一个航序页面正在准备或发布，请回到该页面完成或暂停后再试');return run()}):run()}
  const preview=options=>publicationLock(()=>timed('preview',()=>performPreview(options))),publish=()=>publicationLock(()=>timed('publish',performPublish)),discard=()=>publicationLock(performDiscard);
+ async function deferBatch(){
+  if(display||busy)throw Error('请先结束当前上传再调整本机待发布批次');
+  const session=await sessionKey(),task=await root.WorkspaceUploadTasks?.load(session);
+  if(task?.frozen){
+   const status=JSON.parse(localStorage.getItem(uploadKey)||'null');
+   if(!task.batch||!status?.blocked||status.id!==task.operationId)throw Error('仍有固定上传任务，请先继续核对结果');
+  }
+  await Domain.withWriteLock(async()=>{
+   const db=root.ComparisonStore.read(),batches=db.pendingQuoteBatches||[];
+   if(batches.length<2)throw Error('没有其他待发布报价批次');
+   root.ComparisonStore.commit({...db,pendingQuoteBatches:[...batches.slice(1),batches[0]]});
+   await root.LocalQuoteStore?.flush();
+  });
+  if(task){await root.WorkspaceUploadTasks.remove(session);localStorage.removeItem(uploadKey);}
+  prepared=null;
+ }
  let sharedPreview=null;
  async function syncBase({apply=false}={}){
   if(display||busy)throw Error('请在输入端暂停上传后载入共享数据');
@@ -166,7 +214,8 @@
    const priorMarker=localStorage.getItem('workspace-publication-base-v1');
    try{
     localStorage.setItem('workspace-publication-base-v1',JSON.stringify({session,sha:sharedPreview.sha,dataHash:sharedPreview.dataHash,backupKey,counts:counts(sharedPreview.snapshot)}));
-    await install(sharedPreview.snapshot,session,sharedPreview.sha,sharedPreview.savedAt,false,session);
+    const pending=JSON.parse(sharedPreview.backupRaw).storage[keys[1]].pendingQuoteBatches;
+    await install(sharedPreview.snapshot,session,sharedPreview.sha,sharedPreview.savedAt,false,session,[],pending);
    }catch(error){if(priorMarker===null)localStorage.removeItem('workspace-publication-base-v1');else localStorage.setItem('workspace-publication-base-v1',priorMarker);throw error;}
    sharedPreview=null;return {ok:true,backupKey};
   }
@@ -190,5 +239,5 @@
   if(await sessionKey()!==session||typeof result.confirmed!=='boolean')throw Error('团队提醒状态尚未核验');
   return result;
  }
- const ready=display?load():Promise.resolve(state);root.WorkspaceSnapshot={ready,load,checkVersion,weeklyReminder,syncBase:options=>publicationLock(()=>syncBase(options)),baselineBackup,preview,publish,publicationStatus,discard,pause:()=>{paused=true},isBusy:()=>busy,state:()=>state,diagnostics:()=>JSON.parse(JSON.stringify(timings)),data};
+ const ready=display?load():Promise.resolve(state);root.WorkspaceSnapshot={ready,load,checkVersion,weeklyReminder,deferBatch:()=>publicationLock(deferBatch),syncBase:options=>publicationLock(()=>syncBase(options)),baselineBackup,preview,publish,publicationStatus,discard,pause:()=>{paused=true},isBusy:()=>busy,state:()=>state,diagnostics:()=>JSON.parse(JSON.stringify(timings)),data};
 })(window);

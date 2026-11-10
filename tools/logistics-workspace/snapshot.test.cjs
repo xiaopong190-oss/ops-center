@@ -333,3 +333,45 @@ test('an older backend is rejected before publishing a carry decision and the lo
  assert.equal(c.calls.length,1);assert.equal(c.storage.get(key),value);
  assert.equal(c.storage.has('workspace-last-publication'),false);
 });
+
+test('publication preview sends only the queued scope and detects a same-provider revision across reopen',async()=>{
+ const B=require('../logistics-rating/extensions/supplier-quote-batch.js'),q='logistics-quotes-v1',d='logistics-company-directory-v1';
+ const sha='a'.repeat(40),next='b'.repeat(40),day=new Date().toLocaleDateString('sv-SE'),company={id:'a',name:'甲物流',aliases:[]};
+ const row={companyId:'a',company:'甲物流',country:'英国',regionRaw:'范围',channel:'空运',price:2500,currency:'CNY',unit:'kg',date:day,terms:'普货'};
+ const pending=B.capture({},[],[row],[company],crypto.randomUUID()).pendingQuoteBatches;
+ const cloud=client().api.data();cloud.storage[d]=[company];cloud.storage[q].regionalQuotes=[{...row,price:2000}];
+ const meta={writeConfigured:true,uploadProtocol:'chunks-v1',supplierQuoteBatch:true,sha};
+ const c=client('',[meta,{sha,data:cloud}],undefined,undefined,{SupplierQuoteBatch:B});
+ c.storage.set(q,JSON.stringify({quotes:Array(410).fill({}),templates:[],pendingQuoteBatches:pending}));
+ const preview=await c.api.preview();assert(preview.batch);assert.equal(preview.counts.regional,1);assert.equal(preview.counts.quotes,0);
+ assert(c.calls.every(call=>call.options.method==='GET'));
+ const changed=structuredClone(cloud);changed.storage[q].regionalQuotes[0].price=2200;
+ const reopened=client('',[{...meta,sha:next},{sha:next,data:changed}],c.storage,undefined,{SupplierQuoteBatch:B});
+ await assert.rejects(reopened.api.preview(),/同一服务商的同类型报价已变更/);
+ assert.equal(JSON.parse(c.storage.get(q)).pendingQuoteBatches.length,1);
+});
+
+test('batch publish sends fragments, verifies the receipt and then clears only the confirmed local batch',async()=>{
+ const B=require('../logistics-rating/extensions/supplier-quote-batch.js'),q='logistics-quotes-v1',d='logistics-company-directory-v1';
+ const sha='a'.repeat(40),next='b'.repeat(40),day=new Date().toLocaleDateString('sv-SE'),company={id:'a',name:'甲物流',aliases:[]};
+ const row={companyId:'a',company:'甲物流',country:'英国',regionRaw:'范围',channel:'空运',price:2500,currency:'CNY',unit:'kg',date:day,terms:'普货'};
+ const make=()=>B.capture({},[],[row],[company],crypto.randomUUID()).pendingQuoteBatches[0];
+ const first=make(),second=make(),shared=client().api.data(),responses=[];
+ shared.storage[d]=[company];
+ const c=client('',responses,undefined,undefined,{SupplierQuoteBatch:B,btoa});
+ const read=()=>JSON.parse(c.storage.get(q));
+ c.w.Domain.withWriteLock=fn=>fn();
+ c.w.ComparisonStore={read,commit:db=>c.storage.set(q,JSON.stringify(db))};
+ c.storage.set(q,JSON.stringify({quotes:Array(410).fill({}),templates:[],pendingQuoteBatches:[first,second]}));
+ responses.push({writeConfigured:true,uploadProtocol:'chunks-v1',supplierQuoteBatch:true,sha},{sha,data:shared});
+ assert((await c.api.preview()).batch);
+ const expectedScope=await B.scopeHash(shared,first,day);
+ const contentHash=crypto.createHash('sha256').update(JSON.stringify({...first,expectedScope})).digest('hex');
+ responses.push({missing:[0],publicationSafety:'verified-base-v1'},{ok:true},{receipt:{ok:true,verified:true,contentHash,sha:next,savedAt:day}});
+ const receipt=await c.api.publish();assert.equal(receipt.regionalQuotes,1);
+ assert.deepEqual(read().pendingQuoteBatches,[second]);
+ const reopened=client('',[],c.storage,undefined,{SupplierQuoteBatch:B});
+ assert.equal(reopened.api.state().lastBatchPublication.sha,next);assert.equal(read().quotes.length,410);
+ const part=JSON.parse(c.calls[3].options.body),uploaded=JSON.parse(Buffer.from(part.content,'base64').toString());
+ assert.equal(uploaded.id,first.id);assert.equal(uploaded.quotes.length,0);assert.equal(uploaded.regionalQuotes.length,1);
+});

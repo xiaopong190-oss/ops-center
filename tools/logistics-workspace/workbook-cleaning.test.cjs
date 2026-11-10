@@ -30,3 +30,20 @@ test('100-sheet mixed stress workbook cleans only confirmed quote sheets',async(
 test('uniform-unit grouped air worksheet cleans via actual two-stage worker with original price/channel coordinates',async()=>{const row=(n,obj)=>({row:n,cells:Object.entries(obj).map(([c,v])=>({cell:c+n,v:String(v),type:'n'}))}),book={fileName:'synthetic-air.xlsx',sheets:[{name:'美国空派',kind:'报价',merges:['C5:C6'],media:[],rows:[row(3,{A:'单位：RMB/KG；材积除6000'}),row(4,{A:'国内分区',B:'区域范围',C:'下单渠道 重量段',D:'10-20',E:'501+',F:'参考时效'}),row(5,{A:'美西',B:'ONT8,LAX9',C:'美国空派普货不包税(卡派)',D:'60.5',E:'55.5',F:'10-12天签收'}),row(6,{A:'美西二区',B:'SMF3',D:'61.5',E:'56.5'})]}]},before=JSON.stringify(book),r=await api().run(book,meta);assert.equal(r.preflight[0].status,'quote');assert.equal(r.records.length,6);assert(r.records.every(x=>x.layoutRule==='grouped-unit-v1'));assert(r.records.every(x=>x.values[10].includes('条件=不含税')));assert.equal(r.records.find(x=>x.priceCell==='D6').sourceChannelCell,'C5');assert.equal(JSON.stringify(book),before)});
 
 test('actual background cleaning removes explicit Ningbo and Xiamen origins while retaining other-origin source prices',async()=>{const book={fileName:'synthetic-origin.xlsx',sheets:[{...sheet(0),name:'美国海运 宁波起运'},{...sheet(1),name:'美国海运 厦门始发'},{...sheet(2),name:'美国海运 深圳起运'}]},before=JSON.stringify(book),result=await api().run(book,meta);assert(result.records.length>0);assert(result.records.every(r=>r.sourceSheet.includes('深圳起运')));assert(result.originExclusions.some(e=>e.row.sourceSheet.includes('宁波起运')));assert(result.originExclusions.some(e=>e.row.sourceSheet.includes('厦门始发')));assert(result.records.some(r=>r.values[4]==='8.6'));assert.equal(JSON.stringify(book),before)});
+test('country and weight blocks keep priced rows when their remarks mention warehouses and weight',async()=>{
+ const row=(n,values)=>({row:n,cells:Object.entries(values).map(([col,v])=>({cell:col+n,v:String(v)}))});
+ const model={fileName:'模拟快卡.xlsx',sheets:[{name:'欧洲快卡',kind:'报价',merges:[],rows:[
+  row(1,{A:'欧洲卡航自税'}),
+  row(2,{A:'RMB报价，自税渠道未含税'}),
+  row(3,{A:'国家/重量',B:'21-45KG',C:'101KG+',D:'1001KG+',E:'备注'}),
+  row(4,{A:'英国',B:15,C:14,D:13}),
+  row(5,{A:'国家/重量',B:'21-45KG',C:'101KG+',D:'1001KG+',E:'备注'}),
+  row(6,{A:'德国',B:'/',C:16,D:15,E:'可接FBA/海外仓，101KG起收'}),
+  row(7,{A:'法国',B:'/',C:18,D:17}),
+  row(8,{A:'备注说明',C:350,E:'清关附加费'})
+ ]}]};
+ const r=await api().run(model,meta);
+ assert.deepEqual(r.preflight[0].blocks.map(b=>b.priceCells),[['B4','C4','D4'],['C6','D6','C7','D7']]);
+ assert.deepEqual(r.regionalRecords.map(x=>[x.country,x.priceCell]).sort(),[['德国','C6'],['德国','D6'],['法国','C7'],['法国','D7'],['英国','B4'],['英国','C4'],['英国','D4']]);
+ assert.equal(r.records.length,0);
+});

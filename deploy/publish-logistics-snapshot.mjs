@@ -1,4 +1,5 @@
 import Batch from '../tools/logistics-rating/extensions/supplier-quote-batch.js';
+import {auditDisplay} from './snapshot-display-audit.mjs';
 import {buildIncremental,readPublicationBase} from './snapshot-incremental.mjs';
 import {createGitHubClient} from './workspace-github-client.mjs';
 import {createHash,randomBytes} from 'node:crypto';
@@ -84,7 +85,7 @@ async function main(){
   async function read(query=''){let last;for(let attempt=0;attempt<3;attempt++){const r=await fetch(endpoint+'audit-read'+query,{headers:{Authorization:'Bearer '+await identity()},redirect:'error',signal:AbortSignal.timeout(60000)});if(r.ok)return r.json();last=r.status;await sleep(1000)}throw failure('DISPLAY_READ_HTTP_'+last)}
   const result=await read();let data=result.data;
   if(result.paged){const m=result.paged,chunks=[];for(let i=0;i<m.parts.length;i++){const p=await read('?page='+i+'&sha='+result.sha),b=Buffer.from(p.content,'base64');if(p.sha!==result.sha||p.hash!==m.parts[i]||hash(b)!==m.parts[i])throw failure('DISPLAY_PART_MISMATCH');chunks.push(b)}const bytes=Buffer.concat(chunks);if(bytes.length!==m.bytes||hash(bytes)!==m.hash)throw failure('DISPLAY_FULL_MISMATCH');data=JSON.parse(bytes)}
-  const checked=displayData(data),s=checked.storage,q=s['logistics-quotes-v1'];console.log('Verified display read: '+JSON.stringify({sha:result.sha,counts:{quotes:q.quotes.length,regional:q.regionalQuotes?.length||0,templates:q.templates.length,bills:s['logistics-monthly-bills-v1'].rows.length,ratings:s['logistics-completed-ratings-v1'].length}}));return;
+  const checked=displayData(data),s=checked.storage,q=s['logistics-quotes-v1'];console.log('Verified display read: '+JSON.stringify({sha:result.sha,counts:{quotes:q.quotes.length,regional:q.regionalQuotes?.length||0,templates:q.templates.length,bills:s['logistics-monthly-bills-v1'].rows.length,ratings:s['logistics-completed-ratings-v1'].length}}));console.log('Verified display distribution: '+JSON.stringify(auditDisplay(checked)));return;
  }
  if(ticket==='self-test'){
   const auth={Authorization:'Bearer '+await identity()};let ready;for(let i=0;i<4;i++){ready=await fetch(endpoint+'self-test',{headers:auth,redirect:'error',signal:AbortSignal.timeout(30000)});if(ready.ok)break;const text=await ready.text();console.log('Self-test transport status: '+ready.status+'; response class: '+(text.includes('RUNNER_JWKS_NETWORK')?'JWKS_NETWORK':text.includes('RUNNER_JWKS_HTTP_')?'JWKS_HTTP':text.includes('RUNNER_JWKS_JSON')?'JWKS_JSON':text.includes('后台发布身份无效')?'OIDC_REJECTED':text.includes('Worker exceeded')?'WORKER_RESOURCE':text.includes('cloudflare')?'CLOUDFLARE_GATEWAY':text.includes('服务请求失败')?'WORKER_EXCEPTION':'OTHER')+'; content type: '+(ready.headers.get('content-type')?.includes('json')?'JSON':'NON_JSON'));await sleep(1000)}if(!ready.ok)throw failure('SELF_TEST_IDENTITY_HTTP_'+ready.status);

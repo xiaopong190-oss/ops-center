@@ -19,6 +19,12 @@
   let base = replaceBase(db, allowed.quotes, allowed.regionalQuotes, resolveCompany);
   const carry=root.WeeklyCarryover||(typeof require==='function'?require('./weekly-carryover.js'):null);
   if(carry)base=carry.replaceProviders(base,[...allowed.quotes,...allowed.regionalQuotes],resolveCompany,today);
+  if(root.SupplierQuoteBatch&&root.Companies&&root.LogisticsSpace?.mode==='local'){
+   const warehouseIds=new Set(allowed.quotes.map(row=>row.companyId));
+   const regionalIds=new Set(allowed.regionalQuotes.map(row=>row.companyId));
+   const keep=(row,ids)=>!ids.has(row.companyId||resolveCompany(row.company));
+   base=root.SupplierQuoteBatch.capture({...base,quotes:db.quotes.filter(row=>keep(row,warehouseIds)),...(db.regionalQuotes?{regionalQuotes:db.regionalQuotes.filter(row=>keep(row,regionalIds))}:{})},allowed.quotes,allowed.regionalQuotes,root.Companies.list(),root.crypto.randomUUID());
+  }
   const excluded = allowed.originExcludedQuotes || [];
   if (excluded.length) {
    base = {...base, originExcludedQuotes: [...(base.originExcludedQuotes || []), ...excluded]};

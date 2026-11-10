@@ -35,7 +35,7 @@
  function displayDatabase(db){
   validate(db);
   const saved=db.weeklyCarryover,excluded=saved?.choice==='keep'?deleted(db):null;
-  const {importExceptions,deletedQuotes,originExcludedQuotes,...shared}=db;
+  const {importExceptions,deletedQuotes,originExcludedQuotes,pendingQuoteBatches,...shared}=db;
   if(saved){
    const {schema,weekStart,sourceStart,decidedOn,choice}=saved;
    shared.weeklyCarryover={schema,weekStart,sourceStart,decidedOn,choice,

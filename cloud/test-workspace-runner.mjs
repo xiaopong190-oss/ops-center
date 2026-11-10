@@ -150,3 +150,33 @@ test('GitHub OIDC requires signed fixed-repository main-branch hosted workflow i
  const token=c=>{const a=Buffer.from(JSON.stringify({alg:'RS256',kid:jwk.kid})).toString('base64url')+'.'+Buffer.from(JSON.stringify(c)).toString('base64url');return a+'.'+sign('RSA-SHA256',Buffer.from(a),privateKey).toString('base64url')},request=t=>new Request('https://worker',{headers:{Authorization:'Bearer '+t}}),send=async url=>{assert.equal(url,'https://token.actions.githubusercontent.com/.well-known/jwks');return Response.json({keys:[jwk]})};
  assert.equal((await runnerIdentity(request(token(claims)),send,now)).run_id,'77');for(const change of [{ref:'refs/heads/evil'},{repository_id:'wrong'},{aud:'wrong'},{workflow_ref:'wrong'},{runner_environment:'self-hosted'},{event_name:'pull_request'},{exp:0}])await assert.rejects(runnerIdentity(request(token({...claims,...change})),send,now),e=>e.status===403);const valid=token(claims),bad=valid.slice(0,valid.lastIndexOf('.')+1)+Buffer.alloc(256).toString('base64url');await assert.rejects(runnerIdentity(request(bad),send,now),e=>e.status===403);
 });
+
+test('scoped regional batch resumes missing fragments and publishes an authenticated shared snapshot without dropping warehouse rows',async()=>{
+ const Batch=(await import('../tools/logistics-rating/extensions/supplier-quote-batch.js')).default;
+ const f=fixture(),key='logistics-quotes-v1',directory='logistics-company-directory-v1';
+ try{
+  const base=snapshot(),q=base.storage[key],today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
+  q.quotes=Array.from({length:2493},(_,i)=>({...row(i),date:today}));
+  const prior=await publishWorkspace({baseSha:null,operationId:crypto.randomUUID(),data:base},f.env,{id:'synthetic-owner'},f.send);
+  const rows=Array.from({length:519},(_,i)=>({companyId:'c',company:'合成物流',country:'美国',regionRaw:'范围'+i,channel:'空运',price:8000,currency:'CNY',unit:'kg',date:today,terms:'档'+i,source:'模拟原文'.repeat(60)}));
+  const batch=Batch.capture({},[],rows,base.storage[directory],crypto.randomUUID()).pendingQuoteBatches[0];
+  batch.expectedScope=await Batch.scopeHash(base,batch,today);
+  const raw=Buffer.from(JSON.stringify(batch)),parts=[];
+  for(let i=0;i<raw.length;i+=128*1024)parts.push(sha(raw.subarray(i,i+128*1024)));
+  assert(parts.length>1);
+  const start={action:'start',bytes:raw.length,sha256:sha(raw),parts,baseSha:prior.sha};
+  assert.equal((await f.upload(start)).missing.length,parts.length);
+  const uploadPart=index=>f.upload({action:'part',index,encoding:'gzip',content:gzipSync(raw.subarray(index*128*1024,(index+1)*128*1024)).toString('base64')});
+  await uploadPart(0);
+  const resumed=await f.upload(start);assert(!resumed.missing.includes(0));
+  for(const index of resumed.missing)await uploadPart(index);
+  await f.upload({action:'commit'});
+  const result=await publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github:f.github,delay:async()=>{}});
+  assert(result.receipt.verified);assert.equal(result.receipt.contentHash,sha(raw));
+  const output=await decryptWorkspace(JSON.parse(f.blobs.get(f.files.get(root))),f.env,f.send);
+  assert.deepEqual(output.storage[key].quotes,q.quotes);
+  assert.equal(output.storage[key].regionalQuotes.length,519);
+  assert.equal((await f.upload({action:'commit'})).receipt.sha,result.receipt.sha);
+  assert.equal(f.rootWrites(),1);
+ }finally{f.sql.close()}
+});

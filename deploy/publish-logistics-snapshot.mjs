@@ -1,4 +1,5 @@
-import {buildIncremental} from './snapshot-incremental.mjs';
+import Batch from '../tools/logistics-rating/extensions/supplier-quote-batch.js';
+import {buildIncremental,readPublicationBase} from './snapshot-incremental.mjs';
 import {createGitHubClient} from './workspace-github-client.mjs';
 import {createHash,randomBytes} from 'node:crypto';
 import {gzipSync,gunzipSync} from 'node:zlib';
@@ -13,7 +14,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const failure=code=>Object.assign(Error(code),{code});
 export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
  if(!/^[a-f0-9-]{36}$/i.test(ticket||''))throw failure('INVALID_TICKET');
- const request=async(path,options={})=>{let error;for(let i=0;i<4;i++){try{const r=await cloud(path,options);if(r.ok)return r;const code='CLOUD_'+r.status;if(r.status<500)throw failure(code);error=failure(code)}catch(e){error=e;if(e.code?.startsWith('CLOUD_')&&Number(e.code.slice(6))<500)throw e}await delay(250*(i+1))}throw error};
+ const request=async(path,options={})=>{let error;for(let i=0;i<4;i++){try{const r=await cloud(path,options);if(r.ok)return r;const code=r.status===409&&['previous','base','ready'].some(p=>path.startsWith(p))?'PUBLICATION_CONFLICT':'CLOUD_'+r.status;if(r.status<500)throw failure(code);error=failure(code)}catch(e){error=e;if(e.code==='PUBLICATION_CONFLICT')throw e;if(e.code?.startsWith('CLOUD_')&&Number(e.code.slice(6))<500)throw e}await delay(250*(i+1))}throw error};
  const progress=async n=>request('progress',{method:'POST',headers:{'X-Workspace-Progress':String(n)}});
  const meta=await (await request('meta')).json();
  if(!Number.isSafeInteger(meta.bytes)||meta.bytes<1||meta.bytes>max||!Array.isArray(meta.parts)||meta.parts.length!==Math.ceil(meta.bytes/(128*1024))||!/^[a-f0-9]{64}$/.test(meta.sha256)||!meta.parts.every(h=>/^[a-f0-9]{64}$/.test(h)))throw failure('INVALID_SOURCE_MANIFEST');
@@ -29,9 +30,21 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
   else{const plain=r.headers.get('X-Workspace-Compression')==='gzip'?gunzipSync(raw,{maxOutputLength:max}):raw;base=JSON.parse(plain)}
   data=await Delta.apply(base,data);
  }
+ let scopedBase;
+ if(data?.protocol===Batch.protocol){
+  if(!/^[a-f0-9]{64}$/.test(data.expectedScope||''))throw failure('BATCH_SCOPE_CONFLICT');
+  scopedBase=await readPublicationBase(meta.baseSha,request);
+  if(!scopedBase)throw failure('BATCH_BASE_REQUIRED');
+  try{
+   const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
+   if(await Batch.scopeHash(scopedBase,data,today)!==data.expectedScope)throw Error('scope changed');
+   data=Batch.apply(scopedBase,data,today);
+  }
+  catch{throw failure('BATCH_SCOPE_CONFLICT');}
+ }
  // Preserve the same full server-side business validation and display projection.
  const published=displayData(data),plain=Buffer.from(JSON.stringify(published));if(plain.length<1||plain.length>max)throw failure('SNAPSHOT_SIZE_INVALID');
- const incremental=await buildIncremental(published,meta.baseSha,request,meta.baseContentHash);
+ const incremental=await buildIncremental(published,meta.baseSha,request,meta.baseContentHash,scopedBase);
  const manifest={publicationSafety:'verified-base-v1',schemaVersion:2,storage:'encrypted-parts-v1',bytes:plain.length,hash:hash(plain),parts:[],operationId:meta.operationId,savedAt:new Date().toISOString()},entries=[];
  const fullParts=Math.ceil(plain.length/chunkSize),deltaParts=incremental?Math.ceil(incremental.bytes.length/chunkSize):0;
  if(incremental)manifest.incremental={baseHash:incremental.baseHash,bytes:incremental.bytes.length,hash:hash(incremental.bytes),parts:[]};
@@ -78,6 +91,6 @@ async function main(){
   const packed=gzipSync(randomBytes(chunkSize));let ok=false;for(let i=0;i<4;i++){const r=await fetch(endpoint+'self-test',{method:'POST',headers:auth,body:packed,redirect:'error',signal:AbortSignal.timeout(30000)});if(r.ok){const result=await r.json();if(result.ok&&result.hash===hash(packed)&&result.bytes===packed.length){ok=true;break}}await sleep(1000)}if(!ok)throw failure('SELF_TEST_CPU_OR_CRYPTO_FAILED');console.log('Free Worker identity and 512 KiB high-entropy encryption roundtrip verified. No publication task or business data was accessed.');return;
  }
  const github=createGitHubClient({token:process.env.GITHUB_TOKEN});
- try{await publishSnapshot({ticket,cloud,github});console.log('Verified encrypted snapshot publication completed.')}catch(error){try{await cloud('failed',{method:'POST',headers:{'X-Workspace-Failure':['PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED'].includes(error.code)?error.code:'RUNNER_FAILED'}})}catch{}console.error('Snapshot publication failed: '+(/^[A-Z_0-9]+$/.test(error.code||'')?error.code:'VALIDATION_OR_PROCESSING'));process.exitCode=1}
+ try{await publishSnapshot({ticket,cloud,github});console.log('Verified encrypted snapshot publication completed.')}catch(error){try{await cloud('failed',{method:'POST',headers:{'X-Workspace-Failure':['PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED','BATCH_SCOPE_CONFLICT','PUBLICATION_CONFLICT'].includes(error.code)?error.code:'RUNNER_FAILED'}})}catch{}console.error('Snapshot publication failed: '+(/^[A-Z_0-9]+$/.test(error.code||'')?error.code:'VALIDATION_OR_PROCESSING'));process.exitCode=1}
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(error=>{console.error('Snapshot publisher initialization failed: '+(/^[A-Z_0-9]+$/.test(error.code||'')?error.code:'INITIALIZATION'));process.exitCode=1});

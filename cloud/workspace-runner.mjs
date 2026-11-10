@@ -26,7 +26,7 @@ async function completed(env,jobKey,job,send){
 export async function backgroundCommit(env,user,id,jobKey,job,send=fetch){
  if(job.receipt)return {ok:true,receipt:job.receipt,missing:[]};
  const done=await completed(env,jobKey,job,send);if(done)return done;
- if(job.runner){if(job.runner.status==='failed'&&['PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED'].includes(job.runner.errorCode))fail(job.runner.errorCode==='PUBLICATION_BASE_REQUIRED'?428:422,'已阻止覆盖共享数据。请先备份本机，在本地数据管理中清除旧上传任务，再载入共享完整数据并重新导入本次报价');if(job.runner.status==='failed')fail(502,'后台发布未完成（'+(job.runner.errorCode||'RUNNER_FAILED')+'）；原分片和本机数据保留，请联系管理员检查后台任务');if(Date.now()-job.runner.requestedAt>15*60000)fail(502,'后台发布超时，原任务保留，请联系管理员检查后台运行');await new Promise(r=>setTimeout(r,4000));return pending(job)}
+ if(job.runner){if(job.runner.status==='failed'&&['BATCH_SCOPE_CONFLICT','PUBLICATION_CONFLICT'].includes(job.runner.errorCode))fail(409,'共享报价已变化或本批与更新报价冲突。批次仍保留，请核对后重新预览。');if(job.runner.status==='failed'&&['PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED'].includes(job.runner.errorCode))fail(job.runner.errorCode==='PUBLICATION_BASE_REQUIRED'?428:422,'已阻止覆盖共享数据。请先备份本机，在本地数据管理中清除旧上传任务，再载入共享完整数据并重新导入本次报价');if(job.runner.status==='failed')fail(502,'后台发布未完成（'+(job.runner.errorCode||'RUNNER_FAILED')+'）；原分片和本机数据保留，请联系管理员检查后台任务');if(Date.now()-job.runner.requestedAt>15*60000)fail(502,'后台发布超时，原任务保留，请联系管理员检查后台运行');await new Promise(r=>setTimeout(r,4000));return pending(job)}
  const ticket=crypto.randomUUID(),next={...job,runner:{ticket,operationId:id,status:'queued',requestedAt:Date.now(),progress:0}};
  await put(env,'_workspace-runner:'+ticket,{jobKey,expires:job.expires});
  const claim=await env.DB.prepare('UPDATE records SET value=? WHERE key=? AND value=?').bind(JSON.stringify(next),jobKey,JSON.stringify(job)).run();
@@ -77,6 +77,6 @@ export async function workspaceRunner(req,env,send=fetch,identity=runnerIdentity
  }
  if(action==='finish'&&req.method==='POST'){const result=await completed(env,mapping.jobKey,job,send);if(!result)fail(409,'后台根快照尚未发布');return json(result)}
  if(action==='progress'&&req.method==='POST'){const n=Number(req.headers.get('X-Workspace-Progress'));if(!Number.isInteger(n)||n<0||n>95)fail(400,'后台进度无效');job.runner.progress=Math.max(job.runner.progress||0,n);await put(env,mapping.jobKey,job);return json({ok:true})}
- if(action==='failed'&&req.method==='POST'){const done=await completed(env,mapping.jobKey,job,send);if(done)return json(done);job.runner.status='failed';job.runner.errorCode=['PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED'].includes(req.headers.get('X-Workspace-Failure'))?req.headers.get('X-Workspace-Failure'):'RUNNER_FAILED';await put(env,mapping.jobKey,job);return json({ok:true})}
+ if(action==='failed'&&req.method==='POST'){const done=await completed(env,mapping.jobKey,job,send);if(done)return json(done);job.runner.status='failed';job.runner.errorCode=['PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED','BATCH_SCOPE_CONFLICT','PUBLICATION_CONFLICT'].includes(req.headers.get('X-Workspace-Failure'))?req.headers.get('X-Workspace-Failure'):'RUNNER_FAILED';await put(env,mapping.jobKey,job);return json({ok:true})}
  fail(405,'后台方法无效');
 }

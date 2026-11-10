@@ -1,6 +1,6 @@
 (function(){'use strict';
  const W=window.WeeklyCarryover;if(!W||!window.ComparisonStore||!document.getElementById('comparisonPanel'))return;
- const params=new URLSearchParams(location.search),editable=params.get('audience')!=='display'&&params.get('access')!=='view',publicView=params.get('presentation')==='public',day=()=>new Date().toLocaleDateString('sv-SE');
+ const params=new URLSearchParams(location.search),editable=params.get('audience')!=='display'&&params.get('access')!=='view',publicView=params.get('presentation')==='public',day=()=>window.DisplayBusinessDate?.day(new Date(),new URLSearchParams(location.search).get('audience'))||new Date().toLocaleDateString('sv-SE');
  const ackKey='hangxu-weekly-reminder-confirmed-v1';
  const box=document.createElement('section');box.id='weekly-carryover-panel';box.className='notice';const status=document.createElement('span');status.setAttribute('role','status');box.append(status);
  const button=document.createElement('button');button.id='weekly-carryover-open';button.textContent='套用上周报价';button.type='button';if(editable)box.append(button);document.getElementById('comparisonPanel').before(box);

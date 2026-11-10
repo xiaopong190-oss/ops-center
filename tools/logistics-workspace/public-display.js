@@ -24,7 +24,7 @@
   const mode=document.querySelector('#scoreViewMode option[value="grouped"]');set(mode,'按仓库查看');
   set(document.querySelector('#scoreViewMode option[value="score"]'),'按分数查看');
   const page=document.getElementById('n001Page');if(page){const text=page.textContent.split('，表头筛选')[0];set(page,text)}
-  const week=document.getElementById('weekWarning');if(week){const text=week.textContent;const match=text.match(/本周 (\d{4}-\d{2}-\d{2}) 至 (\d{4}-\d{2}-\d{2})/);if(match)set(week,'报价日期：'+match[1]+' 至 '+match[2]);}
+  const week=document.getElementById('weekWarning');if(week){const text=week.textContent;const match=text.match(/本周 (\d{4}-\d{2}-\d{2}) 至 (\d{4}-\d{2}-\d{2})/);if(match)set(week,'报价日期：'+match[1]+' 至 '+match[2]+'（北京时间）');}
   const region=document.getElementById('regional-query-panel');if(region){const note=region.querySelector(':scope>p');set(note,'选择仓库后，仅显示原文明确覆盖该仓库的区域报价。');const status=region.querySelector('[data-region-status]');if(status){const count=status.textContent.match(/当前匹配 (\d+) 条/);if(count)set(status,count[1]==='0'?'没有匹配报价，请调整筛选。':'匹配 '+count[1]+' 条报价');}const coverage=region.querySelector('[data-region-coverage-label]');if(coverage)coverage.hidden=true;}
  }
  let queued=false;const observer=new MutationObserver(()=>{if(!queued){queued=true;queueMicrotask(()=>{queued=false;simplify()})}});observer.observe(document.body,{childList:true,subtree:true,characterData:true});simplify();addEventListener('pagehide',()=>observer.disconnect(),{once:true});

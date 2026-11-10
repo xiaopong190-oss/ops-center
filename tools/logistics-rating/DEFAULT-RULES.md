@@ -36,6 +36,22 @@ Amazon-only scope; equal-condition dedup and new-over-old; ten-day retention for
 
 ## Extension contract
 
+Approved display business date correction (2026-11-09, Los Angeles date): the
+user confirmed aligning display readers with the existing publisher's
+`Asia/Shanghai` business day. Previously `quotes.js` used the reader's local
+date, causing November 10 quotes to disappear for November 9 readers. The
+pure `extensions/display-business-date.js` accepts the instant and audience;
+one marked `display-business-date-approved` prefix in the existing day helper
+uses its result only for the display audience. Input keeps the old fallback.
+Callers include quote pruning, week/effective projection, rendering, comparison
+and exports; regional/carry status and initial mapping display use the same
+date. Original dates, ten-day retention, scores and saved choices are preserved.
+Rollback removes the extension, its seam and runtime integration together.
+Lock tests remove only this prefix to retain the historical hashes. Tests cover
+the verified six-provider 7,003-row distribution, two reader timezones,
+future/week/year boundaries and stored-data invariance. See
+`docs/display-business-date-fix.md` for the source audit and release gate.
+
 New rules use named pure functions/modules in extensions/. Inputs specify rows, event snapshot and rule version; outputs include scores, reasons and rule version without writing storage. No export replacement or prototype monkey patching. Integrating an extension into a default call chain is itself a reviewed change. Import/storage identities remain under original locked modules. Default regression and extension regression must both pass.
 
 ## Screenshot investigation limit

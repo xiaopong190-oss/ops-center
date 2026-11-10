@@ -68,6 +68,11 @@
       "file": "quotes.js",
       "approval": "User requested independent tax filtering with functional/adversarial/regression tests and release (2026-10-31)",
       "scope": "Exact tax-filter-approved projection seam before cargo filtering; no scoring formula, saved data, import, deletion or baseline hash changes"
+    },
+    {
+      "file": "quotes.js",
+      "approval": "User explicitly confirmed Shanghai business date for display and further testing (2026-11-09)",
+      "scope": "Single display-business-date-approved read-only day seam delegates explicit instant and audience to a pure extension. Input uses the existing local date. Original quote dates, retention/comparison formulas and historical baseline hashes stay unchanged."
     }
   ]
 }

@@ -50,7 +50,7 @@ Rollback removes the extension, its seam and runtime integration together.
 Lock tests remove only this prefix to retain the historical hashes. Tests cover
 the verified six-provider 7,003-row distribution, two reader timezones,
 future/week/year boundaries and stored-data invariance. See
-`docs/display-business-date-fix.md` for the source audit and release gate.
+`deploy/display-business-date-fix.md` for the source audit and release gate.
 
 New rules use named pure functions/modules in extensions/. Inputs specify rows, event snapshot and rule version; outputs include scores, reasons and rule version without writing storage. No export replacement or prototype monkey patching. Integrating an extension into a default call chain is itself a reviewed change. Import/storage identities remain under original locked modules. Default regression and extension regression must both pass.
 

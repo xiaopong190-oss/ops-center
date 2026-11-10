@@ -135,3 +135,22 @@ test('CSV replacement preserves the previous snapshot through invalid input, pre
   assert(mixed.originExcludedQuotes.some(item=>item.row.companyId===other.id&&item.row.price===3000));
  } finally {runtime.close();}
 });
+test('regional-only validation puts the enabled confirmation next to the summary and saves only on click',async()=>{
+ const e=await openRuntime('import','operate',false,{today:'2026-11-09'});
+ try{
+  const {w,doc}=e,get=id=>doc.getElementById(id),button=get('commit');
+  w.LogisticsSpace={mode:'local',isDemo:false};
+  assert(button.disabled);
+  assert(get('warehouseReview').compareDocumentPosition(button)&w.Node.DOCUMENT_POSITION_FOLLOWING);
+  assert(button.compareDocumentPosition(get('preview'))&w.Node.DOCUMENT_POSITION_FOLLOWING);
+  const row={company:'模拟区域物流',country:'英国',regionRaw:'英国（DPD派送）',channel:'欧洲快卡',price:1570,currency:'CNY',unit:'kg',date:'2026-11-09',terms:'档=21-45KG',sourceSheet:'快卡',sourceRow:4,priceCell:'B4'};
+  w.dispatchEvent(new w.CustomEvent('matrix-batch-ready',{detail:{records:[],regionalRecords:[row],rejectedRecords:[],fileName:'模拟快卡.xlsx'}}));
+  await e.wait(()=>!button.disabled);
+  assert.match(get('message').textContent,/0 条仓库报价、1 条区域报价/);
+  assert.equal(w.ComparisonStore.read().regionalQuotes?.length||0,0);
+  button.click();
+  await e.wait(()=>w.ComparisonStore.read().regionalQuotes?.length===1);
+  assert.equal(w.ComparisonStore.read().regionalQuotes[0].price,1570);
+  assert(button.disabled);
+ }finally{e.close()}
+});

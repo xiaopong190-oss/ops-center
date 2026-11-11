@@ -1,4 +1,5 @@
 import Batch from '../tools/logistics-rating/extensions/supplier-quote-batch.js';
+import {publishQueryProjection,verifyQueryRead} from './publish-query-projection.mjs';
 import {auditDisplay} from './snapshot-display-audit.mjs';
 import {buildIncremental,readPublicationBase} from './snapshot-incremental.mjs';
 import {createGitHubClient} from './workspace-github-client.mjs';
@@ -74,13 +75,25 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
   try{await github('git/refs/heads/main',{method:'PATCH',stage:'branch-update',body:{sha:commit.sha,force:false}});committed=true;break}catch(error){if(![409,422].includes(error.status)){const actual=await github('contents/'+rootPath+'?ref=main',{allow404:true,stage:'root-readback'});if(actual?.sha===rootBlob.sha){committed=true;break}throw error}}
  }
  if(!committed)throw failure('BRANCH_CONFLICT');
+ if(meta.onlineQuery){const relations=await (await request('query-relations')).json();await publishQueryProjection(published,rootBlob.sha,manifest.savedAt,options=>request('query-index',options),new Date(),relations.items);}
  const receipt=await (await request('finish',{method:'POST'})).json();if(!receipt.receipt?.verified||receipt.receipt.contentHash!==meta.sha256)throw failure('RECEIPT_NOT_VERIFIED');return receipt;
 }
 async function main(){
- const ticket=process.env.WORKSPACE_TICKET;if(!(['self-test','audit-read'].includes(ticket)||/^[a-f0-9-]{36}$/i.test(ticket||''))||!process.env.GITHUB_TOKEN||!process.env.ACTIONS_ID_TOKEN_REQUEST_URL||!process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN)throw failure('WORKFLOW_ENV_MISSING');
+ const ticket=process.env.WORKSPACE_TICKET;if(!(['self-test','audit-read','query-rebuild'].includes(ticket)||/^[a-f0-9-]{36}$/i.test(ticket||''))||!process.env.GITHUB_TOKEN||!process.env.ACTIONS_ID_TOKEN_REQUEST_URL||!process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN)throw failure('WORKFLOW_ENV_MISSING');
  let token=null,tokenAt=0;
  async function identity(){if(!token||Date.now()-tokenAt>120000){const url=new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);url.searchParams.set('audience','ops-center-logistics-publisher');const r=await fetch(url,{headers:{Authorization:'Bearer '+process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN},redirect:'error',signal:AbortSignal.timeout(30000)});if(!r.ok)throw failure('OIDC_REQUEST_FAILED');token=(await r.json()).value;tokenAt=Date.now();if(typeof token!=='string')throw failure('OIDC_RECEIPT_INVALID')}return token}
  const cloud=async(path,options={})=>fetch(endpoint+ticket+'/'+path,{...options,headers:{...options.headers,Authorization:'Bearer '+await identity()},redirect:'error',signal:AbortSignal.timeout(60000)});
+ if(ticket==='query-rebuild'){
+  const queryRequest=async(path,options={})=>fetch(endpoint+path,{...options,headers:{...options.headers,Authorization:'Bearer '+await identity()},redirect:'error',signal:AbortSignal.timeout(60000)});
+  const authorized=async(path,options={})=>{const response=await queryRequest(path,options);if(!response.ok)throw failure('QUERY_REBUILD_HTTP_'+response.status);return response};
+  const smoke=async()=>console.log('Verified online query reads: '+JSON.stringify(await verifyQueryRead(async query=>(await authorized('query-read?'+query)).json())));
+  const status=await (await authorized('query-status')).json();if(status.ready){await smoke();console.log('Current online query index already verified.');return;}
+  const result=await (await authorized('audit-read')).json();let data=result.data;
+  if(result.paged){const chunks=[];for(let i=0;i<result.paged.parts.length;i++){const part=await (await authorized('audit-read?page='+i+'&sha='+result.sha)).json(),bytes=Buffer.from(part.content,'base64');if(part.sha!==result.sha||hash(bytes)!==result.paged.parts[i])throw failure('QUERY_SOURCE_PART_MISMATCH');chunks.push(bytes)}const bytes=Buffer.concat(chunks);if(bytes.length!==result.paged.bytes||hash(bytes)!==result.paged.hash)throw failure('QUERY_SOURCE_HASH_MISMATCH');data=JSON.parse(bytes);}
+  const relations=await (await authorized('query-relations')).json();
+  const projection=await publishQueryProjection(displayData(data),result.sha,result.savedAt||new Date().toISOString(),options=>queryRequest('query-index',options),new Date(),relations.items);
+  await smoke();console.log('Online query projection verified: '+JSON.stringify({sourceSha:projection.sourceSha,days:projection.days,counts:projection.counts,parts:projection.parts}));return;
+ }
  if(ticket==='audit-read'){
   async function read(query=''){let last;for(let attempt=0;attempt<3;attempt++){const r=await fetch(endpoint+'audit-read'+query,{headers:{Authorization:'Bearer '+await identity()},redirect:'error',signal:AbortSignal.timeout(60000)});if(r.ok)return r.json();last=r.status;await sleep(1000)}throw failure('DISPLAY_READ_HTTP_'+last)}
   const result=await read();let data=result.data;

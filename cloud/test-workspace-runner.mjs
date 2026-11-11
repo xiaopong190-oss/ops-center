@@ -13,10 +13,13 @@ import {publishWorkspace,decryptWorkspace,displayData} from './logistics-workspa
 import Delta from '../tools/logistics-workspace/record-delta.js';
 import {assembleShards} from './workspace-shards.mjs';
 import {logisticsWorkspace} from './logistics-workspace.mjs';
+import {logisticsQuery} from './logistics-query-store.mjs';
+import {verifyQueryRead} from '../deploy/publish-query-projection.mjs';
 const sha=b=>createHash('sha256').update(b).digest('hex'),root='data/logistics/workspace-snapshot.enc.json';
 function fixture(){
  const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE records(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
  const DB={prepare(query){let args=[];return {bind(...x){args=x;return this},async first(){return sql.prepare(query).get(...args)||null},async all(){return {results:sql.prepare(query).all(...args)}},async run(){return sql.prepare(query).run(...args)}}}};
+ DB.batch=async statements=>{sql.exec('BEGIN');try{const results=[];for(const statement of statements)results.push(await statement.run());sql.exec('COMMIT');return results}catch(error){sql.exec('ROLLBACK');throw error}};
  const env={DB,LOGISTICS_GITHUB_TOKEN:'synthetic-only',ENCRYPTION_KEY:Buffer.alloc(32,9).toString('base64'),WORKSPACE_COMMIT_RUNNER:'github-actions'},blobs=new Map(),files=new Map(),trees=new Map(),commits=new Map();let head='a'.repeat(40),sequence=0,ticket=null,dispatches=0,rootWrites=0,largestRequest=0,largestPart=0,loseRef=false,corruptBlob=false;
  const newSha=()=>createHash('sha1').update('synthetic-'+(++sequence)).digest('hex');
  const github=async(path,options={})=>{
@@ -49,6 +52,24 @@ function fixture(){
 }
 const row=i=>({companyId:'c',company:'合成物流',country:'美国',warehouse:'ONT8',channel:'海运',price:1000+i,currency:'CNY',unit:'kg',min:10,max:20,date:new Date().toISOString().slice(0,10),terms:'普货',source:'synthetic-'+i});
 const snapshot=()=>({space:'real',storage:{'logistics-company-directory-v1':[{id:'c',name:'合成物流',aliases:[]}],'logistics-quotes-v1':{quotes:[row(0)],templates:[]},'logistics-monthly-bills-v1':{rows:[],aliases:{}},'logistics-completed-ratings-v1':[]}});
+
+test('publication confirms only after the shared online index is activated and two readers share its version',async()=>{
+ const f=fixture();f.env.ONLINE_QUERY_ENABLED='1';
+ try{
+  const source=snapshot();await f.prepare(source);await f.upload({action:'commit'});
+  const receipt=await publishSnapshot({ticket:f.ticket(),cloud:f.cloud,github:f.github,delay:async()=>{}});
+  assert(receipt.receipt.verified);
+  const responses=await Promise.all(['one','two'].map(async id=>(await logisticsQuery(new Request('https://worker/api/logistics-query'),f.env,{id})).json()));
+  assert.equal(responses[0].sourceSha,receipt.receipt.sha);assert.equal(responses[0].version,responses[1].version);
+  assert.equal(responses[0].total,1);assert.equal(responses[0].rows[0].company,'合成物流');
+  const audit=async path=>workspaceRunner(new Request('https://worker/api/logistics-workspace-runner/'+path),f.env,f.send,async()=>({run_id:'77'}));
+  assert.deepEqual((await (await audit('query-relations')).json()).items,[]);
+  assert.equal((await (await audit('query-status')).json()).ready,true);
+  const checked=await verifyQueryRead(async query=>(await audit('query-read?'+query)).json());assert.equal(checked.sourceSha,receipt.receipt.sha);assert.equal(checked.firstRows,1);
+  const nextDay=new Date(Date.now()+86400000);
+  assert.equal((await (await logisticsQuery(new Request('https://worker/api/logistics-query'),f.env,{id:'next-day'},nextDay)).json()).total,1);
+ }finally{f.sql.close()}
+});
 
 test('real background publisher rejects partial and stale masters before changing any GitHub root or writing ciphertext',async()=>{
  for(const kind of ['62-only','one-retained','stale-copy']){
@@ -148,7 +169,7 @@ test('runner endpoints isolate tickets and bind one GitHub run; incomplete proof
 test('GitHub OIDC requires signed fixed-repository main-branch hosted workflow identity',async()=>{
  const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048}),jwk={...publicKey.export({format:'jwk'}),kid:'synthetic-key',alg:'RS256'},now=Date.now(),claims={iss:'https://token.actions.githubusercontent.com',aud:RUNNER_AUDIENCE,repository:'xiaopong190-oss/ops-center',repository_id:'1254589960',repository_owner_id:'275407039',ref:'refs/heads/main',workflow_ref:'xiaopong190-oss/ops-center/.github/workflows/publish-logistics-snapshot.yml@refs/heads/main',event_name:'workflow_dispatch',runner_environment:'github-hosted',run_id:'77',iat:Math.floor(now/1000),exp:Math.floor(now/1000)+300};
  const token=c=>{const a=Buffer.from(JSON.stringify({alg:'RS256',kid:jwk.kid})).toString('base64url')+'.'+Buffer.from(JSON.stringify(c)).toString('base64url');return a+'.'+sign('RSA-SHA256',Buffer.from(a),privateKey).toString('base64url')},request=t=>new Request('https://worker',{headers:{Authorization:'Bearer '+t}}),send=async url=>{assert.equal(url,'https://token.actions.githubusercontent.com/.well-known/jwks');return Response.json({keys:[jwk]})};
- assert.equal((await runnerIdentity(request(token(claims)),send,now)).run_id,'77');for(const change of [{ref:'refs/heads/evil'},{repository_id:'wrong'},{aud:'wrong'},{workflow_ref:'wrong'},{runner_environment:'self-hosted'},{event_name:'pull_request'},{exp:0}])await assert.rejects(runnerIdentity(request(token({...claims,...change})),send,now),e=>e.status===403);const valid=token(claims),bad=valid.slice(0,valid.lastIndexOf('.')+1)+Buffer.alloc(256).toString('base64url');await assert.rejects(runnerIdentity(request(bad),send,now),e=>e.status===403);
+ assert.equal((await runnerIdentity(request(token({...claims,event_name:'schedule'})),send,now)).run_id,'77'); assert.equal((await runnerIdentity(request(token(claims)),send,now)).run_id,'77');for(const change of [{ref:'refs/heads/evil'},{repository_id:'wrong'},{aud:'wrong'},{workflow_ref:'wrong'},{runner_environment:'self-hosted'},{event_name:'pull_request'},{exp:0}])await assert.rejects(runnerIdentity(request(token({...claims,...change})),send,now),e=>e.status===403);const valid=token(claims),bad=valid.slice(0,valid.lastIndexOf('.')+1)+Buffer.alloc(256).toString('base64url');await assert.rejects(runnerIdentity(request(bad),send,now),e=>e.status===403);
 });
 
 test('scoped regional batch resumes missing fragments and publishes an authenticated shared snapshot without dropping warehouse rows',async()=>{

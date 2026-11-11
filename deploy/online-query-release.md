@@ -28,3 +28,9 @@ This is a substantial architecture change. Obtain approval on the tested PR befo
 ## Rollback
 
 Restore the previous Pages release and previous Worker deployment/config together. Keep current GitHub canonical data, D1 accounts and cooperation records. New query records are derived and isolated under `_logistics-online-query:v1:`. Disable/remove the hourly rebuild schedule when reverting the workflow. The old source-snapshot APIs remain available to the previous clients. No canonical-data migration or recovery is needed.
+
+## Production query verification (2026-11-12 Shanghai)
+
+PR #112 was approved and merged as `67cb31c8a9b08dab549ad5d1af1361a9672b04a1`. Worker prepare version `983892fb-dce9-46d6-83ce-d050281fd601` built 1,542 verified encrypted parts for November 12 and 13. Run `43119639739` activated source `98a21ed59db0b5e90ec136e4df61f73d580c9c0a`; run `43119874832` confirmed the same index was already ready and repeated the real signed query checks. Both succeeded. Current business counts: 12,546 warehouse quotes, 2,268 regional quotes and 592 templates. Air query total: 1,980. First page: 50 rows, 115,660 JSON response bytes including metadata. Concurrent identical reads matched exactly. These checks do not measure a colleague's browser/network latency.
+
+Final Worker version: `0f0ce484-4726-41f4-a015-d85392af1c95`, with `ONLINE_QUERY_ENABLED=1`. Previous production Worker rollback target: `3da63436-d65e-45e1-996d-a9349384d1f3`. No asset files changed in the Worker deployment. The tool-center link now carries `v=1.0.66.a` so the new release does not reuse its old entry URL parameter.

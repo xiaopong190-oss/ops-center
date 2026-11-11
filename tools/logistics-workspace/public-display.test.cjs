@@ -35,7 +35,7 @@ test('a known newer snapshot triggers one update and never leaves old quotes ava
   send(online,{snapshot:{mode:'snapshot',sha:'a'.repeat(40),availableSha:'b'.repeat(40),loaded:true,warning:'download failed'}});
   assert.equal(d.querySelector('iframe'),retry);assert.equal(retry.style.display,'none');
   assert.match(d.querySelector('#logic-status').textContent,/最新报价尚未同步，已暂停查询/);
-  assert.match(d.querySelector('#logic-status').textContent,/aaaaaaaaaa.*bbbbbbbbbb/);
+  assert.match(d.querySelector('#logic-status').textContent,/aaaaaaaaaa.*bbbbbbbbbb/);send(online,{snapshot:undefined,ready:false,error:'storage unavailable'});assert.equal(retry.style.display,'none','missing metadata cannot reopen stale results');
   send(online,{snapshot:{mode:'snapshot',sha:'a'.repeat(40),availableSha:'b'.repeat(40),loaded:true}});
   assert.equal(d.querySelector('iframe'),retry,'no automatic retry loop');assert.equal(retry.style.display,'none');
   send(online,{snapshot:{mode:'snapshot',sha:'b'.repeat(40),loaded:true}});

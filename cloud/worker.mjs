@@ -5,6 +5,7 @@ import {validateSheetInput,recognizeSheet} from './quote-preflight.mjs';
 import {cleanupFollowupUploads} from './followup-cleanup.mjs';
 import {logisticsWorkspace} from './logistics-workspace.mjs';
 import {workspaceRunner} from './workspace-runner.mjs';
+import {logisticsQuery,cleanupQueryIndexes} from './logistics-query-store.mjs';
 import {validateRelations,readRelations,recognizeRelationsCached} from './logistics-relations.mjs';
 import {logisticsGithub} from './logistics-github.mjs';
 import {cleanupLogistics} from './logistics-cleanup.mjs';
@@ -171,6 +172,7 @@ async function handle(req,env) {
   }
   if(p==='/api/logistics-cooperation'){const u=await session(req,env);await quota(env,'logistics-cooperation:'+u.id,req.method==='GET'?3000:300,86400);return cooperation(req,env,u);}
   if(p.startsWith('/api/logistics-workspace-runner/'))return workspaceRunner(req,env);
+  if(p==='/api/logistics-query'){const user=await session(req,env);await quota(env,'logistics-query:'+user.id,10000,86400);return logisticsQuery(req,env,user);}
   if(p==='/api/logistics-workspace'){const u=await session(req,env);await quota(env,'logistics-workspace:'+u.id,req.method==='GET'?3000:3000,86400);return logisticsWorkspace(req,env,u);}
   if(p==='/api/logistics-data'||p==='/api/logistics-data/upload'){if(req.method==='GET')return logisticsGithub(req,env);const u=await session(req,env);await quota(env,'logistics-github:'+u.id,3000,86400);return logisticsGithub(req,env,u);}
   if(p==='/api/logistics-backup'||p==='/api/logistics-backup/upload'){const u=await session(req,env);if(req.method!=='GET')fail(410,'已改为GitHub共享数据，请更新页面后重新提交');return logisticsBackup(req,env,u);}
@@ -250,7 +252,7 @@ async function handle(req,env) {
   const asset=await env.ASSETS.fetch(req);
   return asset;
 }
-export default {async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([cleanupLogistics(env),cleanupFollowupUploads(env)]).then(result=>console.log('storage_cleanup',JSON.stringify(result))));},async fetch(req,env){
+export default {async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([cleanupLogistics(env),cleanupFollowupUploads(env),cleanupQueryIndexes(env)]).then(result=>console.log('storage_cleanup',JSON.stringify(result))));},async fetch(req,env){
   const origin=req.headers.get('Origin'),own=new URL(req.url).origin;
   const localWorkspaceOrigin=origin==='http://127.0.0.1:4318'&&new URL(req.url).pathname==='/api/logistics-workspace';
   if(origin&&!origins.has(origin)&&origin!==own&&!localWorkspaceOrigin)return json({error:'来源不允许'},403);

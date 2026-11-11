@@ -2,11 +2,15 @@
 // handles one existing upload part or one compressed publication part per call.
 import {Buffer} from 'node:buffer';
 import {runnerIdentity,RUNNER_REPO} from './workspace-runner-auth.mjs';
+import {stageQueryIndex,queryState,businessDay,logisticsQuery} from './logistics-query-store.mjs';
+import {readRelations,relationKey} from './logistics-relations.mjs';
+const queryRelations=async env=>(await readRelations(env)).sort((a,b)=>relationKey(a).localeCompare(relationKey(b)));
 import {incrementalManifest} from './snapshot-incremental.mjs';
 import {readWorkspace,logisticsWorkspace} from './logistics-workspace.mjs';
 import {checkManifest,SHARD_BYTES} from './workspace-shards.mjs';
 const api='https://api.github.com/repos/'+RUNNER_REPO+'/',shardAAD=Buffer.from('logistics-workspace-shard-v1'),rootAAD=Buffer.from('ops-center/logistics-workspace/snapshot/v1');
 const fail=(status,message)=>{throw Object.assign(Error(message),{status})};
+const json=value=>Response.json(value,{headers:{'Cache-Control':'no-store'}});
 const hash=async b=>Buffer.from(await crypto.subtle.digest('SHA-256',b)).toString('hex');
 const validHash=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 const headers=env=>({Authorization:'Bearer '+env.LOGISTICS_GITHUB_TOKEN,Accept:'application/vnd.github+json','User-Agent':'ops-center-snapshot-publisher','X-GitHub-Api-Version':'2022-11-28'});
@@ -20,6 +24,7 @@ const pending=job=>({ok:true,pending:true,confirmedParts:Math.min(99,job.runner?
 async function completed(env,jobKey,job,send){
  if(!job.runner?.manifest)return null;const current=await readWorkspace(env,send),m=job.runner.manifest;
  if(current.envelope?.operationId!==job.runner.operationId)return null;
+ if(env.ONLINE_QUERY_ENABLED==='1'){const view=await queryState(env);if(view?.sourceSha!==current.sha||!(view.days||[view.day]).includes(businessDay()))return null;}
  if(current.envelope.hash!==m.hash||JSON.stringify(current.envelope.parts)!==JSON.stringify(m.parts)||current.envelope.bytes!==m.bytes||JSON.stringify(current.envelope.incremental||null)!==JSON.stringify(m.incremental||null))fail(502,'后台发布读回不一致，原任务保留');
  job.receipt={ok:true,sha:current.sha,savedAt:m.savedAt,snapshotHash:m.hash,verified:true,contentHash:job.sha256};job.runner.status='done';job.runner.progress=100;await put(env,jobKey,job);return {ok:true,receipt:job.receipt,missing:[]};
 }
@@ -37,6 +42,15 @@ export async function backgroundCommit(env,user,id,jobKey,job,send=fetch){
 async function bodyBytes(req,max){const chunks=[];let n=0;for await(const b of req.body||[]){n+=b.length;if(n>max)fail(413,'后台批次超过上限');chunks.push(b)}return Buffer.concat(chunks)}
 export async function workspaceRunner(req,env,send=fetch,identity=runnerIdentity){
  if(!env.DB)fail(503,'后台暂存服务不可用');const claims=await identity(req,send),url=new URL(req.url);
+ if(url.pathname==='/api/logistics-workspace-runner/query-read')return logisticsQuery(new Request('https://worker/api/logistics-query'+url.search,{method:req.method}),env,{id:'signed-query-audit',canEdit:false});
+ if(url.pathname==='/api/logistics-workspace-runner/query-relations'){if(req.method!=='GET')fail(405,'关联数据只允许读取');return json({items:await queryRelations(env)});}
+ if(url.pathname==='/api/logistics-workspace-runner/query-index')return stageQueryIndex(req,env,async()=>(await readWorkspace(env,send)).sha);
+ if(url.pathname==='/api/logistics-workspace-runner/query-status'){
+  if(req.method!=='GET')fail(405,'查询状态只接受GET');
+  const current=await readWorkspace(env,send),view=await queryState(env),day=businessDay(),tomorrow=new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
+  const relationHash=await hash(Buffer.from(JSON.stringify(await queryRelations(env))));
+  return json({sourceSha:current.sha,ready:view?.sourceSha===current.sha&&view.relationHash===relationHash&&[day,tomorrow].every(date=>(view.days||[view.day]).includes(date)),version:view?.version||null});
+ }
  if(url.pathname==='/api/logistics-workspace-runner/audit-read'){
   if(req.method!=='GET')fail(405,'核对仅允许读取');
   const query=url.search;if(query&&!/^\?page=(?:0|[1-9]\d*)&sha=[a-f0-9]{40,64}$/.test(query))fail(400,'核对参数无效');
@@ -46,13 +60,15 @@ export async function workspaceRunner(req,env,send=fetch,identity=runnerIdentity
   if(req.method==='GET')return Response.json({ok:true,protocol:'free-actions-v1'},{headers:{'Cache-Control':'no-store'}});
   if(req.method!=='POST')fail(405,'后台方法无效');const packed=await bodyBytes(req,SHARD_BYTES+2048),envelope=await encrypt(packed,env),back=await decrypt(envelope,env,shardAAD);if(!back.equals(packed))fail(502,'加密自检未通过');return Response.json({ok:true,hash:await hash(back),bytes:back.length},{headers:{'Cache-Control':'no-store'}});
  }
- const match=url.pathname.match(/^\/api\/logistics-workspace-runner\/([a-f0-9-]{36})\/(meta|part\/\d+|previous|base|seal\/\d+|verify\/\d+|ready|finish|failed|progress)$/i);if(!match)fail(404,'后台路径无效');
+ const match=url.pathname.match(/^\/api\/logistics-workspace-runner\/([a-f0-9-]{36})\/(meta|part\/\d+|previous|base|seal\/\d+|verify\/\d+|ready|finish|failed|progress|query-index|query-relations)$/i);if(!match)fail(404,'后台路径无效');
  const [,ticket,action]=match,mapping=await get(env,'_workspace-runner:'+ticket);if(!mapping||mapping.expires<Date.now())fail(410,'后台任务不存在或已过期');let job=await get(env,mapping.jobKey);
  if(!job||job.expires<Date.now()||job.runner?.ticket!==ticket)fail(410,'后台任务已失效');
  if(job.runner.runId&&job.runner.runId!==claims.run_id)fail(403,'后台任务已绑定其他运行');
  if(!job.runner.runId){const next={...job,runner:{...job.runner,runId:claims.run_id,status:'running'}};const result=await env.DB.prepare('UPDATE records SET value=? WHERE key=? AND value=?').bind(JSON.stringify(next),mapping.jobKey,JSON.stringify(job)).run();if(!changed(result))fail(409,'后台任务正在绑定，请重试');job=next}
- const json=value=>Response.json(value,{headers:{'Cache-Control':'no-store'}}),proofKey=i=>mapping.jobKey+':runner-proof:'+ticket+':'+i;
- if(action==='meta'&&req.method==='GET')return json({bytes:job.bytes,sha256:job.sha256,parts:job.parts,baseSha:job.baseSha,baseContentHash:job.baseContentHash||null,operationId:job.runner.operationId});
+ const proofKey=i=>mapping.jobKey+':runner-proof:'+ticket+':'+i;
+ if(action==='query-relations'&&req.method==='GET')return json({items:await queryRelations(env)});
+ if(action==='query-index')return stageQueryIndex(req,env,async()=>(await readWorkspace(env,send)).sha);
+ if(action==='meta'&&req.method==='GET')return json({onlineQuery:!!env.ONLINE_QUERY_ENABLED,bytes:job.bytes,sha256:job.sha256,parts:job.parts,baseSha:job.baseSha,baseContentHash:job.baseContentHash||null,operationId:job.runner.operationId});
  if(action.startsWith('part/')&&req.method==='GET'){
   const i=Number(action.slice(5));if(!Number.isSafeInteger(i)||i<0||i>=job.parts.length)fail(400,'后台原分片编号无效');const prefix=mapping.jobKey.slice(0,mapping.jobKey.lastIndexOf('job:')),key=prefix+'part:'+job.parts[i],part=await get(env,key);if(!part||part.expires<Date.now())fail(409,'原上传分片已过期或缺少');const raw=await decrypt(part,env,Buffer.from(key));if(await hash(raw)!==job.parts[i]||raw.length!==Math.min(128*1024,job.bytes-i*128*1024))fail(502,'原上传分片摘要不一致');return new Response(raw,{headers:{'Content-Type':'application/octet-stream','Cache-Control':'no-store'}});
  }

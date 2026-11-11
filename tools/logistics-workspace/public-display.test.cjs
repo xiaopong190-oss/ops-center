@@ -2,15 +2,15 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const source=file=>fs.readFileSync(path.join(__dirname,file),'utf8'),tick=()=>new Promise(r=>setTimeout(r,30));
 function shell(host='https://public.example',entry='display'){const d=new JSDOM(source(entry+'.html'),{url:host+'/tools/logistics-workspace/'+entry+'.html',runScripts:'outside-only'}),w=d.window;w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};w.confirm=()=>true;w.eval(source('integration-shell.js'));return d}
 function send(dom,data){const w=dom.window,frame=w.document.querySelector('iframe');w.dispatchEvent(new w.MessageEvent('message',{origin:w.location.origin,source:frame.contentWindow,data:{type:'hangxu-engine-status',ready:true,saved:true,counts:{quotes:120,regional:40,exceptions:7,templates:12,bills:3,ratings:5},snapshot:{mode:'snapshot',sha:'a'.repeat(40),savedAt:'2026-11-08T00:00:00Z'},...data}}))}
-test('network version is 1.0.65.a; local input and its display keep 1.0.65 and diagnostics',()=>{
+test('network version is 1.0.65.b; local input and its display keep 1.0.65 and diagnostics',()=>{
  const online=shell(),local=shell('http://127.0.0.1:4318','input'),localDisplay=shell('http://127.0.0.1:4318');
- try{const d=online.window.document;assert.equal(d.documentElement.dataset.hangxuVersion,'1.0.65.a');assert.match(d.querySelector('iframe').src,/presentation=public/);assert.match(d.querySelector('iframe').src,/compare.html/);send(online);assert.equal(d.querySelector('#logic-status').textContent,'报价已就绪');assert.equal(d.querySelector('.heading p').hidden,true);assert.equal(d.querySelector('[data-snapshot=refresh]').textContent,'重新加载');assert(!d.querySelector('[data-shared-base]'));
+ try{const d=online.window.document;assert.equal(d.documentElement.dataset.hangxuVersion,'1.0.65.b');assert.match(d.querySelector('iframe').src,/presentation=public/);assert.match(d.querySelector('iframe').src,/compare.html/);send(online);assert.match(d.querySelector('#logic-status').textContent,/报价已就绪 · 数据版本 aaaaaaaaaa/);assert.equal(d.querySelector('.heading p').hidden,true);assert.equal(d.querySelector('[data-snapshot=refresh]').textContent,'重新加载');assert(!d.querySelector('[data-shared-base]'));
  for(const dom of [local,localDisplay]){assert.equal(dom.window.document.documentElement.dataset.hangxuVersion,'1.0.65');assert.doesNotMatch(dom.window.document.querySelector('iframe').src,/presentation=public/)}local.window.document.querySelector('[data-pane=out]').click();send(local);assert.match(local.window.document.querySelector('#logic-status').textContent,/待处理 7/);assert.equal(local.window.document.querySelectorAll('#workspace-counts .card').length,6);
  }finally{for(const dom of [online,local,localDisplay])dom.window.close()}
 });
 test('network loading/failure/cache warnings remain actionable and omit raw failure details',()=>{
  const online=shell(),local=shell('http://127.0.0.1:4318','input');try{send(online,{error:'D1_INTERNAL private SQL failed'});assert.match(online.window.document.querySelector('#logic-status').textContent,/重新加载/);assert.doesNotMatch(online.window.document.querySelector('#main').textContent,/D1_INTERNAL|private SQL/);send(local,{error:'D1_INTERNAL private SQL failed'});assert.match(local.window.document.querySelector('#logic-status').textContent,/D1_INTERNAL/);
- send(online,{snapshot:{mode:'snapshot',loaded:true,warning:'internal network failure'}});assert.equal(online.window.document.querySelector('#logic-status').textContent,'更新暂不可用，当前报价仍可查看。');send(online,{snapshot:{mode:'snapshot',availableSha:'b'.repeat(40)}});assert.match(online.window.document.querySelector('#logic-status').textContent,/有新报价/);
+ send(online,{snapshot:{mode:'snapshot',loaded:true,warning:'internal network failure'}});assert.equal(online.window.document.querySelector('#logic-status').textContent,'更新暂不可用，当前报价仍可查看。');send(online,{snapshot:{mode:'snapshot',availableSha:'b'.repeat(40)}});assert.match(online.window.document.querySelector('#logic-status').textContent,/正在载入业务数据/);
  }finally{online.window.close();local.window.close()}
 });
 test('public adapter does nothing to local detailed screens, even local display',()=>{
@@ -24,4 +24,28 @@ test('public quote UI hides diagnostics, keeps working global filters and full r
  $('resultTransport').value='空运';$('resultTransport').dispatchEvent(new w.Event('change',{bubbles:true}));await tick();assert.equal(doc.querySelectorAll('#comparison tbody tr').length,1);assert.equal(doc.querySelectorAll('#regional-query-panel tbody tr').length,1);assert.match(doc.querySelector('[data-region-status]').textContent,/匹配 1 条报价/);
  $('scoreMin').value='5.5';$('scoreApply').click();await tick();assert.equal(doc.querySelectorAll('#comparison tbody tr').length,0);$('scoreMin').value='';$('scoreMin').dispatchEvent(new w.Event('input',{bubbles:true}));await tick();assert.equal(doc.querySelectorAll('#comparison tbody tr').length,1);$('n001Reset').click();await tick();assert.equal(doc.querySelectorAll('#comparison tbody tr').length,2);assert.equal(JSON.stringify(w.ComparisonStore.read()),before);assert.equal(e.errors.length,0);
  }finally{e.close()}
+});
+
+test('a known newer snapshot triggers one update and never leaves old quotes available',()=>{
+ const online=shell();try{
+  const d=online.window.document;
+  send(online);const original=d.querySelector('iframe');
+  send(online,{snapshot:{mode:'snapshot',sha:'a'.repeat(40),availableSha:'b'.repeat(40),loaded:true}});
+  const retry=d.querySelector('iframe');assert.notEqual(retry,original);
+  send(online,{snapshot:{mode:'snapshot',sha:'a'.repeat(40),availableSha:'b'.repeat(40),loaded:true,warning:'download failed'}});
+  assert.equal(d.querySelector('iframe'),retry);assert.equal(retry.style.display,'none');
+  assert.match(d.querySelector('#logic-status').textContent,/最新报价尚未同步，已暂停查询/);
+  assert.match(d.querySelector('#logic-status').textContent,/aaaaaaaaaa.*bbbbbbbbbb/);
+  send(online,{snapshot:{mode:'snapshot',sha:'a'.repeat(40),availableSha:'b'.repeat(40),loaded:true}});
+  assert.equal(d.querySelector('iframe'),retry,'no automatic retry loop');assert.equal(retry.style.display,'none');
+  send(online,{snapshot:{mode:'snapshot',sha:'b'.repeat(40),loaded:true}});
+  assert.equal(retry.hidden,false);assert.equal(retry.style.display,'');
+  assert.match(d.querySelector('#logic-status').textContent,/数据版本 bbbbbbbbbb/);
+ }finally{online.window.close()}
+});
+test('local input data remains available when its shared publication version differs',()=>{
+ const local=shell('http://127.0.0.1:4318','input');try{
+  send(local,{snapshot:{mode:'local',sha:'a'.repeat(40),availableSha:'b'.repeat(40)}});
+  assert.equal(local.window.document.querySelector('iframe').hidden,false);
+ }finally{local.window.close()}
 });

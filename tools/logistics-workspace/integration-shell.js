@@ -6,7 +6,7 @@ if(publicDisplay){document.documentElement.dataset.presentation='public';documen
 const published=()=>displayOnly||side==='out';
 const attemptedSnapshotUpdates=new Set();
 function synchronizePublishedView(snapshot){
- if(!publicDisplay)return false;
+ if(!publicDisplay||!snapshot)return false;
  const stale=!!snapshot?.availableSha&&snapshot.availableSha!==snapshot.sha;
  frame.hidden=stale;
  frame.style.display=stale?'none':'';

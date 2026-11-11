@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-11-10T05:59:15.814Z",
+  "updatedAt": "2026-11-11T04:47:00.570Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Ring announces Ring Robotics, ushering in a new era of security",
+      "link": "https://www.aboutamazon.com/news/devices/ring-drone-cam-rover-cam-security-robot?utm_source=rss",
+      "pubDate": "Tue, 10 Nov 2026 13:26:02 GMT",
+      "date": "11/10",
+      "summary": "Ring Robotics is launching with two robots: Ring Drone Cam and Ring Rover Cam, providing mobile, proactive protection whenever and wherever ",
+      "category": "Devices"
+    },
+    {
+      "title": "Black Friday and Cyber Monday 2026: a first look at Amazon’s best deals",
+      "link": "https://www.aboutamazon.com/news/retail/amazon-black-friday-cyber-monday-deals-2026?utm_source=rss",
+      "pubDate": "Tue, 10 Nov 2026 05:30:23 GMT",
+      "date": "11/10",
+      "summary": "Millions of deals across electronics, beauty, fashion, toys, and more drop November 19 through November 30, with new daily themed deals and ",
+      "category": "Retail"
+    },
     {
       "title": "Amazon in the community: Service, community, and commitment at HQ2",
       "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
@@ -10,22 +26,6 @@
       "date": "11/9",
       "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
       "category": "Community"
-    },
-    {
-      "title": "Amazon Leo to launch 40 satellites on its first Vulcan mission",
-      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-vulcan-satellites-launch?utm_source=rss",
-      "pubDate": "Mon, 09 Nov 2026 17:22:29 GMT",
-      "date": "11/9",
-      "summary": "Leo Vulcan 1 (LV-01) will carry the largest batch of Leo satellites to orbit yet and kick off a 38-launch partnership with ULA.",
-      "category": "Amazon Leo"
-    },
-    {
-      "title": "AWS commits $100 million of AI and cloud technology to help organizations expand health services worldwide",
-      "link": "https://www.aboutamazon.com/news/aws/aws-health-impact-initiative-100-million-ai-cloud?utm_source=rss",
-      "pubDate": "Mon, 09 Nov 2026 14:00:07 GMT",
-      "date": "11/9",
-      "summary": "The AWS Health Impact Initiative gives health organizations access to AI and cloud technology to build solutions for underserved communities",
-      "category": "AWS"
     }
   ]
 }

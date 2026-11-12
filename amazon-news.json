@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-11-11T04:47:00.570Z",
+  "updatedAt": "2026-11-12T05:49:21.872Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Ring announces Ring Robotics, ushering in a new era of security",
-      "link": "https://www.aboutamazon.com/news/devices/ring-drone-cam-rover-cam-security-robot?utm_source=rss",
-      "pubDate": "Tue, 10 Nov 2026 13:26:02 GMT",
-      "date": "11/10",
-      "summary": "Ring Robotics is launching with two robots: Ring Drone Cam and Ring Rover Cam, providing mobile, proactive protection whenever and wherever ",
-      "category": "Devices"
-    },
-    {
-      "title": "Black Friday and Cyber Monday 2026: a first look at Amazon’s best deals",
-      "link": "https://www.aboutamazon.com/news/retail/amazon-black-friday-cyber-monday-deals-2026?utm_source=rss",
-      "pubDate": "Tue, 10 Nov 2026 05:30:23 GMT",
-      "date": "11/10",
-      "summary": "Millions of deals across electronics, beauty, fashion, toys, and more drop November 19 through November 30, with new daily themed deals and ",
-      "category": "Retail"
-    },
-    {
       "title": "Amazon in the community: Service, community, and commitment at HQ2",
       "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
-      "pubDate": "Mon, 09 Nov 2026 22:42:00 GMT",
-      "date": "11/9",
+      "pubDate": "Wed, 11 Nov 2026 22:26:00 GMT",
+      "date": "11/11",
       "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
       "category": "Community"
+    },
+    {
+      "title": "How we built the agents that built AWS Emulator",
+      "link": "https://www.aboutamazon.com/news/aws/how-autonomous-ai-agents-built-aws-emulator?utm_source=rss",
+      "pubDate": "Wed, 11 Nov 2026 17:25:18 GMT",
+      "date": "11/11",
+      "summary": "Thousands of autonomous AI agents wrote every line of code in AWS Emulator, a new local emulator for AWS now available for download.",
+      "category": "AWS"
+    },
+    {
+      "title": "AWS to launch first cloud infrastructure region in Chile, investing more than $4 billion",
+      "link": "https://www.aboutamazon.com/news/aws/aws-south-america-chile-region-launch?utm_source=rss",
+      "pubDate": "Wed, 11 Nov 2026 15:37:45 GMT",
+      "date": "11/11",
+      "summary": "The Region—now operational for select customers ahead of general availability—will support thousands of jobs in Chile.",
+      "category": "AWS"
     }
   ]
 }

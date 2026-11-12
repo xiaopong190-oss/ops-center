@@ -1,5 +1,6 @@
 const bad=message=>{throw Object.assign(Error(message),{status:400});};
 const address=/^[A-Z]{1,3}[1-9]\d{0,6}$/;
+export function validSourcePrice(value){const text=String(value??'').normalize('NFKC').trim().replace(/^[￥¥$€£]\s*/,'');if(!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(text))return false;const [whole,fraction='']=text.replaceAll(',','').split('.'),amount=Number(whole)*100+Number(fraction.padEnd(2,'0'));return Number.isSafeInteger(amount)&&amount>0&&amount<=100000000000;}
 export function validateCleaningInput(b){
  if(!b||b.purpose!=='quote-cleaning'||b.exception!==true||Object.keys(b).some(k=>!['purpose','exception','items'].includes(k))||!Array.isArray(b.items)||!b.items.length||b.items.length>12)bad('AI补清洗请求无效');
  if(JSON.stringify(b).length>200000)bad('AI补清洗片段过大');const seen=new Set();
@@ -15,7 +16,7 @@ export function validateCleaningResult(data,input){
  return {items:data.items.map(a=>{const item=input.items.find(x=>x.id===a?.id);if(!item||seen.has(a.id)||!['quote','reference','invalid','unresolved'].includes(a.status)||typeof a.reason!=='string'||a.reason.length>200||!Array.isArray(a.quotes)||a.quotes.length>12)throw Error('AI补清洗返回标识或分类无效');seen.add(a.id);if(a.status!=='quote'&&a.quotes.length||a.status==='quote'&&!a.quotes.length)throw Error('AI补清洗分类与映射不符');
   const cells=new Map([...item.context,...item.cells].map(c=>[c.cell,c.v]));const quotes=a.quotes.map(q=>{
    if(!q||Object.keys(q).some(k=>!['kind','priceCell','destinationCell','unit','unitCell','channelCell','country','countryCell','warehouses'].includes(k))||!['warehouse','region'].includes(q.kind)||!item.priceCells.includes(q.priceCell)||!item.cells.some(c=>c.cell===q.priceCell)||!cells.has(q.destinationCell)||!cells.has(q.unitCell)||!cells.has(q.channelCell)||!['kg','cbm','柜'].includes(q.unit)||typeof q.country!=='string'||!q.country||q.country.length>50||q.countryCell&&!cells.has(q.countryCell))throw Error('AI补清洗引用无效');
-   const price=cells.get(q.priceCell);if(!/^\d+(?:\.\d+)?$/.test(price)||Number(price)<=0)throw Error('AI不得生成缺失或错误价格');
+   const price=cells.get(q.priceCell);if(!validSourcePrice(price))throw Error('AI不得生成缺失或错误价格');
    if(q.kind==='warehouse'){const raw=cells.get(q.destinationCell);if(/海外仓|沃尔玛|WMT[-_]|TikTok|TK[-_]|谷仓|4PX|AWD[-_]|SO[-_]/i.test(raw)||!Array.isArray(q.warehouses)||!q.warehouses.length||q.warehouses.length>40||q.warehouses.some(c=>typeof c!=='string'||!/^(?:[A-Z]{2,5}\d{1,3}|[A-Z]{4})$/.test(c))||new Set(q.warehouses).size!==q.warehouses.length||q.warehouses.join('')!==raw.toUpperCase().replace(/\b(?:AMZ|FBA|FC)\b/g,'').replace(/[^A-Z0-9]/g,''))throw Error('AI仓号不得改写原字符');}
    return q;
   });return {id:a.id,status:a.status,reason:a.reason,quotes};

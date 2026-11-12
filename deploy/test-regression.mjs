@@ -48,6 +48,7 @@ const suites=[
   'tools/logistics-workspace/quality-workflow.test.cjs',
   'tools/logistics-workspace/workbook-cleaning.test.cjs',
   'tools/logistics-workspace/regional-source-fields.test.cjs',
+  'tools/logistics-workspace/cleaning-integrity.test.cjs',
   'tools/logistics-workspace/import-evidence-ui.test.cjs',
   'cloud/test-logistics-github.mjs',
   'cloud/test-logistics-backup.mjs',

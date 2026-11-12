@@ -5,7 +5,7 @@
  const Audit=root.SheetQuoteAudit||(typeof require==='function'?require('./extensions/sheet-quote-audit.js'):null);
  const Context=root.AIQuoteContext||(typeof require==='function'?require('./extensions/ai-quote-context.js'):null);
  const cache=new Map(),inflight=new Map();
- const numeric=v=>/^\d+(?:\.\d+)?$/.test(String(v))&&Number(v)>0;
+ const numeric=v=>{try{return D.cents(v)>0}catch{return false}};
  function queue(model,result){
   const items=[],seen=new Set();let held=0,referenceRows=0;
   for(const [sheetIndex,sheet] of model.sheets.entries()){const contextIndex=Context?.index(sheet);const inspection=Audit?.inspect(sheet,result);let scanned;const blocks=()=>scanned??=M.scan(sheet);

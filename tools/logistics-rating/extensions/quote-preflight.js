@@ -1,5 +1,7 @@
 (function(root){'use strict';
-const clean=v=>String(v??'').trim(),price=v=>/^\d+(?:\.\d+)?$/.test(clean(v))&&Number(v)>0;
+const clean=v=>String(v??'').trim();
+const money=root.Domain||(typeof require==='function'?require('../domain.js'):null);
+const price=v=>{try{return money.cents(v)>0}catch{return false}};
 const dest=/仓库|目的地|目的国|国家|区域|邮编|地址|destination|warehouse|country/i,unit=/KG|CBM|公斤|立方|每柜|柜型|20GP|40GP|40HQ|计费单位|计费重/i;
 const reference=/^(?:合计|总计|汇率|赔付|赔偿|保险|附加费|操作费|注意事项|说明|备注|船期|入仓资料)/;
 const column=c=>c.cell.match(/^[A-Z]+/)?.[0];

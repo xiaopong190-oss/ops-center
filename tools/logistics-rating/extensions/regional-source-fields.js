@@ -19,7 +19,7 @@ function taxEvidence(sheet,ctx,channel){
  }
  const proofs=sources.filter(Boolean).map(c=>({cell:c.cell,raw:String(c.v)}));
  const meaningful=proofs.filter(p=>/包税|含税|未税|税费|递延/.test(p.raw));
- const modes=meaningful.map(p=>{let value=clean(p.raw);if(/可选|任选|是否|待定|待确认|不保证|不承诺|不是|不支持|不接受|不做|不采用|不适用|不提供|禁止/.test(value))return 'unknown';const excluded=/不包税|不含税|未税|未含税|未包税|没有包税|非包税|递延|税费自理/.test(value);value=value.replace(/不包税|不含税|未含税|未包税|没有包税|非包税/g,'');const included=/包税|含税/.test(value);return excluded===included?'unknown':included?'included':'excluded'}),unique=[...new Set(modes)];
+ const modes=meaningful.map(p=>{let value=clean(p.raw);if(/可选|任选|是否|待定|待确认|不(?:保证|承诺|支持|接受|做|采用|适用|提供)\s*(?:包税|含税)|不是\s*(?:包税|含税)|禁止\s*(?:包税|含税)/.test(value))return 'unknown';const excluded=/不包税|不含税|未税|未含税|未包税|没有包税|非包税|递延|税费自理/.test(value);value=value.replace(/不包税|不含税|未含税|未包税|没有包税|非包税/g,'');const included=/包税|含税/.test(value);return excluded===included?'unknown':included?'included':'excluded'}),unique=[...new Set(modes)];
  return {value:unique.length===1&&unique[0]==='included'?'包税':unique.length===1&&unique[0]==='excluded'?'不含税':'税务待确认',proofs:meaningful};
 }
 function timeEvidence(sheet,ctx,record){
@@ -46,6 +46,7 @@ function timeEvidence(sheet,ctx,record){
 function project(model,result){
  const sheets=new Map(model.sheets.map(s=>[s.name,s])),scans=new Map(),audit=[];
  const regionalRecords=(result.regionalRecords||[]).map(record=>{
+  if(record.manualSourceFields)return record;
   const sheet=sheets.get(record.sourceSheet);if(sheet&&!scans.has(sheet))scans.set(sheet,M.scan(sheet));const ctx=sheet&&context(sheet,record,scans.get(sheet));if(!ctx)return record;
   const channel=clean(ctx.channel?.v);if(!channel||channel.length>100||/^下单渠道|华南$|华东$|华北$|起运地|始发地/.test(channel)){audit.push({sheet:sheet.name,priceCell:record.priceCell,status:'待核对',reason:'渠道标签存在，但渠道值为空或无法唯一确定'});return {...record,sourceFieldIssue:'渠道标签存在，但渠道值为空或无法唯一确定'};}
   const tax=taxEvidence(sheet,ctx,ctx.channel),time=timeEvidence(sheet,ctx,record),terms=String(record.terms||'').replace(/(?:^|[;；])\s*条件=[^;；]*/g,'').replace(/^[;；]/,'')+';条件='+tax.value;

@@ -32,6 +32,7 @@ async function open(env,user='one',module='compare',hooks={}){
   catch(error){return {ok:false,status:error.status||500,json:async()=>({error:error.message})}}
  };
  const errors=[];w.addEventListener('error',event=>errors.push(event.message));
+ w.eval(fs.readFileSync(path.join(base,'online-classic-filters.js'),'utf8'));
  w.eval(fs.readFileSync(path.join(base,'online-query.js'),'utf8'));
  const wait=async predicate=>{for(let i=0;i<250;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,10))}throw Error('online page not ready: '+w.document.body.textContent.slice(0,500)+' '+errors.join('|'))};
  await wait(()=>messages.some(message=>message.ready)||errors.length);
@@ -80,6 +81,30 @@ test('regional controls follow global choices and failed refreshes clear previou
   assert.equal(e.doc.querySelectorAll('#online-results tbody tr').length,0);assert.equal(e.doc.querySelectorAll('#online-region-results tbody tr').length,0);
   assert.equal(e.messages.at(-1).snapshot.loaded,false);
   fail=false;e.doc.getElementById('online-retry').click();await e.wait(()=>e.doc.querySelectorAll('#online-results tbody tr').length===50);
+ }finally{e.close();db.close()}
+});
+
+test('classic filter placement, searchable warehouse and explicit score apply retain server-only paging',async()=>{
+ const {createQueryDatabase,installQuerySnapshot}=await import('../../cloud/query-test-helper.mjs'),db=createQueryDatabase();
+ await installQuerySnapshot(db.env,fixture(),'a'.repeat(40),now);const e=await open(db.env);
+ try{
+  const primary=e.doc.querySelector('.classic-primary');
+  assert.deepEqual([...primary.querySelectorAll(':scope > select:not([hidden])')].map(select=>select.name),['provider','country','region','channel']);
+  assert(e.doc.getElementById('online-warehouse').hidden);assert(e.doc.getElementById('online-warehouse-trigger'));
+  assert(e.doc.getElementById('online-rule').closest('label').hidden);assert(e.doc.getElementById('online-retry').hidden);
+  assert.equal(e.doc.querySelector('#online-filters button[type=submit]'),null);
+  assert(e.doc.getElementById('online-transport').closest('.score-controls'));assert.equal(e.doc.getElementById('online-transport').form.id,'online-filters');
+  e.doc.getElementById('online-warehouse-trigger').click();const search=e.doc.getElementById('online-warehouse-search');search.value='man';search.dispatchEvent(new e.w.Event('input'));
+  assert.deepEqual([...e.doc.querySelectorAll('#online-warehouse-choices button')].map(button=>button.textContent),['全部仓库','MAN1']);
+  search.dispatchEvent(new e.w.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await e.wait(()=>e.doc.getElementById('online-country').value==='英国'&&/共 100 条/.test(e.doc.getElementById('online-page').textContent));
+  assert.match(e.doc.getElementById('online-warehouse-trigger').textContent,/MAN1/);
+  e.doc.getElementById('online-reset').click();await e.wait(()=>/共 400 条/.test(e.doc.getElementById('online-page').textContent));
+  const before=e.calls.length,min=e.doc.getElementById('online-minScore');min.value='6';min.dispatchEvent(new e.w.Event('input'));await new Promise(resolve=>setTimeout(resolve,300));assert.equal(e.calls.length,before,'typing a score does not query until apply');
+  e.doc.getElementById('online-apply-score').click();await e.wait(()=>/共 0 条/.test(e.doc.getElementById('online-page').textContent));assert.equal(e.doc.getElementById('online-view').value,'score');
+  assert(e.calls.some(query=>query.get('minScore')==='6'&&query.get('view')==='score'));
+  min.value='';min.dispatchEvent(new e.w.Event('input'));await e.wait(()=>/共 400 条/.test(e.doc.getElementById('online-page').textContent));
+  e.doc.getElementById('online-reset').click();await e.wait(()=>e.doc.getElementById('online-view').value==='grouped'&&e.doc.getElementById('online-status').textContent.startsWith('已确认'));
+  assert(e.calls.every(query=>Number(query.get('size')||0)<=50));assert.equal(e.w.localStorage.length,1);
  }finally{e.close();db.close()}
 });
 

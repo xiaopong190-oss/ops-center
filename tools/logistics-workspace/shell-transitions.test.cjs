@@ -52,3 +52,24 @@ test('paused or failed publication unlocks close and retry without closing the m
 test('unchanged preview makes the lack of new transfer explicit and retains its verification result',()=>{const e=open();try{e.status(counts);const send=data=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data}));send({type:'hangxu-publish-preview',plan:{counts,alreadyPublished:true}});assert.match(e.doc.querySelector('#publish-progress').textContent,/无需重新上传/);assert.equal(e.doc.querySelector('[data-snapshot="publish"]').textContent,'核验已发布版本');send({type:'hangxu-publish-receipt',receipt:{counts,unchanged:true,sha:'a'.repeat(40),savedAt:'2026-11-02'}});assert.match(e.doc.querySelector('#dialogbody').textContent,/未上传、未启动后台任务/);assert(e.doc.querySelector('#dialog').open)}finally{e.dom.window.close()}});
 
 test('local quote query uses the input master and published quote query keeps its own read-only namespace',()=>{const e=open();try{e.status(counts);e.doc.querySelector('[data-logic-route="local-compare"]').click();let u=new URL(e.frame().src);assert(u.pathname.endsWith('/compare.html'));assert.equal(u.searchParams.get('module'),'compare');assert.equal(u.searchParams.get('audience'),'input');assert.equal(u.searchParams.get('access'),'operate');e.status(counts);e.doc.querySelector('[data-pane="out"]').click();e.status(counts);assert.equal(e.doc.querySelector('[data-logic-route="local-compare"]'),null);e.doc.querySelector('[data-logic-route="compare"]').click();u=new URL(e.frame().src);assert.equal(u.searchParams.get('audience'),'display');assert.equal(u.searchParams.get('access'),'view')}finally{e.dom.window.close()}});
+
+test('failed batch preview leaves the busy state and offers explicit, confirmed deferral without publishing',()=>{
+ const e=open();try{
+  e.status(counts);const actions=[];e.frame().contentWindow.postMessage=x=>actions.push(x.action);
+  const send=data=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data}));
+  e.doc.querySelector('[data-snapshot="preview"]').click();
+  send({type:'hangxu-engine-status',ready:true,error:'旧物流：本批 2026-11-11，线上 2026-11-12',publicationIssue:{providers:['<旧物流>'],dates:['2026-11-11'],counts:{quotes:0,regional:9},queueLength:2,nextProviders:['新物流']}});
+  assert.equal(e.doc.querySelector('#dialogtitle').textContent,'发布预览未通过');
+  assert.match(e.doc.querySelector('#dialogbody').textContent,/<旧物流>.*2026-11-11/);assert.match(e.doc.querySelector('#dialogbody').textContent,/下一批：新物流/);
+  assert.equal(e.doc.querySelector('#dialogbody').querySelector('旧物流'),null);
+  assert.equal(e.doc.querySelector('#close').disabled,false);assert.equal(e.doc.querySelector('[data-snapshot="publish"]'),null);
+  const defer=e.doc.querySelector('#dialogbody [data-logic="deferQuoteBatch"]');assert(defer);
+  e.w.confirm=()=>false;defer.click();assert.deepEqual(actions,['previewPublish']);
+  e.w.confirm=()=>true;defer.click();assert.deepEqual(actions,['previewPublish','deferQuoteBatch']);assert.equal(e.doc.querySelector('#close').disabled,true);
+  e.doc.querySelector('[data-logic="deferQuoteBatch"]').click();assert.equal(actions.length,2);
+  send({type:'hangxu-engine-status',ready:true,error:'下一批也需核对',publicationIssue:{providers:['新物流'],dates:['2026-11-12'],counts:{quotes:0,regional:27},queueLength:2,nextProviders:['<旧物流>']}});
+  assert.equal(e.doc.querySelector('#dialogtitle').textContent,'发布预览未通过');assert.equal(e.doc.querySelector('#close').disabled,false);
+  assert.match(e.doc.querySelector('#dialogbody').textContent,/新物流.*27 条/);
+  e.doc.querySelector('#dialogbody [data-snapshot="preview"]').click();assert.equal(actions.at(-1),'previewPublish');assert(!actions.includes('publish'));
+ }finally{e.dom.window.close()}
+});

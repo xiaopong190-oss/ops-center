@@ -21,3 +21,5 @@ Actual Chrome checks use synthetic data and the real encrypted query handler in 
 ## Release and rollback
 
 After approval of the concrete PR, deploy the reviewed Worker first; old V1.0.66.b clients ignore the extra response metadata. Record its actual version in `release.json`, then merge the reviewed frontend changes. Run the main-only signed `query-rebuild` audit and require the expanded read checks before allowing the Pages release to finish. If checks fail, cancel Pages and restore Worker `0f0ce484-4726-41f4-a015-d85392af1c95`. Restore frontend tag `hangxu-v1.0.66.b` if needed. Preserve current canonical data, sessions, cooperation records and derived indexes.
+
+Approved backend deployment: `0ce42d8e-ac1c-457d-834e-a6e387bc0fb0`, from reviewed source `3391b8ca6424cea969dad2a56d9606e3ce6134ba`, tagged `hangxu-v1.0.66.c-worker`. Static Worker assets were unchanged. The previous production Worker remains the rollback target above. Live query verification follows the main-branch merge.

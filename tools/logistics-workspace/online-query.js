@@ -9,7 +9,7 @@
  const ids=['provider','country','region','channel'];
  const labels={provider:'服务商',country:'国家',region:'地区',channel:'渠道'};
  let version='',snapshot=null,page=0,regionalPage=0,confirmed=false,generation=0,controller=null,warehouseCountries={},inferredCountry=null;
- let exporting=false,debounce=null,automaticMonth=true,appliedScore={minScore:'',maxScore:'',order:'desc'},columnFilters=null;
+ let exporting=false,debounce=null,automaticMonth=true,appliedScore={minScore:'',maxScore:'',order:'desc'},columnFilters=null,gradesExpanded=false;
  const $=id=>document.getElementById(id);
  function signal(result,error){
   const current=result||snapshot;
@@ -50,7 +50,7 @@
    '</div>'+(compare?'<div class="check-options" id="online-cargo">'+['普货','带电','带磁','液体','粉末','其他特殊货物','未注明／待确认'].map(value=>'<label><input type="checkbox" name="cargo" value="'+value+'">'+value+'</label>').join('')+'</div><div class="check-options">税务方式 '+[['','全部'],['included','包税'],['excluded','不包税／递延'],['unknown','未明确']].map(([value,label])=>'<label><input type="radio" name="tax" value="'+value+'" '+(!value?'checked':'')+'>'+label+'</label>').join('')+'</div>':'')+
    '<div class="actions"><button type="button" id="online-reset">重置筛选</button><button type="submit">查询</button>'+(compare?'<button type="button" class="primary" id="online-compare">比较价格与评分</button>':'')+'<button type="button" id="online-retry">重新查询</button></div></form></section>'+
    '<section><h2>'+ (compare?'报价结果':route==='warehouses'?'仓库列表':'公司账单明细')+'</h2>'+
-   (compare?'<div class="score-controls"><label>展示方式<select id="online-view"><option value="grouped">按仓库查看</option><option value="score">按分数查看</option></select></label><label>最低分<input id="online-minScore" type="number" min="0" max="10" step="0.1"></label><label>最高分<input id="online-maxScore" type="number" min="0" max="10" step="0.1"></label><label>排序<select id="online-order"><option value="desc">高分优先</option><option value="asc">低分优先</option></select></label><button id="online-apply-score">筛选分数</button><button id="online-clear-score">清除分数</button></div>':'')+
+   (compare?'<div class="score-controls"><label>展示方式<select id="online-view"><option value="grouped">按仓库查看</option><option value="score">按分数查看</option></select></label><label>最低分<input id="online-minScore" type="number" min="0" max="10" step="0.1"></label><label>最高分<input id="online-maxScore" type="number" min="0" max="10" step="0.1"></label><label>排序<select id="online-order"><option value="desc">高分优先</option><option value="asc">低分优先</option></select></label><button id="online-apply-score">筛选分数</button><button id="online-clear-score">清除分数</button><button type="button" id="online-toggle-grades" aria-expanded="false" aria-controls="online-results" title="价格等级、时效等级、综合等级">展开等级</button></div>':'')+
    '<div class="actions"><button id="online-export">导出当前筛选结果</button>'+(route==='monthly'?'<button id="online-export-summary">导出月度公司汇总</button>':'')+'</div><div id="online-summary" class="scroll"></div><div id="comparison"><div id="online-results" class="scroll"></div></div><div class="pager"><button id="online-prev">上一页</button><span id="online-page"></span><button id="online-next">下一页</button></div></section>'+
    (compare?'<section id="online-regional"><h2>区域报价</h2><p class="muted">跟随上方全局筛选；选定仓库后按原文覆盖情况查询。</p><div class="filters">'+selectHtml('region-provider','区域物流商')+selectHtml('region-transport','区域运输方式')+'<label>搜索区域／邮编<input id="online-region-search" maxlength="100"></label><label id="online-coverage-label" hidden>仓库覆盖<select id="online-coverage"><option value="confirmed">原文明确覆盖</option><option value="unverified">覆盖待核实</option></select></label></div><p id="online-region-count" class="muted"></p><div id="online-region-results" class="scroll"></div><div class="pager"><button id="online-region-prev">上一页</button><span id="online-region-page"></span><button id="online-region-next">下一页</button><button id="online-region-export">导出区域结果</button></div></section>':'');
   if(compare){
@@ -82,6 +82,7 @@
   $('online-export').onclick=()=>exportRows(false);
   if(compare){
    $('online-compare').onclick=()=>{if(!form.elements.country.value||!form.elements.warehouse.value){notice('请先选择国家和仓库再比较',true);return;}confirmed=true;columnFilters.clearDynamic();page=0;load();};
+   $('online-toggle-grades').onclick=()=>{gradesExpanded=!gradesExpanded;columnFilters.close();syncGradeColumns();};
    $('online-view').onchange=()=>{columnFilters.clearOrder();page=0;load();};
    $('online-apply-score').onclick=()=>{const min=$('online-minScore').value,max=$('online-maxScore').value;if(min!==''&&(!Number.isFinite(Number(min))||Number(min)<0||Number(min)>10)||max!==''&&(!Number.isFinite(Number(max))||Number(max)<0||Number(max)>10)||min!==''&&max!==''&&Number(min)>Number(max)){notice('分数范围需在0至10之间，最低分不能大于最高分',true);return;}columnFilters.clearOrder();appliedScore={minScore:min,maxScore:max,order:$('online-order').value};if(min!==''||max!=='')$('online-view').value='score';page=0;load();};
    $('online-clear-score').onclick=()=>{columnFilters.clearOrder();$('online-minScore').value='';$('online-maxScore').value='';$('online-order').value='desc';appliedScore={minScore:'',maxScore:'',order:'desc'};page=0;load();};
@@ -108,7 +109,16 @@
   if(version)query.set('version',version);
   return query;
  }
- function table(headers,rows,types){return '<table><thead><tr>'+headers.map((value,i)=>'<th>'+escape(value)+(types?'<button type="button" data-score-column="'+i+'" data-column-name="'+escape(value)+'" data-value-type="'+types[i]+'" aria-label="'+escape(value)+'筛选与排序">▾</button>':'')+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(value=>'<td>'+value+'</td>').join('')+'</tr>').join('')+'</tbody></table>';}
+ function table(headers,rows,types,columnIds=headers.map((_,i)=>i)){
+  const attributes=i=>types&&[8,9,10].includes(columnIds[i])?' data-grade-column'+(gradesExpanded?'':' hidden'):'';
+  return '<table><thead><tr>'+headers.map((value,i)=>'<th'+attributes(i)+'>'+escape(value)+(types?'<button type="button" data-score-column="'+columnIds[i]+'" data-column-name="'+escape(value)+'" data-value-type="'+types[i]+'" aria-label="'+escape(value)+'筛选与排序">▾</button>':'')+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map((value,i)=>'<td'+attributes(i)+'>'+value+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+ }
+ function syncGradeColumns(){
+  for(const cell of $('online-results').querySelectorAll('[data-grade-column]'))cell.hidden=!gradesExpanded;
+  const button=$('online-toggle-grades'),active=!!$('online-results').querySelector('[data-grade-column] .column-active');
+  button.textContent=(gradesExpanded?'收起等级':'展开等级')+(active?'（筛选／排序中）':'');button.setAttribute('aria-expanded',String(gradesExpanded));
+ }
+
  const money=value=>(Number(value||0)/100).toFixed(2);
  function quoteCells(row,regional){
   const grade=confirmed?row.ranked:row.base;
@@ -120,7 +130,10 @@
  function renderRows(result,regional=false){
   const target=$(regional?'online-region-results':'online-results');
   if(!result.rows.length&&(route!=='compare'||regional)){target.innerHTML='<p class="muted">当前条件没有匹配记录。</p>';return;}
-  if(route==='compare')target.innerHTML=table(['物流商','国家',regional?'区域／邮编':'仓库','渠道','计费条件','报价','承诺时效','原始日期',...(!regional?['价格等级','时效等级','综合等级','渠道参考分']:[])],result.rows.map(row=>quoteCells(row,regional)),regional?null:['text','text','text','text','text','number','time','text','text','text','text','number'])+(result.rows.length?'':'<p class="muted">当前条件没有匹配记录。</p>');
+  if(route==='compare'){
+   const headers=['物流商','国家',regional?'区域／邮编':'仓库','渠道','计费条件','报价','承诺时效',...(!regional?['价格等级','时效等级','综合等级','渠道参考分']:[])],columnIds=regional?[0,1,2,3,4,5,6]:[0,1,2,3,4,5,6,8,9,10,11];
+   target.innerHTML=table(headers,result.rows.map(row=>quoteCells(row,regional).filter((_,i)=>i!==7)),regional?null:columnIds.map(id=>root.TableColumns.definitions[id].type),columnIds)+(result.rows.length?'':'<p class="muted">当前条件没有匹配记录。</p>');
+  }
   else if(route==='warehouses')target.innerHTML=table(['国家','标准AMZ仓库编号','原始写法'],result.rows.map(row=>[row.country,row.warehouse,(row.variants||[row.warehouse]).join(' / ')].map(escape)));
   else target.innerHTML=table(['物流商','账单日期','账单号','运单号','渠道','目的仓','币种','账单金额','已付金额','备注'],result.rows.map(row=>[row.company,row.date,row.bill,row.waybill,row.channel,row.warehouse,row.currency,money(row.amount),money(row.paid),row.note].map(escape)));
  }
@@ -144,7 +157,7 @@
   }
   if(route==='monthly'){$('online-filters').elements.month.value=result.selected.month||result.day.slice(0,7);$('online-summary').innerHTML=table(['公司','币种','账单行数','账单金额','已付金额','待付／超付'],(result.summary||[]).map(row=>[row.company,row.currency,row.count,money(row.amount),money(row.paid),money(row.amount-row.paid)].map(escape)));}
   renderRows(result);pagination(result);
-  if(route==='compare')columnFilters.update(result);
+  if(route==='compare'){columnFilters.update(result);syncGradeColumns();}
   if($('online-export-summary'))$('online-export-summary').onclick=()=>download('月度公司汇总',[['公司','币种','账单行数','账单金额','已付金额','待付／超付'],...(result.summary||[]).map(row=>[row.company,row.currency,row.count,money(row.amount),money(row.paid),money(row.amount-row.paid)])]);
  }
  async function script(src){return new Promise((resolve,reject)=>{const element=document.createElement('script');element.src=src;element.onload=resolve;element.onerror=()=>reject(Error('评价模块加载失败'));document.body.append(element)});}

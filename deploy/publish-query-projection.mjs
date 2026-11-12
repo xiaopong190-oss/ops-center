@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {projectQuerySnapshot} from './query-projection.mjs';
 import {businessDay} from '../cloud/logistics-query-store.mjs';
+import Columns from '../tools/logistics-workspace/table-columns.js';
 
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export async function verifyQueryRead(read){
@@ -21,15 +22,28 @@ export async function verifyQueryRead(read){
  const sorted=await read('kind=quotes-price&size=50&providerOrder=asc&'+pin);
  if(sorted.version!==meta.version||JSON.stringify(sorted.rows.map(row=>row.provider))!==JSON.stringify(expected.slice(0,50)))throw Error('QUERY_PROVIDER_SORT_NOT_VERIFIED');
  if(sorted.pages>1){const next=await read('kind=quotes-price&size=50&page=1&providerOrder=asc&'+pin);if(next.version!==meta.version||JSON.stringify(next.rows.map(row=>row.provider))!==JSON.stringify(expected.slice(50,100)))throw Error('QUERY_PROVIDER_SORT_PAGE_NOT_VERIFIED');}
- return {sourceSha:meta.sourceSha,version:meta.version,counts:meta.counts,firstRows:a.rows.length,firstResponseBytes:Buffer.byteLength(JSON.stringify(a)),airTotal:air.total,providerChoices:choices.length,airProviderChoices:air.providerColumn?.choices?.length||0,providerSelectionVerified:choices.length>0,providerSortVerified:choices.length>0};
+ if(a.tableColumns?.supported!==true)throw Error('QUERY_TABLE_COLUMNS_NOT_READY');
+ for(const definition of Columns.definitions){
+  const facet=await read('kind=quotes-price&column='+definition.id+'&'+pin);
+  if(facet.version!==meta.version||!facet.columnFacet||facet.rows||facet.columnFacet.allValues.length!==facet.columnFacet.total)throw Error('QUERY_COLUMN_FACET_NOT_VERIFIED');
+  const choice=facet.columnFacet.choices[0];
+  if(choice){
+   const rules=encodeURIComponent(JSON.stringify({[definition.id]:{mode:'include',values:[choice.value]}})),selected=await read('kind=quotes-price&size=50&columnMode=base&columns='+rules+'&'+pin);
+   if(selected.version!==meta.version||selected.total!==choice.count||selected.rows.some(row=>Columns.cell(row,definition.id).label!==choice.label))throw Error('QUERY_COLUMN_SELECTION_NOT_VERIFIED');
+  }
+  const sorted=await read('kind=quotes-price&size=100&columnSort='+definition.id+':asc&'+pin);
+  if(sorted.version!==meta.version||sorted.total!==a.total)throw Error('QUERY_COLUMN_SORT_NOT_VERIFIED');
+  for(let i=1;i<sorted.rows.length;i++)if(Columns.compare(Columns.cell(sorted.rows[i-1],definition.id),Columns.cell(sorted.rows[i],definition.id),definition.type)>0)throw Error('QUERY_COLUMN_SORT_NOT_VERIFIED');
+ }
+ return {sourceSha:meta.sourceSha,version:meta.version,counts:meta.counts,firstRows:a.rows.length,firstResponseBytes:Buffer.byteLength(JSON.stringify(a)),airTotal:air.total,providerChoices:choices.length,airProviderChoices:air.providerColumn?.choices?.length||0,providerSelectionVerified:choices.length>0,providerSortVerified:choices.length>0,tableColumnsVerified:Columns.definitions.length};
 }
 export async function publishQueryProjection(snapshot,sourceSha,savedAt,send,now=new Date(),relations=[]){
  const day=businessDay(now),tomorrow=new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
- const items=[],manifest={schema:1,savedAt,days:[day,tomorrow],relationHash:hash(relations),counts:{},parts:{}};
+ const items=[],manifest={schema:1,tableSchema:1,savedAt,days:[day,tomorrow],relationHash:hash(relations),counts:{},parts:{}};
  for(const date of manifest.days){
   const projection=projectQuerySnapshot(snapshot,date,relations);manifest.counts[date]=projection.counts;
   for(const [kind,view] of Object.entries(projection.kinds)){
-   const parts=[{part:date+'/'+kind+':index',value:view.index},...view.pages.map((value,i)=>({part:date+'/'+kind+':page-'+i,value})),...(view.searchParts||[]).map((value,i)=>({part:date+'/'+kind+':search-'+i,value}))];
+   const parts=[{part:date+'/'+kind+':index',value:view.index},...view.pages.map((value,i)=>({part:date+'/'+kind+':page-'+i,value})),...(view.searchParts||[]).map((value,i)=>({part:date+'/'+kind+':search-'+i,value})),...(view.columnParts||[]).map(item=>({part:date+'/'+kind+':'+item.part,value:item.value}))];
    for(const item of parts){item.hash=hash(item.value);manifest.parts[item.part]=item.hash;items.push(item);}
   }
  }

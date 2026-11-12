@@ -9,6 +9,7 @@ import Tax from '../tools/logistics-rating/extensions/tax-filter.js';
 import Cargo from '../tools/logistics-rating/extensions/cargo-filter.js';
 import Regions from '../tools/logistics-rating/extensions/regional-query.js';
 import {buildQueryIndex} from '../cloud/query-index.mjs';
+import {buildTableColumns} from './table-column-projection.mjs';
 
 const gradeFields=['priceGrade','timeGrade','quoteGrade','quoteScore','channelScore','channelScoreLevel','channelScoreBasis','priceReference','reason'];
 const grades=row=>Object.fromEntries(gradeFields.map(key=>[key,row[key]??null]));
@@ -47,6 +48,7 @@ export function projectQuerySnapshot(snapshot,today,relations=[]){
    return {...compact(initial,names),base:grades(initial),ranked:grades(calculated),score:initial.channelScore??null,rankedScore:calculated.channelScore??null};
   }).sort((a,b)=>a.country.localeCompare(b.country)||a.warehouse.localeCompare(b.warehouse));
   kinds['quotes-'+mode]=buildQueryIndex(rows);
+  const columns=buildTableColumns(rows);kinds['quotes-'+mode].index.tableColumns={schema:columns.schema,fields:columns.fields};kinds['quotes-'+mode].columnParts=columns.parts;
   kinds['quotes-'+mode].index.archive=db.templates.map(row=>Relations.normalize(row)).map(row=>({country:row.country,region:row.geographyRegion||Q.region(row.country),warehouse:row.warehouse}));
   const regions=C.prepare(effective.regionalQuotes,db.comparisonMappings||[]).map((row,i)=>({
    ...compact(Relations.normalize(row),names),regionRaw:effective.regionalQuotes[i].regionRaw,

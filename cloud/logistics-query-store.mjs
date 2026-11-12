@@ -1,6 +1,7 @@
 import {Buffer} from 'node:buffer';
 import {gunzipSync} from 'node:zlib';
 import {selectQueryIndex,queryFields,queryOptions,providerFilterChoices} from './query-index.mjs';
+import {tableColumnQuery} from './table-column-query.mjs';
 
 const prefix='_logistics-online-query:v1:';
 const activeKey=prefix+'active';
@@ -8,7 +9,7 @@ const fail=(status,message)=>{throw Object.assign(Error(message),{status})};
 const sha=async bytes=>Buffer.from(await crypto.subtle.digest('SHA-256',bytes)).toString('hex');
 export const businessDay=(instant=new Date())=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(instant);
 const versionPattern=/^[a-f0-9]{40}:[0-9]{4}-[0-9]{2}-[0-9]{2}:[a-f0-9]{64}$/;
-const partPattern=/^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}\/)?(quotes-price|quotes-strict|regional-price|regional-strict|warehouses|bills|ratings):(index|page-[0-9]+|search-[0-9]+)$/;
+const partPattern=/^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}\/)?(quotes-price|quotes-strict|regional-price|regional-strict|warehouses|bills|ratings):(index|page-[0-9]+|search-[0-9]+|column-(?:provider|country|warehouse|channel|terms|price|time|date|priceGrade|timeGrade|quoteGrade|score)-(?:base|ranked)-(?:index|values-[0-9]+))$/;
 const dataKey=(version,part)=>prefix+version+':'+part;
 async function encryptionKey(env){
  const bytes=Buffer.from(env.ENCRYPTION_KEY||'','base64');
@@ -102,7 +103,7 @@ export async function stageQueryIndex(req,env,currentSource,now=new Date()){
  }
  const previous=await get(env,activeKey);
  if(await currentSource()!==sourceSha)fail(409,'GitHub已有更新，未切换查询版本');
- const next={version,sourceSha,day,days:manifest.days||[day],relationHash:manifest.relationHash||null,savedAt:manifest.savedAt,parts:manifest.parts,counts:manifest.counts};
+ const next={version,sourceSha,day,days:manifest.days||[day],tableSchema:manifest.tableSchema||0,relationHash:manifest.relationHash||null,savedAt:manifest.savedAt,parts:manifest.parts,counts:manifest.counts};
  const tomorrow=new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
  if(!Array.isArray(next.days)||!next.days.includes(day)||next.days.some(value=>value!==day&&value!==tomorrow))fail(400,'索引日期范围无效');
  if(!next.days.includes(today))fail(409,'索引尚未覆盖当前业务日期');
@@ -122,10 +123,11 @@ export async function stageQueryIndex(req,env,currentSource,now=new Date()){
 }
 export async function logisticsQuery(req,env,user,now=new Date()){
  if(!user)fail(401,'请先登录运营中心');
- if(req.method!=='GET')fail(405,'线上查询只允许读取');
+ if(!['GET','POST'].includes(req.method))fail(405,'线上查询只允许读取');
  const active=await get(env,activeKey),today=businessDay(now);
  if(!active||!(active.days||[active.day]).includes(today))fail(503,'最新报价索引正在更新，请稍后重试');
- const query=new URL(req.url).searchParams;
+ let query=new URL(req.url).searchParams;
+ if(req.method==='POST'){const chunks=[];let size=0;for await(const chunk of req.body||[]){size+=chunk.length;if(size>256*1024)fail(413,'筛选条件过多，请使用搜索或排除选项');chunks.push(chunk);}query=new URLSearchParams(Buffer.concat(chunks).toString('utf8'));}
  const version=active.version+'@'+today;
  if(query.get('version')&&query.get('version')!==version)fail(409,'报价版本已更新，请重新查询后翻页');
  if(query.get('meta')==='1')return Response.json({version,sourceSha:active.sourceSha,day:today,savedAt:active.savedAt,counts:active.counts[today]||active.counts},{headers:{'Cache-Control':'private, no-store'}});
@@ -184,8 +186,11 @@ export async function logisticsQuery(req,env,user,now=new Date()){
   }
  }
  const order=providerColumn?.order?'provider'+(providerColumn.order==='asc'?'Asc':'Desc'):!regional&&query.get('view')==='score'?(confirmed?'rankedScore':'score')+(query.get('order')==='asc'?'Asc':'Desc'):'original';
+ const columnRead=part=>read(dayPrefix+kind+':'+part),table=kind.startsWith('quotes-')?await tableColumnQuery(index,filters,query,columnRead,confirmed):null;
+ if(table?.facet){if((await get(env,activeKey))?.version!==active.version)fail(409,'报价版本已更新，请重新查询');return Response.json({version,sourceSha:active.sourceSha,day:today,savedAt:active.savedAt,counts:active.counts[today]||active.counts,tableColumns:table.state,columnFacet:table.facet},{headers:{'Cache-Control':'private, no-store'}});}
+ if(table?.ids)filters._ids=table.ids;
  let selected;
- try{selected=selectQueryIndex(index,filters,Number(query.get('page')||0),Number(query.get('size')||50),order)}catch{fail(400,'分页参数无效');}
+ try{selected=table?.selection||selectQueryIndex(index,filters,Number(query.get('page')||0),Number(query.get('size')||50),order)}catch{fail(400,'分页参数无效');}
  const needed=[...new Set(selected.locations.map(([page])=>page))];
  const pages=new Map(await Promise.all(needed.map(async page=>{
   const part=dayPrefix+kind+':page-'+page;
@@ -198,5 +203,5 @@ export async function logisticsQuery(req,env,user,now=new Date()){
  const warehouseCountries=Object.create(null);
  for(const row of index.archive||[]){const countries=warehouseCountries[row.warehouse]||=[];if(!countries.includes(row.country))countries.push(row.country);}
  if(kind==='bills')options.provider=Object.keys(index.facets.provider);
- return Response.json({version,sourceSha:active.sourceSha,day:today,savedAt:active.savedAt,counts:active.counts[today]||active.counts,...pagination,options,selected:resolved.selected,providerNames:index.providerNames||{},warehouseCountries,...(providerColumn?{providerColumn}:{}),...(kind==='ratings'?{companies:index.companies||[]}:{}),...(summary?{summary}:{}),rows:locations.map(([page,row])=>pages.get(page)[row])},{headers:{'Cache-Control':'private, no-store'}});
+ return Response.json({version,sourceSha:active.sourceSha,day:today,savedAt:active.savedAt,counts:active.counts[today]||active.counts,...pagination,options,selected:resolved.selected,providerNames:index.providerNames||{},warehouseCountries,...(providerColumn?{providerColumn}:{}),...(table?{tableColumns:table.state}:{}),...(kind==='ratings'?{companies:index.companies||[]}:{}),...(summary?{summary}:{}),rows:locations.map(([page,row])=>pages.get(page)[row])},{headers:{'Cache-Control':'private, no-store'}});
 }

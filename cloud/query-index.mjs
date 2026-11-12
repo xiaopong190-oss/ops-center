@@ -1,11 +1,11 @@
 // Compact inverted indexes keep online requests independent of the full snapshot.
 export const queryFields = ['provider','region','country','channel','warehouse','transport','cargo','tax','coverage','score','rankedScore','month'];
-function encodeIds(ids) {
+export function encodeIds(ids) {
  const bytes=[];let previous=0;
  for(const id of ids){const difference=id-previous;let delta=difference>=0?difference*2:-difference*2-1;previous=id;while(delta>=128){bytes.push((delta%128)|128);delta=Math.floor(delta/128)}bytes.push(delta)}
  let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary);
 }
-function decodeIds(encoded) {
+export function decodeIds(encoded) {
  const ids=[];let previous=0,delta=0,factor=1;
  for(const byte of Uint8Array.from(atob(encoded),x=>x.charCodeAt(0))){delta+=(byte&127)*factor;if(byte&128){factor*=128}else{previous+=delta%2?-(delta+1)/2:delta/2;ids.push(previous);delta=0;factor=1}}
  return ids;
@@ -62,6 +62,7 @@ function matchingIds(index,filters){
  }
  return candidates;
 }
+export const matchingQueryIds=(index,filters)=>matchingIds(index,filters);
 export function queryOptions(index,filters){
  const prior={...filters};
  for(const field of ['provider','region','country','channel','warehouse','score','rankedScore'])delete prior[field];
@@ -105,6 +106,10 @@ export function selectQueryIndex(index, filters = {}, page = 0, size = 50, order
   const eligible=candidates===null?null:new Set(candidates);
   candidates=decoded(index,index.orders[order]).filter(id=>eligible===null||eligible.has(id));
  }
+ return pageQueryIds(index,candidates,page,size);
+}
+export function pageQueryIds(index,candidates,page=0,size=50){
+ if(!Number.isInteger(page)||page<0||!Number.isInteger(size)||size<1||size>100)throw Error('QUERY_PAGE_INVALID');
  const total = candidates?.length ?? index.count;
  const ids = candidates === null
   ? Array.from({length:Math.max(0, Math.min(size,total-page*size))}, (_,i) => page*size+i)

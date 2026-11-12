@@ -49,7 +49,7 @@ export async function workspaceRunner(req,env,send=fetch,identity=runnerIdentity
   if(req.method!=='GET')fail(405,'查询状态只接受GET');
   const current=await readWorkspace(env,send),view=await queryState(env),day=businessDay(),tomorrow=new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
   const relationHash=await hash(Buffer.from(JSON.stringify(await queryRelations(env))));
-  return json({sourceSha:current.sha,ready:view?.sourceSha===current.sha&&view.relationHash===relationHash&&[day,tomorrow].every(date=>(view.days||[view.day]).includes(date)),version:view?.version||null});
+  return json({sourceSha:current.sha,ready:view?.sourceSha===current.sha&&view.tableSchema===1&&view.relationHash===relationHash&&[day,tomorrow].every(date=>(view.days||[view.day]).includes(date)),version:view?.version||null});
  }
  if(url.pathname==='/api/logistics-workspace-runner/audit-read'){
   if(req.method!=='GET')fail(405,'核对仅允许读取');

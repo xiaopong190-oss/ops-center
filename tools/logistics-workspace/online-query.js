@@ -9,7 +9,7 @@
  const ids=['provider','country','region','channel'];
  const labels={provider:'服务商',country:'国家',region:'地区',channel:'渠道'};
  let version='',snapshot=null,page=0,regionalPage=0,confirmed=false,generation=0,controller=null,warehouseCountries={},inferredCountry=null;
- let exporting=false,debounce=null,automaticMonth=true,appliedScore={minScore:'',maxScore:'',order:'desc'},providerFilter=null;
+ let exporting=false,debounce=null,automaticMonth=true,appliedScore={minScore:'',maxScore:'',order:'desc'},columnFilters=null;
  const $=id=>document.getElementById(id);
  function signal(result,error){
   const current=result||snapshot;
@@ -23,11 +23,12 @@
   if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});
   const timer=setTimeout(abort,20000);
   try{
-   const response=await fetch(endpoint+'?'+query.toString(),{headers:{Authorization:'Bearer '+token},cache:'no-store',signal:requestController.signal});
+   const encoded=query.toString(),post=encoded.length>6000;
+   const response=await fetch(endpoint+(post?'':'?'+encoded),{method:post?'POST':'GET',headers:{Authorization:'Bearer '+token,...(post?{'Content-Type':'application/x-www-form-urlencoded'}:{})},...(post?{body:encoded}:{}),cache:'no-store',signal:requestController.signal});
    let result;try{result=await response.json()}catch(error){if(error.name==='AbortError')throw error;throw Error('在线查询暂时不可用，请重试');}
    if(!response.ok)throw Object.assign(Error(result.error||'查询未完成，请重试'),{status:response.status});
    if(typeof result.version!=='string'||!result.sourceSha||!result.counts)throw Error('查询响应未通过校验');
-   if(query.get('kind')?.startsWith('quotes-')&&(result.providerColumn?.supported!==true||!Array.isArray(result.providerColumn.choices)))throw Error('物流商筛选服务尚未就绪，请重新加载');
+   if(query.get('kind')?.startsWith('quotes-')&&result.tableColumns?.supported!==true)throw Error('完整列筛选服务尚未就绪，请重新加载');
    return result;
   }catch(error){if(error.name==='AbortError'&&!signal?.aborted)throw Error('查询超时，请重试');throw error;}
   finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
@@ -54,12 +55,11 @@
    (compare?'<section id="online-regional"><h2>区域报价</h2><p class="muted">跟随上方全局筛选；选定仓库后按原文覆盖情况查询。</p><div class="filters">'+selectHtml('region-provider','区域物流商')+selectHtml('region-transport','区域运输方式')+'<label>搜索区域／邮编<input id="online-region-search" maxlength="100"></label><label id="online-coverage-label" hidden>仓库覆盖<select id="online-coverage"><option value="confirmed">原文明确覆盖</option><option value="unverified">覆盖待核实</option></select></label></div><p id="online-region-count" class="muted"></p><div id="online-region-results" class="scroll"></div><div class="pager"><button id="online-region-prev">上一页</button><span id="online-region-page"></span><button id="online-region-next">下一页</button><button id="online-region-export">导出区域结果</button></div></section>':'');
   if(compare){
    root.OnlineClassicFilters.mount(document);
-   providerFilter=root.OnlineProviderFilter.bind(document,()=>{page=0;load();});
+   columnFilters=root.OnlineColumnFilters.bind(document,()=>{page=0;load();},async(field,search,cursor,signal)=>{const query=parameters();query.set('version',version);query.set('column',field);query.set('columnSearch',search);query.set('cursor',String(cursor));return request(query,signal);});
    options($('online-transport'),['空运','海运','卡航','铁路','待确认'],'','全部方式',{'待确认':'其它／待确认'});
    options($('online-rule'),['price','strict'],'price','评级规则',{price:'价格初评（试用）',strict:'旧版严格规则'});
    $('online-rule').value='price';
    options($('online-region-transport'),['空运','海运','卡航','铁路','待确认'],'','全部方式',{'待确认':'其它／待确认'});
-   root.ScoreListColumns?.bindScoreListColumns(document);
   }
   const form=$('online-filters');
   form.onsubmit=event=>{event.preventDefault();page=0;regionalPage=0;load();};
@@ -71,22 +71,22 @@
     if(countries.length===1){if(!inferredCountry)inferredCountry={previous:form.elements.country.value};inferredCountry.automatic=countries[0];form.elements.country.value=countries[0];}
     else if(!code&&inferredCountry){if(form.elements.country.value===inferredCountry.automatic)form.elements.country.value=inferredCountry.previous;inferredCountry=null;}
    }else if(event.target.name==='country')inferredCountry=null;
-   confirmed=false;page=0;regionalPage=0;load();
+   confirmed=false;columnFilters?.clearDynamic();page=0;regionalPage=0;load();
   };
   if(compare)$('online-transport').onchange=form.onchange;
   form.oninput=event=>{if(event.target.name==='warehousePrefix'){clearTimeout(debounce);debounce=setTimeout(()=>{page=0;load()},250);}};
-  $('online-reset').onclick=()=>{form.reset();inferredCountry=null;automaticMonth=true;confirmed=false;page=0;regionalPage=0;version='';if(compare){providerFilter.reset();$('online-rule').value='price';$('online-view').value='grouped';$('online-minScore').value='';$('online-maxScore').value='';$('online-order').value='desc';appliedScore={minScore:'',maxScore:'',order:'desc'};$('online-region-search').value='';$('online-region-provider').value='';$('online-region-transport').value='';$('online-coverage').value='confirmed';}load();};
-  $('online-retry').onclick=()=>{page=0;regionalPage=0;version='';load();};
+  $('online-reset').onclick=()=>{form.reset();inferredCountry=null;automaticMonth=true;confirmed=false;page=0;regionalPage=0;version='';if(compare){columnFilters.reset();$('online-rule').value='price';$('online-view').value='grouped';$('online-minScore').value='';$('online-maxScore').value='';$('online-order').value='desc';appliedScore={minScore:'',maxScore:'',order:'desc'};$('online-region-search').value='';$('online-region-provider').value='';$('online-region-transport').value='';$('online-coverage').value='confirmed';}load();};
+  $('online-retry').onclick=()=>{page=0;regionalPage=0;version='';columnFilters?.reset();load();};
   $('online-prev').onclick=()=>{if(page){page--;load();}};
   $('online-next').onclick=()=>{page++;load();};
   $('online-export').onclick=()=>exportRows(false);
   if(compare){
-   $('online-compare').onclick=()=>{if(!form.elements.country.value||!form.elements.warehouse.value){notice('请先选择国家和仓库再比较',true);return;}confirmed=true;page=0;load();};
-   $('online-view').onchange=()=>{providerFilter.clearOrder();page=0;load();};
-   $('online-apply-score').onclick=()=>{const min=$('online-minScore').value,max=$('online-maxScore').value;if(min!==''&&(!Number.isFinite(Number(min))||Number(min)<0||Number(min)>10)||max!==''&&(!Number.isFinite(Number(max))||Number(max)<0||Number(max)>10)||min!==''&&max!==''&&Number(min)>Number(max)){notice('分数范围需在0至10之间，最低分不能大于最高分',true);return;}providerFilter.clearOrder();appliedScore={minScore:min,maxScore:max,order:$('online-order').value};if(min!==''||max!=='')$('online-view').value='score';page=0;load();};
-   $('online-clear-score').onclick=()=>{providerFilter.clearOrder();$('online-minScore').value='';$('online-maxScore').value='';$('online-order').value='desc';appliedScore={minScore:'',maxScore:'',order:'desc'};page=0;load();};
+   $('online-compare').onclick=()=>{if(!form.elements.country.value||!form.elements.warehouse.value){notice('请先选择国家和仓库再比较',true);return;}confirmed=true;columnFilters.clearDynamic();page=0;load();};
+   $('online-view').onchange=()=>{columnFilters.clearOrder();page=0;load();};
+   $('online-apply-score').onclick=()=>{const min=$('online-minScore').value,max=$('online-maxScore').value;if(min!==''&&(!Number.isFinite(Number(min))||Number(min)<0||Number(min)>10)||max!==''&&(!Number.isFinite(Number(max))||Number(max)<0||Number(max)>10)||min!==''&&max!==''&&Number(min)>Number(max)){notice('分数范围需在0至10之间，最低分不能大于最高分',true);return;}columnFilters.clearOrder();appliedScore={minScore:min,maxScore:max,order:$('online-order').value};if(min!==''||max!=='')$('online-view').value='score';page=0;load();};
+   $('online-clear-score').onclick=()=>{columnFilters.clearOrder();$('online-minScore').value='';$('online-maxScore').value='';$('online-order').value='desc';appliedScore={minScore:'',maxScore:'',order:'desc'};page=0;load();};
    for(const id of ['online-minScore','online-maxScore'])$(id).oninput=()=>{if($(id).value===''&&!$(id).validity?.badInput)$('online-apply-score').click();};
-   $('online-all-cargo').onclick=()=>{for(const input of $('online-cargo').querySelectorAll('input'))input.checked=false;confirmed=false;page=0;regionalPage=0;load();};
+   $('online-all-cargo').onclick=()=>{for(const input of $('online-cargo').querySelectorAll('input'))input.checked=false;confirmed=false;columnFilters?.clearDynamic();page=0;regionalPage=0;load();};
    $('online-region-search').oninput=()=>{clearTimeout(debounce);debounce=setTimeout(()=>{regionalPage=0;load()},250);};
    for(const id of ['online-region-provider','online-region-transport'])$(id).onchange=()=>{regionalPage=0;load();};
    $('online-coverage').onchange=()=>{regionalPage=0;load()};
@@ -103,12 +103,12 @@
   query.set('page',String(regional?regionalPage:page));query.set('size','50');
   if(route==='compare'){
    if(regional){if(!query.get('provider')&&!$('online-region-provider').disabled&&$('online-region-provider').value)query.set('provider',$('online-region-provider').value);if(!query.get('transport')&&!$('online-region-transport').disabled&&$('online-region-transport').value)query.set('transport',$('online-region-transport').value);if($('online-region-search').value.trim())query.set('q',$('online-region-search').value.trim());query.set('coverageMode',$('online-coverage').value);}
-   else{query.set('confirmed',confirmed?'1':'0');query.set('view',$('online-view').value);if($('online-view').value==='score'){query.set('order',appliedScore.order);for(const key of ['minScore','maxScore'])if(appliedScore[key]!=='')query.set(key,appliedScore[key]);}providerFilter.write(query);}
+   else{query.set('confirmed',confirmed?'1':'0');query.set('view',$('online-view').value);if($('online-view').value==='score'){query.set('order',appliedScore.order);for(const key of ['minScore','maxScore'])if(appliedScore[key]!=='')query.set(key,appliedScore[key]);}columnFilters.write(query);}
   }
   if(version)query.set('version',version);
   return query;
  }
- function table(headers,rows,types){return '<table><thead><tr>'+headers.map((value,i)=>'<th>'+escape(value)+(types?'<button type="button" data-score-column="'+i+'" data-column-name="'+escape(value)+'" data-value-type="'+types[i]+'" aria-label="'+escape(value)+'筛选与排序">筛选/排序 ▾</button>':'')+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(value=>'<td>'+value+'</td>').join('')+'</tr>').join('')+'</tbody></table>';}
+ function table(headers,rows,types){return '<table><thead><tr>'+headers.map((value,i)=>'<th>'+escape(value)+(types?'<button type="button" data-score-column="'+i+'" data-column-name="'+escape(value)+'" data-value-type="'+types[i]+'" aria-label="'+escape(value)+'筛选与排序">▾</button>':'')+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(value=>'<td>'+value+'</td>').join('')+'</tr>').join('')+'</tbody></table>';}
  const money=value=>(Number(value||0)/100).toFixed(2);
  function quoteCells(row,regional){
   const grade=confirmed?row.ranked:row.base;
@@ -144,7 +144,7 @@
   }
   if(route==='monthly'){$('online-filters').elements.month.value=result.selected.month||result.day.slice(0,7);$('online-summary').innerHTML=table(['公司','币种','账单行数','账单金额','已付金额','待付／超付'],(result.summary||[]).map(row=>[row.company,row.currency,row.count,money(row.amount),money(row.paid),money(row.amount-row.paid)].map(escape)));}
   renderRows(result);pagination(result);
-  if(route==='compare')providerFilter.update(result);
+  if(route==='compare')columnFilters.update(result);
   if($('online-export-summary'))$('online-export-summary').onclick=()=>download('月度公司汇总',[['公司','币种','账单行数','账单金额','已付金额','待付／超付'],...(result.summary||[]).map(row=>[row.company,row.currency,row.count,money(row.amount),money(row.paid),money(row.amount-row.paid)])]);
  }
  async function script(src){return new Promise((resolve,reject)=>{const element=document.createElement('script');element.src=src;element.onload=resolve;element.onerror=()=>reject(Error('评价模块加载失败'));document.body.append(element)});}
@@ -156,7 +156,7 @@
   else if(await root.CloudCooperation.refresh()===false)throw Error('合作评价刷新未完成，请重试');
  }
  function clearResults(){
-  providerFilter?.close();
+  columnFilters?.close();
   for(const id of ['online-results','online-region-results','online-summary','online-overview','online-page','online-region-page','online-region-count'])if($(id))$(id).replaceChildren();
  }
  async function load(){
@@ -169,7 +169,7 @@
    let query;
    if(route==='overview')query=new URLSearchParams({meta:'1'});
    else if(route==='ratings')query=new URLSearchParams({kind:'ratings',size:'100'});
-   else{query=parameters();if(page===0)query.delete('version');}
+   else{query=parameters();if(page===0&&!columnFilters?.hasFilters())query.delete('version');}
    const result=await request(query,controller.signal);
    if(current!==generation)return;
    version=result.version;let regional=null;
@@ -186,7 +186,7 @@
    snapshot=result;notice('已确认数据 '+result.sourceSha.slice(0,10)+' · 北京时间 '+result.day);signal(result);return;
   }catch(error){
    if(error.name==='AbortError'||current!==generation)return;
-   if(error.status===409&&attempt===0){version='';page=0;regionalPage=0;confirmed=false;continue;}
+   if(error.status===409&&attempt===0){version='';page=0;regionalPage=0;confirmed=false;columnFilters?.reset();continue;}
    clearResults();
    notice(error.message,true);signal(null,error.message);return;
   }
@@ -211,17 +211,17 @@
    else output=[['公司','日期','账单号','运单号','渠道','目的仓','币种','账单金额','已付金额','备注','来源文件','源行'],...rows.map(row=>[row.company,row.date,row.bill,row.waybill,row.channel,row.warehouse,row.currency,money(row.amount),money(row.paid),row.note,row.source,row.sourceRow])];
    download(regional?'区域报价':'共享查询结果',output,exportSnapshot);
   }catch(error){
-   if(error.status===409){version='';page=0;regionalPage=0;confirmed=false;await load();notice('数据已更新，查询已刷新，请重新导出。',true);}
+   if(error.status===409){version='';page=0;regionalPage=0;confirmed=false;columnFilters?.reset();await load();notice('数据已更新，查询已刷新，请重新导出。',true);}
    else notice(error.message,true);
   }
   finally{exporting=false;button.disabled=false;button.textContent=original;}
  }
  async function checkVersion(){
   if(document.visibilityState==='hidden'||!snapshot)return;
-  try{const latest=await request(new URLSearchParams({meta:'1'}));if(latest.version!==version){if(route==='ratings'&&root.CloudCooperation?.isDirty?.()){notice('新数据已发布，请先保存或取消当前评价再刷新。',true);return;}page=0;regionalPage=0;version='';load();}}
+  try{const latest=await request(new URLSearchParams({meta:'1'}));if(latest.version!==version){if(route==='ratings'&&root.CloudCooperation?.isDirty?.()){notice('新数据已发布，请先保存或取消当前评价再刷新。',true);return;}page=0;regionalPage=0;version='';columnFilters?.reset();load();}}
   catch(error){clearResults();notice(error.message,true);signal(null,error.message);}
  }
- if(route==='compare'&&(!root.OnlineClassicFilters||!root.OnlineProviderFilter)){host.textContent='筛选组件加载失败，请使用页面上方的“重新加载”。';signal(null,'筛选组件加载失败');return;}
+ if(route==='compare'&&(!root.OnlineClassicFilters||!root.OnlineColumnFilters)){host.textContent='筛选组件加载失败，请使用页面上方的“重新加载”。';signal(null,'筛选组件加载失败');return;}
  shell();load();
  const timer=setInterval(checkVersion,60000);
  addEventListener('focus',checkVersion);document.addEventListener('visibilitychange',checkVersion);

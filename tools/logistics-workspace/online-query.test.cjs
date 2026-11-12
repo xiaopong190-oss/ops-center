@@ -150,12 +150,13 @@ test('a server without cross-page provider capability cannot silently show unfil
  try{assert.match(e.doc.getElementById('online-status').textContent,/完整列筛选服务尚未就绪/);assert.equal(e.doc.querySelectorAll('#online-results tbody tr').length,0);assert.equal(e.messages.at(-1).snapshot.loaded,false);assert.equal(e.calls.length,1);}finally{e.close();db.close()}
 });
 
-test('every header uses server facets; combined country and warehouse filters persist across pages and export',async()=>{
+test('displayed headers use server facets; combined country and warehouse filters persist across pages and export',async()=>{
  const {createQueryDatabase,installQuerySnapshot}=await import('../../cloud/query-test-helper.mjs'),db=createQueryDatabase();await installQuerySnapshot(db.env,fixture(),'a'.repeat(40),now);const e=await open(db.env);
  try{
+  e.doc.getElementById('online-toggle-grades').click();
   const openColumn=async index=>{e.doc.querySelector('[data-score-column="'+index+'"]').click();await e.wait(()=>e.doc.querySelector('#column-filter-menu .excel-filter-options input'));return e.doc.getElementById('column-filter-menu')};
   const action=(menu,text)=>[...menu.querySelectorAll('button')].find(button=>button.textContent===text);
-  for(let i=0;i<12;i++){const menu=await openColumn(i);assert.equal(e.calls.at(-1).get('column'),e.w.TableColumns.definitions[i].id);action(menu,'取消').click();}
+  for(const i of [0,1,2,3,4,5,6,8,9,10,11]){const menu=await openColumn(i);assert.equal(e.calls.at(-1).get('column'),e.w.TableColumns.definitions[i].id);action(menu,'取消').click();}
   async function select(index,label){const menu=await openColumn(index);action(menu,'清空').click();const input=[...menu.querySelectorAll('.excel-filter-options input')].find(input=>input.parentElement.children[1].textContent===label);assert(input);input.checked=true;input.dispatchEvent(new e.w.Event('change'));action(menu,'确定').click();}
   await select(1,'英国');await e.wait(()=>/共 200 条/.test(e.doc.getElementById('online-page').textContent));
   const warehouseMenu=await openColumn(2);assert.equal(warehouseMenu.querySelectorAll('.excel-filter-options input').length,2);action(warehouseMenu,'取消').click();
@@ -165,6 +166,22 @@ test('every header uses server facets; combined country and warehouse filters pe
   assert(e.calls.some(query=>query.get('columnSort')==='price:desc'&&Object.keys(JSON.parse(query.get('columns')||'{}')).length===2));
   e.doc.getElementById('online-export').click();await e.wait(()=>e.downloads.length===1);const csv=await e.downloads[0].text;assert.equal(csv.split('\r\n').length,101);assert.doesNotMatch(csv,/ONT8|LGB8|BHX1/);
   await installQuerySnapshot(db.env,fixture(),'b'.repeat(40),now);e.doc.getElementById('online-next').click();await e.wait(()=>e.messages.at(-1)?.snapshot.sha==='b'.repeat(40));assert.match(e.doc.getElementById('online-page').textContent,/共 400 条/);assert.equal(e.doc.querySelector('#online-results .column-active'),null);
+ }finally{e.close();db.close()}
+});
+
+test('date is removed and grades collapse without losing filters, score identity, pagination or export evidence',async()=>{
+ const {createQueryDatabase,installQuerySnapshot}=await import('../../cloud/query-test-helper.mjs'),db=createQueryDatabase();await installQuerySnapshot(db.env,fixture(),'a'.repeat(40),now);const e=await open(db.env);
+ try{
+  const table=()=>e.doc.querySelector('#online-results table'),visibleHeaders=()=>[...table().querySelectorAll('th')].filter(cell=>!cell.hidden).map(cell=>cell.textContent.replace('▾',''));
+  assert.deepEqual(visibleHeaders(),['物流商','国家','仓库','渠道','计费条件','报价','承诺时效','渠道参考分']);
+  assert(!table().querySelector('[data-score-column="7"]'));assert(!e.doc.getElementById('online-region-results').textContent.includes('原始日期'));assert.equal(table().querySelectorAll('th[hidden]').length,3);assert([...table().querySelectorAll('tbody tr')].every(row=>row.querySelectorAll('td[hidden]').length===3));
+  const toggle=e.doc.getElementById('online-toggle-grades'),initial=e.calls.length;toggle.click();assert.equal(toggle.getAttribute('aria-expanded'),'true');assert.equal(visibleHeaders().length,11);assert.equal(e.calls.length,initial,'expanding is presentation-only');
+  e.doc.querySelector('[data-score-column="8"]').click();await e.wait(()=>e.doc.querySelector('#column-filter-menu .excel-filter-options input'));assert.equal(e.calls.at(-1).get('column'),'priceGrade');e.doc.querySelector('#column-filter-menu .excel-filter-options input').click();e.doc.querySelector('#column-filter-menu .excel-filter-select input').click();e.doc.querySelector('#column-filter-menu .primary').click();await e.wait(()=>!e.doc.getElementById('column-filter-menu'));
+  // Set an actual grade criterion through search-confirm, then hide it with an explicit indicator.
+  e.doc.querySelector('[data-score-column="8"]').click();await e.wait(()=>e.doc.querySelector('#column-filter-menu .excel-filter-options input'));const search=e.doc.querySelector('#column-filter-menu input[type=search]');search.value='待评级';search.dispatchEvent(new e.w.Event('input'));await e.wait(()=>e.doc.querySelector('#column-filter-menu .excel-filter-options input')&&!e.doc.querySelector('#column-filter-menu .primary').disabled);const count=e.messages.length;e.doc.querySelector('#column-filter-menu .primary').click();await e.wait(()=>e.messages.length>count);
+  toggle.click();assert.match(toggle.textContent,/筛选／排序中/);assert.equal(visibleHeaders().length,8);e.doc.getElementById('online-next').click();await e.wait(()=>/^2 \/ 8/.test(e.doc.getElementById('online-page').textContent));assert.equal(visibleHeaders().length,8);
+  e.doc.querySelector('[data-score-column="11"]').click();await e.wait(()=>e.doc.querySelector('#column-filter-menu .excel-filter-options input'));assert.equal(e.calls.at(-1).get('column'),'score');assert.equal(e.doc.querySelector('#column-filter-menu strong').textContent,'渠道参考分');toggle.click();assert(!e.doc.getElementById('column-filter-menu'));assert.equal(visibleHeaders().length,11);
+  e.doc.getElementById('online-export').click();await e.wait(()=>e.downloads.length===1);assert.match(await e.downloads[0].text,/报价日期/);assert.match(await e.downloads[0].text,/2026-11-11/);
  }finally{e.close();db.close()}
 });
 
@@ -196,10 +213,11 @@ test('an export interrupted by a publication produces no mixed-version download'
 test('all header commands and main action buttons keep query state consistent',async()=>{
  const {createQueryDatabase,installQuerySnapshot}=await import('../../cloud/query-test-helper.mjs'),db=createQueryDatabase();await installQuerySnapshot(db.env,fixture(),'a'.repeat(40),now);const e=await open(db.env);
  try{
+  e.doc.getElementById('online-toggle-grades').click();
   const action=(menu,text)=>[...menu.querySelectorAll('button')].find(button=>button.textContent===text);
   async function menu(index){e.doc.querySelector('[data-score-column="'+index+'"]').click();await e.wait(()=>e.doc.querySelector('#column-filter-menu .excel-filter-options input'));return e.doc.getElementById('column-filter-menu');}
   async function settled(actionFn){const count=e.messages.length;actionFn();await e.wait(()=>e.messages.length>count&&e.messages.at(-1).ready);}
-  for(let i=0;i<12;i++){
+  for(const i of [0,1,2,3,4,5,6,8,9,10,11]){
    let m=await menu(i);action(m,'清空').click();assert(m.querySelector('.primary').disabled);m.querySelector('.excel-filter-select input').click();assert(!m.querySelector('.primary').disabled);action(m,'取消').click();assert(!e.doc.getElementById('column-filter-menu'));
    m=await menu(i);const sort=[...m.querySelectorAll('.excel-filter-command')][1];await settled(()=>sort.click());assert(e.doc.querySelector('[data-score-column="'+i+'"]').classList.contains('column-active'));
    m=await menu(i);await settled(()=>action(m,'取消排序').click());assert(!e.doc.querySelector('[data-score-column="'+i+'"]').classList.contains('column-active'));

@@ -375,3 +375,31 @@ test('batch publish sends fragments, verifies the receipt and then clears only t
  const part=JSON.parse(c.calls[3].options.body),uploaded=JSON.parse(Buffer.from(part.content,'base64').toString());
  assert.equal(uploaded.id,first.id);assert.equal(uploaded.quotes.length,0);assert.equal(uploaded.regionalQuotes.length,1);
 });
+
+test('an older first batch reports its actual supplier and dates without hiding a later supplier or writing data',async()=>{
+ const B=require('../logistics-rating/extensions/supplier-quote-batch.js'),q='logistics-quotes-v1',d='logistics-company-directory-v1';
+ const day=new Date().toLocaleDateString('sv-SE'),yesterday=new Date(Date.now()-86400000).toLocaleDateString('sv-SE');
+ const companies=[{id:'old',name:'合成旧批次物流',aliases:[]},{id:'new',name:'合成新区域物流',aliases:[]}];
+ const row=(company,date)=>({companyId:company.id,company:company.name,country:'美国',regionRaw:'邮编8开头',channel:'空运',price:2500,currency:'CNY',unit:'kg',date,terms:'普货'});
+ const old=B.capture({},[],[row(companies[0],yesterday)],companies,crypto.randomUUID()).pendingQuoteBatches[0];
+ const next=B.capture({},[],[row(companies[1],day)],companies,crypto.randomUUID()).pendingQuoteBatches[0];
+ const cloud=client().api.data();cloud.storage[d]=companies;cloud.storage[q].regionalQuotes=[row(companies[0],day)];
+ const originalCloud=JSON.stringify(cloud),meta={sha:'a'.repeat(40),writeConfigured:true,uploadProtocol:'chunks-v1',supplierQuoteBatch:true};
+ const c=client('',[meta,{sha:meta.sha,data:cloud},meta,{sha:meta.sha,data:cloud}],undefined,undefined,{SupplierQuoteBatch:B,Domain:{directory(){},bills(){},ratings(){},withWriteLock:fn=>fn()}});
+ c.w.ComparisonStore={read:()=>JSON.parse(c.storage.get(q)),commit:db=>c.storage.set(q,JSON.stringify(db))};
+ c.storage.set(q,JSON.stringify({quotes:[],templates:[],regionalQuotes:[row(companies[1],day)],pendingQuoteBatches:[old,next]}));
+ const before=JSON.stringify([...c.storage]);
+ await assert.rejects(c.api.preview(),error=>{
+  assert.equal(error.code,'NEWER_SUPPLIER_QUOTES');assert.match(error.message,/合成旧批次物流.*区域报价/);
+  assert(error.message.includes(yesterday));assert(error.message.includes(day));
+  assert.equal(error.publicationIssue.providers[0],companies[0].name);assert.equal(error.publicationIssue.nextProviders[0],companies[1].name);assert.equal(error.publicationIssue.queueLength,2);
+  return true;
+ });
+ assert.equal(JSON.stringify([...c.storage]),before);assert.equal(JSON.stringify(cloud),originalCloud);
+ await assert.rejects(c.api.publish(),/预览/);
+ await c.api.deferBatch();const preview=await c.api.preview();
+ assert.equal(preview.providers[0],companies[1].name);assert.equal(preview.counts.regional,1);
+ assert.deepEqual(JSON.parse(c.storage.get(q)).regionalQuotes,[row(companies[1],day)]);
+ assert.equal(JSON.parse(c.storage.get(q)).pendingQuoteBatches.length,2);
+ assert(c.calls.every(call=>call.options.method==='GET'));assert.equal(JSON.stringify(cloud),originalCloud);
+});

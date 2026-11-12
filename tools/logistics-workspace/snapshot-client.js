@@ -101,7 +101,12 @@
    let shared=await request();if(shared.paged)shared=await downloadPages(shared);
    if(shared.sha!==meta.sha||await sessionKey()!==session)throw Error('共享版本或登录已变化，请重新预览');
    const today=new Date().toLocaleDateString('sv-SE');
-   const expectedScope=await root.SupplierQuoteBatch.scopeHash(validate(shared.data),batch,today);
+   let expectedScope;
+   try{expectedScope=await root.SupplierQuoteBatch.scopeHash(validate(shared.data),batch,today)}catch(error){
+    const queue=data().storage[keys[1]].pendingQuoteBatches||[];
+    error.publicationIssue={batchId:batch.id,providers:batch.companies.map(c=>c.name),dates:[...new Set([...batch.quotes,...batch.regionalQuotes].map(r=>r.date))].sort(),counts:{quotes:batch.quotes.length,regional:batch.regionalQuotes.length},queueLength:queue.length,nextProviders:queue[1]?.companies.map(c=>c.name)||[],conflicts:error.conflicts||[]};
+    throw error;
+   }
    const scopeKey='hangxu-batch-scope:'+batch.id,prior=localStorage.getItem(scopeKey);
    if(prior&&prior!==expectedScope)throw Error('同一服务商的同类型报价已变更，本批保留，请核对后处理');
    if(!prior)localStorage.setItem(scopeKey,expectedScope);

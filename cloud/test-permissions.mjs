@@ -69,6 +69,9 @@ console.log('PASS isolated cloud: reject mismatched cost total and accept calcul
 assert.equal((await call("/api/logistics-ai/status")).status,401);
 assert.equal((await call("/api/logistics-ai/status",null,one)).data.configured,false);
 assert.equal((await call("/api/logistics-ai/recognize",{consent:false},one)).status,400);
+const fieldAudit={purpose:'quote-field-audit',items:[{id:'synthetic-field-review',sheet:'合成报价',priceCell:'B2',current:{country:'美国',channel:'海运',currency:'CNY',unit:'kg',tax:'未注明',time:'未提供',conditions:'普货',manual:false},cells:[{cell:'A1',v:'美国海运，21KG+'},{cell:'B2',v:'8.60'}],merges:[],omittedCells:0}]};
+assert.equal((await call('/api/logistics-ai/recognize',fieldAudit)).status,401);
+assert.equal((await call('/api/logistics-ai/recognize',fieldAudit,one)).status,503,'authenticated new purpose reaches configured-provider guard; no live provider request');
 
 assert.equal((await call("/api/logistics-backup")).status,401);
 assert.equal((await call("/api/logistics-backup",null,one)).data.revision,0);

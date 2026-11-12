@@ -2,8 +2,8 @@
   "version": "2026.11.03.2",
   "tag": "ops-v2026.11.03.2",
   "description": "新品跟踪全输入功能、边界及对抗回归；输入范围与必填保护；16运营和32分片上传压力测试",
-  "workerVersionId": "a9ae68e8-ce0c-44e3-950e-3794981fe335",
-  "workerSourceCommit": "93a32fd31cde623f517d828cde60558e4b8284e7",
-  "workerSourceTag": "hangxu-v1.0.66.d-worker",
+  "workerVersionId": "36b75709-9814-48fc-9992-8d87a235cc18",
+  "workerSourceCommit": "5dc3971a751b6479cd4aa50e98f8a54e990ca13d",
+  "workerSourceTag": "hangxu-v1.0.67-worker",
   "databasePolicy": "Keep current production data when rolling back application code"
 }

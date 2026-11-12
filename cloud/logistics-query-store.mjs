@@ -1,6 +1,6 @@
 import {Buffer} from 'node:buffer';
 import {gunzipSync} from 'node:zlib';
-import {selectQueryIndex,queryFields,queryOptions} from './query-index.mjs';
+import {selectQueryIndex,queryFields,queryOptions,providerFilterChoices} from './query-index.mjs';
 
 const prefix='_logistics-online-query:v1:';
 const activeKey=prefix+'active';
@@ -170,7 +170,20 @@ export async function logisticsQuery(req,env,user,now=new Date()){
   const selected=Object.keys(index.facets[field]).filter(value=>value!==''&&Number(value)>=min&&Number(value)<=max);
   filters[field]=selected.length?selected:['__no_score_match__'];
  }
- const order=!regional&&query.get('view')==='score'?(confirmed?'rankedScore':'score')+(query.get('order')==='asc'?'Asc':'Desc'):'original';
+ let providerColumn;
+ if(kind.startsWith('quotes-')){
+  const choices=providerFilterChoices(index,filters),values=[...new Set(query.getAll('columnProvider'))],order=query.get('providerOrder')||'';
+  if(values.length>200||values.some(value=>!value||value.length>400)||!['','asc','desc'].includes(order))fail(400,'物流商列筛选无效');
+  const empty=query.get('columnProviderNone')==='1';
+  providerColumn={supported:true,choices,values:empty?[]:values.length?values:null,order};
+  if(empty)filters._ids=[];
+  else if(values.length){
+   const prior=filters.provider?Array.isArray(filters.provider)?filters.provider:[filters.provider]:null;
+   filters.provider=prior?values.filter(value=>prior.includes(value)):values;
+   if(!filters.provider.length)filters._ids=[];
+  }
+ }
+ const order=providerColumn?.order?'provider'+(providerColumn.order==='asc'?'Asc':'Desc'):!regional&&query.get('view')==='score'?(confirmed?'rankedScore':'score')+(query.get('order')==='asc'?'Asc':'Desc'):'original';
  let selected;
  try{selected=selectQueryIndex(index,filters,Number(query.get('page')||0),Number(query.get('size')||50),order)}catch{fail(400,'分页参数无效');}
  const needed=[...new Set(selected.locations.map(([page])=>page))];
@@ -185,5 +198,5 @@ export async function logisticsQuery(req,env,user,now=new Date()){
  const warehouseCountries=Object.create(null);
  for(const row of index.archive||[]){const countries=warehouseCountries[row.warehouse]||=[];if(!countries.includes(row.country))countries.push(row.country);}
  if(kind==='bills')options.provider=Object.keys(index.facets.provider);
- return Response.json({version,sourceSha:active.sourceSha,day:today,savedAt:active.savedAt,counts:active.counts[today]||active.counts,...pagination,options,selected:resolved.selected,providerNames:index.providerNames||{},warehouseCountries,...(kind==='ratings'?{companies:index.companies||[]}:{}),...(summary?{summary}:{}),rows:locations.map(([page,row])=>pages.get(page)[row])},{headers:{'Cache-Control':'private, no-store'}});
+ return Response.json({version,sourceSha:active.sourceSha,day:today,savedAt:active.savedAt,counts:active.counts[today]||active.counts,...pagination,options,selected:resolved.selected,providerNames:index.providerNames||{},warehouseCountries,...(providerColumn?{providerColumn}:{}),...(kind==='ratings'?{companies:index.companies||[]}:{}),...(summary?{summary}:{}),rows:locations.map(([page,row])=>pages.get(page)[row])},{headers:{'Cache-Control':'private, no-store'}});
 }

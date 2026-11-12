@@ -28,14 +28,17 @@ async function open(env,user='one',module='compare',hooks={}){
   assert.equal(options.headers.Authorization,'Bearer token-'+user);assert(!options.method||options.method==='GET');
   const query=new URL(url).searchParams;calls.push(query);
   if(hooks.beforeRequest)await hooks.beforeRequest(query);
-  try{const response=await logisticsQuery(new Request(url),env,{id:user},now);const result=await response.json();return {ok:response.ok,status:response.status,json:async()=>result}}
+  try{const response=await logisticsQuery(new Request(url),env,{id:user},now);const result=await response.json();hooks.mutateResponse?.(result,query);return {ok:response.ok,status:response.status,json:async()=>result}}
   catch(error){return {ok:false,status:error.status||500,json:async()=>({error:error.message})}}
  };
  const errors=[];w.addEventListener('error',event=>errors.push(event.message));
  w.eval(fs.readFileSync(path.join(base,'online-classic-filters.js'),'utf8'));
+ w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
+ w.eval(fs.readFileSync(path.join(base,'../logistics-rating/extensions/score-list-columns.js'),'utf8'));
+ w.eval(fs.readFileSync(path.join(base,'online-provider-filter.js'),'utf8'));
  w.eval(fs.readFileSync(path.join(base,'online-query.js'),'utf8'));
  const wait=async predicate=>{for(let i=0;i<250;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,10))}throw Error('online page not ready: '+w.document.body.textContent.slice(0,500)+' '+errors.join('|'))};
- await wait(()=>messages.some(message=>message.ready)||errors.length);
+ await wait(()=>messages.some(message=>message.ready||hooks.expectFailure&&message.error)||errors.length);
  assert.deepEqual(errors,[]);
  return {w,doc:w.document,calls,messages,downloads,wait,close(){w.dispatchEvent(new w.Event('pagehide'));w.close()}};
 }
@@ -106,6 +109,44 @@ test('classic filter placement, searchable warehouse and explicit score apply re
   e.doc.getElementById('online-reset').click();await e.wait(()=>e.doc.getElementById('online-view').value==='grouped'&&e.doc.getElementById('online-status').textContent.startsWith('已确认'));
   assert(e.calls.every(query=>Number(query.get('size')||0)<=50));assert.equal(e.w.localStorage.length,1);
  }finally{e.close();db.close()}
+});
+
+test('Excel provider menu includes off-page suppliers and applies multi-selection, sort and export to all pages',async()=>{
+ const {createQueryDatabase,installQuerySnapshot}=await import('../../cloud/query-test-helper.mjs'),db=createQueryDatabase(),source=fixture();
+ source.storage['logistics-company-directory-v1'].push({id:'c',name:'丙物流',aliases:[],imported:true});
+ source.storage['logistics-quotes-v1'].quotes.push(...source.storage['logistics-quotes-v1'].quotes.slice(0,200).map(row=>({...row,companyId:'c',company:'丙物流'})));
+ await installQuerySnapshot(db.env,source,'a'.repeat(40),now);
+ const {verifyQueryRead}=await import('../../deploy/publish-query-projection.mjs'),{logisticsQuery}=await import('../../cloud/logistics-query-store.mjs');
+ const smoke=await verifyQueryRead(async query=>(await logisticsQuery(new Request('https://worker/query?'+query),db.env,{id:'signed-audit'},now)).json());assert.equal(smoke.providerChoices,3);assert.equal(smoke.airProviderChoices,3);assert.equal(smoke.providerSelectionVerified,true);
+ const e=await open(db.env),other=await open(db.env,'two');
+ try{
+  const openMenu=()=>{e.doc.querySelector('#online-results [data-score-column="0"]').click();return e.doc.getElementById('provider-column-menu')};
+  const action=(menu,text)=>[...menu.querySelectorAll('button')].find(button=>button.textContent===text);
+  const choose=(menu,values)=>{action(menu,'清空').click();for(const input of menu.querySelectorAll('.excel-filter-options input'))if(values.includes(input.value)){input.checked=true;input.dispatchEvent(new e.w.Event('change',{bubbles:true}))}};
+  assert([...e.doc.querySelectorAll('#online-results tbody tr')].every(row=>row.cells[0].textContent==='甲物流'));
+  const initial=e.calls.length;let menu=openMenu();assert.equal(e.doc.querySelector('dialog.column-filter-dialog'),null);assert.equal(e.calls.length,initial,'opening choices does not download quote pages');
+  assert.deepEqual([...menu.querySelectorAll('.excel-filter-options input')].map(input=>input.value).sort(),['a','b','c']);
+  choose(menu,['b']);action(menu,'取消').click();assert.equal(e.calls.length,initial);assert.match(e.doc.getElementById('online-page').textContent,/共 600 条/);
+  menu=openMenu();choose(menu,['a','c']);action(menu,'确定').click();await e.wait(()=>/共 400 条/.test(e.doc.getElementById('online-page').textContent));
+  assert(e.calls.some(query=>query.getAll('columnProvider').join(',')==='a,c'));assert.match(other.doc.getElementById('online-page').textContent,/共 600 条/);
+  e.doc.getElementById('online-next').click();await e.wait(()=>/^2 \/ 8/.test(e.doc.getElementById('online-page').textContent));
+  assert(e.calls.some(query=>query.get('page')==='1'&&query.get('version')&&query.getAll('columnProvider').length===2));assert([...e.doc.querySelectorAll('#online-results tbody tr')].every(row=>row.cells[0].textContent!=='乙物流'));
+  menu=openMenu();assert.equal(menu.querySelector('.excel-filter-select input').indeterminate,true);action(menu,'A → Z  升序').click();await e.wait(()=>e.doc.querySelector('#online-results tbody tr')?.cells[0].textContent==='丙物流');
+  assert(e.calls.some(query=>query.get('providerOrder')==='asc'&&query.get('page')==='0'));
+  e.doc.getElementById('online-export').click();await e.wait(()=>e.downloads.length===1);const csv=await e.downloads[0].text;assert.equal(csv.split('\r\n').length,401);assert.doesNotMatch(csv,/乙物流/);
+  menu=openMenu();action(menu,'清除“物流商”的筛选').click();await e.wait(()=>/共 600 条/.test(e.doc.getElementById('online-page').textContent));
+  menu=openMenu();const search=menu.querySelector('input[type=search]');search.value='乙';search.dispatchEvent(new e.w.Event('input'));assert.equal([...menu.querySelectorAll('.excel-filter-options label')].filter(label=>!label.hidden).length,1);search.dispatchEvent(new e.w.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await e.wait(()=>/共 200 条/.test(e.doc.getElementById('online-page').textContent));assert([...e.doc.querySelectorAll('#online-results tbody tr')].every(row=>row.cells[0].textContent==='乙物流'));
+  const global=e.doc.getElementById('online-provider');global.value='a';global.dispatchEvent(new e.w.Event('change',{bubbles:true}));await e.wait(()=>/共 0 条/.test(e.doc.getElementById('online-page').textContent));
+  menu=openMenu();assert(menu.textContent.includes('甲物流'));assert(menu.textContent.includes('乙物流'));action(menu,'清除“物流商”的筛选').click();await e.wait(()=>/共 200 条/.test(e.doc.getElementById('online-page').textContent));assert([...e.doc.querySelectorAll('#online-results tbody tr')].every(row=>row.cells[0].textContent==='甲物流'));
+  e.doc.getElementById('online-reset').click();await e.wait(()=>/共 600 条/.test(e.doc.getElementById('online-page').textContent));assert.equal(e.doc.querySelector('#online-results .provider-column-active'),null);
+  assert.equal(e.w.localStorage.length,1);assert(e.calls.every(query=>Number(query.get('size')||0)<=100));
+ }finally{e.close();other.close();db.close()}
+});
+
+test('a server without cross-page provider capability cannot silently show unfiltered quotations',async()=>{
+ const {createQueryDatabase,installQuerySnapshot}=await import('../../cloud/query-test-helper.mjs'),db=createQueryDatabase();await installQuerySnapshot(db.env,fixture(),'a'.repeat(40),now);
+ const e=await open(db.env,'one','compare',{expectFailure:true,mutateResponse:result=>{delete result.providerColumn}});
+ try{assert.match(e.doc.getElementById('online-status').textContent,/物流商筛选服务尚未就绪/);assert.equal(e.doc.querySelectorAll('#online-results tbody tr').length,0);assert.equal(e.messages.at(-1).snapshot.loaded,false);assert.equal(e.calls.length,1);}finally{e.close();db.close()}
 });
 
 test('an export interrupted by a publication produces no mixed-version download',async()=>{

@@ -87,10 +87,20 @@ export function queryOptions(index,filters){
  for(const field of ['transport','cargo','tax','month'])options[field]=Object.keys(index.facets[field]);
  return {options,selected};
 }
+export function providerFilterChoices(index,filters={}){
+ const ids=matchingIds(index,filters),eligible=ids===null?null:new Set(ids),names=index.providerNames||{};
+ return Object.entries(index.facets.provider).map(([value,encoded])=>({value,label:names[value]||value,count:decoded(index,encoded).reduce((total,id)=>total+(eligible===null||eligible.has(id)?1:0),0)}))
+  .filter(item=>item.value&&item.count).sort((a,b)=>a.label.localeCompare(b.label,'zh-CN',{numeric:true})||a.value.localeCompare(b.value));
+}
 export function selectQueryIndex(index, filters = {}, page = 0, size = 50, order='original') {
  if (!Number.isInteger(page) || page < 0 || !Number.isInteger(size) || size < 1 || size > 100) throw Error('QUERY_PAGE_INVALID');
  let candidates=matchingIds(index,filters);
- if(order!=='original'){
+ if(order==='providerAsc'||order==='providerDesc'){
+  const eligible=candidates===null?null:new Set(candidates),names=index.providerNames||{};
+  const providers=Object.keys(index.facets.provider).sort((a,b)=>String(names[a]||a).localeCompare(String(names[b]||b),'zh-CN',{numeric:true})||a.localeCompare(b));
+  if(order==='providerDesc')providers.reverse();
+  candidates=providers.flatMap(value=>decoded(index,index.facets.provider[value]).filter(id=>eligible===null||eligible.has(id)));
+ }else if(order!=='original'){
   if(!Object.hasOwn(index.orders||{},order))throw Error('QUERY_ORDER_INVALID');
   const eligible=candidates===null?null:new Set(candidates);
   candidates=decoded(index,index.orders[order]).filter(id=>eligible===null||eligible.has(id));

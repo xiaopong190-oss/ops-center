@@ -8,7 +8,20 @@ export async function verifyQueryRead(read){
  const meta=await read('meta=1'),pin='version='+encodeURIComponent(meta.version);
  const [a,b,air]=await Promise.all([read('kind=quotes-price&size=50&'+pin),read('kind=quotes-price&size=50&'+pin),read('kind=quotes-price&size=50&transport='+encodeURIComponent('空运')+'&'+pin)]);
  if(!meta.sourceSha||[a,b,air].some(result=>result.version!==meta.version||result.sourceSha!==meta.sourceSha||!Array.isArray(result.rows)||result.rows.length>50)||JSON.stringify(a.rows)!==JSON.stringify(b.rows)||air.rows.some(row=>row.transport!=='空运'))throw Error('QUERY_READ_NOT_VERIFIED');
- return {sourceSha:meta.sourceSha,version:meta.version,counts:meta.counts,firstRows:a.rows.length,firstResponseBytes:Buffer.byteLength(JSON.stringify(a)),airTotal:air.total};
+ const choices=a.providerColumn?.choices;
+ if(a.providerColumn?.supported!==true||!Array.isArray(choices)||choices.reduce((sum,item)=>sum+item.count,0)!==a.total)throw Error('QUERY_PROVIDER_CHOICES_NOT_VERIFIED');
+ if(choices.length){
+  const firstIds=new Set(a.rows.map(row=>row.provider)),choice=choices.find(item=>!firstIds.has(item.value))||choices[0],filter='columnProvider='+encodeURIComponent(choice.value);
+  const selected=await read('kind=quotes-price&size=50&'+filter+'&'+pin);
+  if(selected.version!==meta.version||selected.total!==choice.count||selected.rows.length>50||selected.rows.some(row=>row.provider!==choice.value))throw Error('QUERY_PROVIDER_FILTER_NOT_VERIFIED');
+  if(selected.pages>1){const next=await read('kind=quotes-price&size=50&page=1&'+filter+'&'+pin);if(next.version!==meta.version||next.total!==choice.count||next.rows.some(row=>row.provider!==choice.value))throw Error('QUERY_PROVIDER_PAGE_NOT_VERIFIED');}
+  if(choices.length>1){const pair=choices.slice(0,2),multi=await read('kind=quotes-price&size=50&'+pair.map(item=>'columnProvider='+encodeURIComponent(item.value)).join('&')+'&'+pin);if(multi.version!==meta.version||multi.total!==pair.reduce((sum,item)=>sum+item.count,0)||multi.rows.some(row=>!pair.some(item=>item.value===row.provider)))throw Error('QUERY_PROVIDER_MULTI_NOT_VERIFIED');}
+ }
+ const expected=[];for(const choice of choices)expected.push(...Array(Math.min(choice.count,100-expected.length)).fill(choice.value));
+ const sorted=await read('kind=quotes-price&size=50&providerOrder=asc&'+pin);
+ if(sorted.version!==meta.version||JSON.stringify(sorted.rows.map(row=>row.provider))!==JSON.stringify(expected.slice(0,50)))throw Error('QUERY_PROVIDER_SORT_NOT_VERIFIED');
+ if(sorted.pages>1){const next=await read('kind=quotes-price&size=50&page=1&providerOrder=asc&'+pin);if(next.version!==meta.version||JSON.stringify(next.rows.map(row=>row.provider))!==JSON.stringify(expected.slice(50,100)))throw Error('QUERY_PROVIDER_SORT_PAGE_NOT_VERIFIED');}
+ return {sourceSha:meta.sourceSha,version:meta.version,counts:meta.counts,firstRows:a.rows.length,firstResponseBytes:Buffer.byteLength(JSON.stringify(a)),airTotal:air.total,providerChoices:choices.length,airProviderChoices:air.providerColumn?.choices?.length||0,providerSelectionVerified:choices.length>0,providerSortVerified:choices.length>0};
 }
 export async function publishQueryProjection(snapshot,sourceSha,savedAt,send,now=new Date(),relations=[]){
  const day=businessDay(now),tomorrow=new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);

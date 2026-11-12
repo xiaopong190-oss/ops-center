@@ -21,3 +21,7 @@ Ordinal selections are bound to the active query version and grade context. A pu
 Obtain approval on the concrete PR under `tools/logistics-rating/AGENTS.md` clause 4. Deploy the reviewed Worker first; retain V1.0.66.c frontend compatibility. Record its actual version and source in release metadata. Merge the reviewed PR and run the existing main-only `query-rebuild` workflow. Require schema-1 readiness and signed audit of all twelve facets, selections and sorting before completing Pages publication; cancel/hold Pages if backfill fails. Verify the published frontend version, asset hashes, active source and authenticated query/CORS behavior.
 
 Rollback frontend to `hangxu-v1.0.66.c` and Worker to `0ce42d8e-ac1c-457d-834e-a6e387bc0fb0` together if necessary. Derived column records can remain; they do not change canonical data. Never roll back user quotes or cooperation records.
+
+## Approved production deployment
+
+The user approved PR #116 and continued online verification. Compatible Worker `a9ae68e8-ce0c-44e3-950e-3794981fe335` was deployed from reviewed functional commit `93a32fd31cde623f517d828cde60558e4b8284e7`, tagged `hangxu-v1.0.66.d-worker`. No Worker assets changed. The live unauthenticated query returned 401 with the expected GitHub Pages CORS origin. Index rebuild, signed all-column audit and Pages verification remain the release gates.

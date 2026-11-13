@@ -73,3 +73,10 @@ test('failed batch preview leaves the busy state and offers explicit, confirmed 
   e.doc.querySelector('#dialogbody [data-snapshot="preview"]').click();assert.equal(actions.at(-1),'previewPublish');assert(!actions.includes('publish'));
  }finally{e.dom.window.close()}
 });
+
+test('batch confirmation states publication-order replacement and retains all original source dates',()=>{
+ const e=open();try{e.status(counts);
+ e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data:{type:'hangxu-publish-preview',plan:{batch:true,replacementPolicy:'last-confirmed-batch-v1',providers:['合成物流'],dates:['2026-11-08','2026-11-09'],counts:{quotes:2,regional:1}}}}));
+ const text=e.doc.querySelector('#dialogbody').textContent;assert.match(text,/以本次确认发布的批次为准/);assert.match(text,/原始报价日期保留/);assert.match(text,/2026-11-08、2026-11-09/);assert(e.doc.querySelector('[data-snapshot="publish"]'));
+ }finally{e.dom.window.close()}
+});

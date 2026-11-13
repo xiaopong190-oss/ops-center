@@ -172,14 +172,16 @@ test('GitHub OIDC requires signed fixed-repository main-branch hosted workflow i
  assert.equal((await runnerIdentity(request(token({...claims,event_name:'schedule'})),send,now)).run_id,'77'); assert.equal((await runnerIdentity(request(token(claims)),send,now)).run_id,'77');for(const change of [{ref:'refs/heads/evil'},{repository_id:'wrong'},{aud:'wrong'},{workflow_ref:'wrong'},{runner_environment:'self-hosted'},{event_name:'pull_request'},{exp:0}])await assert.rejects(runnerIdentity(request(token({...claims,...change})),send,now),e=>e.status===403);const valid=token(claims),bad=valid.slice(0,valid.lastIndexOf('.')+1)+Buffer.alloc(256).toString('base64url');await assert.rejects(runnerIdentity(request(bad),send,now),e=>e.status===403);
 });
 
-test('scoped regional batch resumes missing fragments and publishes an authenticated shared snapshot without dropping warehouse rows',async()=>{
+test('a later-confirmed older-dated regional batch replaces the shared supplier and preserves warehouse rows through the full runner',async()=>{
  const Batch=(await import('../tools/logistics-rating/extensions/supplier-quote-batch.js')).default;
  const f=fixture(),key='logistics-quotes-v1',directory='logistics-company-directory-v1';
  try{
   const base=snapshot(),q=base.storage[key],today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});
   q.quotes=Array.from({length:2493},(_,i)=>({...row(i),date:today}));
+  const older=new Date(new Date(today+'T12:00:00Z').getTime()-86400000).toISOString().slice(0,10);
+  q.regionalQuotes=[{companyId:'c',company:'合成物流',country:'美国',regionRaw:'已发布范围',channel:'空运',price:9900,currency:'CNY',unit:'kg',date:today,terms:'原批次'}];
   const prior=await publishWorkspace({baseSha:null,operationId:crypto.randomUUID(),data:base},f.env,{id:'synthetic-owner'},f.send);
-  const rows=Array.from({length:519},(_,i)=>({companyId:'c',company:'合成物流',country:'美国',regionRaw:'范围'+i,channel:'空运',price:8000,currency:'CNY',unit:'kg',date:today,terms:'档'+i,source:'模拟原文'.repeat(60)}));
+  const rows=Array.from({length:519},(_,i)=>({companyId:'c',company:'合成物流',country:'美国',regionRaw:'范围'+i,channel:'空运',price:8000,currency:'CNY',unit:'kg',date:older,terms:'档'+i,source:'模拟原文'.repeat(60)}));
   const batch=Batch.capture({},[],rows,base.storage[directory],crypto.randomUUID()).pendingQuoteBatches[0];
   batch.expectedScope=await Batch.scopeHash(base,batch,today);
   const raw=Buffer.from(JSON.stringify(batch)),parts=[];
@@ -197,6 +199,7 @@ test('scoped regional batch resumes missing fragments and publishes an authentic
   const output=await decryptWorkspace(JSON.parse(f.blobs.get(f.files.get(root))),f.env,f.send);
   assert.deepEqual(output.storage[key].quotes,q.quotes);
   assert.equal(output.storage[key].regionalQuotes.length,519);
+  assert(output.storage[key].regionalQuotes.every(r=>r.date===older&&r.price===8000));
   assert.equal((await f.upload({action:'commit'})).receipt.sha,result.receipt.sha);
   assert.equal(f.rootWrites(),1);
  }finally{f.sql.close()}

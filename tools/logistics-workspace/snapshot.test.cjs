@@ -376,9 +376,9 @@ test('batch publish sends fragments, verifies the receipt and then clears only t
  assert.equal(uploaded.id,first.id);assert.equal(uploaded.quotes.length,0);assert.equal(uploaded.regionalQuotes.length,1);
 });
 
-test('an older first batch reports its actual supplier and dates without hiding a later supplier or writing data',async()=>{
+test('an invalid-date first batch reports its supplier without hiding a later supplier or writing data',async()=>{
  const B=require('../logistics-rating/extensions/supplier-quote-batch.js'),q='logistics-quotes-v1',d='logistics-company-directory-v1';
- const day=new Date().toLocaleDateString('sv-SE'),yesterday=new Date(Date.now()-86400000).toLocaleDateString('sv-SE');
+ const day=new Date().toLocaleDateString('sv-SE'),yesterday=new Date(Date.now()-11*86400000).toLocaleDateString('sv-SE');
  const companies=[{id:'old',name:'合成旧批次物流',aliases:[]},{id:'new',name:'合成新区域物流',aliases:[]}];
  const row=(company,date)=>({companyId:company.id,company:company.name,country:'美国',regionRaw:'邮编8开头',channel:'空运',price:2500,currency:'CNY',unit:'kg',date,terms:'普货'});
  const old=B.capture({},[],[row(companies[0],yesterday)],companies,crypto.randomUUID()).pendingQuoteBatches[0];
@@ -390,8 +390,8 @@ test('an older first batch reports its actual supplier and dates without hiding 
  c.storage.set(q,JSON.stringify({quotes:[],templates:[],regionalQuotes:[row(companies[1],day)],pendingQuoteBatches:[old,next]}));
  const before=JSON.stringify([...c.storage]);
  await assert.rejects(c.api.preview(),error=>{
-  assert.equal(error.code,'NEWER_SUPPLIER_QUOTES');assert.match(error.message,/合成旧批次物流.*区域报价/);
-  assert(error.message.includes(yesterday));assert(error.message.includes(day));
+  assert.match(error.message,/日期已超出入库范围/);
+  assert.equal(error.publicationIssue.dates[0],yesterday);
   assert.equal(error.publicationIssue.providers[0],companies[0].name);assert.equal(error.publicationIssue.nextProviders[0],companies[1].name);assert.equal(error.publicationIssue.queueLength,2);
   return true;
  });
@@ -402,4 +402,16 @@ test('an older first batch reports its actual supplier and dates without hiding 
  assert.deepEqual(JSON.parse(c.storage.get(q)).regionalQuotes,[row(companies[1],day)]);
  assert.equal(JSON.parse(c.storage.get(q)).pendingQuoteBatches.length,2);
  assert(c.calls.every(call=>call.options.method==='GET'));assert.equal(JSON.stringify(cloud),originalCloud);
+});
+
+test('valid older source dates no longer block an explicit batch preview or trigger an upload',async()=>{
+ const B=require('../logistics-rating/extensions/supplier-quote-batch.js'),q='logistics-quotes-v1',d='logistics-company-directory-v1';
+ const day=new Date().toLocaleDateString('sv-SE'),older=new Date(Date.now()-86400000).toLocaleDateString('sv-SE'),company={id:'a',name:'合成物流',aliases:[]};
+ const row={companyId:'a',company:company.name,country:'美国',regionRaw:'范围',channel:'空运',price:2500,currency:'CNY',unit:'kg',date:older,terms:'普货'};
+ const cloud=client().api.data();cloud.storage[d]=[company];cloud.storage[q].regionalQuotes=[{...row,date:day,price:2000}];
+ const pending=B.capture({},[],[row],[company],crypto.randomUUID()).pendingQuoteBatches;
+ const c=client('',[{sha:'a'.repeat(40),writeConfigured:true,uploadProtocol:'chunks-v1',supplierQuoteBatch:true},{sha:'a'.repeat(40),data:cloud}],undefined,undefined,{SupplierQuoteBatch:B});
+ c.storage.set(q,JSON.stringify({quotes:[],templates:[],regionalQuotes:[row],pendingQuoteBatches:pending}));const before=c.storage.get(q),shared=JSON.stringify(cloud);
+ const plan=await c.api.preview();assert.equal(plan.replacementPolicy,'last-confirmed-batch-v1');assert.equal(plan.dates[0],older);assert.equal(plan.providers[0],company.name);
+ assert.equal(c.storage.get(q),before);assert.equal(JSON.stringify(cloud),shared);assert(c.calls.every(call=>call.options.method==='GET'));
 });

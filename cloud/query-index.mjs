@@ -63,7 +63,7 @@ function matchingIds(index,filters){
  return candidates;
 }
 export const matchingQueryIds=(index,filters)=>matchingIds(index,filters);
-export function queryOptions(index,filters){
+export function queryOptions(index,filters,supplementalOptions={}){
  const prior={...filters};
  for(const field of ['provider','region','country','channel','warehouse','score','rankedScore'])delete prior[field];
  const options={},selected={...filters};
@@ -81,7 +81,7 @@ export function queryOptions(index,filters){
    }
    if(field==='warehouse')values=values.concat(index.archive.filter(row=>(!prior.country||row.country===prior.country)&&(!prior.region||row.region===prior.region)).map(row=>row.warehouse));
   }
-  options[field]=[...new Set(values)].filter(value=>value!=='').sort();
+  options[field]=[...new Set(values.concat(supplementalOptions[field]||[]))].filter(value=>value!=='').sort();
   if(filters[field]&&options[field].includes(filters[field]))prior[field]=filters[field];
   else delete selected[field];
  }

@@ -151,7 +151,11 @@ export async function logisticsQuery(req,env,user,now=new Date()){
  const regional=kind.startsWith('regional-'),confirmed=query.get('confirmed')==='1';
  if(confirmed&&!regional&&(!filters.country||!filters.warehouse))fail(400,'请先选择国家和仓库再比较');
  if(regional&&filters.warehouse){filters[query.get('coverageMode')==='unverified'?'!coverage':'coverage']=filters.warehouse;delete filters.warehouse;}
- const resolved=queryOptions(index,filters),options=resolved.options;
+ const peerPart=kind.startsWith('quotes-')?dayPrefix+kind.replace('quotes-','regional-')+':index':null;
+ const peerIndex=peerPart&&active.parts[peerPart]?await read(peerPart):null;
+ const providerOptions=peerIndex?queryOptions(peerIndex,filters).options.provider:[];
+ const resolved=queryOptions(index,filters,{provider:providerOptions}),options=resolved.options;
+ const providerNames={...(index.providerNames||{}),...(peerIndex?.providerNames||{})};
  if(kind.startsWith('quotes-'))for(const field of ['provider','region','country','channel','warehouse']){
   if(resolved.selected[field])filters[field]=resolved.selected[field];else delete filters[field];
  }
@@ -203,5 +207,5 @@ export async function logisticsQuery(req,env,user,now=new Date()){
  const warehouseCountries=Object.create(null);
  for(const row of index.archive||[]){const countries=warehouseCountries[row.warehouse]||=[];if(!countries.includes(row.country))countries.push(row.country);}
  if(kind==='bills')options.provider=Object.keys(index.facets.provider);
- return Response.json({version,sourceSha:active.sourceSha,day:today,savedAt:active.savedAt,counts:active.counts[today]||active.counts,...pagination,options,selected:resolved.selected,providerNames:index.providerNames||{},warehouseCountries,...(providerColumn?{providerColumn}:{}),...(table?{tableColumns:table.state}:{}),...(kind==='ratings'?{companies:index.companies||[]}:{}),...(summary?{summary}:{}),rows:locations.map(([page,row])=>pages.get(page)[row])},{headers:{'Cache-Control':'private, no-store'}});
+ return Response.json({version,sourceSha:active.sourceSha,day:today,savedAt:active.savedAt,counts:active.counts[today]||active.counts,...pagination,options,selected:resolved.selected,providerNames,warehouseCountries,...(providerColumn?{providerColumn}:{}),...(table?{tableColumns:table.state}:{}),...(kind==='ratings'?{companies:index.companies||[]}:{}),...(summary?{summary}:{}),rows:locations.map(([page,row])=>pages.get(page)[row])},{headers:{'Cache-Control':'private, no-store'}});
 }

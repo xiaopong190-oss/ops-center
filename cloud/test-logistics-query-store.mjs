@@ -74,3 +74,23 @@ test('expired failed projections are removed while the active version and busine
   assert(db.sql.prepare('SELECT value FROM records WHERE key=?').get('logistics-quotes-v1'));
  }finally{db.close()}
 });
+
+test('regional-only global providers retain exact scope in both query rules without modifying existing indexes',async()=>{
+ const {createQueryDatabase,installQuerySnapshot}=await import('./query-test-helper.mjs'),db=createQueryDatabase();
+ const day='2026-11-11',directory=[{id:'warehouse-only',name:'合成仓库物流',aliases:[],imported:true},{id:'regional-only',name:'合成区域物流',aliases:[],imported:true}];
+ const common={country:'美国',currency:'CNY',unit:'kg',date:day,price:1000,terms:'普货'};
+ const snapshot={space:'real',storage:{'logistics-company-directory-v1':directory,'logistics-quotes-v1':{quotes:[{...common,companyId:'warehouse-only',company:directory[0].name,warehouse:'ONT8',channel:'空运',min:3,max:5}],templates:[{country:'美国',warehouse:'ONT8'}],regionalQuotes:Array.from({length:27},(_,i)=>({...common,companyId:'regional-only',company:directory[1].name,regionRaw:'区域'+i,channel:i<9?'空运':'海运'}))},'logistics-monthly-bills-v1':{rows:[],aliases:{}},'logistics-completed-ratings-v1':[]}};
+ const before=JSON.stringify(snapshot);try{
+  await installQuerySnapshot(db.env,snapshot,'e'.repeat(40),now);
+  const stored=JSON.stringify(db.sql.prepare('SELECT key,value FROM records ORDER BY key').all());
+  const query=async text=>(await logisticsQuery(new Request('https://worker/query?'+text),db.env,{id:'reader'},now)).json();
+  for(const mode of ['price','strict']){
+   const all=await query('kind=quotes-'+mode);assert(all.options.provider.includes('warehouse-only'));assert(all.options.provider.includes('regional-only'));assert.equal(all.providerNames['regional-only'],directory[1].name);
+   const main=await query('kind=quotes-'+mode+'&provider=regional-only');assert.equal(main.selected.provider,'regional-only');assert.equal(main.total,0);assert.deepEqual(main.rows,[]);
+   const regions=await query('kind=regional-'+mode+'&provider=regional-only');assert.equal(regions.total,27);assert(regions.rows.every(r=>r.provider==='regional-only'));
+   const sea=await query('kind=quotes-'+mode+'&provider=regional-only&transport='+encodeURIComponent('海运'));assert.equal(sea.selected.provider,'regional-only');assert.equal(sea.total,0);assert(sea.options.provider.includes('regional-only'));
+   const seaRegions=await query('kind=regional-'+mode+'&provider=regional-only&transport='+encodeURIComponent('海运'));assert.equal(seaRegions.total,18);
+  }
+  assert.equal(JSON.stringify(db.sql.prepare('SELECT key,value FROM records ORDER BY key').all()),stored);assert.equal(JSON.stringify(snapshot),before);
+ }finally{db.close()}
+});

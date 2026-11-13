@@ -282,3 +282,28 @@ test('a publication between pages retries on the new version, and old slow respo
   assert([...e.doc.querySelectorAll('#online-results tbody tr')].every(tr=>tr.cells[0].textContent==='乙物流'));
  }finally{e.close();db.close()}
 });
+
+test('global provider includes regional-only suppliers without falling back to unrelated warehouse quotes',async()=>{
+ const {createQueryDatabase,installQuerySnapshot}=await import('../../cloud/query-test-helper.mjs'),db=createQueryDatabase(),source=fixture();
+ const key='logistics-quotes-v1',directory='logistics-company-directory-v1',company={id:'regional-only',name:'合成区域专属物流',aliases:[],imported:true};
+ source.storage[directory].push(company);
+ source.storage[key].regionalQuotes.push(...Array.from({length:77},(_,i)=>({...source.storage[key].regionalQuotes[0],companyId:company.id,company:company.name,regionRaw:'美国邮编8开头 '+i,country:'美国',channel:'空运',terms:'独立条件'+i})));
+ const before=JSON.stringify(source);await installQuerySnapshot(db.env,source,'a'.repeat(40),now);
+ const a=await open(db.env,'one'),b=await open(db.env,'two');
+ try{
+  const select=a.doc.getElementById('online-provider');assert([...select.options].some(o=>o.value===company.id&&o.textContent===company.name));
+  select.value=company.id;select.dispatchEvent(new a.w.Event('change',{bubbles:true}));
+  await a.wait(()=>/共 0 条/.test(a.doc.getElementById('online-page').textContent)&&/77 条/.test(a.doc.getElementById('online-region-count').textContent));
+  assert.match(a.doc.getElementById('online-match-summary').textContent,/仓库报价 0 条.*区域报价 77 条.*下方/);
+  assert.equal(select.value,company.id);assert.equal(a.doc.getElementById('online-region-provider').value,company.id);
+  assert(a.doc.getElementById('online-region-provider').disabled);assert(!a.doc.querySelector('#online-results tbody tr'));
+  assert([...a.doc.querySelectorAll('#online-region-results tbody tr')].every(row=>row.cells[0].textContent===company.name));
+  a.doc.getElementById('online-region-next').click();await a.wait(()=>/^2 \/ 2/.test(a.doc.getElementById('online-region-page').textContent));
+  assert(a.calls.some(q=>q.get('provider')===company.id&&q.get('page')==='1'&&q.get('kind').startsWith('regional-')));
+  a.doc.getElementById('online-region-export').click();await a.wait(()=>a.downloads.length===1);
+  const csv=await a.downloads[0].text;assert.equal(csv.split('\r\n').length,78);assert(csv.includes(company.name));assert(!csv.includes('甲物流'));
+  assert.match(b.doc.getElementById('online-page').textContent,/共 400 条/);assert.equal(b.doc.getElementById('online-provider').value,'');
+  a.doc.getElementById('online-reset').click();await a.wait(()=>/共 400 条/.test(a.doc.getElementById('online-page').textContent));
+  assert.equal(JSON.stringify(source),before);
+ }finally{a.close();b.close();db.close()}
+});

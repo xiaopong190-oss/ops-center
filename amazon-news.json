@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-11-12T05:49:21.872Z",
+  "updatedAt": "2026-11-13T05:09:29.393Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Fri, 13 Nov 2026 01:12:00 GMT",
+      "date": "11/13",
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
+    },
+    {
+      "title": "How Amazon is building an internet network 400 miles above Earth",
+      "link": "https://www.aboutamazon.com/stories/how-amazon-leo-satellite-internet-works?utm_source=rss",
+      "pubDate": "Thu, 12 Nov 2026 16:07:17 GMT",
+      "date": "11/12",
+      "summary": "See how Amazon's growing constellation of custom-built satellites will work together to bring internet connectivity anywhere on the planet.",
+      "category": "Amazon Leo"
+    },
+    {
       "title": "Amazon in the community: Service, community, and commitment at HQ2",
       "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
-      "pubDate": "Wed, 11 Nov 2026 22:26:00 GMT",
-      "date": "11/11",
+      "pubDate": "Thu, 12 Nov 2026 14:53:00 GMT",
+      "date": "11/12",
       "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
       "category": "Community"
-    },
-    {
-      "title": "How we built the agents that built AWS Emulator",
-      "link": "https://www.aboutamazon.com/news/aws/how-autonomous-ai-agents-built-aws-emulator?utm_source=rss",
-      "pubDate": "Wed, 11 Nov 2026 17:25:18 GMT",
-      "date": "11/11",
-      "summary": "Thousands of autonomous AI agents wrote every line of code in AWS Emulator, a new local emulator for AWS now available for download.",
-      "category": "AWS"
-    },
-    {
-      "title": "AWS to launch first cloud infrastructure region in Chile, investing more than $4 billion",
-      "link": "https://www.aboutamazon.com/news/aws/aws-south-america-chile-region-launch?utm_source=rss",
-      "pubDate": "Wed, 11 Nov 2026 15:37:45 GMT",
-      "date": "11/11",
-      "summary": "The Region—now operational for select customers ahead of general availability—will support thousands of jobs in Chile.",
-      "category": "AWS"
     }
   ]
 }

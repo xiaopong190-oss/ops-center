@@ -4,7 +4,7 @@
  const Origin=root.OriginExclusions||(typeof require==='function'?require('./origin-exclusions.js'):null);
  const D=root.Domain||(typeof require==='function'?require('../domain.js'):null);
  const key='logistics-quotes-v1',directory='logistics-company-directory-v1',fields=['quotes','regionalQuotes'];
- const protocol='supplier-quote-batch-v1',names=c=>[c.name,...c.aliases].map(n=>D.clean(n).toLowerCase());
+ const protocol='supplier-quote-batch-v1',replacementPolicy='last-confirmed-batch-v1',names=c=>[c.name,...c.aliases].map(n=>D.clean(n).toLowerCase());
  function capture(db,rows,regional,companies,id){
   if(!rows.length&&!regional.length)return db;
   const ids=new Set([...rows,...regional].map(r=>r.companyId));
@@ -33,16 +33,8 @@
     return {...r,companyId:id,company:companyRows.find(c=>c.id===id).name};
    });
    scope[f]=new Set(incoming[f].map(r=>r.companyId));
-   const newest=new Map();
-   for(const row of incoming[f])if(!newest.has(row.companyId)||newest.get(row.companyId)<row.date)newest.set(row.companyId,row.date);
-   const conflicts=(db[f]||[]).filter(r=>scope[f].has(r.companyId)&&r.date>newest.get(r.companyId));
-   if(conflicts.length)throw newerQuoteError(conflicts,newest,companyRows,f);
   }
   return {companyRows,db,scope,incoming};
- }
- function newerQuoteError(rows,newest,companies,field){
-  const conflicts=[...new Set(rows.map(r=>r.companyId))].map(id=>({provider:companies.find(c=>c.id===id).name,type:field==='quotes'?'仓库报价':'区域报价',batchDate:newest.get(id),cloudDate:rows.filter(r=>r.companyId===id).map(r=>r.date).sort().at(-1)}));
-  return Object.assign(Error('该服务商已有更新的线上报价，请核对后重提。'+conflicts.map(c=>c.provider+' · '+c.type+'：本批 '+c.batchDate+'，线上 '+c.cloudDate).join('；')),{code:'NEWER_SUPPLIER_QUOTES',conflicts});
  }
  async function scopeHash(base,batch,today){
   const {db,scope}=prepare(base,batch,today);
@@ -63,7 +55,7 @@
   Q.validate(next);
   return {...base,storage:{...base.storage,[directory]:companyRows,[key]:next}};
  }
- const api={protocol,capture,apply,scopeHash};
+ const api={protocol,replacementPolicy,capture,apply,scopeHash};
  if(typeof module!=='undefined')module.exports=api;
  else root.SupplierQuoteBatch=api;
 })(typeof window==='undefined'?globalThis:window);

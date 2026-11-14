@@ -133,7 +133,7 @@
  async function waitReliable(id,sha256){
   for(let step=0;step<200;step++){
    if(paused)throw Error('已停止本页等待；本机或云端原任务继续处理，可在发布任务中查看');
-   let result;try{result=await request('',{action:'publication-status',id});}catch(error){if(error.status!==404)throw error;progress('upload','本机恢复服务正在续传原任务，尚未取得云端收齐回执');await new Promise(resolve=>setTimeout(resolve,3000));continue;}
+   let result;try{result=await request('',{action:'publication-status',id});}catch(error){if(error.status!==404)throw error;progress('local-transfer','本机恢复服务正在续传原任务，尚未取得云端收齐回执');await new Promise(resolve=>setTimeout(resolve,3000));continue;}
    if(result.receipt)return checkedReceipt(result.receipt,sha256);
    if(['SUPERSEDED','CANCELLED','BLOCKED_VALIDATION','AUTH_REQUIRED'].includes(result.job?.state))throw Object.assign(Error(result.job.reason||result.job.phase||result.job.state),{status:result.job.state==='AUTH_REQUIRED'?403:422});
    progress('commit',result.job?.phase||result.job?.state||'后台核验处理中');await new Promise(resolve=>setTimeout(resolve,3000));

@@ -49,3 +49,10 @@ test('local input data remains available when its shared publication version dif
   assert.equal(local.window.document.querySelector('iframe').hidden,false);
  }finally{local.window.close()}
 });
+
+test('desktop durable sender progress labels pause as waiting only while background transfer continues',()=>{
+ const dom=shell('http://127.0.0.1:4318','input');
+ try{const w=dom.window,d=w.document,button=d.createElement('button');button.dataset.snapshot='pause';d.body.append(button);
+ for(const stage of ['local-transfer','local-saved','cloud-received','commit']){const frame=d.querySelector('iframe');w.dispatchEvent(new w.MessageEvent('message',{origin:w.location.origin,source:frame.contentWindow,data:{type:'hangxu-publish-progress',stage,message:'合成后台继续'}}));assert.equal(button.textContent,'暂停等待（后台继续）');}
+ }finally{dom.window.close()}
+});

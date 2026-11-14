@@ -37,7 +37,7 @@ export async function verifyQueryRead(read){
  }
  return {sourceSha:meta.sourceSha,version:meta.version,counts:meta.counts,firstRows:a.rows.length,firstResponseBytes:Buffer.byteLength(JSON.stringify(a)),airTotal:air.total,providerChoices:choices.length,airProviderChoices:air.providerColumn?.choices?.length||0,providerSelectionVerified:choices.length>0,providerSortVerified:choices.length>0,tableColumnsVerified:Columns.definitions.length};
 }
-export async function publishQueryProjection(snapshot,sourceSha,savedAt,send,now=new Date(),relations=[]){
+export async function publishQueryProjection(snapshot,sourceSha,savedAt,send,now=new Date(),relations=[],options={}){
  const day=businessDay(now),tomorrow=new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
  const items=[],manifest={schema:1,tableSchema:1,savedAt,days:[day,tomorrow],relationHash:hash(relations),counts:{},parts:{}};
  for(const date of manifest.days){
@@ -51,7 +51,7 @@ export async function publishQueryProjection(snapshot,sourceSha,savedAt,send,now
  async function request(body){
   const encoded=body.items?{...body,items:body.items.map(item=>({part:item.part,hash:item.hash,packed:gzipSync(Buffer.from(JSON.stringify(item.value))).toString('base64')}))}:body;
   const packed=gzipSync(Buffer.from(JSON.stringify({...base,...encoded})));
-  if(packed.length>512*1024)throw Error('QUERY_UPLOAD_TOO_LARGE');
+  if(packed.length>512*1024){if(body.items?.length>1){const middle=Math.ceil(body.items.length/2);await request({...body,items:body.items.slice(0,middle)});return request({...body,items:body.items.slice(middle)});}throw Error('QUERY_UPLOAD_TOO_LARGE');}
   let last;
   for(let attempt=0;attempt<3;attempt++){
    try{
@@ -63,8 +63,11 @@ export async function publishQueryProjection(snapshot,sourceSha,savedAt,send,now
   }
   throw Error('QUERY_BUILD_HTTP_'+last);
  }
+ const known=new Set();
+ if(options.resume)for(let i=0;i<items.length;i+=40){const part=items.slice(i,i+40),result=await request({action:'known',parts:part.map(item=>({part:item.part,hash:item.hash}))});if(!Array.isArray(result.known)||result.known.some(name=>!part.some(p=>p.part===name)))throw Error('QUERY_RESUME_NOT_VERIFIED');for(const name of result.known)known.add(name);}
  let batch=[],bytes=0;
  for(const item of items){
+  if(known.has(item.part))continue;
   const size=Buffer.byteLength(JSON.stringify(item));
   if(size>1500000)throw Error('QUERY_INDEX_TOO_LARGE');
   if(batch.length&&(batch.length>=8||bytes+size>1500000)){await request({action:'stage',items:batch});batch=[];bytes=0;}

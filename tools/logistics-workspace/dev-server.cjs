@@ -1,7 +1,7 @@
 // Local preview serves the same release files as Pages; never exposes business files.
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const routes=new Map(),base=__dirname,engine=path.resolve(base,'../logistics-rating');
-for(const file of ['table-columns.js','online-column-filters.js','online-provider-filter.js','online-classic-filters.js','online-query.js','online-query.css','runtime/online.html','weekly-carryover-ui.js','public-display.js','regional-query-ui.js','compact-help.js','compact-help.css','cloud-cooperation.js','cooperation.css','runtime/cloud-ratings.html','index.html','input.html','display.html','integration-shell.js','simulation.css','local-bootstrap.js','local-data-policy.js','data-management.js','local-view-mode.js','runtime-ready.js','quality-workflow.js','engine-theme.css','workspace-loader.js','snapshot-client.js','record-delta.js','display-cache.js','upload-task.js',...['import','compare','warehouses','ratings','monthly','overview'].map(n=>'runtime/'+n+'.html')])routes.set('/tools/logistics-workspace/'+file,path.join(base,file));
+for(const file of ['publication-tasks.js','table-columns.js','online-column-filters.js','online-provider-filter.js','online-classic-filters.js','online-query.js','online-query.css','runtime/online.html','weekly-carryover-ui.js','public-display.js','regional-query-ui.js','compact-help.js','compact-help.css','cloud-cooperation.js','cooperation.css','runtime/cloud-ratings.html','index.html','input.html','display.html','integration-shell.js','simulation.css','local-bootstrap.js','local-data-policy.js','data-management.js','local-view-mode.js','runtime-ready.js','quality-workflow.js','engine-theme.css','workspace-loader.js','snapshot-client.js','record-delta.js','display-cache.js','upload-task.js',...['import','compare','warehouses','ratings','monthly','overview'].map(n=>'runtime/'+n+'.html')])routes.set('/tools/logistics-workspace/'+file,path.join(base,file));
 const scripts=Object.keys(JSON.parse(fs.readFileSync(path.join(base,'shared-logic.json'))).sharedSourceHashes);
 routes.set('/login',path.join(base,'portable-login.html'));routes.set('/index.html',path.join(base,'portable-login.html'));
 routes.set('/portable-login.js',path.join(base,'portable-login.js'));
@@ -10,10 +10,11 @@ routes.set('/data-check',path.join(base,'data-check.html'));routes.set('/data-ch
 for(const page of ['import','compare','warehouses','ratings','monthly','overview']){const html=fs.readFileSync(path.join(base,'runtime',page+'.html'),'utf8');for(const match of html.matchAll(/href="\.\.\/\.\.\/logistics-rating\/([^"?]+\.css)/g)){const file=path.resolve(engine,match[1]);if(file.startsWith(engine+path.sep))routes.set('/tools/logistics-rating/'+match[1],file)}}
 for(const file of [...scripts,'extensions/workbook-cleaning-worker.js','extensions/bulk-clean-adoption-worker.js','extensions/import-evidence-worker.js'])routes.set('/tools/logistics-rating/'+file,path.join(engine,file));
 const aliases={'/':'input.html','/input':'input.html','/input.html':'input.html','/display':'display.html','/display.html':'display.html'};
-const policy="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/api/logistics-workspace; img-src 'self' data: blob:; object-src 'none'; frame-src 'self'; worker-src 'self'; frame-ancestors 'self'; base-uri 'self'";
-function createServer({send=fetch}={}){return http.createServer(async(req,res)=>{
+const policy="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/api/logistics-workspace https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/api/logistics-query; img-src 'self' data: blob:; object-src 'none'; frame-src 'self'; worker-src 'self'; frame-ancestors 'self'; base-uri 'self'";
+function createServer({send=fetch,outboxOptions}={}){const publications=require('./publication-local.cjs').createController({send,outboxOptions});const server=http.createServer(async(req,res)=>{
  const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':policy});res.end(JSON.stringify(value))};
  let url;try{url=new URL(req.url,'http://127.0.0.1')}catch{res.writeHead(400);return res.end()}
+ if(url.pathname==='/local-publication')return publications.handle(req,json);
  if(url.pathname==='/local-workspace'||url.pathname==='/local-ai-cleaning'){
   const ai=url.pathname==='/local-ai-cleaning';if(ai&&req.method!=='POST')return json(405,{error:'AI复核只接受POST'});
   if(!['GET','POST'].includes(req.method))return json(405,{error:'方法不允许'});
@@ -24,6 +25,7 @@ function createServer({send=fetch}={}){return http.createServer(async(req,res)=>
    let body;if(req.method==='POST'){if(!String(req.headers['content-type']).startsWith('application/json'))return json(415,{error:'需要JSON请求'});const chunks=[];let bytes=0;for await(const part of req){bytes+=part.length;if(bytes>(ai?200000:32*1024*1024))return json(413,{error:ai?'AI复核片段过大':'发布请求超过32MiB'});chunks.push(part)}body=Buffer.concat(chunks).toString('utf8')}
    if(ai){const data=JSON.parse(body||'{}');if(!['quote-cleaning','quote-field-audit','sheet-quote-detection'].includes(data.purpose)||data.purpose==='quote-cleaning'&&data.exception!==true)return json(400,{error:'只允许物流报价AI复核'})}
    const response=await send('https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/api/'+(ai?'logistics-ai/recognize':'logistics-workspace')+url.search,{method:req.method,headers:{'Content-Type':'application/json',Authorization:req.headers.authorization},...(body?{body}:{}),redirect:'manual',signal:AbortSignal.timeout(180000)});
+   if(!ai&&url.search==='?meta=1'&&response.ok){const meta=await response.clone().json();publications.observe(req.headers.authorization.slice(7),meta);}
    const retryAfter=response.headers?.get('Retry-After');
    res.writeHead(response.status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':policy,...(retryAfter?{'Retry-After':retryAfter}:{})});if(response.body)require('node:stream').Readable.fromWeb(response.body).on('error',()=>res.destroy()).pipe(res);else res.end();return;
   }catch{return json(502,{code:ai?'LOCAL_AI_NETWORK':'LOCAL_CLOUD_NETWORK',error:ai?'AI复核连接失败（LOCAL_AI_NETWORK）；已清洗报价保留，请检查网络后重试':'本机连接云端失败（LOCAL_CLOUD_NETWORK）；上传进度保留，请检查此电脑网络后继续'})}
@@ -48,7 +50,7 @@ function createServer({send=fetch}={}){return http.createServer(async(req,res)=>
  const headers={'Content-Type':type+'; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':policy,'X-Content-Type-Options':'nosniff'};
  if(ext==='.js'||ext==='.css'){try{const bytes=await fs.promises.readFile(file),etag='"'+crypto.createHash('sha256').update(bytes).digest('hex')+'"';headers['Cache-Control']='private, no-cache';headers.ETag=etag;const matched=String(req.headers['if-none-match']||'').split(',').some(v=>v.trim()==='*'||v.trim().replace(/^W\//,'')===etag);if(matched){res.writeHead(304,headers);return res.end()}headers['Content-Length']=bytes.length;res.writeHead(200,headers);return res.end(req.method==='HEAD'?undefined:bytes)}catch{res.writeHead(500,{'Cache-Control':'no-store'});return res.end('Asset unavailable')}}
  res.writeHead(200,headers);if(req.method==='HEAD')return res.end();fs.createReadStream(file).pipe(res)
-})}
+});server.on('close',()=>publications.close());return server;}
 const server=createServer();
 if(require.main===module)server.listen(Number(process.env.LOGISTICS_UI_PORT||4318),'127.0.0.1',()=>console.log('Shared release preview on http://127.0.0.1:'+(process.env.LOGISTICS_UI_PORT||4318)+'/input'));
 module.exports={server,routes,createServer};

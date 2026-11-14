@@ -9,7 +9,7 @@ export function createGitHubClient({token,send=fetch,report=entry=>console.error
   const emit=entry=>{try{report({...diagnostic,...entry})}catch{}};
   let r;try{r=await send(api+path,{method,headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'ops-center-snapshot-publisher'},...(body?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(60000)})}catch(error){emit({kind:'network'});throw error}
   if(allow404&&r.status===404)return null;
-  if(!r.ok){const id=r.headers.get('x-github-request-id');emit({kind:'http',status:r.status,...(/^[a-f0-9:]{1,100}$/i.test(id||'')?{requestId:id}:{})});throw Object.assign(Error('GITHUB_'+r.status),{code:'GITHUB_'+r.status,status:r.status,githubRequest:diagnostic})}
+  if(!r.ok){const id=r.headers.get('x-github-request-id');emit({kind:'http',status:r.status,...(/^[a-f0-9:]{1,100}$/i.test(id||'')?{requestId:id}:{})});throw Object.assign(Error('GITHUB_'+r.status),{code:'GITHUB_'+r.status,status:r.status,retryAfter:r.headers.get('Retry-After'),githubRequest:diagnostic})}
   try{return await r.json()}catch(error){emit({kind:'invalid-json',status:r.status});throw error}
  };
 }

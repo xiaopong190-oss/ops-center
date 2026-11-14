@@ -4,7 +4,8 @@ import {publicRows,invalidatePublicRows} from './shared-read-cache.mjs';
 import {validateSheetInput,recognizeSheet} from './quote-preflight.mjs';
 import {cleanupFollowupUploads} from './followup-cleanup.mjs';
 import {logisticsWorkspace} from './logistics-workspace.mjs';
-import {workspaceRunner} from './workspace-runner.mjs';
+import {publicationRunner as workspaceRunner} from './publication-runner.mjs';
+import {recoverJobs,cleanupPublicationJobs} from './publication-jobs.mjs';
 import {logisticsQuery,cleanupQueryIndexes} from './logistics-query-store.mjs';
 import {validateRelations,readRelations,recognizeRelationsCached} from './logistics-relations.mjs';
 import {logisticsGithub} from './logistics-github.mjs';
@@ -252,7 +253,7 @@ async function handle(req,env) {
   const asset=await env.ASSETS.fetch(req);
   return asset;
 }
-export default {async scheduled(event,env,ctx){ctx.waitUntil(Promise.all([cleanupLogistics(env),cleanupFollowupUploads(env),cleanupQueryIndexes(env)]).then(result=>console.log('storage_cleanup',JSON.stringify(result))));},async fetch(req,env){
+export default {async scheduled(event,env,ctx){if(event.cron==='*/1 * * * *'){if(env.PUBLICATION_RELIABLE==='1')ctx.waitUntil(recoverJobs(env));return;}ctx.waitUntil(Promise.all([cleanupLogistics(env),cleanupFollowupUploads(env),cleanupQueryIndexes(env),cleanupPublicationJobs(env),...(env.PUBLICATION_RELIABLE==='1'?[recoverJobs(env)]:[])]).then(result=>console.log('storage_cleanup',JSON.stringify(result))));},async fetch(req,env){
   const origin=req.headers.get('Origin'),own=new URL(req.url).origin;
   const localWorkspaceOrigin=origin==='http://127.0.0.1:4318'&&new URL(req.url).pathname==='/api/logistics-workspace';
   if(origin&&!origins.has(origin)&&origin!==own&&!localWorkspaceOrigin)return json({error:'来源不允许'},403);

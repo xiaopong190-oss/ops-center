@@ -1,8 +1,8 @@
 {
   "name": "ops-center-cloud",
   "keep_vars": true,
-  "vars": {"WORKSPACE_COMMIT_RUNNER": "github-actions", "ONLINE_QUERY_ENABLED": "1"},
-  "triggers": {"crons": ["0 9 * * *"]},
+  "vars": {"WORKSPACE_COMMIT_RUNNER": "github-actions", "ONLINE_QUERY_ENABLED": "1", "PUBLICATION_RELIABLE": "1", "PUBLICATION_MAX_PENDING_BYTES": "268435456"},
+  "triggers": {"crons": ["0 9 * * *", "*/1 * * * *"]},
   "main": "worker.mjs",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],

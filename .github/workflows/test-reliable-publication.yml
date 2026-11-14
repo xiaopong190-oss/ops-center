@@ -1,0 +1,24 @@
+name: Test reliable publication
+on:
+  pull_request:
+    paths:
+      - 'cloud/**'
+      - 'deploy/**'
+      - 'tools/logistics-workspace/**'
+      - '.github/workflows/test-reliable-publication.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-regression:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix modules/new-product-followup/work/qa --no-audit --no-fund
+      - run: node --test tools/logistics-rating/tests/*.test.cjs
+      - run: npm run test:regression

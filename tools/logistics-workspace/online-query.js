@@ -8,6 +8,7 @@
  const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
  const ids=['provider','country','region','channel'];
  const labels={provider:'服务商',country:'国家',region:'地区',channel:'渠道'};
+ const publicationParams=new URLSearchParams(location.search);let publicationProvider=publicationParams.get('publicationProvider')||'';
  let version='',snapshot=null,page=0,regionalPage=0,confirmed=false,generation=0,controller=null,warehouseCountries={},inferredCountry=null;
  let exporting=false,debounce=null,automaticMonth=true,appliedScore={minScore:'',maxScore:'',order:'desc'},columnFilters=null,gradesExpanded=false;
  const $=id=>document.getElementById(id);
@@ -75,7 +76,7 @@
   };
   if(compare)$('online-transport').onchange=form.onchange;
   form.oninput=event=>{if(event.target.name==='warehousePrefix'){clearTimeout(debounce);debounce=setTimeout(()=>{page=0;load()},250);}};
-  $('online-reset').onclick=()=>{form.reset();inferredCountry=null;automaticMonth=true;confirmed=false;page=0;regionalPage=0;version='';if(compare){columnFilters.reset();$('online-rule').value='price';$('online-view').value='grouped';$('online-minScore').value='';$('online-maxScore').value='';$('online-order').value='desc';appliedScore={minScore:'',maxScore:'',order:'desc'};$('online-region-search').value='';$('online-region-provider').value='';$('online-region-transport').value='';$('online-coverage').value='confirmed';}load();};
+  $('online-reset').onclick=()=>{publicationProvider='';form.reset();inferredCountry=null;automaticMonth=true;confirmed=false;page=0;regionalPage=0;version='';if(compare){columnFilters.reset();$('online-rule').value='price';$('online-view').value='grouped';$('online-minScore').value='';$('online-maxScore').value='';$('online-order').value='desc';appliedScore={minScore:'',maxScore:'',order:'desc'};$('online-region-search').value='';$('online-region-provider').value='';$('online-region-transport').value='';$('online-coverage').value='confirmed';}load();};
   $('online-retry').onclick=()=>{page=0;regionalPage=0;version='';columnFilters?.reset();load();};
   $('online-prev').onclick=()=>{if(page){page--;load();}};
   $('online-next').onclick=()=>{page++;load();};
@@ -107,7 +108,7 @@
    else{query.set('confirmed',confirmed?'1':'0');query.set('view',$('online-view').value);if($('online-view').value==='score'){query.set('order',appliedScore.order);for(const key of ['minScore','maxScore'])if(appliedScore[key]!=='')query.set(key,appliedScore[key]);}columnFilters.write(query);}
   }
   if(version)query.set('version',version);
-  return query;
+  if(publicationProvider&&!query.get('provider'))query.set('provider',publicationProvider);return query;
  }
  function table(headers,rows,types,columnIds=headers.map((_,i)=>i)){
   const attributes=i=>types&&[8,9,10].includes(columnIds[i])?' data-grade-column'+(gradesExpanded?'':' hidden'):'';
@@ -197,7 +198,7 @@
    else if(route==='overview')$('online-overview').innerHTML=[['本周仓库报价',result.counts.quotes],['本周区域报价',result.counts.regional],['国家仓库',result.counts.templates]].map(([label,count])=>'<div>'+escape(label)+'<strong>'+escape(count)+'</strong></div>').join('');
    else render(result,regional);
    if(current!==generation)return;
-   snapshot=result;notice('已确认数据 '+result.sourceSha.slice(0,10)+' · 北京时间 '+result.day);signal(result);return;
+   if(publicationProvider&&route==='compare'&&result.selected?.provider!==publicationProvider)throw Error('该服务商不在当前有效报价中，请重置筛选后查询；未回退为其他服务商');publicationProvider='';snapshot=result;notice('已确认数据 '+result.sourceSha.slice(0,10)+' · 北京时间 '+result.day);signal(result);return;
   }catch(error){
    if(error.name==='AbortError'||current!==generation)return;
    if(error.status===409&&attempt===0){version='';page=0;regionalPage=0;confirmed=false;columnFilters?.reset();continue;}

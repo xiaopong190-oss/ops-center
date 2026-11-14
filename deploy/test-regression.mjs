@@ -5,6 +5,16 @@ const prepared=spawnSync(process.execPath,['deploy/build-followup-page.mjs'],{cw
 if(prepared.error)throw prepared.error;
 if(prepared.status!==0)process.exit(prepared.status||1);
 const suites=[
+  'tools/logistics-workspace/publication-process.test.cjs',
+  'cloud/test-publication-boundaries.mjs',
+  'cloud/test-publication-races.mjs',
+  'cloud/test-publication-seeded.mjs',
+  'tools/logistics-workspace/publication-tasks.test.cjs',
+  'tools/logistics-workspace/reliable-client.test.cjs',
+  'cloud/test-publication-jobs.mjs',
+  'cloud/test-publication-integration.mjs',
+  'cloud/test-publication-local.mjs',
+  'tools/logistics-workspace/publication-outbox.test.cjs',
   'deploy/snapshot-display-audit.test.mjs',
   'cloud/test-query-index.mjs',
   'cloud/test-table-column-query.mjs',

@@ -2,6 +2,7 @@ import {Buffer} from 'node:buffer';
 import {gunzipSync} from 'node:zlib';
 import {selectQueryIndex,queryFields,queryOptions,providerFilterChoices} from './query-index.mjs';
 import {tableColumnQuery} from './table-column-query.mjs';
+import {INTENT_KEY,readRecord} from './publication-jobs.mjs';
 
 const prefix='_logistics-online-query:v1:';
 const activeKey=prefix+'active';
@@ -77,6 +78,11 @@ export async function stageQueryIndex(req,env,currentSource,now=new Date()){
  const {version,sourceSha,day}=input;
  const today=businessDay(now),previousDay=new Date(Date.parse(today+'T12:00:00Z')-86400000).toISOString().slice(0,10);
  if(!versionPattern.test(version||'')||version.split(':')[0]!==sourceSha||version.split(':')[1]!==day||![today,previousDay].includes(day))fail(409,'索引版本或业务日期已变化');
+ if(input.action==='known'){
+  if(!Array.isArray(input.parts)||input.parts.length<1||input.parts.length>40||input.parts.some(item=>!partPattern.test(item.part||'')||!/^[a-f0-9]{64}$/.test(item.hash||'')))fail(400,'索引续建清单无效');
+  const names=input.parts.map(item=>dataKey(version,item.part)),rows=await env.DB.prepare("SELECT key,json_extract(value,'$.hash') AS hash FROM records WHERE key IN ("+names.map(()=>'?').join(',')+')').bind(...names).all(),known=new Map(rows.results.map(r=>[r.key,r.hash]));
+  return Response.json({ok:true,known:input.parts.filter(item=>known.get(dataKey(version,item.part))===item.hash).map(item=>item.part)},{headers:{'Cache-Control':'no-store'}});
+ }
  if(input.action==='stage'){
   if(!Array.isArray(input.items)||!input.items.length||input.items.length>8)fail(400,'索引分片数量无效');
   const statements=[],key=await encryptionKey(env);
@@ -103,15 +109,19 @@ export async function stageQueryIndex(req,env,currentSource,now=new Date()){
  }
  const previous=await get(env,activeKey);
  if(await currentSource()!==sourceSha)fail(409,'GitHub已有更新，未切换查询版本');
+ const intent=env.PUBLICATION_RELIABLE==='1'?await readRecord(env,INTENT_KEY):null;
+ if(intent&&(intent.rootSha!==sourceSha||intent.state!=='committed'))fail(409,'有更新的报价正在同步，未激活旧索引');
+ const guard=env.PUBLICATION_RELIABLE==='1'?(intent?' AND EXISTS (SELECT 1 FROM records WHERE key=? AND value=?)':' AND NOT EXISTS (SELECT 1 FROM records WHERE key=?)'):'';
+ const guardArgs=env.PUBLICATION_RELIABLE==='1'?(intent?[INTENT_KEY,JSON.stringify(intent)]:[INTENT_KEY]):[];
  const next={version,sourceSha,day,days:manifest.days||[day],tableSchema:manifest.tableSchema||0,relationHash:manifest.relationHash||null,savedAt:manifest.savedAt,parts:manifest.parts,counts:manifest.counts};
  const tomorrow=new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
  if(!Array.isArray(next.days)||!next.days.includes(day)||next.days.some(value=>value!==day&&value!==tomorrow))fail(400,'索引日期范围无效');
  if(!next.days.includes(today))fail(409,'索引尚未覆盖当前业务日期');
  if(previous){
-  const result=await env.DB.prepare('UPDATE records SET value=? WHERE key=? AND value=?').bind(JSON.stringify(next),activeKey,JSON.stringify(previous)).run();
+  const result=await env.DB.prepare('UPDATE records SET value=? WHERE key=? AND value=?'+guard).bind(JSON.stringify(next),activeKey,JSON.stringify(previous),...guardArgs).run();
   if(!Number(result.meta?.changes??result.changes??0))fail(409,'查询版本正在切换，请重试');
  }else{
-  const result=await env.DB.prepare('INSERT INTO records(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING').bind(activeKey,JSON.stringify(next)).run();
+  const result=await env.DB.prepare('INSERT INTO records(key,value) SELECT ?,? WHERE 1=1'+guard+' ON CONFLICT(key) DO NOTHING').bind(activeKey,JSON.stringify(next),...guardArgs).run();
   if(!Number(result.meta?.changes??result.changes??0))fail(409,'查询版本正在切换，请重试');
  }
  if(previous&&previous.version!==version){
@@ -126,6 +136,7 @@ export async function logisticsQuery(req,env,user,now=new Date()){
  if(!['GET','POST'].includes(req.method))fail(405,'线上查询只允许读取');
  const active=await get(env,activeKey),today=businessDay(now);
  if(!active||!(active.days||[active.day]).includes(today))fail(503,'最新报价索引正在更新，请稍后重试');
+ if(env.PUBLICATION_RELIABLE==='1'){const intent=await readRecord(env,INTENT_KEY);if(intent&&(intent.rootSha!==active.sourceSha||intent.state!=='committed'))fail(503,'已存云端，最新报价展示同步中，请稍后刷新');}
  let query=new URL(req.url).searchParams;
  if(req.method==='POST'){const chunks=[];let size=0;for await(const chunk of req.body||[]){size+=chunk.length;if(size>256*1024)fail(413,'筛选条件过多，请使用搜索或排除选项');chunks.push(chunk);}query=new URLSearchParams(Buffer.concat(chunks).toString('utf8'));}
  const version=active.version+'@'+today;

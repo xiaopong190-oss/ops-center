@@ -1,5 +1,7 @@
 import Delta from '../tools/logistics-workspace/record-delta.js';
 import {backgroundCommit} from './workspace-runner.mjs';
+import {publicationControl,acceptUploaded} from './publication-upload.mjs';
+import {recoverJobs} from './publication-jobs.mjs';
 // Resumable transport only. The published GitHub snapshot remains the source of truth.
 import {Buffer} from 'node:buffer';
 import {gunzipSync} from 'node:zlib';
@@ -10,8 +12,13 @@ const validHash=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 async function seal(bytes,env,aad){const key=await crypto.subtle.importKey('raw',Buffer.from(env.ENCRYPTION_KEY||'','base64'),'AES-GCM',false,['encrypt']),iv=crypto.getRandomValues(new Uint8Array(12));return {iv:Buffer.from(iv).toString('base64'),content:Buffer.from(await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:Buffer.from(aad)},key,bytes)).toString('base64')}}
 async function open(value,env,aad){try{const key=await crypto.subtle.importKey('raw',Buffer.from(env.ENCRYPTION_KEY||'','base64'),'AES-GCM',false,['decrypt']);return Buffer.from(await crypto.subtle.decrypt({name:'AES-GCM',iv:Buffer.from(value.iv,'base64'),additionalData:Buffer.from(aad)},key,Buffer.from(value.content,'base64')))}catch{fail(502,'暂存分片校验失败，请重新上传该分片')}}
 export async function workspaceUpload(input,env,user,publish,verify,runnerSend=fetch){
- if(!user||typeof user.id!=='string'||!user.id)fail(401,'请先登录运营中心');if(user.canEdit===false&&user.auth!=='super')fail(403,'此账号只允许查看展示端');
+ if(!user||typeof user.id!=='string'||!user.id)fail(401,'请先登录运营中心');
+ if(env.PUBLICATION_RELIABLE==='1'&&env.DB&&['publication-list','publication-status'].includes(input.action)){return publicationControl(input,env,user);}
+ if(user.canEdit===false&&user.auth!=='super')fail(403,'此账号只允许查看展示端');
  if(!env.DB||!env.LOGISTICS_GITHUB_TOKEN||Buffer.from(env.ENCRYPTION_KEY||'','base64').length!==32)fail(503,'分片发布服务未配置，本机数据保留');
+ if(env.PUBLICATION_RELIABLE==='1'){
+  const controlled=await publicationControl(input,env,user);if(controlled)return controlled;
+ }
  const {action,id}=input;if(!/^[a-f0-9-]{36}$/i.test(id||''))fail(400,'上传编号无效');
  const prefix='_workspace-upload:'+Buffer.from(String(user.id)).toString('base64url')+':',jobKey=prefix+'job:'+id;
  const get=async key=>{const row=await env.DB.prepare('SELECT value FROM records WHERE key=?').bind(key).first();return row?JSON.parse(row.value):null};
@@ -28,7 +35,10 @@ export async function workspaceUpload(input,env,user,publish,verify,runnerSend=f
   }
  }else if(!job)fail(404,'上传任务不存在，请重新预览');
  if(job.expires<Date.now())fail(410,'上传任务已过期，请重新预览');
- if(job.receipt)return {ok:true,receipt:job.receipt,missing:[]};
+ if(job.receipt&&action!=='publication-accept'){
+  if(job.reliable&&env.PUBLICATION_RELIABLE==='1'){const status=await publicationControl({action:'publication-status',id},env,user);return {...status,missing:[]};}
+  return {ok:true,receipt:job.receipt,missing:[]};
+ }
  const partKey=h=>prefix+'part:'+h;
  if(action==='part'){
   if(!Number.isInteger(input.index)||input.index<0||input.index>=job.parts.length||typeof input.content!=='string'||input.content.length>PART_BYTES*1.5||!['raw','gzip'].includes(input.encoding)||!/^[A-Za-z0-9+/]*={0,2}$/.test(input.content))fail(400,'分片格式无效');
@@ -36,13 +46,15 @@ export async function workspaceUpload(input,env,user,publish,verify,runnerSend=f
   let bytes;try{bytes=input.encoding==='gzip'?gunzipSync(packed,{maxOutputLength:PART_BYTES}):packed}catch{fail(400,'分片解压失败或超出容量')}
   const expected=input.index===job.parts.length-1?job.bytes-input.index*PART_BYTES:PART_BYTES,h=job.parts[input.index];
   if(bytes.length!==expected||await hash(bytes)!==h)fail(400,'分片长度或校验值不匹配');
-  try{await put(partKey(h),{...await seal(bytes,env,partKey(h)),expires:Date.now()+86400000})}catch(error){console.error('workspace_part_store',error?.name,error?.message);fail(503,'云端分片暂存失败（UPLOAD_PART_STORE），进度保留，请稍后继续或联系管理员')}return {ok:true,index:input.index};
+  try{const stored={...await seal(bytes,env,partKey(h)),storedAt:Date.now(),expires:job.reliable?Number.MAX_SAFE_INTEGER:Date.now()+86400000};await env.DB.prepare("INSERT INTO records(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=json_set(excluded.value,'$.expires',MAX(json_extract(records.value,'$.expires'),json_extract(excluded.value,'$.expires')))").bind(partKey(h),JSON.stringify(stored)).run()}catch(error){console.error('workspace_part_store',error?.name,error?.message);fail(503,'云端分片暂存失败（UPLOAD_PART_STORE），进度保留，请稍后继续或联系管理员')}return {ok:true,index:input.index};
  }
  if(action==='status'||action==='start'){
   if(action==='start'){for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey);await env.DB.prepare('UPDATE records SET value=json_set(value,\'$.expires\',?) WHERE key IN ('+names.map(()=>'?').join(',')+') AND json_extract(value,\'$.expires\')>=? AND json_extract(value,\'$.expires\')<?').bind(job.expires,...names,Date.now(),job.expires).run()}}
   const known=new Map();for(let i=0;i<job.parts.length;i+=40){const names=job.parts.slice(i,i+40).map(partKey),rows=await env.DB.prepare('SELECT key,json_extract(value,\'$.expires\') AS expires FROM records WHERE key IN ('+names.map(()=>'?').join(',')+')').bind(...names).all();for(const row of rows.results)known.set(row.key,row.expires)}const missing=[];for(let i=0;i<job.parts.length;i++)if(!(known.get(partKey(job.parts[i]))>=Date.now()))missing.push(i);return {ok:true,publicationSafety:'verified-base-v1',weeklyCarryover:1,missing,expires:job.expires};
  }
+ if(action==='publication-accept'&&env.PUBLICATION_RELIABLE==='1'){const received=await acceptUploaded(input,env,user,jobKey,job);await recoverJobs(env,{send:runnerSend,limit:1,owner:user.id,id});return received;}
  if(action!=='commit')fail(400,'上传操作无效');
+ if(env.PUBLICATION_RELIABLE==='1'&&env.WORKSPACE_COMMIT_RUNNER==='github-actions')fail(428,'请更新输入端并确认可靠发布；原上传任务保留，不会自动重发');
  if(env.WORKSPACE_COMMIT_RUNNER==='github-actions')return backgroundCommit(env,user,id,jobKey,job,runnerSend);
  let bytes=Buffer.alloc(job.bytes),offset=0;for(let start=0;start<job.parts.length;start+=40){const hashes=job.parts.slice(start,start+40),items=await readMany(hashes.map(partKey));for(let i=0;i<items.length;i++){const h=hashes[i],item=items[i];if(!item||item.expires<Date.now())fail(409,'分片尚未收齐或已过期，请继续上传');const raw=await open(item,env,partKey(h));if(await hash(raw)!==h||raw.length!==Math.min(PART_BYTES,job.bytes-offset))fail(400,'暂存分片内容不一致');raw.copy(bytes,offset);offset+=raw.length;items[i]=null}}
  if(offset!==job.bytes||await hash(bytes)!==job.sha256)fail(400,'完整快照校验失败，未发布');

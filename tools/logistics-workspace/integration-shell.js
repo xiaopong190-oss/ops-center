@@ -1,5 +1,5 @@
 (function(){'use strict';
-const releaseVersion='1.0.68';document.documentElement.dataset.hangxuVersion=releaseVersion;
+const releaseVersion='1.0.69';document.documentElement.dataset.hangxuVersion=releaseVersion;
 const params=new URLSearchParams(location.search),displayOnly=document.documentElement.dataset.entry==='display'||params.get('view')==='display';let side=displayOnly?'out':'in',route=displayOnly?'overview':'import',frame,state={},loading=true,access='view',managementRequested=false,cleanupPreview=null,backupRequested=false,previewPending=false,publishActive=false,publishMessage='',loadTimer;
 const publicDisplay=displayOnly&&!['localhost','127.0.0.1','[::1]'].includes(location.hostname),displayVersion=releaseVersion;
 if(publicDisplay){document.documentElement.dataset.presentation='public';document.documentElement.dataset.hangxuVersion=displayVersion;route='compare';}

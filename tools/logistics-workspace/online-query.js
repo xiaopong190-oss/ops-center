@@ -50,7 +50,7 @@
    '</div>'+(compare?'<div class="check-options" id="online-cargo">'+['普货','带电','带磁','液体','粉末','其他特殊货物','未注明／待确认'].map(value=>'<label><input type="checkbox" name="cargo" value="'+value+'">'+value+'</label>').join('')+'</div><div class="check-options">税务方式 '+[['','全部'],['included','包税'],['excluded','不包税／递延'],['unknown','未明确']].map(([value,label])=>'<label><input type="radio" name="tax" value="'+value+'" '+(!value?'checked':'')+'>'+label+'</label>').join('')+'</div>':'')+
    '<div class="actions"><button type="button" id="online-reset">重置筛选</button><button type="submit">查询</button>'+(compare?'<button type="button" class="primary" id="online-compare">比较价格与评分</button>':'')+'<button type="button" id="online-retry">重新查询</button></div></form></section>'+
    '<section><h2>'+ (compare?'报价结果':route==='warehouses'?'仓库列表':'公司账单明细')+'</h2>'+
-   (compare?'<div class="score-controls"><label>展示方式<select id="online-view"><option value="grouped">按仓库查看</option><option value="score">按分数查看</option></select></label><label>最低分<input id="online-minScore" type="number" min="0" max="10" step="0.1"></label><label>最高分<input id="online-maxScore" type="number" min="0" max="10" step="0.1"></label><label>排序<select id="online-order"><option value="desc">高分优先</option><option value="asc">低分优先</option></select></label><button id="online-apply-score">筛选分数</button><button id="online-clear-score">清除分数</button><button type="button" id="online-toggle-grades" aria-expanded="false" aria-controls="online-results" title="价格等级、时效等级、综合等级">展开等级</button></div>':'')+
+   (compare?'<p id="online-match-summary" class="notice" role="status"></p><div class="score-controls"><label>展示方式<select id="online-view"><option value="grouped">按仓库查看</option><option value="score">按分数查看</option></select></label><label>最低分<input id="online-minScore" type="number" min="0" max="10" step="0.1"></label><label>最高分<input id="online-maxScore" type="number" min="0" max="10" step="0.1"></label><label>排序<select id="online-order"><option value="desc">高分优先</option><option value="asc">低分优先</option></select></label><button id="online-apply-score">筛选分数</button><button id="online-clear-score">清除分数</button><button type="button" id="online-toggle-grades" aria-expanded="false" aria-controls="online-results" title="价格等级、时效等级、综合等级">展开等级</button></div>':'')+
    '<div class="actions"><button id="online-export">导出当前筛选结果</button>'+(route==='monthly'?'<button id="online-export-summary">导出月度公司汇总</button>':'')+'</div><div id="online-summary" class="scroll"></div><div id="comparison"><div id="online-results" class="scroll"></div></div><div class="pager"><button id="online-prev">上一页</button><span id="online-page"></span><button id="online-next">下一页</button></div></section>'+
    (compare?'<section id="online-regional"><h2>区域报价</h2><p class="muted">跟随上方全局筛选；选定仓库后按原文覆盖情况查询。</p><div class="filters">'+selectHtml('region-provider','区域物流商')+selectHtml('region-transport','区域运输方式')+'<label>搜索区域／邮编<input id="online-region-search" maxlength="100"></label><label id="online-coverage-label" hidden>仓库覆盖<select id="online-coverage"><option value="confirmed">原文明确覆盖</option><option value="unverified">覆盖待核实</option></select></label></div><p id="online-region-count" class="muted"></p><div id="online-region-results" class="scroll"></div><div class="pager"><button id="online-region-prev">上一页</button><span id="online-region-page"></span><button id="online-region-next">下一页</button><button id="online-region-export">导出区域结果</button></div></section>':'');
   if(compare){
@@ -154,6 +154,7 @@
    options(localProvider,providers,localSelected,'全部区域物流商',result.providerNames);localProvider.disabled=!!selectedProvider;
    if(selectedTransport){localTransport.value=selectedTransport;localTransport.disabled=true;}else if(localTransport.disabled){localTransport.disabled=false;localTransport.value='';}
    renderRows(regional,true);pagination(regional,true);$('online-region-count').textContent='当前匹配 '+regional.total+' 条区域报价';
+   $('online-match-summary').textContent='当前筛选：仓库报价 '+result.total+' 条 · 区域报价 '+regional.total+' 条。'+(selectedProvider&&result.total===0&&regional.total>0?'该服务商的报价见下方“区域报价”。':'');
   }
   if(route==='monthly'){$('online-filters').elements.month.value=result.selected.month||result.day.slice(0,7);$('online-summary').innerHTML=table(['公司','币种','账单行数','账单金额','已付金额','待付／超付'],(result.summary||[]).map(row=>[row.company,row.currency,row.count,money(row.amount),money(row.paid),money(row.amount-row.paid)].map(escape)));}
   renderRows(result);pagination(result);
@@ -170,7 +171,7 @@
  }
  function clearResults(){
   columnFilters?.close();
-  for(const id of ['online-results','online-region-results','online-summary','online-overview','online-page','online-region-page','online-region-count'])if($(id))$(id).replaceChildren();
+  for(const id of ['online-results','online-region-results','online-summary','online-overview','online-page','online-region-page','online-region-count','online-match-summary'])if($(id))$(id).replaceChildren();
  }
  async function load(){
   const current=++generation;controller?.abort();controller=new AbortController();

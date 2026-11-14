@@ -21,6 +21,7 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
  const progress=async n=>request('progress',{method:'POST',headers:{'X-Workspace-Progress':String(n)}});
  const meta=await (await request('meta')).json();
  if(meta.terminal)return {terminal:true,state:meta.jobState,receipt:meta.receipt||null};
+ if(meta.reliable&&!meta.onlineQuery)throw failure('QUERY_DISABLED');
  if(meta.reliable&&meta.resume){
   const base=await readPublicationBase(meta.resume.rootSha,request),relations=(await (await request('query-relations')).json()).items;
   await request('committed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rootSha:meta.resume.rootSha})});

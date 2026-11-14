@@ -117,7 +117,7 @@ export async function publicationRunner(req,env,send=fetch,identity=runnerIdenti
  if(action==='failed'&&req.method==='POST'){
   if(['BLOCKED_VALIDATION','AUTH_REQUIRED','NEEDS_RECONFIRM'].includes(job.state)){await releaseLease(env,key,ticket,job.fence);return json({ok:true});}
   const code=req.headers.get('X-Workspace-Failure')||'RUNNER_FAILED';
-  const permanent=['BATCH_SCOPE_CONFLICT','PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED','BUSINESS_VALIDATION_FAILED','QUERY_VALIDATION_FAILED','SOURCE_HASH_MISMATCH','SOURCE_PART_MISMATCH','SOURCE_JSON_INVALID','SNAPSHOT_SIZE_INVALID'];
+  const permanent=['BATCH_SCOPE_CONFLICT','PUBLICATION_BASE_REQUIRED','PUBLICATION_SECTIONS_REMOVED','BUSINESS_VALIDATION_FAILED','QUERY_VALIDATION_FAILED','QUERY_DISABLED','SOURCE_HASH_MISMATCH','SOURCE_PART_MISMATCH','SOURCE_JSON_INVALID','SNAPSHOT_SIZE_INVALID'];
   const status=(permanent.includes(code)||(code==='PUBLICATION_CONFLICT'&&job.scopes.includes('__full-master__')))?422:/^(?:GITHUB|CLOUD)_(401|403)$/.test(code)?403:/^(?:GITHUB|CLOUD)_429$/.test(code)?429:503;
   await deferJob(env,key,code,{status,retryAfter:req.headers.get('X-Workspace-Retry-After')});
   if(job.candidate&&!job.commit){const actual=await readWorkspace(env,send);if(actual.sha!==job.candidate)await fencedPut(env,INTENT_KEY,{rootSha:actual.sha,state:'committed'},lease);}

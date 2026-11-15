@@ -20,7 +20,8 @@ const trackerDraftStorage = new Promise((resolve,reject)=>{
     if(!request.result.objectStoreNames.contains('journal'))request.result.createObjectStore('journal',{keyPath:'id'}).createIndex('userId','userId');
   };
   request.onsuccess=()=>{request.result.onversionchange=()=>request.result.close();resolve(request.result);};
-  request.onerror=request.onblocked=()=>reject(Error('个人草稿库不可用，请允许浏览器存储后重试'));
+  request.onerror=()=>reject(Error('个人草稿库不可用，请允许浏览器存储后重试'));
+  request.onblocked=()=>reject(Error('旧标签页占用草稿库，请关闭其他运营中心标签页后刷新；原草稿仍保留'));
 });
 trackerDraftStorage.catch(()=>{});
 function trackerAudit(stage,details={}){

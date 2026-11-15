@@ -22,7 +22,7 @@ export function NewProductFollowupPanel({ active }) {
     onSyncState:setSyncState,
   };
   useEffect(()=>{
-    const update=event=>setUploadProgress(event.detail);
+    const update=event=>{setUploadProgress(event.detail);frame.current?.contentWindow?.recordOpsFollowupUploadProgress?.(event.detail)?.catch?.(error=>setSyncState(current=>({...current,error:error.message})));};
     window.addEventListener('ops-followup-upload-progress',update);
     return()=>window.removeEventListener('ops-followup-upload-progress',update);
   },[]);

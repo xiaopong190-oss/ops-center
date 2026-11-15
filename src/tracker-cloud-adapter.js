@@ -75,7 +75,7 @@ export function mergeTrackerImport(current, incoming) {
   return {docs:result,added,skipped};
 }
 
-export function createTrackerCloudDb({context, backup, notify, onError}) {
+export function createTrackerCloudDb({context, backup, notify, onError, audit=async()=>{}}) {
   let snapshot = null, docs = {}, queue = Promise.resolve(), identity = '';
   const listeners = new Set();
   const emit = () => { for (const listener of listeners) listener(); };
@@ -88,10 +88,28 @@ export function createTrackerCloudDb({context, backup, notify, onError}) {
     if (!c.user?.id || c.user.id === 'guest' || !c.cloudRequest) throw Error('请先登录运营中心，共享连接就绪后重试');
     return c.cloudRequest;
   };
+  const stable=value=>JSON.stringify(value,(_,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
+  const checkSnapshot=value=>{
+    if(!value||!Number.isSafeInteger(value.revision)||value.revision<0||!value.data||!['products','records','events'].every(key=>Array.isArray(value.data[key])))throw Object.assign(Error('云端返回的数据不完整，未确认成功'),{status:502,uploadPaused:true});
+  };
+  const confirm=async(send,saved,expectedEvents,userId)=>{
+    checkSnapshot(saved);
+    await audit('readback_started',{revision:saved.revision});
+    const read=await send('/ops-api/followup');
+    checkSnapshot(read);
+    if(context().user?.id!==userId)throw Error('登录身份已变化，未确认上传');
+    if(read.revision<saved.revision||(read.revision===saved.revision&&stable(read.data)!==stable(saved.data)))throw Object.assign(Error('云端回读版本或内容不一致，草稿保留，请重试核对'),{status:502,uploadPaused:true});
+    const events=new Map(read.data.events.map(event=>[event.id,event]));
+    for(const expected of expectedEvents||[]){const actual=events.get(expected.id);if(!actual||stable(actual.after)!==stable(expected.after)||actual.actor_id!==userId)throw Object.assign(Error('云端未读到本次修改的确认记录，草稿保留'),{status:502,uploadPaused:true});}
+    await audit('readback_verified',{revision:read.revision,savedRevision:saved.revision,operationIds:(expectedEvents||[]).map(event=>event.id)});
+    install(read);return {revision:read.revision,savedRevision:saved.revision,verifiedAt:new Date().toISOString(),operations:(expectedEvents||[]).map(event=>event.id)};
+  };
   const refresh = async () => {
     const c = context(), userId = c.user?.id;
     if (identity !== userId) { identity = userId; snapshot = null; docs = {}; emit(); }
     const send = request(), value = await send('/ops-api/followup');
+    checkSnapshot(value);
+    if(context().user?.id===userId&&snapshot&&value.revision<snapshot.revision)throw Object.assign(Error('云端返回旧版本，当前画面尚未更新，请重试'),{status:502});
     if (context().user?.id === userId) install(value);
   };
   const mutate = change => {
@@ -101,26 +119,37 @@ export function createTrackerCloudDb({context, backup, notify, onError}) {
         try {
         const c = context();
         if (c.user?.id !== userId || !c.canEdit) throw Error('当前用户没有编辑权限，未保存');
+        await audit('cloud_read_started',{attempt:attempt+1});
         const send = request(), current = await send('/ops-api/followup');
+        checkSnapshot(current);
+        await audit('cloud_read_complete',{revision:current.revision});
         if (context().user?.id !== userId) throw Error('登录身份已变化，未保存');
         await backup(current, userId); // Failure prevents a cloud write.
+        await audit('backup_complete',{revision:current.revision});
         // Backups are asynchronous: recheck authorization after that boundary.
         if (context().user?.id !== userId) throw Error('登录身份已变化，未保存');
         if (!context().canEdit) throw Error('当前用户没有编辑权限，未保存');
         const next = structuredClone(current.data), visible = projectTracker(next);
         const changed = change(visible,next);
-        if(changed.noop){install(current);return changed.result;}
+        if(changed.noop){const receipt=await confirm(send,current,changed.expectedEvents,userId);return {...receipt,result:changed.result};}
         next.trackerV1 = {...next.trackerV1, schema:1, docs:{...next.trackerV1?.docs,...changed.patch}};
         if(changed.events)next.events.unshift(...changed.events);
         else next.events.unshift({id:crypto.randomUUID(),product_id:'',actor:c.user.name,actor_id:userId,
           action:'新品大屏更新',reason:changed.reason,created_at:new Date().toISOString(),
           before:JSON.stringify(Object.fromEntries(Object.keys(changed.patch).map(k => [k,visible[k] ?? null]))),after:JSON.stringify(changed.patch)});
         {
+          await audit('submit_started',{baseRevision:current.revision,operations:changed.events?.length||1});
           const saved = await send('/ops-api/followup',{revision:current.revision,data:next});
-          if (context().user?.id === userId) install(saved);
-          return changed.result;
+          checkSnapshot(saved);
+          await audit('submit_acknowledged',{revision:saved.revision});
+          if(saved.revision!==current.revision+1)throw Object.assign(Error('云端提交版本未确认，草稿保留'),{status:502,uploadPaused:true});
+          const savedDocs=projectTracker(saved.data);
+          for(const [path,value] of Object.entries(changed.patch))if(stable(savedDocs[path]??null)!==stable(value))throw Object.assign(Error('云端提交内容与本次修改不一致，草稿保留'),{status:502,uploadPaused:true});
+          const receipt=await confirm(send,saved,changed.events||next.events.slice(0,1),userId);
+          return {...receipt,result:changed.result};
         }
         } catch (error) {
+          await audit('attempt_failed',{attempt:attempt+1,status:error.status||null,message:error.message});
           if (error.uploadPaused || context().user?.id !== userId || !context().canEdit) throw error;
           const retryable = !error.status || error.status >= 500 || [408,429].includes(error.status) || /其它人员已更新/.test(error.message);
           if (attempt === 3 || !retryable) throw error;
@@ -145,14 +174,14 @@ export function createTrackerCloudDb({context, backup, notify, onError}) {
       const existing=new Set(current.events.map(event=>event.id));
       const pending=operations.filter(operation=>!existing.has(operation.id));
       const applied=applyTrackerOperations(visible,pending,context().user);
-      return {...applied,noop:pending.length===0};
+      return {...applied,expectedEvents:operations.map(operation=>({id:operation.id,after:current.events.find(event=>event.id===operation.id)?.after})),noop:pending.length===0};
     }),
     refresh, clear(){identity='';snapshot=null;docs={};emit();},
     _dump:() => structuredClone(docs), _snapshot:() => structuredClone(snapshot),
     _load:incoming => mutate(visible => {
       const result = mergeTrackerImport(visible,incoming);
       return {patch:Object.fromEntries(Object.entries(result.docs).filter(([key]) => !visible[key])),reason:'合并导入；保留已有记录',result};
-    }).then(result => notify('已补充 ' + result.added + ' 条；保留已有 ' + result.skipped + ' 条')),
+    }).then(receipt => notify('已补充 ' + receipt.result.added + ' 条；保留已有 ' + receipt.result.skipped + ' 条')),
     collection:name => ({onSnapshot:callback => watch(() => callback({docs:Object.entries(docs).filter(([key]) => key.startsWith(name + '/')).map(([key,value]) => ({id:key.slice(name.length+1),exists:true,data:() => structuredClone(value)}))}))}),
     doc:path => ({
       onSnapshot:callback => watch(() => callback({exists:!!docs[path],data:() => structuredClone(docs[path])})),

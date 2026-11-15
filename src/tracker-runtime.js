@@ -17,7 +17,7 @@ const trackerDraftStorage = new Promise((resolve,reject)=>{
   const request=indexedDB.open('ops-tracker-personal-drafts-v1',2);
   request.onupgradeneeded=()=>{
     if(!request.result.objectStoreNames.contains('drafts'))request.result.createObjectStore('drafts');
-    if(!request.result.objectStoreNames.contains('journal'))request.result.createObjectStore('journal',{keyPath:'id'}).createIndex('userId','userId');
+    if(!request.result.objectStoreNames.contains('journal'))request.result.createObjectStore('journal',{keyPath:'id',autoIncrement:true}).createIndex('userId','userId');
   };
   request.onsuccess=()=>{request.result.onversionchange=()=>request.result.close();resolve(request.result);};
   request.onerror=()=>reject(Error('个人草稿库不可用，请允许浏览器存储后重试'));
@@ -28,7 +28,7 @@ function trackerAudit(stage,details={}){
   if(stage==='save_clicked')trackerJournalFailure=null;
   if(trackerJournalFailure)return Promise.reject(trackerJournalFailure);
   const user=trackerContext.user;if(!user?.id)return Promise.resolve();
-  const record={id:Date.now().toString().padStart(16,'0')+'-'+crypto.randomUUID(),userId:user.id,actor:user.name||'',at:new Date().toISOString(),attempt:trackerAttempt,stage,details};
+  const record={userId:user.id,actor:user.name||'',at:new Date().toISOString(),attempt:trackerAttempt,stage,details};
   const task=trackerJournalQueue.catch(()=>{}).then(async()=>{
     const database=await trackerDraftStorage;
     await new Promise((resolve,reject)=>{const tx=database.transaction('journal','readwrite'),store=tx.objectStore('journal');store.put(record);const keys=store.index('userId').getAllKeys(user.id);keys.onsuccess=()=>{for(const key of keys.result.slice(0,Math.max(0,keys.result.length-5000)))store.delete(key);};tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(Error('上传日志无法保存，未确认成功，请检查浏览器存储'));});

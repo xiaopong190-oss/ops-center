@@ -8,8 +8,27 @@ function localText(){const walker=document.createTreeWalker(document.body,NodeFi
 function summarizeBulk(){const box=document.getElementById('bulkCleanPreview');if(!box||box.dataset.compacted===box.textContent)return;const p=[...box.children].filter(n=>n.tagName==='P'&&/^保留 \d+ 条：/.test(n.textContent));if(!p.length)return;const grouped=new Map();for(const n of p){const m=n.textContent.match(/^保留 (\d+) 条：(.*)$/);grouped.set(m[2],(grouped.get(m[2])||0)+Number(m[1]))}const summary=document.createElement('section');summary.className='local-block-reasons';const heading=document.createElement('strong');heading.textContent='仍待核对原因（按原因合并）';summary.append(heading);for(const [reason,count] of grouped){const text=document.createElement('p');text.textContent=count+' 条：'+reason;summary.append(text)}const dates=LocalDataPolicy.summarizeDateBlockers(ComparisonStore.read().importExceptions,today());if(dates.counts.future||dates.counts.expired){const note=document.createElement('p');note.textContent='本机今天 '+dates.today+'；原规则允许 '+dates.cutoff+' 至 '+dates.today+'。涉及报价日期：'+dates.dates.slice(0,10).join('、')+'。未来报价 '+dates.counts.future+' 条，已超期 '+dates.counts.expired+' 条；请按原表核对日期，不能用选价规则跳过日期校验。';summary.append(note)}p[0].before(summary);p.forEach(n=>n.remove());const apply=document.getElementById('bulkCleanApply');if(apply?.disabled&&box.querySelector('b')?.textContent.startsWith('采用 0 条')){const hint=document.createElement('p');hint.className='local-zero-adopt';hint.textContent='本次可采用 0 条，因此采用按钮禁用。不是一直加载，请先解决以上原因。';box.prepend(hint)}box.dataset.compacted=box.textContent}
 new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(()=>{localText();summarizeBulk();status()},100)}).observe(document.body,{childList:true,subtree:true,characterData:true});
 const setDirty=value=>{dirty=value;document.documentElement.toggleAttribute('data-hangxu-dirty',value)};
+function installImportCommitFeedback(){
+ const button=document.getElementById('commit'),message=document.getElementById('message');if(view||!button||!message)return;
+ const feedback=document.createElement('p');feedback.id='import-commit-feedback';feedback.hidden=true;feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');button.before(feedback);button.setAttribute('aria-describedby',feedback.id);
+ let busy=false,label='',slowTimer;
+ function finish(){
+  const text=message.textContent;if(!busy)return;
+  const saved=text.includes('已保存到本机'),failed=text.startsWith('未保存报价：')||text==='请先完成仓库核对';if(!saved&&!failed)return;
+  busy=false;clearTimeout(slowTimer);button.removeAttribute('aria-busy');button.removeAttribute('aria-disabled');button.textContent=label;
+  feedback.textContent=saved?'本次导入已保存到本机，可以继续录入、撤销或预览发布。':text+'；请核对后重试，当前预览保留。';feedback.setAttribute('role',saved?'status':'alert');
+  if(saved){setDirty(false);status();}
+ }
+ new MutationObserver(finish).observe(message,{childList:true,subtree:true,characterData:true});
+ button.addEventListener('click',event=>{
+  if(busy){event.preventDefault();event.stopImmediatePropagation();return;}if(button.disabled)return;
+  busy=true;label=button.textContent;feedback.hidden=false;feedback.setAttribute('role','status');feedback.textContent='正在核对任务、保存恢复点并导入，请稍候…';button.textContent='正在导入…';button.setAttribute('aria-busy','true');button.setAttribute('aria-disabled','true');
+  slowTimer=setTimeout(()=>{if(busy)feedback.textContent='仍在处理本次导入，请勿重复点击；尚未确认保存完成。';},10000);
+ },true);
+}
+installImportCommitFeedback();
 document.addEventListener('change',e=>{if(!view&&e.target.matches('input[type=file],#form input,#form select,#form textarea,#draftNotes,#draftCompany,#batchDate,#batchCurrency')){setDirty(true);status()}});
-document.addEventListener('click',e=>{if(!view&&e.target.closest('#commit,#save,#saveMapping,#scoreSave,#scoreUndo,#bulkCleanApply'))setTimeout(()=>{if(document.getElementById('commit')?.disabled||document.getElementById('message')?.textContent.includes('已保存')||!document.getElementById('bulkCleanDialog')?.open)setDirty(false);status()},250)});
+document.addEventListener('click',e=>{if(!view&&e.target.closest('#save,#saveMapping,#scoreSave,#scoreUndo,#bulkCleanApply'))setTimeout(()=>{if(document.getElementById('commit')?.disabled||document.getElementById('message')?.textContent.includes('已保存')||!document.getElementById('bulkCleanDialog')?.open)setDirty(false);status()},250)});
 const managementData=()=>{const data=WorkspaceSnapshot.data();if(window.ComparisonStore)data.storage[WorkspaceDataManagement.keys[1]]=ComparisonStore.read();return data};
 const fingerprint=async data=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(data)))),b=>b.toString(16).padStart(2,'0')).join('');
 async function baseline(){try{const token=localStorage.getItem('ops-cloud-session-v1');if(!token)return null;const session=await fingerprintToken(token),b=JSON.parse(localStorage.getItem('workspace-record-baseline-v1'));return b?.session===session&&b.sha&&b.index?b.index:null}catch{return null}}

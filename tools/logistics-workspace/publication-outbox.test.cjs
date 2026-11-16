@@ -1,5 +1,21 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto'),{create}=require('./publication-outbox.cjs');
 const owner='a'.repeat(64),other='b'.repeat(64),key=Buffer.alloc(32,3),task=()=>({operationId:crypto.randomUUID(),confirmedAt:Date.now(),frozen:true,transport:JSON.stringify({synthetic:'报价证据',price:12345}),token:'must-not-persist'});
+test('local publication keeps UTF-8 exact when request chunks split Chinese and four-byte characters',async()=>{
+ const {Readable}=require('node:stream'),{createController}=require('./publication-local.cjs');
+ const f=fixture(),token='synthetic-session',session=crypto.createHash('sha256').update(token).digest('hex');
+ const controller=createController({outboxOptions:{root:f.root,key},interval:3600000,send:async()=>{throw Error('No network permitted')}});
+ controller.observe(token,{publicationReliable:true,cacheScope:owner});
+ try{for(const text of ['天盛报价，区域及仓库','报价🚚𠮷😀','原文'.repeat(10000)]){
+  const t={...task(),session,transport:JSON.stringify({text,amount:860})},bytes=Buffer.from(JSON.stringify({action:'save',task:t}));
+  // One-byte chunks force every UTF-8 multi-byte character across a boundary.
+  const req=Readable.from(Array.from(bytes,b=>Buffer.from([b])));req.method='POST';req.headers={host:'127.0.0.1:4318',origin:'http://127.0.0.1:4318',authorization:'Bearer '+token};
+  let result;await controller.handle(req,(status,body)=>{result={status,body}});
+  assert.equal(result.status,200);assert.equal(result.body.contentHash,crypto.createHash('sha256').update(t.transport).digest('hex'));
+  assert.equal(f.box.load(owner,t.operationId).task.transport,t.transport);
+  await controller.handle(Object.assign(Readable.from([bytes]),{method:'POST',headers:req.headers}),(status,body)=>{result={status,body}});
+  assert.equal(result.status,200);assert.equal(f.box.list(owner).filter(v=>v.task.operationId===t.operationId).length,1);
+ }}finally{controller.close();f.clean()}
+});
 function fixture(){const root=fs.mkdtempSync(path.join(os.tmpdir(),'hangxu-outbox-synthetic-'));return {root,box:create({root,key}),clean:()=>fs.rmSync(root,{recursive:true,force:true})};}
 test('durable package survives new process instance, preserves exact content, encrypts evidence and excludes credentials',()=>{const f=fixture();try{const t=task(),a=f.box.save(owner,t);assert.equal(a.state,'LOCAL_SAVED');const b=create({root:f.root,key}).load(owner,t.operationId);assert.equal(b.task.transport,t.transport);assert(!('token' in b.task));const bytes=fs.readFileSync(path.join(f.root,fs.readdirSync(f.root)[0]));assert(!bytes.includes(Buffer.from('报价证据')));assert(!bytes.includes(Buffer.from('must-not-persist')));assert.equal(f.box.load(other,t.operationId),null);assert.equal(f.box.list(other).length,0);}finally{f.clean()}});
 test('failed durable write cannot claim saved; original packages survive hash/content conflicts',()=>{const f=fixture();try{const t=task();assert.throws(()=>create({root:f.root,key,beforeWrite:()=>{throw Error('disk full')}}).save(owner,t),/disk full/);assert.equal(f.box.load(owner,t.operationId),null);f.box.save(owner,t);assert.throws(()=>f.box.save(owner,{...t,transport:'different'}),/不可修改/);assert.equal(f.box.load(owner,t.operationId).task.transport,t.transport);}finally{f.clean()}});

@@ -1,11 +1,11 @@
 {
   "version": "2026.11.03.2",
   "tag": "ops-v2026.11.03.2",
-  "description": "航序V1.0.70可靠发布任务、可恢复回执及区域服务商入口；已完成隔离对抗与回归",
+  "description": "航序V1.0.71：导入恢复点与撤销、核验后台取消后返回录入、中文分块恢复包修复",
   "workerVersionId": "eb0032c4-6848-4dd6-b632-bb5db6741a5e",
   "workerSourceCommit": "2a3bb9b6397d566aeab0f9407cfdea8156a378be",
   "workerSourceTag": "hangxu-v1.0.70-worker",
   "databasePolicy": "Keep production quotations, accepted jobs, encrypted parts and receipts when rolling back application code",
-  "hangxuVersion": "1.0.70",
+  "hangxuVersion": "1.0.71",
   "logisticsPublicationProtocol": "reliable-publication-v2"
 }

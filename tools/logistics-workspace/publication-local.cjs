@@ -31,7 +31,8 @@ function createController({send=fetch,outboxOptions,interval=5000}={}){
   if(!/^127\.0\.0\.1:\d+$/.test(req.headers.host||'')||req.headers.origin!=='http://'+req.headers.host)return json(403,{error:'只允许本机工作台请求'});
   const auth=req.headers.authorization||'';if(!/^Bearer [^\s]{1,512}$/.test(auth))return json(401,{error:'请先登录'});
   try{
-   let raw='';for await(const part of req){raw+=part;if(Buffer.byteLength(raw)>160*1024*1024)return json(413,{error:'本地任务超过容量保护'});}const input=JSON.parse(raw),session=await owner(auth.slice(7));
+   // A UTF-8 character may span TCP chunks. Decode only after joining bytes.
+   const chunks=[];let bytes=0;for await(const part of req){const chunk=Buffer.isBuffer(part)?part:Buffer.from(part);bytes+=chunk.length;if(bytes>160*1024*1024)return json(413,{error:'本地任务超过容量保护'});chunks.push(chunk);}const input=JSON.parse(Buffer.concat(chunks).toString('utf8')),session=await owner(auth.slice(7));
    if(input.action==='save'){
     if(input.task?.session!==digest(Buffer.from(session.token)))return json(403,{error:'任务与当前登录不一致'});
     const value=store().save(session.owner,{...input.task,ownerScope:session.owner});

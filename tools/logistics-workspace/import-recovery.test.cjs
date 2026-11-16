@@ -1,0 +1,22 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),{create}=require('./import-recovery.js');
+const clone=v=>JSON.parse(JSON.stringify(v));
+function fixture(){let db={quotes:[{price:100}],regionalQuotes:[],templates:[{warehouse:'OLD'}],importExceptions:[]},record=null,jobs=[],published='old',fail=false;const api=create({read:()=>db,write:v=>{db=clone(v)},save:async v=>{if(fail)throw Error('disk full');record=clone(v)},load:async()=>clone(record),guard:async()=>jobs.slice(),receipt:()=>published,flush:async()=>{},validate:()=>{}});return {api,get:()=>db,record:()=>record,set:v=>{db=clone(v)},jobs:v=>{jobs=v},publish:()=>{published='new'},fail:()=>{fail=true}};}
+async function imported(f){const before=clone(f.get());await f.api.beforeImport(before);const after={...before,quotes:[{price:200}],templates:[{warehouse:'NEW'}]};await f.api.willCommit(after);f.set(after);return before;}
+test('undo restores replaced prices and templates, removes imported exceptions and is idempotently refused',async()=>{const f=fixture(),before=await imported(f),p=await f.api.plan();await f.api.undo(p.id);assert.deepEqual(f.get(),before);await assert.rejects(f.api.undo(p.id),/已撤销/);});
+test('subsequent unrelated edits refuse rollback rather than lose later data',async()=>{const f=fixture();await imported(f);f.set({...f.get(),quotes:[{price:300}]});await assert.rejects(f.api.plan(),/其他变化/);assert.equal(f.get().quotes[0].price,300)});
+test('a publication receipt after import blocks local-only undo',async()=>{const f=fixture();await imported(f);f.publish();await assert.rejects(f.api.plan(),/发布记录/)});
+test('new completed cloud job and previously unverified baseline both refuse undo',async()=>{const f=fixture();await imported(f);const p=await f.api.plan();f.jobs(['new-job']);await assert.rejects(f.api.undo(p.id),/发布状态已变化/);assert.equal(f.get().quotes[0].price,200)});
+test('failed durable checkpoint never reports an undoable import',async()=>{const f=fixture();await f.api.beforeImport(f.get());f.fail();await assert.rejects(f.api.willCommit({...f.get(),quotes:[]}),/disk full/);assert.equal(f.get().quotes.length,1)});
+test('legacy imports without a before snapshot explain the limit without deleting records',async()=>{const f=fixture();await assert.rejects(f.api.plan(),/未保存恢复点/);assert.equal(f.get().quotes.length,1)});
+test('automatic quality archival does not make the last import impossible to undo',async()=>{const f=fixture(),before=clone(f.get());await f.api.beforeImport(before);const after={...before,importExceptions:[{date:'2026-11-16',status:'pending',reason:'date',raw:'{}'}]};await f.api.willCommit(after);f.set({...after,quoteDataQuality:{providers:[]},importExceptions:[{...after.importExceptions[0],status:'ignored',decision:{qualityRule:'v1',at:'now',action:'ignore',actor:'自动资料质量检查'}}]});await f.api.undo((await f.api.plan()).id);assert.deepEqual(f.get(),before)});
+
+test('shipped import pipeline checkpoints a real replacement and IndexedDB undo restores prior regional rows',async()=>{
+ const {openRuntime}=require('./runtime-test-helper.cjs'),e=await openRuntime('import','operate',false,{today:'2026-11-16'});const {w,doc}=e;
+ try{await e.wait(()=>w.ImportRecovery&&w.ComparisonStore);w.WorkspaceSnapshot.recoveryJobs=async()=>[];
+ const c=w.Companies.ensure('合成撤销物流'),base={...w.QuoteCore.normalize([c.name,'英国','空运','BHX1','10','CNY','kg',10,20,'2026-11-16','普货']),companyId:c.id,regionRaw:'英国一区'};delete base.warehouse;
+ w.ComparisonStore.commit({quotes:[],regionalQuotes:[base],templates:[]});await w.LocalQuoteStore.flush();await w.WorkspaceQuality.run();const before=JSON.stringify(w.ComparisonStore.read());
+ w.dispatchEvent(new w.CustomEvent('matrix-batch-ready',{detail:{fileName:'synthetic-only.xlsx',records:[],regionalRecords:[{...base,price:2222}],rejectedRecords:[]}}));
+ await e.wait(()=>!doc.getElementById('commit').disabled);await doc.getElementById('commit').onclick();await w.LocalQuoteStore.flush();assert.equal(w.ComparisonStore.read().regionalQuotes[0].price,2222);
+ const plan=await w.ImportRecovery.plan();await w.ImportRecovery.undo(plan.id);assert.equal(JSON.stringify(w.ComparisonStore.read()),before);assert.equal(e.errors.length,0);
+ }finally{e.close()}
+});

@@ -2,6 +2,9 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const base=path.resolve(__dirname,'..'),lock=JSON.parse(fs.readFileSync(path.join(base,'default-rule-lock.json'),'utf8'));
 function mismatches(read){return Object.entries(lock.files).filter(([file,expected])=>crypto.createHash('sha256').update(read(file).replace(/\r\n/g,'\n'),'utf8').digest('hex')!==expected).map(([file])=>file);}
 const hooks=[
+ ["/* import-undo-async-approved */async",''],
+ ["/* import-undo-before-approved */if(window.ImportRecovery){const importSource=JSON.stringify([pending,pendingRegions,pendingExceptions]);await window.ImportRecovery.beforeImport(db);if(importSource!==JSON.stringify([pending,pendingRegions,pendingExceptions]))throw Error('导入预览已变化，请重新确认');}",''],
+ ["/* import-undo-commit-approved */if(window.ImportRecovery){const importCommitSource=JSON.stringify([pending,pendingRegions,pendingExceptions]);await window.ImportRecovery.willCommit(result.db);if(importCommitSource!==JSON.stringify([pending,pendingRegions,pendingExceptions]))throw Error('导入预览已变化，未写入报价，请重新确认');}",''],
  ["/* display-business-date-approved */window.DisplayBusinessDate?.day(d,new URLSearchParams(location.search).get('audience'))||",''],
  ["/* weekly-carryover-message-approved */if(window.WeeklyCarryover&&WeeklyCarryover.effective(db,today()).carriedQuotes.length)$('weekWarning').textContent=WeeklyCarryover.message(db,today());",''],
  ["/* weekly-carryover-count-approved */(window.WeeklyCarryover?WeeklyCarryover.effective(db,today()).currentQuoteCount:current.length)","current.length"],

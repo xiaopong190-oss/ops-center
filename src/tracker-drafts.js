@@ -58,32 +58,35 @@ export function applyTrackerOperations(original,operations,user={},options={}){
   return {docs:visible,patch,events,result};
 }
 
-export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=()=>{}}){
-  let pending=[],userId='',error='',saving=false,confirmed='',chain=Promise.resolve();
+export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=()=>{},audit=async()=>{}}){
+  let pending=[],userId='',error='',saving=false,confirmed='',cloudOnly=false,lastReceipt=null,chain=Promise.resolve();
   const listeners=new Set();
   const uncommitted=operations=>{const ids=new Set(cloud._snapshot()?.data.events.map(event=>event.id)||[]);return operations.filter(operation=>!ids.has(operation.id));};
-  const visible=()=>applyTrackerOperations(cloud._dump(),uncommitted(pending),context().user,{allowListConflict:true}).docs;
+  const visible=()=>cloudOnly?cloud._dump():applyTrackerOperations(cloud._dump(),uncommitted(pending),context().user,{allowListConflict:true}).docs;
   const status=()=>{const snapshot=cloud._snapshot();onState({isDirty:pending.length>0,saving,error,meta:snapshot?{updatedBy:snapshot.updatedBy,updatedAt:snapshot.updatedAt,revision:snapshot.revision}:null,
     barHint:confirmed|| (context().autoShare?'已开启自动分享 · 修改按字段合并 · 操作历史保留':'沿用个人暂存 · 点「保存并上传」后共享给全员'),
-    dirtyHint:pending.length+' 项修改已保存在本账号，尚未上传'});};
+    dirtyHint:pending.length+' 项修改已保存在本账号，尚未上传',cloudOnly,lastReceipt,pendingCount:pending.length,linkCount:Object.keys(cloud._dump()).filter(key=>key.startsWith('links/')).length});};
   const emit=()=>{for(const listener of listeners)listener();status();};
   const serialized=task=>{const result=chain.catch(()=>{}).then(task);chain=result;return result;};
   for(const name of ['links','ships','perf'])cloud.collection(name).onSnapshot(()=>{try{emit();}catch{status();}});
   const requireUser=()=>{
-    const c=context();if(!c.canEdit||!c.user?.id||c.user.id==='guest'||userId!==c.user.id)throw Error('当前用户没有编辑权限或数据尚未就绪');return c.user.id;
+    const c=context();if(cloudOnly)throw Error('当前为会议云端核对模式，请返回编辑后修改');if(!c.canEdit||!c.user?.id||c.user.id==='guest'||userId!==c.user.id)throw Error('当前用户没有编辑权限或数据尚未就绪');return c.user.id;
   };
   const flush=async()=>{
     const identity=requireUser();
-    if(!pending.length)return true;
+    if(!pending.length){await audit('no_pending_changes');await cloud.refresh();error='';confirmed='没有待上传修改 · 已读取云端 V'+cloud._snapshot().revision;emit();return confirmed;}
     const batch=structuredClone(pending),ids=new Set(batch.map(operation=>operation.id));
     saving=true;error='';confirmed='';status();
     try{
-      await cloud._commit(batch);
+      await audit('upload_started',{operations:batch.length,operationIds:[...ids]});
+      const receipt=await cloud._commit(batch);
       if(context().user?.id!==identity)throw Error('帐号已变化；请回原帐号核对上传状态');
       const remaining=pending.filter(operation=>!ids.has(operation.id));
       await store.save(identity,remaining);
-      pending=remaining;confirmed='上传成功 · 云端已确认 · '+new Date().toLocaleTimeString();emit();return true;
-    }catch(failure){error='上传未确认：'+failure.message+'；'+pending.length+' 项修改仍保存在本账号本机草稿，请重试上传';status();throw failure;}
+      try{await audit('upload_success',{savedRevision:receipt.savedRevision,readRevision:receipt.revision,verifiedAt:receipt.verifiedAt,operations:receipt.operations});}
+      catch(logFailure){await store.save(identity,pending);throw logFailure;}
+      pending=remaining;lastReceipt=receipt;confirmed='上传成功 · 云端回读已核验 V'+receipt.savedRevision+' · '+new Date(receipt.verifiedAt).toLocaleTimeString();emit();return confirmed;
+    }catch(failure){try{await audit('upload_failed',{status:failure.status||null,message:failure.message,remaining:pending.length});}catch{}error='上传未确认：'+failure.message+'；'+pending.length+' 项修改仍保存在本账号本机草稿，请重试上传';status();throw failure;}
     finally{saving=false;status();}
   };
   const stage=(type,path,value)=>serialized(async()=>{
@@ -96,10 +99,11 @@ export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=
     pending=next;error='';confirmed='';emit();
     if(context().autoShare)await flush();
     return applied.result;
-  });
+  }).catch(failure=>{error=failure.message;emit();throw failure;});
   const watch=listener=>{listeners.add(listener);queueMicrotask(listener);return()=>listeners.delete(listener);};
   return {
     save:()=>serialized(flush),
+    setCloudOnly:value=>serialized(async()=>{const identity=context().user?.id;await cloud.refresh();if(context().user?.id!==identity)throw Error('登录身份已变化，请重新核对');cloudOnly=!!value;error='';emit();return {revision:cloud._snapshot().revision,cloudOnly};}),
     refresh:options=>serialized(async()=>{
       const identity=context().user?.id;
       if(identity!==userId){
@@ -115,9 +119,9 @@ export function createTrackerDraftDb({context,cloud,store,onState=()=>{},notify=
       const committed=new Set(cloud._snapshot()?.data.events.map(event=>event.id)||[]);
       const remaining=pending.filter(operation=>!committed.has(operation.id));
       if(remaining.length!==pending.length){await store.save(identity,remaining);pending=remaining;}
-      emit();if(context().autoShare&&pending.length&&!error)await flush();
+      emit();if(context().autoShare&&pending.length&&!error&&!cloudOnly)await flush();
     }),
-    clear(){userId='';pending=[];error='';confirmed='';cloud.clear();emit();},
+    clear(){userId='';pending=[];error='';confirmed='';cloudOnly=false;lastReceipt=null;cloud.clear();emit();},
     _dump:visible,_snapshot:cloud._snapshot,
     _load:input=>stage('import','',input).then(result=>notify('已合并补充 '+result.added+' 条；已有 '+result.skipped+' 条保持原样')),
     collection:name=>({onSnapshot:callback=>watch(()=>callback({docs:Object.entries(visible()).filter(([key])=>key.startsWith(name+'/')).map(([key,row])=>({id:key.slice(name.length+1),exists:true,data:()=>structuredClone(row)}))}))}),

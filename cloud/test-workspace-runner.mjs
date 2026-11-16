@@ -13,7 +13,7 @@ import {publishWorkspace,decryptWorkspace,displayData} from './logistics-workspa
 import Delta from '../tools/logistics-workspace/record-delta.js';
 import {assembleShards} from './workspace-shards.mjs';
 import {logisticsWorkspace} from './logistics-workspace.mjs';
-import {logisticsQuery} from './logistics-query-store.mjs';
+import {logisticsQuery,businessDay} from './logistics-query-store.mjs';
 import {verifyQueryRead} from '../deploy/publish-query-projection.mjs';
 const sha=b=>createHash('sha256').update(b).digest('hex'),root='data/logistics/workspace-snapshot.enc.json';
 function fixture(){
@@ -50,7 +50,7 @@ function fixture(){
  const prepare=async(data,baseSha=null,baseContentHash=null)=>{const bytes=Buffer.isBuffer(data)?data:Buffer.from(JSON.stringify(data)),parts=[];for(let i=0;i<bytes.length;i+=128*1024)parts.push(sha(bytes.subarray(i,i+128*1024)));await upload({action:'start',bytes:bytes.length,sha256:sha(bytes),parts,baseSha,baseContentHash});for(let i=0;i<parts.length;i++)await upload({action:'part',index:i,encoding:'gzip',content:gzipSync(bytes.subarray(i*128*1024,(i+1)*128*1024)).toString('base64')});return {parts,bytes}};
  return {sql,env,files,blobs,send,github,cloud,upload,prepare,id,jobKey,ticket:()=>ticket,dispatches:()=>dispatches,rootWrites:()=>rootWrites,largestRequest:()=>largestRequest,largestPart:()=>largestPart,loseRef:()=>{loseRef=true},corruptBlob:()=>{corruptBlob=true}};
 }
-const row=i=>({companyId:'c',company:'合成物流',country:'美国',warehouse:'ONT8',channel:'海运',price:1000+i,currency:'CNY',unit:'kg',min:10,max:20,date:new Date().toISOString().slice(0,10),terms:'普货',source:'synthetic-'+i});
+const row=i=>({companyId:'c',company:'合成物流',country:'美国',warehouse:'ONT8',channel:'海运',price:1000+i,currency:'CNY',unit:'kg',min:10,max:20,date:businessDay(),terms:'普货',source:'synthetic-'+i});
 const snapshot=()=>({space:'real',storage:{'logistics-company-directory-v1':[{id:'c',name:'合成物流',aliases:[]}],'logistics-quotes-v1':{quotes:[row(0)],templates:[]},'logistics-monthly-bills-v1':{rows:[],aliases:{}},'logistics-completed-ratings-v1':[]}});
 
 test('publication confirms only after the shared online index is activated and two readers share its version',async()=>{
@@ -67,7 +67,10 @@ test('publication confirms only after the shared online index is activated and t
   assert.equal((await (await audit('query-status')).json()).ready,true);
   const checked=await verifyQueryRead(async query=>(await audit('query-read?'+query)).json());assert.equal(checked.sourceSha,receipt.receipt.sha);assert.equal(checked.firstRows,1);
   const nextDay=new Date(Date.now()+86400000);
-  assert.equal((await (await logisticsQuery(new Request('https://worker/api/logistics-query'),f.env,{id:'next-day'},nextDay)).json()).total,1);
+  const tomorrow=await (await logisticsQuery(new Request('https://worker/api/logistics-query'),f.env,{id:'next-day'},nextDay)).json();
+  // A Sunday quote belongs to the previous week on Monday; no carryover was approved in this fixture.
+  const monday=new Date(businessDay(nextDay)+'T12:00:00Z').getUTCDay()===1;
+  assert.equal(tomorrow.day,businessDay(nextDay));assert.equal(tomorrow.total,monday?0:1);
  }finally{f.sql.close()}
 });
 

@@ -22,14 +22,14 @@ export function NewProductFollowupPanel({ active }) {
     onSyncState:setSyncState,
   };
   useEffect(()=>{
-    const update=event=>setUploadProgress(event.detail);
+    const update=event=>{setUploadProgress(event.detail);frame.current?.contentWindow?.recordOpsFollowupUploadProgress?.(event.detail)?.catch?.(error=>setSyncState(current=>({...current,error:error.message})));};
     window.addEventListener('ops-followup-upload-progress',update);
     return()=>window.removeEventListener('ops-followup-upload-progress',update);
   },[]);
   useCloudSyncPage(active,{
     ...syncState,label:'新品跟进',hideHint:false,
     isDirty:syncState.isDirty,
-    barHint:syncState.saving&&uploadProgress?(uploadProgress.phase==='verifying'?'全部分片已收齐，正在校验并提交…':'正在上传 · 已完成 '+uploadProgress.completed+'／'+uploadProgress.total+'片'):syncState.barHint,
+    barHint:syncState.saving&&uploadProgress?(uploadProgress.phase==='complete'?'已收到提交回执，正在独立回读核对…':uploadProgress.phase==='verifying'?'全部分片已收齐，正在校验并提交…':'正在上传 · 已完成 '+uploadProgress.completed+'／'+uploadProgress.total+'片'):syncState.barHint,
     saveLabel:uploadProgress?.phase==='paused'?'继续上传':undefined,
     save:async()=>{
       const save=frame.current?.contentWindow?.saveOpsFollowup;if(!save)throw Error('新品页面尚未就绪，请稍后重试');return await save();

@@ -45,7 +45,7 @@ async function uploadFollowupPayload(send,payload,progress=()=>{},scope='') {
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),45000);
     try {
-    const r=await fetch(requestBase+path,{signal:controller.signal,method:method||(data?'POST':'GET'),headers:{'Content-Type':'application/json',...(token()?{Authorization:'Bearer '+token()}:{})},...(data?{body:JSON.stringify(data)}:{})});
+    const r=await fetch(requestBase+path,{signal:controller.signal,cache:'no-store',method:method||(data?'POST':'GET'),headers:{'Content-Type':'application/json',...(token()?{Authorization:'Bearer '+token()}:{})},...(data?{body:JSON.stringify(data)}:{})});
     const result=await r.json();if(!r.ok)throw Object.assign(Error(result.error||'云端请求失败'),{status:r.status});return result;
     } catch(error) {if(error.name==='AbortError')throw Error('连接超时，请检查网络后重试');throw error;} finally {clearTimeout(timer);}
   }

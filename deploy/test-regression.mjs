@@ -72,6 +72,8 @@ const suites=[
   'deploy/test-tracker.mjs',
   'deploy/test-followup-chunks.mjs',
   'deploy/test-followup-save-integrity.mjs',
+  'deploy/test-followup-cross-device.mjs',
+  'deploy/test-followup-upload-journal.mjs',
   'deploy/test-tracker-all-inputs.mjs',
   'deploy/test-tracker-import-id.mjs',
   'deploy/test-followup-idb-accounts.mjs',

@@ -1,7 +1,7 @@
 {
-  "version": "2026.11.03.2",
-  "tag": "ops-v2026.11.03.2",
-  "description": "航序V1.0.71：导入恢复点与撤销、核验后台取消后返回录入、中文分块恢复包修复",
+  "version": "2026.11.14.1",
+  "tag": "ops-v2026.11.14.1",
+  "description": "新品上传独立云端回读确认、持久上传日志、会议版本核对与草稿隔离显示；航序V1.0.71导入撤销、可靠取消和中文恢复包修复",
   "workerVersionId": "eb0032c4-6848-4dd6-b632-bb5db6741a5e",
   "workerSourceCommit": "2a3bb9b6397d566aeab0f9407cfdea8156a378be",
   "workerSourceTag": "hangxu-v1.0.70-worker",

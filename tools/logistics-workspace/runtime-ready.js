@@ -25,7 +25,7 @@ status();localText();
 
 if(!view&&document.getElementById('importPanel')){
  const actions=document.createElement('section'),undo=document.createElement('button'),feedback=document.createElement('p');
- actions.id='import-undo-actions';undo.type='button';undo.textContent='撤销最近一次导入';feedback.id='import-undo-feedback';feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');undo.setAttribute('aria-describedby',feedback.id);actions.append(undo,feedback);document.getElementById('importPanel').before(actions);
+ actions.id='import-undo-actions';undo.type='button';undo.textContent='撤销最近一次导入';feedback.id='import-undo-feedback';feedback.textContent='撤销检查已就绪。点击后会在此显示检查结果；旧批次无导入前备份时不能自动恢复。';feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');undo.setAttribute('aria-describedby',feedback.id);actions.append(undo,feedback);document.getElementById('importPanel').before(actions);
  undo.onclick=async()=>{
   undo.disabled=true;undo.textContent='正在检查恢复点…';feedback.textContent='正在读取导入前备份，请稍候；尚未修改报价。';
   let timer;

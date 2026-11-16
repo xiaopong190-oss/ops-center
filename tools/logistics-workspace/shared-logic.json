@@ -17,7 +17,7 @@
     "import-resolution.js": "407de6177be37cdeaf51a5e7500e83e426d5e6b7da6508f38e63324bd2a7a2bb",
     "extensions/supplier-quote-batch.js": "90228b39205626fc9773c97794a76d18ffdc546cf392892d1314840ceb162d1d",
     "extensions/provider-batch-replacement.js": "2e857cbcc1e9d0fcc4b801709f83ac8d6a0aa8aa2038597e5710798d54a3e506",
-    "quotes.js": "45baeb7f8aaa6a34017c8107de2f99660693b100f888e8792a8621fdaf1d3089",
+    "quotes.js": "d83e9c78581f3da780126b3e67a27c03597c64080c3d4ca9b4cd8421b95330e3",
     "comparison-ui.js": "9ca50c37db3c8d6ea74f6e4ca9d515f551a98cf47d4b668871f4bf4b28bf4312",
     "scenario-rating.js": "3de8ef7552d6a68ba202fdbc4105504a1192a7b8705baf319c94a9f46d88e197",
     "vendor/jszip.min.js": "acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e",

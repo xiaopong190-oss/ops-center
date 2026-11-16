@@ -42,7 +42,7 @@ function createController({send=fetch,outboxOptions,interval=5000}={}){
    if(input.action==='continue'){store();pump().catch(()=>{});return json(200,{ok:true});}
    if(input.action==='cancel'){
     const k=session.owner+':'+input.id;if(running.has(k))return json(409,{error:'本机正在同步此任务，请稍后再次取消；尚未确认取消'});running.add(k);
-    try{await cloud(session.token,{action:'publication-cancel',id:input.id});const value=store().mark(session.owner,input.id,'CANCELLED');return json(200,{ok:true,state:value.state});}finally{running.delete(k)}
+    try{const cancelled=await cloud(session.token,{action:'publication-cancel',id:input.id});if(cancelled.job?.state!=='CANCELLED')fail(502,'尚未取得取消回执，原任务保留');const existing=store().load(session.owner,input.id);const value=existing?store().mark(session.owner,input.id,'CANCELLED'):{state:'CANCELLED'};return json(200,{ok:true,state:value.state});}finally{running.delete(k)}
    }
    if(input.action==='load'){const values=store().list(session.owner),value=values.find(v=>!terminal.has(v.state)||(['SUCCEEDED','ARCHIVED'].includes(v.state)&&input.pendingBatchIds?.includes(v.task.batchId)));let task=value?.task;if(task){task={...task,raw:task.raw||task.transport};if(task.batchId)task.batch=JSON.parse(task.transport);}return json(200,{ok:true,task:task||null,ownerScope:session.owner});}
    if(input.action==='list')return json(200,{ok:true,jobs:store().list(session.owner).map(v=>({id:v.task.operationId,state:v.state,confirmedAt:v.task.confirmedAt,receipt:v.receipt||null,contentHash:v.contentHash}))});

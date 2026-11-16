@@ -20,3 +20,5 @@ test('shipped import pipeline checkpoints a real replacement and IndexedDB undo 
  const plan=await w.ImportRecovery.plan();await w.ImportRecovery.undo(plan.id);assert.equal(JSON.stringify(w.ComparisonStore.read()),before);assert.equal(e.errors.length,0);
  }finally{e.close()}
 });
+
+test('legacy undo click immediately shows progress and keeps missing-backup error beside the button',async()=>{const {openRuntime}=require('./runtime-test-helper.cjs'),e=await openRuntime('import','operate',false,{today:'2026-11-16'});try{await e.wait(()=>e.doc.querySelector('#import-undo-actions button'));const button=e.doc.querySelector('#import-undo-actions button');const running=button.onclick();assert.equal(button.disabled,true);assert.match(e.doc.getElementById('import-undo-feedback').textContent,/正在读取/);await running;assert.equal(button.disabled,false);assert.match(e.doc.getElementById('import-undo-feedback').textContent,/未执行撤销.*未保存恢复点/);assert.equal(e.doc.getElementById('import-undo-feedback').getAttribute('role'),'alert');assert.equal(e.w.ComparisonStore.read().quotes.length,0);assert.equal(e.errors.length,0);}finally{e.close()}});

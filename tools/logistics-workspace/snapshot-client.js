@@ -203,6 +203,7 @@
   if(busy)throw Error('已停止等待，请待当前请求返回后再次取消；尚未确认后台取消');
   const session=await sessionKey();let pending=prepared||await root.WorkspaceUploadTasks?.load(session);if(!pending?.frozen&&location.hostname==='127.0.0.1'){const local=await localPublication({action:'load'});if(local.task?.frozen)pending=local.task;}
   if(pending?.operationId&&pending.frozen){
+   if(!pending.reliable)throw Error('此任务使用旧版发布协议，无法确认后台已撤销；原任务保留，请先核对结果');
    const result=location.hostname==='127.0.0.1'?await localPublication({action:'cancel',id:pending.operationId}):await request('',{action:'publication-cancel',id:pending.operationId});
    if((result.job?.state||result.state)!=='CANCELLED')throw Error('尚未核验取消回执，原任务保留');
   }

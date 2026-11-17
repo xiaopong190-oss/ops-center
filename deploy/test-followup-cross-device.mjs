@@ -12,12 +12,15 @@ function setup(){
  const env={DB:{prepare(text){let args=[];return {bind(...a){args=a;return this;},async first(){return sql.prepare(text).get(...args)||null;},async all(){return {results:sql.prepare(text).all(...args)};},async run(){return sql.prepare(text).run(...args);}};}}};
  const original={revision:1,data:{products:[],records:[],events:[],trackerV1:{docs:{'links/test':{sku:'TEST',owner:'A',content:{note:'original'}}}}}};
  sql.prepare('INSERT INTO records VALUES(?,?)').run(FOLLOWUP_KEY,JSON.stringify(original));
- let flag='',posts=0,afterPost=false,states=[],auditFailure='';const drafts=new Map();const who={id:'A',name:'A',canEdit:true};
+ let flag='',posts=0,afterPost=false,states=[],auditFailure='',temporaryReads=0;const drafts=new Map();const who={id:'A',name:'A',canEdit:true};
  const send=async(path,payload)=>{
   if(!payload&&afterPost){if(flag==='read-failed')throw Object.assign(Error('synthetic offline read'),{status:503,uploadPaused:true});if(['stale-read','ack-only'].includes(flag))return structuredClone(original);}
+  if(!payload&&afterPost&&flag==='temporary-read'&&temporaryReads++<2)throw new TypeError('Failed to fetch');
+  if(payload&&flag==='offline-before-commit'){posts++;throw Object.assign(new TypeError('Failed to fetch'),{uploadPaused:true});}
   if(payload){posts++;afterPost=true;if(flag==='ack-only')return {revision:2,data:structuredClone(payload.data)};}
   const response=await followup(new Request('https://synthetic.invalid'+path,payload?{method:'POST',body:JSON.stringify(payload)}:{}),env,who),value=await response.json();
   if(payload&&flag==='bad-ack')value.data.trackerV1.docs['links/test'].content.note='wrong';
+  if(payload&&flag==='commit-ack-lost')throw Object.assign(new TypeError('Failed to fetch'),{uploadPaused:true});
   if(!payload&&afterPost&&flag==='same-version-wrong-content')value.data.trackerV1.docs['links/test'].content.note='wrong';
   return value;
  };
@@ -36,6 +39,8 @@ await test('independent reader sees exact confirmed data and cloud mode excludes
  }finally{t.sql.close();}
 });
 await test('empty save reports no upload, still requires a fresh successful read',async()=>{const t=setup();try{const a=t.make();await a.db.refresh();assert.match(await a.db.save(),/没有待上传修改/);assert.equal(t.posts(),0);}finally{t.sql.close();}});
+for(const flag of ['temporary-read','commit-ack-lost'])await test('final step recovers without repeating upload: '+flag,async()=>{const t=setup();try{const a=t.make();await a.db.refresh();await a.db.doc('links/test').update({content:{note:'must survive final network interruption'}});t.setFlag(flag);assert.match(await a.db.save(),/回读已核验/);assert.equal(t.posts(),1);assert.equal(t.drafts.get('A').length,0);assert.equal((await readFollowup(t.env)).snapshot.data.trackerV1.docs['links/test'].content.note,'must survive final network interruption');}finally{t.sql.close();}});
+await test('network failure before commit retains every pending operation and never claims success',async()=>{const t=setup();try{const a=t.make();await a.db.refresh();for(let i=0;i<31;i++)await a.db.doc('links/test').update({content:{note:'pending '+i}});t.setFlag('offline-before-commit');await assert.rejects(a.db.save(),/最后提交未能核对成功/);assert.equal(t.posts(),1);assert.equal(t.drafts.get('A').length,31);assert.equal(t.states().at(-1).lastReceipt,null);assert.equal((await readFollowup(t.env)).snapshot.revision,1);t.setFlag('');await a.db.save();assert.equal(t.drafts.get('A').length,0);assert.equal((await readFollowup(t.env)).snapshot.data.trackerV1.docs['links/test'].content.note,'pending 30');}finally{t.sql.close();}});
 for(const stage of ['upload_started','readback_verified','upload_success'])await test('journal storage failure cannot claim success: '+stage,async()=>{const t=setup();try{const a=t.make();await a.db.refresh();await a.db.doc('links/test').update({content:{note:'journal required'}});t.setAuditFailure(stage);await assert.rejects(a.db.save(),/journal/);assert.equal(t.drafts.get('A').length,1);assert.equal(t.states().at(-1).lastReceipt,null);t.setAuditFailure('');await a.db.save();assert.equal(t.drafts.get('A').length,0);assert.equal(t.posts(),1);}finally{t.sql.close();}});
 await test('focused input uploaded before blur; meeting clears filters; minimum version mismatch visible',async()=>{
  const t=await mount();try{

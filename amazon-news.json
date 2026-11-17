@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-11-16T04:49:43.305Z",
+  "updatedAt": "2026-11-17T06:37:49.444Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
+      "title": "Inside Amazon’s new Tokyo office with views of Japan's iconic Tokyo Tower",
+      "link": "https://www.aboutamazon.com/news/amazon-offices/amazon-tokyo-office-photos?utm_source=rss",
+      "pubDate": "Tue, 17 Nov 2026 06:00:00 GMT",
+      "date": "11/17",
+      "summary": "Amazon's new home in Japan draws on the four seasons, garden traditions, and washi walls hand-dyed by employees.",
+      "category": "Amazon offices"
+    },
+    {
       "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
       "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Fri, 13 Nov 2026 16:51:00 GMT",
-      "date": "11/13",
+      "pubDate": "Mon, 16 Nov 2026 22:02:00 GMT",
+      "date": "11/16",
       "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
       "category": "AWS"
     },
     {
-      "title": "How Amazon is building an internet network 400 miles above Earth",
-      "link": "https://www.aboutamazon.com/stories/how-amazon-leo-satellite-internet-works?utm_source=rss",
-      "pubDate": "Thu, 12 Nov 2026 16:07:17 GMT",
-      "date": "11/12",
-      "summary": "See how Amazon's growing constellation of custom-built satellites will work together to bring internet connectivity anywhere on the planet.",
-      "category": "Amazon Leo"
-    },
-    {
-      "title": "Amazon in the community: Service, community, and commitment at HQ2",
-      "link": "https://www.aboutamazon.com/news/community/amazon-arlington-virginia-news?utm_source=rss",
-      "pubDate": "Thu, 12 Nov 2026 14:53:00 GMT",
-      "date": "11/12",
-      "summary": "Learn how we invest in the community, help power the local economy, and support our employees in the National Capital Region.",
-      "category": "Community"
+      "title": "Watch the teaser trailer for ‘Beast Games’ Season 3, coming to Prime Video December 16",
+      "link": "https://www.aboutamazon.com/news/entertainment/mr-beast-prime-video-beast-games-season-three?utm_source=rss",
+      "pubDate": "Mon, 16 Nov 2026 17:47:38 GMT",
+      "date": "11/16",
+      "summary": "MrBeast's competition series goes global, with competitors from 196 nations battling for $5 million.",
+      "category": "Entertainment"
     }
   ]
 }

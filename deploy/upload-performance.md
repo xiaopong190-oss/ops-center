@@ -8,6 +8,8 @@ Source trace: local durable outbox -> Worker upload admission -> GitHub runner -
 
 The runner staged independent immutable index batches serially, then read every query page serially. New work is bounded at four concurrent requests. Readback pages remain ordered before hashing. Checkpoint writes remain serial and occur only after a complete read window drains, preserving the existing lease fence. Activation follows all successful stage writes; any failure drains in-flight work and prevents activation. GitHub writes, root compare-and-swap, ciphertext verification, original dates, confirmation ordering and final success requirements remain unchanged.
 
+Transient HTTP 408/429 responses retain the same task/version and retry within the existing attempt limits, honoring numeric Retry-After up to 60 seconds. Permanent validation/permission failures still stop. Tests cover rate-limited index requests and a rate-limited runner request without a duplicate business commit.
+
 Stage-only timing records contain a fixed stage name and elapsed milliseconds, never supplier names, task IDs, rows, prices or credentials. They distinguish prepare, query preflight, sealing/storage, Git commit, index build, exact readback and receipt for future real runs.
 
 Synthetic benchmark: 1224 quotations, fixed 40ms simulated request latency, identical manifest and content proof. Index build: serial 3784ms, bounded parallel 1926ms (55 requests both). Exact readback: serial 3543ms, bounded parallel 2811ms (30 reads both); serial durable checkpoints are retained. These are synthetic measurements, not a promise about production completion time.

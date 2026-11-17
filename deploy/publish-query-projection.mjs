@@ -53,14 +53,14 @@ export async function publishQueryProjection(snapshot,sourceSha,savedAt,send,now
   const encoded=body.items?{...body,items:body.items.map(item=>({part:item.part,hash:item.hash,packed:gzipSync(Buffer.from(JSON.stringify(item.value))).toString('base64')}))}:body;
   const packed=gzipSync(Buffer.from(JSON.stringify({...base,...encoded})));
   if(packed.length>512*1024){if(body.items?.length>1){const middle=Math.ceil(body.items.length/2);await request({...body,items:body.items.slice(0,middle)});return request({...body,items:body.items.slice(middle)});}throw Error('QUERY_UPLOAD_TOO_LARGE');}
-  let last;
+  let last,retryAfter=0;
   for(let attempt=0;attempt<3;attempt++){
    try{
     const response=await send({method:'POST',headers:{'Content-Type':'application/json','Content-Encoding':'gzip'},body:packed});
     if(response.ok)return response.json();
-    last=response.status;if(last<500&&last!==409)break;
+    last=response.status;retryAfter=Math.min(60000,Math.max(0,Number(response.headers.get('Retry-After'))||0)*1000);if(last<500&&![408,409,429].includes(last))break;
    }catch{last='NETWORK';}
-   if(attempt<2)await new Promise(resolve=>setTimeout(resolve,250*(attempt+1)));
+   if(attempt<2)await new Promise(resolve=>setTimeout(resolve,Math.max(250*(attempt+1),retryAfter)));
   }
   throw Error('QUERY_BUILD_HTTP_'+last);
  }

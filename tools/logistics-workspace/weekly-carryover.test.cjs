@@ -27,7 +27,7 @@ test('the import page blocks carry only while a file preview is pending',async()
  assert(doc.documentElement.hasAttribute('data-hangxu-dirty'));
  button.click();assert.equal(dialog.open,false);
  doc.getElementById('commit').disabled=false;
- doc.getElementById('commit').onclick=()=>{doc.getElementById('commit').disabled=true};
+ doc.getElementById('commit').onclick=()=>{doc.getElementById('commit').disabled=true;doc.getElementById('message').textContent='已保存到本机待提交：合成测试保存完成'};
  doc.getElementById('commit').click();
  await e.wait(()=>!doc.documentElement.hasAttribute('data-hangxu-dirty'));
  button.click();assert(dialog.open);assert.equal(file.files.length,1);

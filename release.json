@@ -1,11 +1,11 @@
 {
   "version": "2026.11.14.1",
   "tag": "ops-v2026.11.14.1",
-  "description": "新品上传独立云端回读确认、持久上传日志、会议版本核对与草稿隔离显示；航序V1.0.71导入撤销、可靠取消和中文恢复包修复",
+  "description": "航序V1.0.72：导入进度与失败重试、异常重新校验、撤销恢复及明确选择服务商发布批次",
   "workerVersionId": "eb0032c4-6848-4dd6-b632-bb5db6741a5e",
   "workerSourceCommit": "2a3bb9b6397d566aeab0f9407cfdea8156a378be",
   "workerSourceTag": "hangxu-v1.0.70-worker",
   "databasePolicy": "Keep production quotations, accepted jobs, encrypted parts and receipts when rolling back application code",
-  "hangxuVersion": "1.0.71",
+  "hangxuVersion": "1.0.72",
   "logisticsPublicationProtocol": "reliable-publication-v2"
 }

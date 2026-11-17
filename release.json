@@ -1,7 +1,7 @@
 {
-  "version": "2026.11.14.1",
-  "tag": "ops-v2026.11.14.1",
-  "description": "航序V1.0.72：导入进度与失败重试、异常重新校验、撤销恢复及明确选择服务商发布批次",
+  "version": "2026.11.16.1",
+  "tag": "ops-v2026.11.16.1",
+  "description": "新品跟进最后提交网络中断恢复与独立回读重试；保留航序V1.0.72更新",
   "workerVersionId": "eb0032c4-6848-4dd6-b632-bb5db6741a5e",
   "workerSourceCommit": "2a3bb9b6397d566aeab0f9407cfdea8156a378be",
   "workerSourceTag": "hangxu-v1.0.70-worker",

@@ -92,10 +92,25 @@ export function createTrackerCloudDb({context, backup, notify, onError, audit=as
   const checkSnapshot=value=>{
     if(!value||!Number.isSafeInteger(value.revision)||value.revision<0||!value.data||!['products','records','events'].every(key=>Array.isArray(value.data[key])))throw Object.assign(Error('云端返回的数据不完整，未确认成功'),{status:502,uploadPaused:true});
   };
+  const readWithRetry=async(send,userId,phase)=>{
+    for(let attempt=1;attempt<=3;attempt++){
+      if(context().user?.id!==userId)throw Object.assign(Error('登录身份已变化，未确认上传'),{status:403,uploadPaused:true});
+      try{const read=await send('/ops-api/followup');checkSnapshot(read);return read;}
+      catch(error){
+        await audit('read_retry_failed',{phase,attempt,status:error.status||null,message:error.message});
+        if(attempt===3||(error.status&&error.status<500&&![408,429].includes(error.status)))throw Object.assign(Error((phase==='commit-recovery'?'提交结果核对':'云端独立回读')+'失败：'+error.message+'；仅保留草稿，未确认成功'),{status:error.status,uploadPaused:true});
+        await new Promise(resolve=>setTimeout(resolve,attempt*500));
+      }
+    }
+  };
+  const matchingEvents=(read,expected,userId)=>{
+    const events=new Map(read.data.events.map(event=>[event.id,event]));
+    return expected.length>0&&expected.every(event=>{const actual=events.get(event.id);return actual&&actual.actor_id===userId&&actual.after===event.after&&actual.before===event.before;});
+  };
   const confirm=async(send,saved,expectedEvents,userId)=>{
     checkSnapshot(saved);
     await audit('readback_started',{revision:saved.revision});
-    const read=await send('/ops-api/followup');
+    const read=await readWithRetry(send,userId,'independent-readback');
     checkSnapshot(read);
     if(context().user?.id!==userId)throw Error('登录身份已变化，未确认上传');
     if(read.revision<saved.revision||(read.revision===saved.revision&&stable(read.data)!==stable(saved.data)))throw Object.assign(Error('云端回读版本或内容不一致，草稿保留，请重试核对'),{status:502,uploadPaused:true});
@@ -139,12 +154,20 @@ export function createTrackerCloudDb({context, backup, notify, onError, audit=as
           before:JSON.stringify(Object.fromEntries(Object.keys(changed.patch).map(k => [k,visible[k] ?? null]))),after:JSON.stringify(changed.patch)});
         {
           await audit('submit_started',{baseRevision:current.revision,operations:changed.events?.length||1});
-          const saved = await send('/ops-api/followup',{revision:current.revision,data:next});
+          let saved,recovered=false;
+          try{saved=await send('/ops-api/followup',{revision:current.revision,data:next});}
+          catch(error){
+            if(/其它人员已更新/.test(error.message)||(error.status&&error.status<500&&![408,429].includes(error.status)))throw error;
+            await audit('submit_result_unknown',{baseRevision:current.revision,status:error.status||null,message:error.message});
+            const expected=changed.events||next.events.slice(0,1),read=await readWithRetry(send,userId,'commit-recovery');
+            if(read.revision<=current.revision||!matchingEvents(read,expected,userId))throw Object.assign(Error('最后提交未能核对成功：'+error.message+'；云端未确认本次操作，草稿保留，请重试'),{status:error.status,uploadPaused:true});
+            saved=read;recovered=true;await audit('submit_recovered',{revision:read.revision,operationIds:expected.map(event=>event.id)});
+          }
           checkSnapshot(saved);
           await audit('submit_acknowledged',{revision:saved.revision});
-          if(saved.revision!==current.revision+1)throw Object.assign(Error('云端提交版本未确认，草稿保留'),{status:502,uploadPaused:true});
+          if(!recovered&&saved.revision!==current.revision+1)throw Object.assign(Error('云端提交版本未确认，草稿保留'),{status:502,uploadPaused:true});
           const savedDocs=projectTracker(saved.data);
-          for(const [path,value] of Object.entries(changed.patch))if(stable(savedDocs[path]??null)!==stable(value))throw Object.assign(Error('云端提交内容与本次修改不一致，草稿保留'),{status:502,uploadPaused:true});
+          if(!recovered||saved.revision===current.revision+1)for(const [path,value] of Object.entries(changed.patch))if(stable(savedDocs[path]??null)!==stable(value))throw Object.assign(Error('云端提交内容与本次修改不一致，草稿保留'),{status:502,uploadPaused:true});
           const receipt=await confirm(send,saved,changed.events||next.events.slice(0,1),userId);
           return {...receipt,result:changed.result};
         }

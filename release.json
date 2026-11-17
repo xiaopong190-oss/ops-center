@@ -1,11 +1,11 @@
 {
   "version": "2026.11.16.1",
   "tag": "ops-v2026.11.16.1",
-  "description": "新品跟进最后提交网络中断恢复与独立回读重试；保留航序V1.0.72更新",
+  "description": "新品跟进最后提交网络中断恢复与独立回读重试；航序V1.0.73上传状态查询修复、索引与核验有限并行提速",
   "workerVersionId": "eb0032c4-6848-4dd6-b632-bb5db6741a5e",
   "workerSourceCommit": "2a3bb9b6397d566aeab0f9407cfdea8156a378be",
   "workerSourceTag": "hangxu-v1.0.70-worker",
   "databasePolicy": "Keep production quotations, accepted jobs, encrypted parts and receipts when rolling back application code",
-  "hangxuVersion": "1.0.72",
+  "hangxuVersion": "1.0.73",
   "logisticsPublicationProtocol": "reliable-publication-v2"
 }

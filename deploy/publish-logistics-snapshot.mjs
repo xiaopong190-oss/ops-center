@@ -15,9 +15,12 @@ const hash=b=>createHash('sha256').update(b).digest('hex');
 export const blobHash=b=>createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const failure=code=>Object.assign(Error(code),{code});
-export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
+export async function publishSnapshot({ticket,cloud,github,delay=sleep,report=()=>{}}){
  if(!/^[a-f0-9-]{36}$/i.test(ticket||''))throw failure('INVALID_TICKET');
- const request=async(path,options={})=>{let error;for(let i=0;i<4;i++){try{const r=await cloud(path,options);if(r.ok)return r;const code=r.status===409&&['previous','base','ready'].some(p=>path.startsWith(p))?'PUBLICATION_CONFLICT':'CLOUD_'+r.status;const problem=Object.assign(failure(code),{status:r.status,retryAfter:r.headers.get('Retry-After')});if(r.status<500)throw problem;error=problem}catch(e){error=e;if(e.status&&e.status<500&&![408,429].includes(e.status))throw e;if(e.code==='PUBLICATION_CONFLICT')throw e;if(e.code?.startsWith('CLOUD_')&&Number(e.code.slice(6))<500)throw e}await delay(250*(i+1))}throw error};
+ let stage='prepare',stageAt=performance.now();
+ const mark=next=>{if(stage){try{report({stage,ms:Math.round(performance.now()-stageAt)})}catch{}}stage=next;stageAt=performance.now();};
+ try{
+ const request=async(path,options={})=>{let error;for(let i=0;i<4;i++){try{const r=await cloud(path,options);if(r.ok)return r;const code=r.status===409&&['previous','base','ready'].some(p=>path.startsWith(p))?'PUBLICATION_CONFLICT':'CLOUD_'+r.status;const problem=Object.assign(failure(code),{status:r.status,retryAfter:r.headers.get('Retry-After')});if(r.status<500)throw problem;error=problem}catch(e){error=e;if(e.status&&e.status<500&&![408,429].includes(e.status))throw e;if(e.code==='PUBLICATION_CONFLICT')throw e;if(e.code?.startsWith('CLOUD_')&&Number(e.code.slice(6))<500&&![408,429].includes(e.status))throw e}await delay(Math.max(250*(i+1),Math.min(60000,Math.max(0,Number(error?.retryAfter)||0)*1000)))}throw error};
  const progress=async n=>request('progress',{method:'POST',headers:{'X-Workspace-Progress':String(n)}});
  const meta=await (await request('meta')).json();
  if(meta.terminal)return {terminal:true,state:meta.jobState,receipt:meta.receipt||null};
@@ -25,10 +28,11 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
  if(meta.reliable&&meta.resume){
   const base=await readPublicationBase(meta.resume.rootSha,request),relations=(await (await request('query-relations')).json()).items;
   await request('committed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rootSha:meta.resume.rootSha})});
-  await publishQueryProjection(base,meta.resume.rootSha,meta.resume.manifest.savedAt,options=>request('query-index',options),new Date(),relations,{resume:true});
+  mark('query-build');await publishQueryProjection(base,meta.resume.rootSha,meta.resume.manifest.savedAt,options=>request('query-index',options),new Date(),relations,{resume:true});
+  mark('query-verify');
   const evidence=await verifyPublicationProjection(base,relations,async query=>(await request('query-read?'+query)).json(),new Date(),{known:meta.queryPages,checkpoint:page=>request('query-page',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(page)})});
   await request('verified',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(evidence)});
-  return (await request('finish',{method:'POST'})).json();
+  mark('receipt');return await (await request('finish',{method:'POST'})).json();
  }
  if(!Number.isSafeInteger(meta.bytes)||meta.bytes<1||meta.bytes>max||!Array.isArray(meta.parts)||meta.parts.length!==Math.ceil(meta.bytes/(128*1024))||!/^[a-f0-9]{64}$/.test(meta.sha256)||!meta.parts.every(h=>/^[a-f0-9]{64}$/.test(h)))throw failure('INVALID_SOURCE_MANIFEST');
  const source=Buffer.alloc(meta.bytes);
@@ -67,14 +71,14 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
  }
  // Preserve the same full server-side business validation and display projection.
  let published;try{published=displayData(data)}catch{throw failure('BUSINESS_VALIDATION_FAILED')}const plain=Buffer.from(JSON.stringify(published));if(plain.length<1||plain.length>max)throw failure('SNAPSHOT_SIZE_INVALID');
- let projectionPlan;if(meta.reliable&&meta.onlineQuery){const relations=await (await request('query-relations')).json();try{projectionPlan=preflightPublicationQuery(published,relations.items)}catch{throw failure('QUERY_VALIDATION_FAILED')}}
+ mark('query-preflight');let projectionPlan;if(meta.reliable&&meta.onlineQuery){const relations=await (await request('query-relations')).json();try{projectionPlan=preflightPublicationQuery(published,relations.items)}catch{throw failure('QUERY_VALIDATION_FAILED')}}
  if(meta.reliable&&!scopedBase){publicationScopes=['__full-master__'];await request('scopes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scopes:publicationScopes})});}
  if(meta.reliable&&projectionPlan){const q=published.storage['logistics-quotes-v1'],scopeCounts=Object.fromEntries(publicationScopes.map(scope=>[scope,scope==='__full-master__'?projectionPlan.totalVisible:projectionPlan.scopeCounts[scope]||0]));await request('projection-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scopeCounts,hasIncomingQuotes:!!(q.quotes.length+(q.regionalQuotes||[]).length)})});}
  const incremental=await buildIncremental(published,meta.baseSha,request,meta.baseContentHash,scopedBase);
  const manifest={publicationSafety:'verified-base-v1',schemaVersion:2,storage:'encrypted-parts-v1',bytes:plain.length,hash:hash(plain),parts:[],operationId:meta.operationId,savedAt:new Date().toISOString()},entries=[];
  const fullParts=Math.ceil(plain.length/chunkSize),deltaParts=incremental?Math.ceil(incremental.bytes.length/chunkSize):0;
  if(incremental)manifest.incremental={baseHash:incremental.baseHash,bytes:incremental.bytes.length,hash:hash(incremental.bytes),parts:[]};
- for(let i=0;i<fullParts+deltaParts;i++){
+ mark('seal-and-store');for(let i=0;i<fullParts+deltaParts;i++){
   const delta=i>=fullParts,index=delta?i-fullParts:i,source=delta?incremental.bytes:plain;
   const bytes=source.subarray(index*chunkSize,Math.min((index+1)*chunkSize,source.length)),h=hash(bytes),packed=gzipSync(bytes);
   if(meta.reliable){const reused=await (await request('reuse/'+i,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hash:h,bytes:bytes.length})})).json();if(reused.reused){if(reused.hash!==h||reused.bytes!==bytes.length||!/^[a-f0-9]{40}$/.test(reused.blobSha||''))throw failure('RESTORED_PART_NOT_VERIFIED');entries.push({path:shardPrefix+h+'.enc.json',mode:'100644',type:'blob',sha:reused.blobSha});(delta?manifest.incremental.parts:manifest.parts).push(h);await progress(35+Math.floor((i+1)/(fullParts+deltaParts)*55));continue;}}
@@ -89,7 +93,7 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
   await request('verify/'+i,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:actual});
   entries.push({path:shardPrefix+h+'.enc.json',mode:'100644',type:'blob',sha:stored.sha});(delta?manifest.incremental.parts:manifest.parts).push(h);await progress(35+Math.floor((i+1)/(fullParts+deltaParts)*55));
  }
- await request('ready',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(manifest)});
+ mark('git-commit');await request('ready',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(manifest)});
  const rootBytes=Buffer.from(JSON.stringify(manifest)+'\n'),rootBlob=await github('git/blobs',{method:'POST',stage:'root-write',body:{encoding:'base64',content:rootBytes.toString('base64')}});if(rootBlob.sha!==blobHash(rootBytes))throw failure('ROOT_BLOB_MISMATCH');
  // A compare-and-swap branch update publishes all parts and the root together.
  // A competing publication may advance main, but never gets overwritten.
@@ -103,8 +107,10 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep}){
  }
  if(!committed)throw failure('BRANCH_CONFLICT');
  if(meta.reliable)await request('committed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rootSha:rootBlob.sha,commitSha:committedSha})});
- if(meta.onlineQuery){const relations=await (await request('query-relations')).json();await publishQueryProjection(published,rootBlob.sha,manifest.savedAt,options=>request('query-index',options),new Date(),relations.items,{resume:meta.reliable});if(meta.reliable){const evidence=await verifyPublicationProjection(published,relations.items,async query=>(await request('query-read?'+query)).json(),new Date(),{known:meta.queryPages,checkpoint:page=>request('query-page',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(page)})});await request('verified',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(evidence)});}}
+ if(meta.onlineQuery){mark('query-build');const relations=await (await request('query-relations')).json();await publishQueryProjection(published,rootBlob.sha,manifest.savedAt,options=>request('query-index',options),new Date(),relations.items,{resume:meta.reliable});if(meta.reliable){mark('query-verify');const evidence=await verifyPublicationProjection(published,relations.items,async query=>(await request('query-read?'+query)).json(),new Date(),{known:meta.queryPages,checkpoint:page=>request('query-page',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(page)})});await request('verified',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(evidence)});}}
+ mark('receipt');
  const receipt=await (await request('finish',{method:'POST'})).json();if(!receipt.receipt?.verified||receipt.receipt.contentHash!==meta.sha256)throw failure('RECEIPT_NOT_VERIFIED');return receipt;
+ }finally{mark(null)}
 }
 async function main(){
  const ticket=process.env.WORKSPACE_TICKET;if(!(['self-test','audit-read','query-rebuild'].includes(ticket)||/^[a-f0-9-]{36}$/i.test(ticket||''))||!process.env.GITHUB_TOKEN||!process.env.ACTIONS_ID_TOKEN_REQUEST_URL||!process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN)throw failure('WORKFLOW_ENV_MISSING');
@@ -135,6 +141,6 @@ async function main(){
   const packed=gzipSync(randomBytes(chunkSize));let ok=false;for(let i=0;i<4;i++){const r=await fetch(endpoint+'self-test',{method:'POST',headers:auth,body:packed,redirect:'error',signal:AbortSignal.timeout(30000)});if(r.ok){const result=await r.json();if(result.ok&&result.hash===hash(packed)&&result.bytes===packed.length){ok=true;break}}await sleep(1000)}if(!ok)throw failure('SELF_TEST_CPU_OR_CRYPTO_FAILED');console.log('Free Worker identity and 512 KiB high-entropy encryption roundtrip verified. No publication task or business data was accessed.');return;
  }
  const github=createGitHubClient({token:process.env.GITHUB_TOKEN});
- try{const result=await publishSnapshot({ticket,cloud,github});console.log(result.terminal?'Publication task ended: '+result.state:'Verified encrypted snapshot publication completed.')}catch(error){try{await cloud('failed',{method:'POST',headers:{'X-Workspace-Failure':/^[A-Z_0-9]{1,80}$/.test(error.code||'')?error.code:'RUNNER_FAILED',...(error.retryAfter?{'X-Workspace-Retry-After':String(error.retryAfter)}:{})}})}catch{}console.error('Snapshot publication failed: '+(/^[A-Z_0-9]+$/.test(error.code||'')?error.code:'VALIDATION_OR_PROCESSING'));process.exitCode=1}
+ try{const result=await publishSnapshot({ticket,cloud,github,report:entry=>console.log('Publication stage timing: '+JSON.stringify(entry))});console.log(result.terminal?'Publication task ended: '+result.state:'Verified encrypted snapshot publication completed.')}catch(error){try{await cloud('failed',{method:'POST',headers:{'X-Workspace-Failure':/^[A-Z_0-9]{1,80}$/.test(error.code||'')?error.code:'RUNNER_FAILED',...(error.retryAfter?{'X-Workspace-Retry-After':String(error.retryAfter)}:{})}})}catch{}console.error('Snapshot publication failed: '+(/^[A-Z_0-9]+$/.test(error.code||'')?error.code:'VALIDATION_OR_PROCESSING'));process.exitCode=1}
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(error=>{console.error('Snapshot publisher initialization failed: '+(/^[A-Z_0-9]+$/.test(error.code||'')?error.code:'INITIALIZATION'));process.exitCode=1});

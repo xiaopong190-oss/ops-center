@@ -3,6 +3,7 @@ import {gzipSync} from 'node:zlib';
 import {projectQuerySnapshot} from './query-projection.mjs';
 import {businessDay} from '../cloud/logistics-query-store.mjs';
 import Columns from '../tools/logistics-workspace/table-columns.js';
+import {mapPublicationWork} from './publication-parallel.mjs';
 
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export async function verifyQueryRead(read){
@@ -52,28 +53,29 @@ export async function publishQueryProjection(snapshot,sourceSha,savedAt,send,now
   const encoded=body.items?{...body,items:body.items.map(item=>({part:item.part,hash:item.hash,packed:gzipSync(Buffer.from(JSON.stringify(item.value))).toString('base64')}))}:body;
   const packed=gzipSync(Buffer.from(JSON.stringify({...base,...encoded})));
   if(packed.length>512*1024){if(body.items?.length>1){const middle=Math.ceil(body.items.length/2);await request({...body,items:body.items.slice(0,middle)});return request({...body,items:body.items.slice(middle)});}throw Error('QUERY_UPLOAD_TOO_LARGE');}
-  let last;
+  let last,retryAfter=0;
   for(let attempt=0;attempt<3;attempt++){
    try{
     const response=await send({method:'POST',headers:{'Content-Type':'application/json','Content-Encoding':'gzip'},body:packed});
     if(response.ok)return response.json();
-    last=response.status;if(last<500&&last!==409)break;
+    last=response.status;retryAfter=Math.min(60000,Math.max(0,Number(response.headers.get('Retry-After'))||0)*1000);if(last<500&&![408,409,429].includes(last))break;
    }catch{last='NETWORK';}
-   if(attempt<2)await new Promise(resolve=>setTimeout(resolve,250*(attempt+1)));
+   if(attempt<2)await new Promise(resolve=>setTimeout(resolve,Math.max(250*(attempt+1),retryAfter)));
   }
   throw Error('QUERY_BUILD_HTTP_'+last);
  }
- const known=new Set();
- if(options.resume)for(let i=0;i<items.length;i+=40){const part=items.slice(i,i+40),result=await request({action:'known',parts:part.map(item=>({part:item.part,hash:item.hash}))});if(!Array.isArray(result.known)||result.known.some(name=>!part.some(p=>p.part===name)))throw Error('QUERY_RESUME_NOT_VERIFIED');for(const name of result.known)known.add(name);}
- let batch=[],bytes=0;
+ const known=new Set(),concurrency=options.concurrency??4;
+ if(options.resume){const groups=[];for(let i=0;i<items.length;i+=40)groups.push(items.slice(i,i+40));await mapPublicationWork(groups,concurrency,async part=>{const result=await request({action:'known',parts:part.map(item=>({part:item.part,hash:item.hash}))});if(!Array.isArray(result.known)||result.known.some(name=>!part.some(p=>p.part===name)))throw Error('QUERY_RESUME_NOT_VERIFIED');for(const name of result.known)known.add(name);});}
+ const batches=[];let batch=[],bytes=0;
  for(const item of items){
   if(known.has(item.part))continue;
   const size=Buffer.byteLength(JSON.stringify(item));
   if(size>1500000)throw Error('QUERY_INDEX_TOO_LARGE');
-  if(batch.length&&(batch.length>=8||bytes+size>1500000)){await request({action:'stage',items:batch});batch=[];bytes=0;}
+  if(batch.length&&(batch.length>=8||bytes+size>1500000)){batches.push(batch);batch=[];bytes=0;}
   batch.push(item);bytes+=size;
  }
- if(batch.length)await request({action:'stage',items:batch});
+ if(batch.length)batches.push(batch);
+ await mapPublicationWork(batches,concurrency,items=>request({action:'stage',items}));
  const result=await request({action:'activate',manifest});
  if(!result.ok||result.version!==version||result.sourceSha!==sourceSha)throw Error('QUERY_ACTIVATION_NOT_VERIFIED');
  return {version,sourceSha,days:manifest.days,counts:manifest.counts,parts:items.length};

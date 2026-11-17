@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {projectQuerySnapshot} from './query-projection.mjs';
 import {businessDay} from '../cloud/logistics-query-store.mjs';
 import {gzipSync} from 'node:zlib';
+import {mapPublicationWork} from './publication-parallel.mjs';
 const canonical=x=>JSON.stringify(normalize(x));
 function normalize(x){if(Array.isArray(x))return x.map(normalize);if(x&&typeof x==='object')return Object.fromEntries(Object.keys(x).sort().map(k=>[k,normalize(x[k])]));return x;}
 const multiset=rows=>rows.map(canonical).sort();
@@ -25,14 +26,19 @@ export async function verifyPublicationProjection(snapshot,relations,read,now=ne
   const rows=view.pages.flat(),months=kind==='bills'?[...new Set(rows.map(r=>r.month))]:[null],actual=[];
   for(const month of months){
    const selected=month?rows.filter(r=>r.month===month):rows,pages=Math.max(1,Math.ceil(selected.length/100));
-   for(let page=0;page<pages;page++){
+   const concurrency=options.concurrency??4;
+   for(let start=0;start<pages;start+=concurrency){
+    const results=await mapPublicationWork(Array.from({length:Math.min(concurrency,pages-start)},(_,i)=>start+i),concurrency,async page=>{
     const expectedPage=selected.slice(page*100,(page+1)*100),pageKey=kind+'|'+(month||'')+'|'+page,hash=contentDigest(expectedPage),prior=known.get(pageKey);
-    if(prior?.hash===hash&&prior.rows===expectedPage.length){actual.push(...expectedPage);continue;}
+    if(prior?.hash===hash&&prior.rows===expectedPage.length)return {rows:expectedPage};
     const query=new URLSearchParams({kind,size:'100',page:String(page),version:meta.version});if(month)query.set('month',month);
     const result=await read(query.toString());
     if(result.version!==meta.version||result.sourceSha!==meta.sourceSha||result.total!==selected.length||contentDigest(result.rows)!==hash)throw Object.assign(Error('PUBLICATION_QUERY_CONTENT_MISMATCH'),{kind,page});
-    actual.push(...result.rows);
-    if(options.checkpoint)await options.checkpoint({version:meta.version,sourceSha:meta.sourceSha,pageKey,hash,rows:expectedPage.length});
+    return {rows:result.rows,checkpoint:{version:meta.version,sourceSha:meta.sourceSha,pageKey,hash,rows:expectedPage.length}};
+    });
+    // Checkpoints renew and fence the cloud lease. Keep those writes serial,
+    // after every read in the window settles, to preserve the existing fence.
+    for(const result of results){actual.push(...result.rows);if(options.checkpoint&&result.checkpoint)await options.checkpoint(result.checkpoint);}
    }
   }
   if(contentDigest(rows)!==contentDigest(actual))throw Object.assign(Error('PUBLICATION_QUERY_CONTENT_MISMATCH'),{kind,expected:rows.length,actual:actual.length});

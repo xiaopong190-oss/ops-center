@@ -85,3 +85,31 @@ test('stalled publication has a direct cancellation action and closes only after
 test('undo preview shows exact counts and errors stay inside the confirmation dialog',()=>{const e=open();try{e.status(counts);const send=data=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data}));send({type:'hangxu-import-undo-plan',plan:{id:'synthetic',at:'2026-11-16',before:{quotes:10,regional:1},after:{quotes:0,regional:20}}});assert.match(e.doc.querySelector('#dialogbody').textContent,/0 → 10/);e.doc.querySelector('#apply-import-undo').click();assert(e.doc.querySelector('#apply-import-undo').disabled);send({type:'hangxu-engine-status',ready:true,error:'后续数据已变化',counts});assert.equal(e.doc.querySelector('#recovery-error').textContent,'后续数据已变化');assert.equal(e.doc.querySelector('#apply-import-undo').disabled,false);}finally{e.dom.window.close()}});
 
 test('publication chooser labels old and new suppliers and selecting a batch sends only preview with its exact ID',()=>{const e=open();try{e.status(counts);const commands=[];e.frame().contentWindow.postMessage=m=>commands.push(m);e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data:{type:'hangxu-publication-choices',choices:[{id:'old',providers:['业华合成'],dates:['2026-11-12'],quotes:0,regional:27},{id:'new',providers:['天盛合成'],dates:['2026-11-16'],quotes:410,regional:814}]}}));const buttons=e.doc.querySelectorAll('#dialogbody button');assert.equal(buttons.length,2);assert.match(buttons[0].textContent,/业华合成.*区域 27/);buttons[1].click();assert.equal(commands[0].action,'selectQuoteBatch');assert.equal(commands[0].batchId,'new');assert(!commands.some(c=>c.action==='publish'));assert(e.doc.querySelector('#dialog').open);}finally{e.dom.window.close()}});
+
+test('blocked publication choices name the original task and keep selection errors visible in the modal',()=>{
+ const e=open();
+ try{
+  e.status(counts);
+  const commands=[];
+  e.frame().contentWindow.postMessage=message=>commands.push(message);
+  const send=data=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data}));
+  send({type:'hangxu-publication-choices',choices:[
+   {id:'old',providers:['业华合成'],dates:['2026-11-17'],quotes:0,regional:36,frozen:true},
+   {id:'new',providers:['九方合成'],dates:['2026-11-18'],quotes:1388,regional:43}
+  ]});
+  const [original,other]=e.doc.querySelectorAll('#dialogbody button');
+  assert.match(e.doc.querySelector('#batch-choice-status').textContent,/业华合成.*原固定任务/);
+  assert(other.disabled);
+  other.click();
+  assert.equal(commands.length,0);
+  original.click();
+  original.click();
+  assert.equal(commands.length,1);
+  assert.equal(commands[0].batchId,'old');
+  assert.match(e.doc.querySelector('#batch-choice-status').textContent,/正在核对/);
+  send({type:'hangxu-engine-status',ready:true,error:'原任务状态暂不可用',counts});
+  assert(e.doc.querySelector('#dialog').open);
+  assert.equal(e.doc.querySelector('#publish-progress').textContent,'原任务状态暂不可用');
+  assert(e.doc.querySelector('[data-snapshot="preview"]'));
+ }finally{e.dom.window.close();}
+});

@@ -59,6 +59,53 @@ new MutationObserver(addRecoveryCancel).observe(document.querySelector('#dialogb
 
 addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==frame?.contentWindow||e.data?.type!=='hangxu-exception-recheck-plan')return;const p=e.data.plan,d=document.querySelector('#dialog');document.querySelector('#dialogtitle').textContent='重新校验异常：'+p.provider;document.querySelector('#dialogbody').innerHTML='<p>本机校验日期 '+esc(p.today)+'；原报价日期 '+esc(p.dates.join('、'))+'。</p><p>检查 '+Number(p.selected)+' 条；可恢复仓库 '+Number(p.warehouse)+' 条、区域 '+Number(p.regional)+' 条；仍受阻 '+p.blocked.length+' 条。</p><p>保留原始证据和现有有效报价；先保存恢复点，仅写入本机，不自动发布。</p><p>'+esc([...new Set(p.blocked)].slice(0,8).join('；'))+'</p><p id="recovery-error" role="status"></p>'+(p.recoverable?'<button id="apply-exception-recheck">确认恢复通过校验的报价</button>':'<p>没有可恢复的记录，未修改数据。</p>');const b=document.querySelector('#apply-exception-recheck');if(b)b.onclick=()=>{b.disabled=true;command('applyExceptionRecheck',{id:p.id})};if(!d.open)d.showModal();});
 
-addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==frame?.contentWindow||e.data?.type!=='hangxu-publication-choices')return;setPublishActive(false);previewPending=false;const d=document.querySelector('#dialog'),body=document.querySelector('#dialogbody');document.querySelector('#dialogtitle').textContent='选择要发布的报价批次';body.replaceChildren();const intro=document.createElement('p');intro.textContent='导入文件与历史待发布批次是两回事。请核对服务商、日期和数量；选择只生成预览，不会上传。';body.append(intro);for(const p of e.data.choices){const row=document.createElement('p'),b=document.createElement('button');b.type='button';b.textContent=p.providers.join('、')+' · '+p.dates.join('、')+' · 仓库 '+p.quotes+' / 区域 '+p.regional+(p.frozen?' · 原固定任务':'');b.onclick=()=>{b.disabled=true;command('selectQuoteBatch',{batchId:p.id})};row.append(b);body.append(row)}if(!d.open)d.showModal();});
+addEventListener('message',event=>{
+ if(event.origin!==location.origin||event.source!==frame?.contentWindow||event.data?.type!=='hangxu-publication-choices')return;
+ setPublishActive(false);
+ previewPending=false;
+ const dialog=document.querySelector('#dialog'),body=document.querySelector('#dialogbody');
+ const choices=event.data.choices;
+ const frozen=choices.find(choice=>choice.frozen);
+ document.querySelector('#dialogtitle').textContent='选择要发布的报价批次';
+ body.replaceChildren();
+ const intro=document.createElement('p');
+ intro.textContent='选择服务商和日期后生成预览，确认后才上传。';
+ body.append(intro);
+ const status=document.createElement('p');
+ status.id='batch-choice-status';
+ status.setAttribute('role','status');
+ if(frozen){
+  status.textContent=frozen.providers.join('、')+'（'+frozen.dates.join('、')+'）有一项原固定任务。请先打开它核对结果；若尚可取消，可在原任务预览中取消。处理完成后即可选择其他批次。';
+  const tasks=document.querySelector('#publication-tasks-toggle');
+  if(tasks){
+   const viewTasks=document.createElement('button');
+   viewTasks.type='button';
+   viewTasks.textContent='查看发布任务状态';
+   viewTasks.onclick=()=>{dialog.close();tasks.click();};
+   body.append(status,viewTasks);
+  }else body.append(status);
+ }else body.append(status);
+
+ const batchButtons=[];
+ for(const choice of choices){
+  const row=document.createElement('p'),button=document.createElement('button');
+  button.type='button';
+  button.textContent=choice.providers.join('、')+' · '+choice.dates.join('、')+' · 仓库 '+choice.quotes+' / 区域 '+choice.regional+(choice.frozen?' · 核对原固定任务':'');
+  button.disabled=!!frozen&&!choice.frozen;
+  button.setAttribute('aria-describedby',status.id);
+  button.onclick=()=>{
+   if(previewPending||button.disabled)return;
+   previewPending=true;
+   setPublishActive(true);
+   for(const item of batchButtons)item.disabled=true;
+   status.textContent='正在核对所选批次，请稍候…';
+   command('selectQuoteBatch',{batchId:choice.id});
+  };
+  batchButtons.push(button);
+  row.append(button);
+  body.append(row);
+ }
+ if(!dialog.open)dialog.showModal();
+});
 
 })();

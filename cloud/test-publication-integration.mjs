@@ -12,6 +12,47 @@ import {gzipSync} from 'node:zlib';
 test('a transient runner rate limit honors Retry-After and does not replace the publication task',async()=>{const f=fixture();try{await start(f);let limited=false;const waits=[];const result=await publishSnapshot({ticket:f.ticket(),cloud:async(...args)=>{if(!limited){limited=true;return Response.json({error:'synthetic'},{status:429,headers:{'Retry-After':'1'}})}return f.cloud(...args)},github:f.github,delay:async ms=>waits.push(ms)});assert.equal(waits[0],1000);assert.equal(f.rootWrites(),1);assert(result.receipt.verified)}finally{f.sql.close()}});
 test('bounded parallel query staging/readback preserves one commit and private stage-only timings',async()=>{const f=fixture();try{const data=snapshot(),base=data.storage['logistics-quotes-v1'].quotes[0];data.storage['logistics-quotes-v1'].quotes=Array.from({length:520},(_,i)=>({...base,channel:'海运-'+i,price:1000+i}));await start(f,data);const timings=[];const result=await publishSnapshot({ticket:f.ticket(),cloud:async(...args)=>{await new Promise(r=>setTimeout(r,1));return f.cloud(...args)},github:f.github,delay:async()=>{},report:value=>timings.push(value)});assert.equal(f.rootWrites(),1);assert.equal(result.receipt.queryContent['quotes-price'].rows,520);assert.equal(result.receipt.queryContent['quotes-strict'].rows,520);assert(timings.some(t=>t.stage==='query-build'));assert(timings.some(t=>t.stage==='query-verify'));for(const value of timings){assert.deepEqual(Object.keys(value).sort(),['ms','stage']);assert(Number.isInteger(value.ms)&&value.ms>=0);assert(['prepare','query-preflight','seal-and-store','git-commit','query-build','query-verify','receipt'].includes(value.stage));}}finally{f.sql.close()}});
 const hash=b=>createHash('sha256').update(b).digest('hex');
+test('shard pipeline overlaps GitHub readback while preserving pacing, order and publication evidence',async()=>{
+ const data=snapshot(),base=data.storage['logistics-quotes-v1'].quotes[0];
+ data.storage['logistics-quotes-v1'].quotes=Array.from({length:1224},(_,i)=>({...base,channel:'海运-'+i,price:1000+i,source:'synthetic-'+i+'x'.repeat(1800)}));
+ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+ async function run(width,corrupt=false){
+  const f=fixture();
+  try{
+   await start(f,data);
+   const timings=[],writes=[],pacing=[];
+   let activeReads=0,activeWorker=0,overlap=false,ready=false;
+   const options={ticket:f.ticket(),shardConcurrency:width,report:t=>timings.push(t),delay:async ms=>{if(ms===900)pacing.push(ms);await wait(ms===900?80:ms)},
+    cloud:async(path,options)=>{
+     if(path==='ready'){assert.equal(activeReads,0);ready=true;}
+     if(!/^(reuse|seal|verify)\//.test(path))return f.cloud(path,options);
+     activeWorker++;
+     try{assert.equal(activeWorker,1);if(activeReads)overlap=true;await wait(20);return await f.cloud(path,options)}finally{activeWorker--;}
+    },
+    github:async(path,options)=>{
+     if(options.stage==='part-write'){writes.push(performance.now());if(activeReads)overlap=true;}
+     if(options.stage!=='part-readback')return f.github(path,options);
+     activeReads++;
+     try{await wait(options.part===0?120:90);if(corrupt&&options.part===1)return {encoding:'base64',content:'YQ=='};return await f.github(path,options)}finally{activeReads--;}
+    }};
+   if(corrupt){await assert.rejects(publishSnapshot(options),e=>e.code==='BLOB_READBACK_MISMATCH');assert.equal(ready,false);assert.equal(activeReads,0);assert.equal(activeWorker,0);assert.equal(f.rootWrites(),0);return;}
+   const result=await publishSnapshot(options);
+   assert.equal(f.rootWrites(),1);
+   assert(writes.length>=4);
+   assert.equal(pacing.length,writes.length);
+   for(let i=1;i<writes.length;i++)assert(writes[i]-writes[i-1]>=70,'paced writes must remain spaced');
+   assert.deepEqual((await current(f)).storage['logistics-quotes-v1'].quotes.map(x=>x.price),data.storage['logistics-quotes-v1'].quotes.map(x=>x.price));
+   return {ms:timings.find(t=>t.stage==='seal-and-store').ms,overlap,writes:writes.length,proof:result.receipt.queryContent};
+  }finally{f.sql.close();}
+ }
+ const serial=await run(1),pipeline=await run(3);
+ assert.equal(serial.overlap,false);
+ assert.equal(pipeline.overlap,true);
+ assert.equal(pipeline.writes,serial.writes);
+ assert.deepEqual(pipeline.proof,serial.proof);
+ console.log(JSON.stringify({benchmark:'synthetic-shard-stage',rows:1224,shards:serial.writes,serialMs:serial.ms,pipelineMs:pipeline.ms}));
+ await run(3,true);
+});
 async function operation(f,data,confirmedAt,owner='synthetic-owner',archiveAcknowledged=false){
  const id=crypto.randomUUID(),upload=x=>workspaceUpload({...x,id},f.env,{id:owner,canEdit:true},()=>{throw Error('not legacy')},()=>{throw Error('not legacy')},f.send),bytes=Buffer.from(JSON.stringify(data)),parts=[];
  for(let i=0;i<bytes.length;i+=128*1024)parts.push(hash(bytes.subarray(i,i+128*1024)));

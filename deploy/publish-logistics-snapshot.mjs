@@ -2,6 +2,7 @@ import Batch from '../tools/logistics-rating/extensions/supplier-quote-batch.js'
 import {publishQueryProjection,verifyQueryRead} from './publish-query-projection.mjs';
 import {auditDisplay,auditGlobalProviders} from './snapshot-display-audit.mjs';
 import {buildIncremental,readPublicationBase} from './snapshot-incremental.mjs';
+import {mapPublicationWork} from './publication-parallel.mjs';
 import {createGitHubClient} from './workspace-github-client.mjs';
 import {verifyPublicationProjection,batchScopes,contentDigest,preflightPublicationQuery} from './publication-verification.mjs';
 import {createHash,randomBytes} from 'node:crypto';
@@ -15,7 +16,7 @@ const hash=b=>createHash('sha256').update(b).digest('hex');
 export const blobHash=b=>createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const failure=code=>Object.assign(Error(code),{code});
-export async function publishSnapshot({ticket,cloud,github,delay=sleep,report=()=>{}}){
+export async function publishSnapshot({ticket,cloud,github,delay=sleep,report=()=>{},shardConcurrency=3}){
  if(!/^[a-f0-9-]{36}$/i.test(ticket||''))throw failure('INVALID_TICKET');
  let stage='prepare',stageAt=performance.now();
  const mark=next=>{if(stage){try{report({stage,ms:Math.round(performance.now()-stageAt)})}catch{}}stage=next;stageAt=performance.now();};
@@ -78,21 +79,67 @@ export async function publishSnapshot({ticket,cloud,github,delay=sleep,report=()
  const manifest={publicationSafety:'verified-base-v1',schemaVersion:2,storage:'encrypted-parts-v1',bytes:plain.length,hash:hash(plain),parts:[],operationId:meta.operationId,savedAt:new Date().toISOString()},entries=[];
  const fullParts=Math.ceil(plain.length/chunkSize),deltaParts=incremental?Math.ceil(incremental.bytes.length/chunkSize):0;
  if(incremental)manifest.incremental={baseHash:incremental.baseHash,bytes:incremental.bytes.length,hash:hash(incremental.bytes),parts:[]};
- mark('seal-and-store');for(let i=0;i<fullParts+deltaParts;i++){
-  const delta=i>=fullParts,index=delta?i-fullParts:i,source=delta?incremental.bytes:plain;
-  const bytes=source.subarray(index*chunkSize,Math.min((index+1)*chunkSize,source.length)),h=hash(bytes),packed=gzipSync(bytes);
-  if(meta.reliable){const reused=await (await request('reuse/'+i,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hash:h,bytes:bytes.length})})).json();if(reused.reused){if(reused.hash!==h||reused.bytes!==bytes.length||!/^[a-f0-9]{40}$/.test(reused.blobSha||''))throw failure('RESTORED_PART_NOT_VERIFIED');entries.push({path:shardPrefix+h+'.enc.json',mode:'100644',type:'blob',sha:reused.blobSha});(delta?manifest.incremental.parts:manifest.parts).push(h);await progress(35+Math.floor((i+1)/(fullParts+deltaParts)*55));continue;}}
-  const encrypted=Buffer.from(await (await request('seal/'+i,{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Plain-Hash':h,'X-Plain-Bytes':String(bytes.length)},body:packed})).arrayBuffer());
-  let envelope;try{envelope=JSON.parse(encrypted)}catch{throw failure('ENVELOPE_INVALID')}if(typeof envelope.iv!=='string'||typeof envelope.content!=='string')throw failure('ENVELOPE_INVALID');
-  // GitHub blob readback happens before publishing the root. Plaintext is never
-  // written to the checkout, logs, artifacts, caches or repository.
-  await delay(900);
-  const stored=await github('git/blobs',{method:'POST',stage:'part-write',part:i,body:{encoding:'base64',content:encrypted.toString('base64')}});
-  if(stored.sha!==blobHash(encrypted))throw failure('BLOB_WRITE_MISMATCH');
-  const back=await github('git/blobs/'+stored.sha,{stage:'part-readback',part:i});if(back.encoding!=='base64')throw failure('BLOB_ENCODING_INVALID');const actual=Buffer.from(back.content.replace(/\s/g,''),'base64');if(!actual.equals(encrypted)||blobHash(actual)!==stored.sha)throw failure('BLOB_READBACK_MISMATCH');
-  await request('verify/'+i,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:actual});
-  entries.push({path:shardPrefix+h+'.enc.json',mode:'100644',type:'blob',sha:stored.sha});(delta?manifest.incremental.parts:manifest.parts).push(h);await progress(35+Math.floor((i+1)/(fullParts+deltaParts)*55));
+ mark('seal-and-store');
+ const partCount=fullParts+deltaParts;
+ // Worker requests renew the same lease and write its proofs, so keep them
+ // serial. GitHub writes keep the existing spacing, with readbacks overlapping.
+ let workerQueue=Promise.resolve(),writeQueue=Promise.resolve(),shardFailure;
+ const workerRequest=(path,options)=>{
+  workerQueue=workerQueue.then(()=>{if(shardFailure)throw shardFailure;return request(path,options);});
+  return workerQueue;
+ };
+ async function storeShard(i){
+  try{
+   const delta=i>=fullParts,index=delta?i-fullParts:i,source=delta?incremental.bytes:plain;
+   const bytes=source.subarray(index*chunkSize,(index+1)*chunkSize),h=hash(bytes);
+   if(meta.reliable){
+    const reused=await (await workerRequest('reuse/'+i,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hash:h,bytes:bytes.length})})).json();
+    if(reused.reused){
+     if(reused.hash!==h||reused.bytes!==bytes.length||!/^[a-f0-9]{40}$/.test(reused.blobSha||''))throw failure('RESTORED_PART_NOT_VERIFIED');
+     return {h,delta,sha:reused.blobSha};
+    }
+   }
+   const packed=gzipSync(bytes);
+   const encrypted=Buffer.from(await (await workerRequest('seal/'+i,{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Plain-Hash':h,'X-Plain-Bytes':String(bytes.length)},body:packed})).arrayBuffer());
+   let envelope;
+   try{envelope=JSON.parse(encrypted)}catch{throw failure('ENVELOPE_INVALID')}
+   if(typeof envelope.iv!=='string'||typeof envelope.content!=='string')throw failure('ENVELOPE_INVALID');
+
+   // Only ciphertext leaves the Worker. Verify the exact GitHub bytes before
+   // allowing the manifest to reference this shard.
+   const write=writeQueue.then(async()=>{
+    if(shardFailure)throw shardFailure;
+    await delay(900);
+    if(shardFailure)throw shardFailure;
+    const stored=await github('git/blobs',{method:'POST',stage:'part-write',part:i,body:{encoding:'base64',content:encrypted.toString('base64')}});
+    if(stored.sha!==blobHash(encrypted))throw failure('BLOB_WRITE_MISMATCH');
+    return stored.sha;
+   });
+   writeQueue=write;
+   const sha=await write;
+   const back=await github('git/blobs/'+sha,{stage:'part-readback',part:i});
+   if(back.encoding!=='base64')throw failure('BLOB_ENCODING_INVALID');
+   const actual=Buffer.from(back.content.replace(/\s/g,''),'base64');
+   if(!actual.equals(encrypted)||blobHash(actual)!==sha)throw failure('BLOB_READBACK_MISMATCH');
+   await workerRequest('verify/'+i,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:actual});
+   return {h,delta,sha};
+  }catch(error){shardFailure??=error;throw error;}
  }
+ const width=meta.reliable?shardConcurrency:1;
+ let completedShards=0;
+ const shards=await mapPublicationWork(Array.from({length:partCount},(_,i)=>i),width,async i=>{
+  const shard=await storeShard(i);
+  completedShards++;
+  if(completedShards%4===0&&completedShards<partCount){
+   await workerRequest('progress',{method:'POST',headers:{'X-Workspace-Progress':String(35+Math.floor(completedShards/partCount*55))}});
+  }
+  return shard;
+ });
+ for(const {h,delta,sha} of shards){
+  entries.push({path:shardPrefix+h+'.enc.json',mode:'100644',type:'blob',sha});
+  (delta?manifest.incremental.parts:manifest.parts).push(h);
+ }
+ await progress(90);
  mark('git-commit');await request('ready',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(manifest)});
  const rootBytes=Buffer.from(JSON.stringify(manifest)+'\n'),rootBlob=await github('git/blobs',{method:'POST',stage:'root-write',body:{encoding:'base64',content:rootBytes.toString('base64')}});if(rootBlob.sha!==blobHash(rootBytes))throw failure('ROOT_BLOB_MISMATCH');
  // A compare-and-swap branch update publishes all parts and the root together.

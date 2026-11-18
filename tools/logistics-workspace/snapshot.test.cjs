@@ -1,4 +1,25 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+
+test('an exact batch shortcut is blocked by both scoped and full frozen tasks without network writes',async()=>{
+ const requested=crypto.randomUUID(),old=crypto.randomUUID(),supplier={name:'业美合成'},date='2026-11-17';
+ for(const batch of [{id:old,companies:[supplier],quotes:[],regionalQuotes:[{date}]},undefined]){
+  const c=client();
+  c.w.SupplierQuoteBatch={replacementPolicy:'last-confirmed-batch-v1'};
+  const raw=JSON.stringify(c.api.data());
+  c.w.WorkspaceUploadTasks={load:async()=>({frozen:true,raw,batch,operationId:'existing'})};
+  await assert.rejects(c.api.preview({chooseBatch:true,batchId:requested}),error=>{
+   assert.match(error.message,/所选批次未上传/);
+   assert.equal(error.publicationChoices.length,1);
+   assert.equal(error.publicationChoices[0].id,batch?old:null);
+   assert(error.publicationChoices[0].frozen);
+   return true;
+  });
+  assert.equal(c.calls.length,0);
+  const plan=await c.api.preview({chooseBatch:true,batchId:batch?old:null});
+  assert(plan.resuming);
+  assert.equal(c.calls.length,0);
+ }
+});
 function client(search='',responses=[],persisted,hostname,extensions={}){const storage=persisted||new Map([['ops-cloud-session-v1','session']]),calls=[];const w={location:{search,hostname},URLSearchParams,TextEncoder,TextDecoder,atob,AbortSignal,crypto:crypto.webcrypto,Domain:{directory(){},bills(){},ratings(){}},QuoteCore:{validate(){}},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},fetch:async(url,options)=>{calls.push({url,options});const r=responses.shift();if(!r)throw Error('unexpected request');if(r instanceof Response)return r;return {status:r.status||(r.ok===false?409:200),ok:r.ok!==false,json:async()=>({...r,...(r.writeConfigured!==undefined||r.missing?{publicationSafety:'verified-base-v1'}:{})})}},...extensions,setTimeout:(fn)=>setTimeout(fn,0),Date,JSON,Promise,Error};w.window=w;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'snapshot-client.js'),'utf8'),w);return {api:w.WorkspaceSnapshot,storage,calls,w}}
 test('local master never fetches or publishes on startup',async()=>{const c=client();await c.api.ready;assert.equal(c.calls.length,0);await assert.rejects(c.api.publish(),/预览/)});
 

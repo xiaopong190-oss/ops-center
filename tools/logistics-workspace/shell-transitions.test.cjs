@@ -1,4 +1,51 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{JSDOM}=require('../../modules/new-product-followup/work/qa/node_modules/jsdom');
+
+test('saved-batch shortcut uses one confirmation and ignores double clicks',()=>{
+ const e=open(),batchId='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+ try{
+  e.status(counts);
+  const commands=[];
+  e.frame().contentWindow.postMessage=message=>commands.push(message);
+  const send=(data,origin=e.w.location.origin)=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin,source:e.frame().contentWindow,data}));
+  const shortcut={type:'hangxu-preview-imported-batch',batchId};
+  send(shortcut,'https://untrusted.example');assert.equal(commands.length,0);
+  send(shortcut);send(shortcut);
+  assert.deepEqual(commands.map(message=>[message.action,message.batchId]),[['selectQuoteBatch',batchId]]);
+  send({type:'hangxu-publish-preview',plan:{batch:true,providers:['九方合成'],dates:['2026-11-18'],counts:{quotes:0,regional:1},archiveOnly:true}});
+  const body=e.doc.querySelector('#dialogbody');
+  assert.match(body.textContent,/继续归档仍可能替换线上/);
+  assert.equal(body.querySelectorAll('button:not([hidden])').length,1);
+  body.querySelector('#publication-archive').checked=true;
+  const publish=body.querySelector('[data-snapshot="publish"]');
+  publish.click();publish.click();
+  assert.equal(commands.filter(message=>message.action==='publish').length,1);
+  assert.equal(commands.at(-1).archiveAcknowledged,true);
+  send({type:'hangxu-publish-progress',stage:'cloud-received',message:'云端已接管，等待核验'});
+  assert.match(body.querySelector('#publish-progress').textContent,/等待核验/);
+  assert(publish.disabled);
+ }finally{e.dom.window.close();}
+});
+
+test('a frozen task interrupts the new-batch shortcut and returns to the same saved batch',()=>{
+ const e=open(),batchId='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',frozenId='bbbbbbbb-bbbb-4bbb-abbb-bbbbbbbbbbbb';
+ try{
+  e.status(counts);
+  const commands=[];e.frame().contentWindow.postMessage=message=>commands.push(message);
+  const send=data=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data}));
+  const shortcut={type:'hangxu-preview-imported-batch',batchId};
+  send(shortcut);
+  send({type:'hangxu-publication-choices',choices:[{id:frozenId,providers:['业美合成'],dates:['2026-11-17'],quotes:0,regional:1,frozen:true}]});
+  assert.match(e.doc.querySelector('#dialogtitle').textContent,/先核对上次发布/);
+  assert.match(e.doc.querySelector('#batch-choice-status').textContent,/业美合成/);
+  assert.equal(e.doc.querySelector('[data-snapshot="publish"]'),null);
+  e.doc.querySelector('[aria-describedby="batch-choice-status"]').click();
+  assert.equal(commands.at(-1).batchId,frozenId);
+  send({type:'hangxu-recovery-done',message:'已核验取消'});
+  send(shortcut);
+  assert.equal(commands.at(-1).batchId,batchId);
+  assert(commands.every(message=>message.action==='selectQuoteBatch'));
+ }finally{e.dom.window.close();}
+});
 function open(display=false,timer){const dom=new JSDOM(fs.readFileSync(path.join(__dirname,display?'display.html':'input.html'),'utf8'),{url:'https://test.local/tools/logistics-workspace/'+(display?'display.html':'input.html'),runScripts:'outside-only'}),w=dom.window;if(timer)w.setTimeout=timer;w.confirm=()=>true;w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};w.eval(fs.readFileSync(path.join(__dirname,'integration-shell.js'),'utf8'));const doc=w.document,frame=()=>doc.querySelector('#logic-frame');function status(counts,source=frame().contentWindow,origin=w.location.origin){w.dispatchEvent(new w.MessageEvent('message',{origin,source,data:{type:'hangxu-engine-status',ready:true,saved:true,counts,snapshot:{mode:display?'snapshot':'local',sha:display?'a'.repeat(40):null,savedAt:'2026-10-27T00:00:00Z'}}}))}return {dom,w,doc,frame,status}}
 const counts={quotes:12,regional:3,exceptions:0,templates:4,bills:2,ratings:1};
 
@@ -28,7 +75,7 @@ test('standalone display has no input/publish controls and rejects messages from
 
 test('publish progress and errors stay visible in the modal and failure does not disable retry',()=>{const e=open();try{e.status(counts);const send=data=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data}));send({type:'hangxu-publish-preview',plan:{counts,sha:'a'.repeat(40)}});assert(e.doc.querySelector('#dialog').open);send({type:'hangxu-publish-progress',message:'已确认 7 / 10 片'});assert.match(e.doc.querySelector('#publish-progress').textContent,/7 \/ 10/);send({type:'hangxu-engine-status',ready:true,error:'[upload] 网络中断，进度保留'});assert.match(e.doc.querySelector('#publish-progress').textContent,/网络中断/);assert.equal(e.doc.querySelector('[data-snapshot="publish"]').disabled,false);let action;e.frame().contentWindow.postMessage=x=>{action=x.action};e.doc.querySelector('[data-snapshot="publish"]').click();assert.equal(action,'publish');e.doc.querySelector('[data-snapshot="pause"]').click();assert.equal(action,'pausePublish')}finally{e.dom.window.close()}});
 
-test('compact data workspace reports capacity, escapes supplier input, and requires backup acknowledgement before deletion',()=>{const e=open();try{e.status(counts);assert.equal(e.doc.querySelectorAll('.logicnotice>.row>button').length,1);e.doc.querySelector('[data-logic-route="local"]').click();const actions=[];e.frame().contentWindow.postMessage=x=>actions.push(x);e.status(counts);assert.equal(actions.at(-1).action,'inspectData');const send=data=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data}));send({type:'hangxu-data-report',report:{bytes:34*1048576,localBytes:40*1048576,limit:32*1048576,over:true,sections:[],hasBaseline:false,pending:true,providers:[{id:'a',name:'<img src=x onerror=alert(1)>'}]}});assert.match(e.doc.querySelector('#data-manager').textContent,/超过发布上限/);assert.equal(e.doc.querySelector('#cleanup-mode option[value="unpublished"]').disabled,true);assert.equal(e.doc.querySelector('#data-manager img'),null);e.doc.querySelector('#cleanup-provider').value='a';e.doc.querySelector('[data-manage="plan"]').click();assert.equal(actions.at(-1).action,'planCleanup');send({type:'hangxu-cleanup-preview',plan:{id:'p',provider:'<script>bad</script>',total:10,before:{bytes:34*1048576,localBytes:40*1048576},after:{bytes:20*1048576,localBytes:22*1048576,over:false}}});assert.equal(e.doc.querySelector('#dialogbody script'),null);e.doc.querySelector('[data-manage="apply"]').click();assert.notEqual(actions.at(-1).action,'applyCleanup');e.doc.querySelector('[data-manage="backup"]').click();e.doc.querySelector('#cleanup-backup').checked=true;e.doc.querySelector('#cleanup-confirm').value='删除';e.doc.querySelector('[data-manage="apply"]').click();assert.equal(actions.at(-1).action,'backup');send({type:'hangxu-backup-ready'});e.doc.querySelector('[data-manage="apply"]').click();assert.equal(actions.at(-1).action,'applyCleanup');assert.equal(actions.at(-1).id,'p');assert.equal(actions.at(-1).backupAcknowledged,true);assert(e.doc.querySelector('[data-manage="apply"]').disabled)}finally{e.dom.window.close()}});
+test('compact data workspace reports capacity, escapes supplier input, and requires backup acknowledgement before deletion',()=>{const e=open();try{e.status(counts);assert.equal(e.doc.querySelectorAll('.logicnotice>.row>button').length,0);assert.equal(e.doc.querySelector('.data-menu [data-snapshot="preview"]').textContent,'查看待发布批次');e.doc.querySelector('[data-logic-route="local"]').click();const actions=[];e.frame().contentWindow.postMessage=x=>actions.push(x);e.status(counts);assert.equal(actions.at(-1).action,'inspectData');const send=data=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data}));send({type:'hangxu-data-report',report:{bytes:34*1048576,localBytes:40*1048576,limit:32*1048576,over:true,sections:[],hasBaseline:false,pending:true,providers:[{id:'a',name:'<img src=x onerror=alert(1)>'}]}});assert.match(e.doc.querySelector('#data-manager').textContent,/超过发布上限/);assert.equal(e.doc.querySelector('#cleanup-mode option[value="unpublished"]').disabled,true);assert.equal(e.doc.querySelector('#data-manager img'),null);e.doc.querySelector('#cleanup-provider').value='a';e.doc.querySelector('[data-manage="plan"]').click();assert.equal(actions.at(-1).action,'planCleanup');send({type:'hangxu-cleanup-preview',plan:{id:'p',provider:'<script>bad</script>',total:10,before:{bytes:34*1048576,localBytes:40*1048576},after:{bytes:20*1048576,localBytes:22*1048576,over:false}}});assert.equal(e.doc.querySelector('#dialogbody script'),null);e.doc.querySelector('[data-manage="apply"]').click();assert.notEqual(actions.at(-1).action,'applyCleanup');e.doc.querySelector('[data-manage="backup"]').click();e.doc.querySelector('#cleanup-backup').checked=true;e.doc.querySelector('#cleanup-confirm').value='删除';e.doc.querySelector('[data-manage="apply"]').click();assert.equal(actions.at(-1).action,'backup');send({type:'hangxu-backup-ready'});e.doc.querySelector('[data-manage="apply"]').click();assert.equal(actions.at(-1).action,'applyCleanup');assert.equal(actions.at(-1).id,'p');assert.equal(actions.at(-1).backupAcknowledged,true);assert(e.doc.querySelector('[data-manage="apply"]').disabled)}finally{e.dom.window.close()}});
 test('oversize error has direct management route and display never renders cleanup controls',()=>{const e=open(),d=open(true);try{e.w.dispatchEvent(new e.w.MessageEvent('message',{origin:e.w.location.origin,source:e.frame().contentWindow,data:{type:'hangxu-engine-status',ready:true,error:'快照超过32MiB保护上限'}}));assert(e.doc.querySelector('#logic-status [data-goto="local"]'));assert.equal(d.doc.querySelector('[data-goto="local"]'),null);assert.equal(d.doc.querySelector('[data-manage]'),null)}finally{e.dom.window.close();d.dom.window.close()}});
 
 test('display cooperation route opens independent authenticated entry, other display modules remain read-only',()=>{const e=open(true);try{e.status(counts);e.doc.querySelector('[data-logic-route="ratings"]').click();assert.match(e.frame().src,/online.html/);assert.match(e.frame().src,/module=ratings/);assert.match(e.frame().src,/audience=display/);assert.equal(e.doc.querySelector('[data-snapshot="preview"]'),null);e.doc.querySelector('[data-logic-route="compare"]').click();assert.match(e.frame().src,/access=view/)}finally{e.dom.window.close()}});

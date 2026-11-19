@@ -9,6 +9,32 @@ import {decryptWorkspace} from './logistics-workspace.mjs';
 import Batch from '../tools/logistics-rating/extensions/supplier-quote-batch.js';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
+test('background status exposes the real publication phases without changing commit or receipt guarantees',async()=>{
+ const f=fixture();
+ try{
+  await start(f);
+  const stages=new Map(),paths=new Set(['meta','scopes','projection-plan','commit-intent','committed','query-read']);
+  const result=await publishSnapshot({ticket:f.ticket(),github:f.github,delay:async()=>{},cloud:async(path,options)=>{
+   const response=await f.cloud(path,options);
+   const action=path.split('?')[0];
+   if(response.ok&&paths.has(action)&&!stages.has(action)){
+    const status=await f.upload({action:'publication-status'});
+    stages.set(action,status.job.phase);
+   }
+   return response;
+  }});
+  assert.deepEqual([...stages.entries()],[
+   ['meta','正在读回已上传报价和线上基线'],
+   ['scopes','正在核对报价与线上展示范围'],
+   ['projection-plan','正在加密写入并读回核对'],
+   ['commit-intent','正在提交线上版本'],
+   ['committed','已提交，正在更新线上查询索引'],
+   ['query-read','正在逐页核验线上查询']
+  ]);
+  assert.equal(f.rootWrites(),1);
+  assert(result.receipt.verified);
+ }finally{f.sql.close();}
+});
 test('a transient runner rate limit honors Retry-After and does not replace the publication task',async()=>{const f=fixture();try{await start(f);let limited=false;const waits=[];const result=await publishSnapshot({ticket:f.ticket(),cloud:async(...args)=>{if(!limited){limited=true;return Response.json({error:'synthetic'},{status:429,headers:{'Retry-After':'1'}})}return f.cloud(...args)},github:f.github,delay:async ms=>waits.push(ms)});assert.equal(waits[0],1000);assert.equal(f.rootWrites(),1);assert(result.receipt.verified)}finally{f.sql.close()}});
 test('bounded parallel query staging/readback preserves one commit and private stage-only timings',async()=>{const f=fixture();try{const data=snapshot(),base=data.storage['logistics-quotes-v1'].quotes[0];data.storage['logistics-quotes-v1'].quotes=Array.from({length:520},(_,i)=>({...base,channel:'海运-'+i,price:1000+i}));await start(f,data);const timings=[];const result=await publishSnapshot({ticket:f.ticket(),cloud:async(...args)=>{await new Promise(r=>setTimeout(r,1));return f.cloud(...args)},github:f.github,delay:async()=>{},report:value=>timings.push(value)});assert.equal(f.rootWrites(),1);assert.equal(result.receipt.queryContent['quotes-price'].rows,520);assert.equal(result.receipt.queryContent['quotes-strict'].rows,520);assert(timings.some(t=>t.stage==='query-build'));assert(timings.some(t=>t.stage==='query-verify'));for(const value of timings){assert.deepEqual(Object.keys(value).sort(),['ms','stage']);assert(Number.isInteger(value.ms)&&value.ms>=0);assert(['prepare','query-preflight','seal-and-store','git-commit','query-build','query-verify','receipt'].includes(value.stage));}}finally{f.sql.close()}});
 const hash=b=>createHash('sha256').update(b).digest('hex');

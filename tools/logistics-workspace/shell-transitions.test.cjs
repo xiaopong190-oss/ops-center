@@ -26,6 +26,40 @@ test('saved-batch shortcut uses one confirmation and ignores double clicks',()=>
  }finally{e.dom.window.close();}
 });
 
+test('return to entry is offered after cloud handoff and waits for foreground acknowledgement',()=>{
+ const e=open(),batchId='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+ try{
+  e.status(counts);
+  let tick,currentTime=100000;
+  e.w.Date.now=()=>currentTime;e.w.setInterval=callback=>{tick=callback;return 1;};
+  const commands=[];e.frame().contentWindow.postMessage=message=>commands.push(message);
+  const send=(data,origin=e.w.location.origin)=>e.w.dispatchEvent(new e.w.MessageEvent('message',{origin,source:e.frame().contentWindow,data}));
+  send({type:'hangxu-preview-imported-batch',batchId});
+  send({type:'hangxu-publish-preview',plan:{batch:true,providers:['天盛合成'],counts:{quotes:410,regional:814}}});
+  e.doc.querySelector('[data-snapshot="publish"]').click();
+  assert.match(e.doc.querySelector('#publication-elapsed').textContent,/已等待 0 分/);
+  currentTime+=65000;tick();
+  assert.match(e.doc.querySelector('#publication-elapsed').textContent,/已等待 1 分 5 秒/);
+  const pause=e.doc.querySelector('[data-snapshot="pause"]'),dialog=e.doc.querySelector('#dialog');
+  send({type:'hangxu-publish-progress',stage:'commit',message:'正在核对任务'});
+  assert.doesNotMatch(pause.textContent,/返回继续录入/);
+  send({type:'hangxu-publish-progress',stage:'cloud-received',message:'正在加密写入并读回核对'});
+  assert.match(pause.textContent,/返回继续录入/);
+  assert.match(e.doc.querySelector('#publish-progress').textContent,/加密写入/);
+  pause.click();pause.click();
+  assert.equal(commands.filter(message=>message.action==='leavePublishWait').length,1);
+  assert(dialog.open);
+  send({type:'hangxu-publish-wait-ended',background:true},'https://untrusted.example');
+  assert(dialog.open);
+  send({type:'hangxu-publish-wait-ended',background:true});
+  assert(!dialog.open);
+  assert.match(e.doc.body.textContent,/原发布任务由云端继续处理/);
+  assert(!commands.some(message=>message.action==='cancelPublish'));
+  send({type:'hangxu-preview-imported-batch',batchId});
+  assert.equal(commands.at(-1).action,'selectQuoteBatch');
+ }finally{e.dom.window.close();}
+});
+
 test('a frozen task interrupts the new-batch shortcut and returns to the same saved batch',()=>{
  const e=open(),batchId='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',frozenId='bbbbbbbb-bbbb-4bbb-abbb-bbbbbbbbbbbb';
  try{

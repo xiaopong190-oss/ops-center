@@ -31,7 +31,7 @@ export async function publicationRunner(req,env,send=fetch,identity=runnerIdenti
  }
  if(action==='meta'){
   let lease;try{lease=await claimLease(env,key,ticket,claims.run_id)}catch(error){if(error.status===409)await deferJob(env,key,'WAITING_ROOT_COORDINATOR');throw error;}
-  job=await transition(env,key,'RUNNING',{fence:lease.token,runId:claims.run_id,phase:'后台校验内容',nextAttemptAt:Date.now()+20*60000});
+  job=await transition(env,key,'RUNNING',{fence:lease.token,runId:claims.run_id,phase:'正在读回已上传报价和线上基线',nextAttemptAt:Date.now()+20*60000});
   const upload=await readRecord(env,job.uploadKey);if(!upload)fail(409,'原上传任务缺失，未重新创建');
   const current=await readWorkspace(env,send);
   if(job.commit&&job.commit.rootSha!==current.sha){
@@ -53,7 +53,7 @@ export async function publicationRunner(req,env,send=fetch,identity=runnerIdenti
  }
  await requireLease(env,key,ticket,claims.run_id,job.fence);
  const lease=await renewLease(env,key,ticket,claims.run_id,job.fence);
- await changeJob(env,key,x=>({...x,updatedAt:Date.now(),nextAttemptAt:Date.now()+20*60000}));
+ await changeJob(env,key,x=>({...x,updatedAt:Date.now(),nextAttemptAt:Date.now()+20*60000,...(action==='query-read'&&x.commit&&x.state==='GITHUB_COMMITTED'?{phase:'正在逐页核验线上查询'}:{})}));
  const checkpointPut=(name,value)=>fencedPut(env,name,value,lease),proofKey=i=>job.uploadKey+':runner-proof:'+ticket+':'+i;
  if(/^reuse\/\d+$/.test(action)&&req.method==='POST')return json(await reuseChunk(req,env,{job,index:Number(action.slice(6)),send,put:checkpointPut,proofKey}));
  if(action==='query-page'&&req.method==='POST')return json(await recordQueryPage(req,env,{job,view:await queryState(env),day:businessDay(),put:checkpointPut}));
@@ -62,7 +62,7 @@ export async function publicationRunner(req,env,send=fetch,identity=runnerIdenti
   const body=await req.json();if(!body.scopeCounts||job.scopes.some(scope=>!Number.isSafeInteger(body.scopeCounts[scope])||body.scopeCounts[scope]<0))fail(400,'展示作用域核验计划无效');
   const archive=body.hasIncomingQuotes===true&&job.scopes.length>0&&job.scopes.every(scope=>body.scopeCounts[scope]===0);
   if(archive&&!job.archiveAcknowledged){await transition(env,key,'BLOCKED_VALIDATION',{reason:'DISPLAY_CONFIRMATION_REQUIRED',phase:'本批按当前日期规则不展示；请保留原日期，明确确认仅归档后建立新修订',dispatch:{pending:false}});await releaseLease(env,key,ticket,job.fence);fail(422,'本批当前不展示，需要明确确认仅归档；原批次已保留，未提交GitHub');}
-  await changeJob(env,key,x=>({...x,visibility:archive?'ARCHIVED':'VISIBLE',scopeVisibility:body.scopeCounts}));return json({ok:true,visibility:archive?'ARCHIVED':'VISIBLE'});
+  await changeJob(env,key,x=>({...x,visibility:archive?'ARCHIVED':'VISIBLE',scopeVisibility:body.scopeCounts,phase:'正在加密写入并读回核对'}));return json({ok:true,visibility:archive?'ARCHIVED':'VISIBLE'});
  }
  if(action==='query-read'&&req.method==='GET')return logisticsQuery(new Request('https://worker/api/logistics-query'+url.search),env,{id:job.owner,canEdit:false});
  if(action==='verified'&&req.method==='POST'){
@@ -91,12 +91,12 @@ export async function publicationRunner(req,env,send=fetch,identity=runnerIdenti
   const capacity={...winners,...Object.fromEntries(body.scopes.map(s=>[s,{id:job.id,confirmedAt:job.confirmedAt,rootSha:'0'.repeat(40),jobKey:key}]))};
   if(new TextEncoder().encode(JSON.stringify(capacity)).length>1024*1024)fail(507,'发布协调账本达到容量保护，原任务保留');
   if(superseded.length===body.scopes.length){await transition(env,key,'SUPERSEDED',{scopes:body.scopes,phase:'确认时间较早，已被后续批次替代',dispatch:{pending:false}});await releaseLease(env,key,ticket,job.fence);return json({terminal:true,jobState:'SUPERSEDED',superseded});}
-  await transition(env,key,'CLOUD_ACCEPTED',{scopes:body.scopes.filter(s=>!superseded.includes(s)),phase:'内容已核验，等待提交'});
+  await transition(env,key,'CLOUD_ACCEPTED',{scopes:body.scopes.filter(s=>!superseded.includes(s)),phase:'正在核对报价与线上展示范围'});
   return json({superseded});
  }
  if(action==='commit-intent'&&req.method==='POST'){
   const body=await req.json();if(!/^[a-f0-9]{40}$/.test(body.rootSha||''))fail(400,'提交版本无效');
-  job=await changeJob(env,key,x=>{if(x.state==='CANCELLED'||x.commit)fail(409,'任务不可重新提交');return {...x,state:'GITHUB_COMMITTING',candidate:body.rootSha,updatedAt:Date.now()};});
+  job=await changeJob(env,key,x=>{if(x.state==='CANCELLED'||x.commit)fail(409,'任务不可重新提交');return {...x,state:'GITHUB_COMMITTING',phase:'正在提交线上版本',candidate:body.rootSha,updatedAt:Date.now()};});
   await fencedPut(env,INTENT_KEY,{rootSha:body.rootSha,jobKey:key,ticket,fence:job.fence,state:'committing'},lease);
   return json({ok:true});
  }
@@ -107,7 +107,7 @@ export async function publicationRunner(req,env,send=fetch,identity=runnerIdenti
   const commit=prior||{rootSha:current.sha,commitSha:body.commitSha||null,operationId:job.id,contentHash:job.contentHash,confirmedAt:job.confirmedAt,at:Date.now()};
   if(commit.rootSha!==current.sha||commit.contentHash!==job.contentHash)fail(409,'历史提交证据不一致');
   await immutableEvidence(env,'commit:'+job.id,commit);
-  await transition(env,key,'GITHUB_COMMITTED',{commit,phase:'已提交，展示同步中'});
+  await transition(env,key,'GITHUB_COMMITTED',{commit,phase:'已提交，正在更新线上查询索引'});
   const winners=await readRecord(env,scopesKey)||{};
   for(const scope of job.scopes)winners[scope]={id:job.id,confirmedAt:job.confirmedAt,rootSha:current.sha,jobKey:key};
   await fencedPut(env,scopesKey,winners,lease);

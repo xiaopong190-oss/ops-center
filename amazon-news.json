@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-11-18T05:57:23.827Z",
+  "updatedAt": "2026-11-19T05:57:54.181Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
+      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
+      "pubDate": "Wed, 18 Nov 2026 17:38:00 GMT",
+      "date": "11/18",
+      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
+      "category": "AWS"
+    },
     {
       "title": "5 ways Amazon is supporting US communities in 2026, from free meals to affordable homes",
       "link": "https://www.aboutamazon.com/news/community/amazon-community-impact-2026?utm_source=rss",
@@ -17,14 +25,6 @@
       "pubDate": "Tue, 17 Nov 2026 08:35:19 GMT",
       "date": "11/17",
       "summary": "Amazon also announced four new wind and solar projects in India, including its largest wind farm contracted in Asia to date.",
-      "category": "Sustainability"
-    },
-    {
-      "title": "Amazon sets goal to cut electricity carbon intensity 65% by 2030",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-carbon-intensity-goal-electricity-emissions?utm_source=rss",
-      "pubDate": "Tue, 17 Nov 2026 08:30:31 GMT",
-      "date": "11/17",
-      "summary": "As energy demand grows, Amazon is setting a new, science-aligned interim target for electricity emissions as a leading corporate buyer of ca",
       "category": "Sustainability"
     }
   ]

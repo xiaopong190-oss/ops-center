@@ -17,7 +17,7 @@
  async function request(query='',payload){
   const body=payload?JSON.stringify(payload):undefined;
   for(let attempt=0;;attempt++){
-   try{return await once(query,body)}catch(error){if(foreground?.signal.aborted)throw Object.assign(Error('本页请求已中止；后台是否取消仍需核验'),{retryable:false});
+   try{return await once(query,body)}catch(error){if(foreground?.signal.aborted)throw leftWaitError()||Object.assign(Error('本页请求已中止；后台是否取消仍需核验'),{retryable:false});
     if(error.retryable===false||(error.status&&error.status<500&&![408,429].includes(error.status)))throw error;
     const hint=error.retryAfter,seconds=hint?Number(hint):NaN;
     const delay=Number.isFinite(seconds)?Math.max(0,seconds*1000):hint?Math.max(0,Date.parse(hint)-Date.now()):NaN;
@@ -138,13 +138,15 @@
  function progress(stage,message){if(measurement&&measurement.stage!==stage){finishStage();measurement.stage=stage;measurement.since=now();}state={...state,stage,progress:message};if(root.parent&&root.parent!==root)root.parent.postMessage({type:'hangxu-publish-progress',stage,message},location.origin)}
  async function digest(bytes){const value=await crypto.subtle.digest('SHA-256',bytes);return Array.from(new Uint8Array(value),b=>b.toString(16).padStart(2,'0')).join('')}
  function base64(bytes){let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(text)}
+ function leftWaitError(){const reason=foreground?.signal.reason;return reason?.code==='PUBLICATION_WAIT_LEFT'?reason:null;}
  async function waitReliable(id,sha256){
   for(let step=0;step<200;step++){
-   if(paused)throw Error('已停止本页等待；本机或云端原任务继续处理，可在发布任务中查看');
+   if(paused)throw leftWaitError()||Error('已停止本页等待；本机或云端原任务继续处理，可在发布任务中查看');
    let result;try{result=await request('',{action:'publication-status',id});}catch(error){if(error.status!==404)throw error;progress('local-transfer','本机恢复服务正在续传原任务，尚未取得云端收齐回执');await new Promise(resolve=>setTimeout(resolve,3000));continue;}
+   if(leftWaitError())throw leftWaitError();
    if(result.receipt)return checkedReceipt(result.receipt,sha256);
    if(['SUPERSEDED','CANCELLED','BLOCKED_VALIDATION','AUTH_REQUIRED'].includes(result.job?.state))throw Object.assign(Error(result.job.reason||result.job.phase||result.job.state),{status:result.job.state==='AUTH_REQUIRED'?403:422});
-   progress('commit',result.job?.phase||result.job?.state||'后台核验处理中');await new Promise(resolve=>setTimeout(resolve,3000));
+   progress(result.job?.id===id&&result.job.cloudReceived===true?'cloud-received':'commit',result.job?.phase||'正在核对原任务状态');await new Promise(resolve=>setTimeout(resolve,3000));
   }throw Error('本页等待已结束，原任务仍保留并由后台继续；请在发布任务中查看');
  }
  async function chunkPublish(){
@@ -171,8 +173,9 @@
   prepared.phase='commit';saveProgress();progress('commit','上传分片已全部确认；正在请求后台发布。本机无需再传文件，尚未发布成功…');
   if(prepared.reliable){const accepted=await request('',{action:'publication-accept',id,confirmedAt:prepared.confirmedAt,archiveAcknowledged:!!prepared.archiveAcknowledged});if(!accepted.cloudReceived&&!accepted.job?.cloudReceived&&!accepted.receipt)throw Error('未取得云端接管证明');progress('cloud-received','云端已收齐并保存任务；可以关闭电脑，后台继续核验发布');}
   for(let step=0;step<200;step++){
-   if(paused)throw Error('已暂停等待发布结果；已启动的后台任务仍会继续，点击继续上传核实结果，无需重传');
+   if(paused)throw leftWaitError()||Error('已暂停等待发布结果；已启动的后台任务仍会继续，点击继续上传核实结果，无需重传');
    remote=await request('',{action:prepared.reliable?'publication-status':'commit',id});
+   if(leftWaitError())throw leftWaitError();
    if(prepared.reliable){if(remote.job?.state==='SUPERSEDED')throw Object.assign(Error('本批确认时间较早，已被后续批次替代；原批次和记录保留'),{status:409});if(['AUTH_REQUIRED','BLOCKED_VALIDATION','CANCELLED'].includes(remote.job?.state))throw Object.assign(Error(remote.job.reason||remote.job.state),{status:remote.job.state==='AUTH_REQUIRED'?403:422});if(remote.pending){progress('commit',remote.job.phase||remote.job.state);await new Promise(resolve=>setTimeout(resolve,3000));continue;}}
    if(!remote.pending)return checkedReceipt(remote.receipt,sha256);
    if(!Number.isInteger(remote.confirmedParts)||!Number.isInteger(remote.totalParts)||remote.confirmedParts<0||remote.confirmedParts>remote.totalParts||remote.totalParts>128)throw Error('提交进度格式无效，固定任务保留');
@@ -290,5 +293,5 @@
   if(await sessionKey()!==session||typeof result.confirmed!=='boolean')throw Error('团队提醒状态尚未核验');
   return result;
  }
- const ready=display?load():Promise.resolve(state);root.WorkspaceSnapshot={ready,load,checkVersion,weeklyReminder,deferBatch:()=>publicationLock(deferBatch),syncBase:options=>publicationLock(()=>syncBase(options)),baselineBackup,preview,publish,publicationStatus,discard,withRecoveryLock:publicationLock,cancel:async()=>{paused=true;foreground?.abort();await new Promise(resolve=>setTimeout(resolve,0));return publicationLock(cancelPublication)},recoveryJobs,pause:()=>{paused=true},isBusy:()=>busy,state:()=>state,diagnostics:()=>JSON.parse(JSON.stringify(timings)),data};
+ const ready=display?load():Promise.resolve(state);root.WorkspaceSnapshot={ready,load,checkVersion,weeklyReminder,deferBatch:()=>publicationLock(deferBatch),syncBase:options=>publicationLock(()=>syncBase(options)),baselineBackup,preview,publish,publicationStatus,discard,withRecoveryLock:publicationLock,cancel:async()=>{paused=true;foreground?.abort();await new Promise(resolve=>setTimeout(resolve,0));return publicationLock(cancelPublication)},recoveryJobs,pause:()=>{paused=true},stopWaiting:()=>{paused=true;foreground?.abort(Object.assign(Error('本页已停止等待，云端原任务继续处理'),{code:'PUBLICATION_WAIT_LEFT',retryable:false}))},isBusy:()=>busy,state:()=>state,diagnostics:()=>JSON.parse(JSON.stringify(timings)),data};
 })(window);

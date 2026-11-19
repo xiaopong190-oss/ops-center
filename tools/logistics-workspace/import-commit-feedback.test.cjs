@@ -5,6 +5,25 @@ test('failed checkpoint gives visible error, preserves preview, and repeated fai
 test('failed import retains unsaved-preview state after the old timer boundary',async()=>{const e=await openRuntime();try{await preview(e);const {w,doc}=e;doc.querySelector('#draftNotes').dispatchEvent(new w.Event('change',{bubbles:true}));w.ImportRecovery.beforeImport=async()=>{throw Error('合成测试：任务读取失败')};doc.querySelector('#commit').click();await e.wait(()=>doc.querySelector('#import-commit-feedback').textContent.includes('任务读取失败'));await new Promise(r=>setTimeout(r,300));assert.equal(doc.documentElement.hasAttribute('data-hangxu-dirty'),true)}finally{e.close()}});
 test('read-only runtime never installs an import commit action',async()=>{const e=await openRuntime('import','view');try{assert.equal(e.doc.querySelector('#import-commit-feedback'),null)}finally{e.close()}});
 
+test('return to entry acknowledges only after the foreground wait ends and does not report intentional detach as failure',async()=>{
+ const e=await openRuntime(),{w}=e;
+ try{
+  const sent=[];
+  w.postMessage=message=>sent.push(message);
+  let finish,stops=0;
+  const pending=new Promise((_,reject)=>{finish=reject});
+  w.WorkspaceSnapshot.publish=()=>pending;
+  w.WorkspaceSnapshot.stopWaiting=()=>{stops++;};
+  const command=action=>w.dispatchEvent(new w.MessageEvent('message',{origin:w.location.origin,source:w.parent,data:{type:'hangxu-engine-command',action}}));
+  command('publish');command('leavePublishWait');command('leavePublishWait');
+  assert.equal(stops,1);
+  assert(!sent.some(message=>message.type==='hangxu-publish-wait-ended'));
+  finish(Object.assign(Error('synthetic'),{code:'PUBLICATION_WAIT_LEFT'}));
+  await e.wait(()=>sent.some(message=>message.type==='hangxu-publish-wait-ended'&&message.background===true));
+  assert(!sent.some(message=>message.error==='synthetic'));
+ }finally{e.close();}
+});
+
 test('regional-only receipt opens the saved batch, not an earlier batch for the same supplier',async()=>{
  const e=await openRuntime(),{w,doc}=e;
  try{

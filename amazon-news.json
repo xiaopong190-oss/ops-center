@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-11-19T05:57:54.181Z",
+  "updatedAt": "2026-11-20T05:46:48.871Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "Watch the teaser trailer for 'Invincible' Season 5, coming to Prime Video February 17",
+      "link": "https://www.aboutamazon.com/news/entertainment/invincible-prime-video?utm_source=rss",
+      "pubDate": "Thu, 19 Nov 2026 17:01:00 GMT",
+      "date": "11/19",
+      "summary": "'The Boys' star Jack Quaid will join the fifth season of the critically acclaimed animated superhero series.",
+      "category": "Entertainment"
+    },
     {
       "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
       "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "11/17",
       "summary": "From disaster relief to housing and scholarships, Amazon's community investments are helping neighbors across the country.",
       "category": "Community"
-    },
-    {
-      "title": "Amazon to invest $7 billion in renewable energy in India by 2030",
-      "link": "https://www.aboutamazon.com/news/sustainability/amazon-investment-india-renewable-energy?utm_source=rss",
-      "pubDate": "Tue, 17 Nov 2026 08:35:19 GMT",
-      "date": "11/17",
-      "summary": "Amazon also announced four new wind and solar projects in India, including its largest wind farm contracted in Asia to date.",
-      "category": "Sustainability"
     }
   ]
 }

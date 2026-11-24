@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-11-23T05:51:00.682Z",
+  "updatedAt": "2026-11-24T08:28:18.932Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Watch the teaser trailer for 'Invincible' Season 5, coming to Prime Video February 17",
-      "link": "https://www.aboutamazon.com/news/entertainment/invincible-prime-video?utm_source=rss",
-      "pubDate": "Thu, 19 Nov 2026 17:01:00 GMT",
-      "date": "11/19",
-      "summary": "'The Boys' star Jack Quaid will join the fifth season of the critically acclaimed animated superhero series.",
-      "category": "Entertainment"
-    },
-    {
       "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
       "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Wed, 18 Nov 2026 17:38:00 GMT",
-      "date": "11/18",
+      "pubDate": "Mon, 23 Nov 2026 21:57:00 GMT",
+      "date": "11/23",
       "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
       "category": "AWS"
     },
     {
-      "title": "5 ways Amazon is supporting US communities in 2026, from free meals to affordable homes",
-      "link": "https://www.aboutamazon.com/news/community/amazon-community-impact-2026?utm_source=rss",
-      "pubDate": "Tue, 17 Nov 2026 13:00:07 GMT",
-      "date": "11/17",
-      "summary": "From disaster relief to housing and scholarships, Amazon's community investments are helping neighbors across the country.",
-      "category": "Community"
+      "title": "AI safety can’t depend on an emergency brake. It needs better engineering.",
+      "link": "https://www.aboutamazon.com/news/aws/aws-ceo-ai-safety-engineering?utm_source=rss",
+      "pubDate": "Mon, 23 Nov 2026 17:00:05 GMT",
+      "date": "11/23",
+      "summary": "Most of the practical tools to build trustworthy AI systems already exist, and the industry needs to use them.",
+      "category": "AWS"
+    },
+    {
+      "title": "What is physical AI? How Trainium accelerates how robots learn.",
+      "link": "https://www.aboutamazon.com/new/aws/what-is-physical-ai-aws-trainium-robots?utm_source=rss",
+      "pubDate": "Mon, 23 Nov 2026 16:59:39 GMT",
+      "date": "11/23",
+      "summary": "For robots, a split-second delay can change the outcome. Here's why speed matters for physical AI, and how AWS Trainium helps.",
+      "category": "AWS"
     }
   ]
 }

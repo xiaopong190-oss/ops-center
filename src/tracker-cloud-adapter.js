@@ -145,6 +145,22 @@ export function createTrackerCloudDb({context, backup, notify, onError, audit=as
         if (context().user?.id !== userId) throw Error('登录身份已变化，未保存');
         if (!context().canEdit) throw Error('当前用户没有编辑权限，未保存');
         const next = structuredClone(current.data), visible = projectTracker(next);
+        if(current.trackerOperations && change.operations){
+          const operations=change.operations;
+          await audit('submit_started',{baseRevision:current.revision,operations:operations.length});
+          let saved;
+          try{saved=await send('/ops-api/followup',{trackerOperations:operations});}
+          catch(error){
+            if(error.status && error.status<500 && ![408,429].includes(error.status))throw error;
+            saved=await readWithRetry(send,userId,'commit-recovery');
+          }
+          checkSnapshot(saved);
+          const events=new Map(saved.data.events.map(event=>[event.id,event]));
+          const expected=operations.map(op=>events.get(op.id));
+          if(expected.some(event=>!event||event.actor_id!==userId))throw Object.assign(Error('修改尚未核对成功，已保留草稿'),{uploadPaused:true});
+          await audit('submit_acknowledged',{revision:saved.revision});
+          return {...await confirm(send,saved,expected,userId),result:null};
+        }
         const changed = change(visible,next);
         if(changed.noop){const receipt=await confirm(send,current,changed.expectedEvents,userId);return {...receipt,result:changed.result};}
         next.trackerV1 = {...next.trackerV1, schema:1, docs:{...next.trackerV1?.docs,...changed.patch}};
@@ -193,12 +209,12 @@ export function createTrackerCloudDb({context, backup, notify, onError, audit=as
     return out;
   };
   return {
-    _commit:operations => mutate((visible,current) => {
+    _commit:operations => mutate(Object.assign((visible,current) => {
       const existing=new Set(current.events.map(event=>event.id));
       const pending=operations.filter(operation=>!existing.has(operation.id));
       const applied=applyTrackerOperations(visible,pending,context().user);
       return {...applied,expectedEvents:operations.map(operation=>({id:operation.id,after:current.events.find(event=>event.id===operation.id)?.after})),noop:pending.length===0};
-    }),
+    },{operations})),
     refresh, clear(){identity='';snapshot=null;docs={};emit();},
     _dump:() => structuredClone(docs), _snapshot:() => structuredClone(snapshot),
     _load:incoming => mutate(visible => {

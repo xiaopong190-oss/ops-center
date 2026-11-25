@@ -1,3 +1,5 @@
+import {applyTrackerOperations} from '../src/tracker-drafts.js';
+import {projectTracker} from '../src/tracker-cloud-adapter.js';
 import {readFollowup,writeFollowup,uploadFollowup} from './followup-storage.mjs';
 import {calculateFollowupCost} from '../src/followup-cost-calculation.js';
 const key = '_new-product-followup';
@@ -7,12 +9,28 @@ export async function followup(req, env, user, assembled = null) {
   if(new URL(req.url).pathname === '/ops-api/followup/upload') return uploadFollowup(req,env,user,text => followup(new Request(new URL('/ops-api/followup',req.url),{method:'POST'}),env,user,text));
   const previous = await readFollowup(env);
   const current = previous.snapshot;
-  if (req.method === 'GET') return Response.json(current, { headers: { 'Cache-Control': 'no-store' } });
+  if (req.method === 'GET') return Response.json({...current,trackerOperations:true}, { headers: { 'Cache-Control': 'no-store' } });
   if (req.method !== 'POST') reject(405, '方法不允许');
   if (user.canEdit === false && user.auth !== 'super') reject(403, '当前帐号没有编辑权限');
   const text = assembled ?? await req.text();
   if (assembled === null && new TextEncoder().encode(text).length > 3000000) reject(413, '记录过大，请拆分数据');
   let input; try { input = JSON.parse(text); } catch { reject(400, '无效数据'); }
+  if (input.trackerOperations) {
+    const ops = input.trackerOperations;
+    if (!Array.isArray(ops) || !ops.length || ops.some(op => !op || typeof op.id !== 'string' || !op.id || !['update','set','delete','import'].includes(op.type))) reject(400,'修改记录无效');
+    const existing = new Map(current.data.events.map(event => [event.id,event]));
+    const ids = new Set();
+    for (const op of ops) {
+      if (ids.has(op.id) || (existing.has(op.id) && existing.get(op.id).actor_id !== user.id)) reject(409,'操作编号冲突');
+      ids.add(op.id);
+    }
+    const pending = ops.filter(op => !existing.has(op.id));
+    if (!pending.length) return Response.json(current);
+    const applied = applyTrackerOperations(projectTracker(current.data),pending,user);
+    input = {revision:current.revision,data:{...current.data,
+      trackerV1:{...current.data.trackerV1,schema:1,docs:{...current.data.trackerV1?.docs,...applied.patch}},
+      events:[...applied.events,...current.data.events]}};
+  }
   if (input.revision !== current.revision) reject(409, '其它人员已更新，请刷新后重试；本次修改未覆盖云端');
   let data = input.data;
   if (!data || !['products', 'records', 'events'].every(name => Array.isArray(data[name]))) reject(400, '数据格式错误');

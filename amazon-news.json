@@ -1,31 +1,31 @@
 {
-  "updatedAt": "2026-11-24T08:28:18.932Z",
+  "updatedAt": "2026-11-25T07:03:29.158Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
     {
-      "title": "Amazon data center communities: Here’s what’s happening near data centers across the US in 2026",
-      "link": "https://www.aboutamazon.com/news/aws/amazon-data-centers-locations-news?utm_source=rss",
-      "pubDate": "Mon, 23 Nov 2026 21:57:00 GMT",
-      "date": "11/23",
-      "summary": "Get the latest updates on how Amazon supports small businesses, creates jobs, sets up sustainability initiatives, and develops educational p",
-      "category": "AWS"
+      "title": "Amazon Autos is coming to the UK—the first country outside the US",
+      "link": "https://www.aboutamazon.com/news/retail/amazon-autos-uk?utm_source=rss",
+      "pubDate": "Wed, 25 Nov 2026 05:50:05 GMT",
+      "date": "11/25",
+      "summary": "UK customers will be able to browse real-time dealer inventory, see upfront pricing, get an instant trade-in valuation, and connect with a l",
+      "category": "Retail"
     },
     {
-      "title": "AI safety can’t depend on an emergency brake. It needs better engineering.",
-      "link": "https://www.aboutamazon.com/news/aws/aws-ceo-ai-safety-engineering?utm_source=rss",
-      "pubDate": "Mon, 23 Nov 2026 17:00:05 GMT",
-      "date": "11/23",
-      "summary": "Most of the practical tools to build trustworthy AI systems already exist, and the industry needs to use them.",
-      "category": "AWS"
+      "title": "How Amazon Leo's satellites launch with help from 13 European countries",
+      "link": "https://www.aboutamazon.com/news/amazon-leo/amazon-leo-ariane-space?utm_source=rss",
+      "pubDate": "Tue, 24 Nov 2026 21:21:07 GMT",
+      "date": "11/24",
+      "summary": "More than 600 European businesses help build the rockets that carry Amazon Leo satellites into orbit—working together 'like an orchestra.'",
+      "category": "Amazon Leo"
     },
     {
-      "title": "What is physical AI? How Trainium accelerates how robots learn.",
-      "link": "https://www.aboutamazon.com/new/aws/what-is-physical-ai-aws-trainium-robots?utm_source=rss",
-      "pubDate": "Mon, 23 Nov 2026 16:59:39 GMT",
-      "date": "11/23",
-      "summary": "For robots, a split-second delay can change the outcome. Here's why speed matters for physical AI, and how AWS Trainium helps.",
-      "category": "AWS"
+      "title": "‘The Lord of the Rings: The Rings of Power’ Season 4 is confirmed. Here’s what we know",
+      "link": "https://www.aboutamazon.com/news/entertainment/lord-of-the-rings-rings-of-power-season-4-prime-video?utm_source=rss",
+      "pubDate": "Tue, 24 Nov 2026 19:00:13 GMT",
+      "date": "11/24",
+      "summary": "Prime Video’s epic fantasy series is in pre-production at Shepperton Studios in the UK, with filming set to begin this spring.",
+      "category": "Entertainment"
     }
   ]
 }

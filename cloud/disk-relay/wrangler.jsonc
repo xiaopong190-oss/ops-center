@@ -1,0 +1,8 @@
+{
+ "name":"ops-followup-disk-relay",
+ "main":"worker.mjs",
+ "account_id":"f898361a6c7974eea5b8c3d88cf1b452",
+ "compatibility_date":"2026-11-01",
+ "durable_objects":{"bindings":[{"name":"DISK_BRIDGE","class_name":"FollowupDiskBridge"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["FollowupDiskBridge"]}]
+}

@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {routeFollowupToDisk} from './followup-disk-route.mjs';
+const user={id:'operator',name:'运营',canEdit:true},get=new Request('https://worker/ops-api/followup');
+assert.equal(await routeFollowupToDisk(get,{},user),null);
+const post=()=>new Request(get.url,{method:'POST',body:'{"revision":7}'});
+assert.equal((await routeFollowupToDisk(post(),{FOLLOWUP_DISK_MIGRATING:'1'},user)).status,503);
+assert.equal((await routeFollowupToDisk(get,{FOLLOWUP_DISK_ENABLED:'1'},user)).status,503);
+let input;const env={FOLLOWUP_DISK_ENABLED:'1',DISK_RELAY_KEY:'synthetic',FOLLOWUP_DISK_RELAY:{async fetch(url,options){assert.equal(options.headers.Authorization,'Bearer synthetic');input=JSON.parse(options.body);return Response.json({revision:8});}}};
+assert.equal((await (await routeFollowupToDisk(post(),env,user)).json()).revision,8);assert.equal(input.user.id,user.id);assert.equal(input.body,'{"revision":7}');assert.equal(input.path,'/ops-api/followup');
+env.FOLLOWUP_DISK_RELAY.fetch=async()=>{throw Error('offline');};assert.equal((await routeFollowupToDisk(get,env,user)).status,503);
+console.log('PASS optional disk routing: cloud fallback, migration write fence, missing backend fails closed, authenticated identity forwarding and offline rejection');

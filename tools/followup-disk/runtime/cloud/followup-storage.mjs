@@ -40,6 +40,25 @@ export async function writeFollowup(env,previous,next) {
     : await insert(env,FOLLOWUP_KEY,pointer);
   if(Number(result.meta?.changes??result.changes)!==1)fail(409,'其它人员已更新，请刷新后重试；本次修改未覆盖云端');
 }
+// A small edit can shift all following chunks. Try matching from either end
+// of the saved payload. Only an exact client-supplied SHA-256 earns a receipt.
+async function reuseSavedParts(env, prefix, manifest) {
+  if (!manifest.hashes) return;
+  const {snapshot} = await readFollowup(env);
+  const previous = Buffer.from(JSON.stringify({revision: snapshot.revision, data: snapshot.data}));
+  const shift = previous.length - manifest.bytes;
+  for (let index = 0; index < manifest.count; index++) {
+    const start = index * PART_BYTES;
+    const size = Math.min(PART_BYTES, manifest.bytes - start);
+    for (const offset of new Set([start, start + shift])) {
+      if (offset < 0 || offset + size > previous.length) continue;
+      const candidate = previous.subarray(offset, offset + size);
+      if (await sha256(candidate) !== manifest.hashes[index]) continue;
+      await insert(env, prefix + ':' + index, candidate.toString('base64'));
+      break;
+    }
+  }
+}
 export async function uploadFollowup(req,env,user,commit) {
   if(req.method!=='POST')fail(405,'方法不允许');
   if(user.canEdit===false&&user.auth!=='super')fail(403,'当前帐号没有编辑权限');
@@ -54,6 +73,7 @@ export async function uploadFollowup(req,env,user,commit) {
     const existing=await get(env,prefix);
     if(existing){const m=JSON.parse(existing);if(m.owner!==owner)fail(403,'不能操作其它运营的上传');if(m.expires<Date.now()){await env.DB.prepare('DELETE FROM records WHERE key=? OR substr(key,1,?)=?').bind(prefix,prefix.length+1,prefix+':').run();return uploadFollowup(new Request(req.url,{method:'POST',body:text}),env,user,commit);}if(m.owner!==owner||m.sha256!==input.sha256||m.bytes!==input.bytes)fail(409,'上传编号冲突');return Response.json({ok:true,id});}
     await insert(env,prefix,JSON.stringify({owner,bytes:input.bytes,count:input.count,sha256:input.sha256,hashes:input.hashes,expires:Date.now()+86400000}));
+    await reuseSavedParts(env,prefix,input);
     return Response.json({ok:true,id});
   }
   const raw=await get(env,prefix);if(!raw)fail(404,'上传会话不存在，请重试');

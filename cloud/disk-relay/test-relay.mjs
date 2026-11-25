@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import worker,{FollowupDiskBridge} from './worker.mjs';
+const messages=[],socket={readyState:1,send:x=>messages.push(JSON.parse(x)),close(){this.readyState=3;}};
+const ctx={getWebSockets:()=>socket.readyState===1?[socket]:[]},env={DISK_RELAY_KEY:'synthetic-key'},bridge=new FollowupDiskBridge(ctx,env);
+const req=(input,auth='synthetic-key')=>new Request('https://bridge/relay',{method:'POST',headers:{Authorization:'Bearer '+auth},body:JSON.stringify(input)});
+const input={path:'/ops-api/followup',method:'GET',body:'',user:{id:'A',canEdit:true}};
+assert.equal((await bridge.fetch(req(input,'wrong'))).status,403);
+assert.equal((await bridge.fetch(req({...input,method:'POST',user:{id:'reader',canEdit:false}}))).status,403);
+assert.equal((await bridge.fetch(req({...input,path:'/ops-api/password'}))).status,400);
+const pending=bridge.fetch(req(input));await new Promise(r=>setTimeout(r,5));assert.equal(messages.length,1);
+bridge.webSocketMessage({},JSON.stringify({id:messages[0].id,status:200,body:'{}'}));assert.equal(bridge.pending.size,1,'foreign socket response rejected');
+bridge.webSocketMessage(socket,JSON.stringify({id:messages[0].id,status:200,body:'{"revision":12}'}));assert.equal((await (await pending).json()).revision,12);
+const interrupted=bridge.fetch(req(input));await new Promise(r=>setTimeout(r,5));bridge.webSocketClose(socket,1006);assert.equal((await interrupted).status,503);socket.readyState=3;assert.equal((await bridge.fetch(req(input))).status,503);
+assert.equal((await worker.fetch(req(input,'wrong'),env)).status,403);
+assert.equal((await bridge.fetch(new Request('https://bridge/connect'))).status,403);
+console.log('PASS disk relay: authenticated-only peer and API, allowed paths, read-only enforcement, foreign response rejection, offline/disconnect rejects with no success');

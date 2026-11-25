@@ -14,6 +14,7 @@ import {logisticsBackup} from './logistics-backup.mjs';
 import {validateInput as validateLogisticsInput,recognize as recognizeLogistics,recognizeWarehousesCached} from './logistics-ai.mjs';
 import callerModule from '../amazon-growth/gateway/caller.js';
 import {followup} from './followup.mjs';
+import {routeFollowupToDisk} from './followup-disk-route.mjs';
 import evidenceModule from '../amazon-growth/gateway/evidence.js';
 import {analyzeRequest} from './keyword/server/services/analyze.js';
 
@@ -110,7 +111,7 @@ async function handle(req,env) {
     await put(env,'global-config.json',cfg);
     return json({ok:true,moduleVisibility:cfg.data.moduleVisibility});
   }
-  if(p === '/ops-api/followup' || p === '/ops-api/followup/upload') return followup(req, env, await session(req, env));
+  if(p === '/ops-api/followup' || p === '/ops-api/followup/upload') {const user=await session(req,env);return await routeFollowupToDisk(req,env,user)||followup(req,env,user);}
   if(p==='/ops-api/health')return json({ok:true,version:'cloud-v1'});
   if(p==='/ops-api/bootstrap') {
     if(!env.BOOTSTRAP_TOKEN||req.headers.get('Authorization')!==`Bearer ${env.BOOTSTRAP_TOKEN}`)fail(403,'禁止访问');

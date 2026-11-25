@@ -562,6 +562,24 @@ function render(force){
   pending=false;
   const L=filtered();
   const app=document.getElementById('app');
+  // A collection listener also fires during startup and account changes.
+  // Only a validated cloud snapshot can establish that this account has no links.
+  if(window.setOpsFollowupContext && !trackerAdapter?._snapshot()){
+    const signedIn=trackerContext.user?.id && trackerContext.user.id!=='guest';
+    app.innerHTML=emptyBox(signedIn?'正在读取新品数据':'正在等待运营账号',signedIn?'暂未取得共享数据，请稍后重试。':'登录后会显示共享数据。');
+    if(signedIn){
+      const retry=document.createElement('button');
+      retry.className='btn';retry.textContent='重新读取';
+      retry.onclick=async()=>{
+        retry.disabled=true;
+        try{await trackerAdapter.refresh();render(true);}
+        catch(error){toast('读取失败：'+error.message);}
+        finally{retry.disabled=false;}
+      };
+      app.append(retry);
+    }
+    return;
+  }
   app.innerHTML=header()+(state.live||!state.loaded?'':'<div class="banner">没有连上共享存储，当前修改只在这个窗口里，刷新后会丢失。</div>')
     +(state.adding?addForm():'')+(state.view==='overview'?overview(L):stageView(L));
   ensureNames();

@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-11-25T07:03:29.158Z",
+  "updatedAt": "2026-11-26T06:55:14.443Z",
   "source": "aboutamazon.com/news/feed",
   "sourceLabel": "Amazon 官方新闻",
   "items": [
+    {
+      "title": "How the AWS Nitro System protects customers’ most sensitive data",
+      "link": "https://www.aboutamazon.com/news/aws/aws-nitro-system-customer-data-privacy?utm_source=rss",
+      "pubDate": "Wed, 25 Nov 2026 20:16:16 GMT",
+      "date": "11/25",
+      "summary": "Designed so AWS operators cannot access customer data, the Nitro System is the first formally verified hypervisor deployed in a commercial c",
+      "category": "AWS"
+    },
     {
       "title": "Amazon Autos is coming to the UK—the first country outside the US",
       "link": "https://www.aboutamazon.com/news/retail/amazon-autos-uk?utm_source=rss",
@@ -18,14 +26,6 @@
       "date": "11/24",
       "summary": "More than 600 European businesses help build the rockets that carry Amazon Leo satellites into orbit—working together 'like an orchestra.'",
       "category": "Amazon Leo"
-    },
-    {
-      "title": "‘The Lord of the Rings: The Rings of Power’ Season 4 is confirmed. Here’s what we know",
-      "link": "https://www.aboutamazon.com/news/entertainment/lord-of-the-rings-rings-of-power-season-4-prime-video?utm_source=rss",
-      "pubDate": "Tue, 24 Nov 2026 19:00:13 GMT",
-      "date": "11/24",
-      "summary": "Prime Video’s epic fantasy series is in pre-production at Shepperton Studios in the UK, with filming set to begin this spring.",
-      "category": "Entertainment"
     }
   ]
 }

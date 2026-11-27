@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>经营首页 · AI 数据分析系统</title>
+  <link rel="stylesheet" href="./global-navigation.css">
+  <link rel="stylesheet" href="./home.css">
+  <script defer src="./global-navigation.js"></script>
+  <script type="module" src="./home.js"></script>
+</head>
+<body>
+  <nav class="global-nav" aria-label="全局导航">
+    <button id="global-trigger" class="global-trigger" type="button" popovertarget="global-panel">
+      <span aria-hidden="true">▦</span> 全局菜单
+    </button>
+    <div id="global-panel" popover>
+      <a href="./" aria-current="page">经营首页 <small>当前</small></a>
+      <h2>业务模块</h2>
+      <a href="./Main.dc.html">订单费用核对与盈亏追踪</a>
+      <a href="./advertising.html">广告智控台</a>
+      <a href="./tracker.html">新品跟踪</a>
+    </div>
+  </nav>
+
+  <div class="page-shell">
+    <header class="top-bar" id="home-top" tabindex="-1">
+      <div class="brand-group">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="9" rx="1.5"></rect>
+            <rect x="14" y="3" width="7" height="5" rx="1.5"></rect>
+            <rect x="14" y="12" width="7" height="9" rx="1.5"></rect>
+            <rect x="3" y="16" width="7" height="5" rx="1.5"></rect>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>经营首页</h1>
+          <p class="meta-line" id="source-meta" role="status">正在读取共享数据…</p>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <label class="filter-field" for="shop-filter">
+          <span>店铺筛选</span>
+          <select id="shop-filter" aria-label="按店铺筛选">
+            <option value="all">全部店铺</option>
+          </select>
+        </label>
+        <a class="ghost-link" href="./connections.html">API 与模型接入</a>
+      </div>
+    </header>
+
+    <div id="sync-banner" class="sync-banner" role="alert" hidden></div>
+
+    <main class="dashboard-grid" aria-label="核心经营概览">
+      <!-- 广告模块 -->
+      <section class="module-card card-ads" id="module-ads" aria-labelledby="ads-heading">
+        <div class="card-head">
+          <div>
+            <span class="module-tag">广告投放</span>
+            <h2 id="ads-heading">广告 ACOS</h2>
+          </div>
+          <a class="module-link" href="./advertising.html">进入广告智控台 <span aria-hidden="true">→</span></a>
+        </div>
+        <p class="formula-note">ACOS = 广告花费 / 归因销售额 · 按币种分别汇总</p>
+        <div class="card-body" id="ads-body"></div>
+        <div class="card-foot">
+          <span class="foot-hint" id="ads-hint"></span>
+        </div>
+      </section>
+
+      <!-- 订单模块 -->
+      <section class="module-card card-orders" id="module-orders" aria-labelledby="orders-heading">
+        <div class="card-head">
+          <div>
+            <span class="module-tag">订单盈亏</span>
+            <h2 id="orders-heading">订单暂计盈亏</h2>
+          </div>
+          <a class="module-link" href="./Main.dc.html">进入订单核对 <span aria-hidden="true">→</span></a>
+        </div>
+        <p class="formula-note">商品毛利合计减去订单服务费，每笔订单扣费一次</p>
+        <div class="card-body" id="orders-body"></div>
+        <div class="card-foot">
+          <span class="foot-hint" id="orders-hint"></span>
+        </div>
+      </section>
+
+      <!-- 新品模块 -->
+      <section class="module-card card-products" id="module-products" aria-labelledby="products-heading">
+        <div class="card-head">
+          <div>
+            <span class="module-tag">新品跟踪</span>
+            <h2 id="products-heading">本期零销量商品</h2>
+          </div>
+          <a class="module-link" href="./tracker.html">进入新品跟踪 <span aria-hidden="true">→</span></a>
+        </div>
+        <p class="formula-note">跟踪商品本期动销情况 · 缺失数据不计为零销量</p>
+        <div class="card-body" id="products-body"></div>
+        <div class="card-foot">
+          <span class="foot-hint" id="products-hint"></span>
+        </div>
+      </section>
+    </main>
+
+    <footer class="page-footnote">
+      <span>说明：不同币种独立展示、不跨币种相加；<code>—</code> 表示数据缺失或无法计算，与数值 <code>0</code> 严格区分。</span>
+    </footer>
+  </div>
+</body>
+</html>
+

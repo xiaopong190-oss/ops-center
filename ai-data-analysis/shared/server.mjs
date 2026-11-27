@@ -12,7 +12,7 @@ import {demoPerformance} from '../demo-catalog.mjs';
 import {nativeGateway} from './native-gateway.mjs';
 
 const trackerPage = new URL('../../modules/new-product-tracker/index.html',import.meta.url);
-const systemFiles = new Set(['Main.dc.html','advertising.html','tracker.html','connections.html','connections.js','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
+const systemFiles = new Set(['home.html','home.css','home.js','Main.dc.html','advertising.html','tracker.html','connections.html','connections.js','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
 export function service({directory,providers=connections(),client=providers.source,demo=false,loadModel}) {
 
   let writingFees = false;
@@ -129,7 +129,10 @@ export function service({directory,providers=connections(),client=providers.sour
         if(req.headers['sec-fetch-site']==='cross-site')return send(403,{error:'仅支持系统内访问'});
         return send(200,await workspace());
       }
-      if (req.method==='GET' && (path==='/system/board' || path==='/')) {
+      if (req.method==='GET' && (path==='/' || path==='/system')) {
+        res.writeHead(302,{Location:'/system/'});return res.end();
+      }
+      if (req.method==='GET' && path==='/system/board') {
         const page=await readFile(trackerPage,'utf8');
         return send(200,'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+await bootstrap()+page,'text/html; charset=utf-8');
       }
@@ -137,11 +140,11 @@ export function service({directory,providers=connections(),client=providers.sour
         res.writeHead(302,{Location:'/system/tracker.html'});return res.end();
       }
       if (req.method==='GET' && path.startsWith('/system/')) {
-        const file=path.slice(8)||'Main.dc.html';
+        const file=path.slice(8)||'home.html';
         if (!systemFiles.has(file)) return send(404,{error:'页面不存在'});
         const type=file.endsWith('.css')?'text/css':file.endsWith('.js')?'application/javascript':'text/html';
         let asset=await readFile(new URL('../'+file,import.meta.url));
-        if(file==='Main.dc.html' || file==='advertising.html' || file==='tracker.html'){
+        if(file==='home.html' || file==='Main.dc.html' || file==='advertising.html' || file==='tracker.html'){
           asset=asset.toString().replace('<head>','<head>'+await bootstrap());
         }
         return send(200,asset,type+'; charset=utf-8');

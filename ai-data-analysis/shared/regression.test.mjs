@@ -52,7 +52,7 @@ test('三个入口使用同一店铺与订单版本，页面无附加流水',asy
   const [master,concurrent]=await Promise.all([read('/api/workspace'),read('/api/workspace')]);
   assert.deepEqual(master,concurrent);assert.equal(master.shops.length,2);assert.equal(master.rows.length,3);
   assert.equal(master.rows.filter(r=>r.sid==='101').reduce((s,r)=>s+r.quantity,0),6);
-  for(const page of ['Main.dc.html','board','advertising.html']){
+  for(const page of ['','Main.dc.html','board','advertising.html']){
     const html=await(await fetch(base+'/system/'+page)).text();
     assert.match(html,/window.systemData=/);assert.doesNotMatch(html,/lingxing-orders|共用快照 JSON|共用数据范围/);
     assert.ok(html.includes(master.syncedAt));
@@ -161,4 +161,21 @@ test('原生广告账户和广告商品接口随同一版本发布，失败时�
   generation=3;fail=true;assert.equal((await sync()).status,502);await assertVersion(2);
   fail=false;await sync();await assertVersion(3);
   assert.equal((await fetch(base+'/api/simulation/profiles/constructor')).status,404);
+});
+
+test('经营首页作为统一入口，三个模块均可独立打开并返回首页',async t=>{
+  const {base}=await startSystem(t);
+  for(const path of ['/','/system']){
+    const redirect=await fetch(base+path,{redirect:'manual'});
+    assert.equal(redirect.headers.get('location'),'/system/');
+  }
+  const home=await(await fetch(base+'/system/')).text();
+  for(const file of ['advertising.html','Main.dc.html','tracker.html']){
+    assert.ok(home.includes(file),'缺少模块入口 '+file);
+    const html=await(await fetch(base+'/system/'+file)).text();
+    assert.match(html,/<a href="\.\/">经营首页<\/a>/);
+  }
+  for(const file of ['home.js','home.css']){
+    assert.equal((await fetch(base+'/system/'+file)).status,200);
+  }
 });

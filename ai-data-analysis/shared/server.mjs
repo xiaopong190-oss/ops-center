@@ -5,13 +5,13 @@ import {homedir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {randomUUID,createHash} from 'node:crypto';
 import {collectShop,scope} from './collect.mjs';
-import {LingxingClient} from './lingxing.mjs';
+import {globalSource} from './source.mjs';
 
 import {demoPerformance} from '../demo-catalog.mjs';
 
 const trackerPage = new URL('../../modules/new-product-tracker/index.html',import.meta.url);
 const systemFiles = new Set(['Main.dc.html','advertising.html','tracker.html','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
-export function service({directory,client,demo=false}) {
+export function service({directory,client,demo=false,loadModel}) {
 
   let writingFees = false;
   const readJson=async file=>JSON.parse(await readFile(join(directory,file),'utf8'));
@@ -28,7 +28,7 @@ export function service({directory,client,demo=false}) {
   async function collectMaster(){
     const end=Date.now(), day=t=>new Date(t).toISOString().slice(0,10);
     const from=demo?'2026-10-01':day(end-29*86400000),to=demo?'2026-10-31':day(end);
-    try{
+    async function readOrders(){
       if(!client)throw Error('领星凭据待配置');
       const {data}=await client.read('/erp/sc/data/seller/lists',{});
       const shops=data.map(s=>({sid:String(s.sid),name:s.name||String(s.sid),site:s.country||s.region||''}));
@@ -38,7 +38,11 @@ export function service({directory,client,demo=false}) {
         const batch=await collectShop(client,{sid:shop.sid,from,to});
         rows.push(...batch.lines);
       }
-      const master={shops,rows,from,to,...(demo?{demoCatalogVersion:3,products:client.products,performance:demoPerformance(client.products,rows)}:{}),syncedAt:new Date().toISOString(),mode:demo?'demo':'live'};
+      return {shops,rows,from,to,transport:client.transport||'API',...(demo?{demoCatalogVersion:3,products:client.products,performance:demoPerformance(client.products,rows)}:{})};
+    }
+    try{
+      const model=loadModel?await loadModel():await readOrders();
+      const master={...model,syncedAt:new Date().toISOString(),mode:demo?'demo':'live'};
       await persist('workspace.json',master);
       published=master;
       lastError=null;
@@ -55,7 +59,7 @@ export function service({directory,client,demo=false}) {
     return initializing??=(async()=>{
       try {published=await readJson('workspace.json');}
       catch(e){if(e.code!=='ENOENT')throw e;}
-      if(!published || (demo && published.demoCatalogVersion!==3))await synchronize();
+      if(!published || (demo && published.demoCatalogVersion!==(loadModel?4:3)))await synchronize();
     })();
   }
   async function workspace(){
@@ -167,8 +171,7 @@ export function service({directory,client,demo=false}) {
   return server;
 }
 if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  const {LINGXING_APP_ID:appId,LINGXING_APP_SECRET:appSecret}=process.env;
-  service({client:appId && appSecret ? new LingxingClient({appId,appSecret}):null,
+  service({client:globalSource(process.env),
     directory:process.env.LINGXING_DATA_DIR || join(homedir(),'.ai-data-analysis','live-snapshots')
   }).listen(4188,'127.0.0.1',()=>console.log('AI 数据分析系统 http://127.0.0.1:4188/system/'));
 }

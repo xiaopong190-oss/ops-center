@@ -13,7 +13,7 @@ globalPanel.addEventListener('click', event => {
 const source = window.systemData;
 if (source) {
   const heading = document.createElement('h2');
-  heading.textContent = '全局数据源 · ' + (source.mode === 'demo' ? '模拟领星' : '领星 API');
+  heading.textContent = '全局数据源 · ' + (source.dataset ? '共享演示模型' : source.mode === 'demo' ? '模拟领星' : '领星 '+(source.transport||'API'));
   const status = document.createElement('p');
   status.setAttribute('role', 'status');
   const button = document.createElement('button');

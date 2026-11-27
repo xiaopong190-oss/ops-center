@@ -1,7 +1,15 @@
 # AI 数据分析系统
 
-运行 `node ai-data-analysis/demo.mjs`，从 http://127.0.0.1:4187/system/ 进入系统。演示用虚拟领星接口提供 2026 年 10 月的店铺与订单。订单页直接从共用数据计算明细、筛选和汇总；新品跟踪按 SID 和 SKU 在现有经营指标中计算订单数、件数和销售额。演示店铺、商品链接、采购成本与订单统一维护在 demo-catalog.mjs。新品经营周期使用共享订单及演示归因标记。广告入口嵌入原 sp-review 总览（本机 4173），由原模块提供界面、接口及业务逻辑。
+从本机 4187 端口的 /system/ 进入演示。先启动原 sp-review 的 API（3001）及前端（4173），再运行 node ai-data-analysis/demo.mjs。广告入口直接嵌入原总览。全局服务只读原生复盘账户和广告演练数据，发布 /api/workspace；订单和新品继续使用原有的订单核对和利润计算逻辑。
 
-真实模式使用 Node.js 22+，运行 `node --env-file=/path/to/order-system/.env ai-data-analysis/shared/server.mjs` 并访问 http://127.0.0.1:4188/system/ 。服务端复用 LINGXING_APP_ID 和 LINGXING_APP_SECRET，须授权店铺列表、订单列表和订单详情，配置领星出口 IP 白名单。系统统一读取最近 30 天的已授权店铺及订单，启动时加载磁盘快照，首次缺少快照时统一初始化。左下角全局菜单显示数据源、版本和共享数据同步按钮。切页和筛选只读取已发布数据，并发同步合并，全部店铺采集成功后才切换版本。任一上游失败会保留上次完整结果并标记错误。GET /api/workspace 为同源系统数据接口。手工服务费按 SID 和订单号保存。真实源目前提供店铺与订单，广告归因数据待上游接入。
+模型以广告 profile、原生商品 ID 和店铺 SID 关联数据。广告演练的美国、英国、日本样本有订单投影；复盘总览的合成账户保留独立身份及活动。每个商品按原生归因订单数合成单件订单，在币种最小单位分摊销售额，余数逐单补齐。订单日期取归因期间末日。采购、头程、佣金与物流单号均为演示假设。该模型只覆盖广告归因订单，不估算自然单。
 
-回归命令为 `node --test ai-data-analysis/demo.test.mjs ai-data-analysis/shared/regression.test.mjs`。
+原生服务、店铺或商品读取失败时，全局同步保留上一次发布的数据。同步通过左下角全局菜单触发。历史演示的浏览器记录、服务费和快照保存在原命名空间。
+
+## 真实领星接入
+
+使用 Node.js 22+，运行 node --env-file=/path/to/order-system/.env ai-data-analysis/shared/server.mjs，在 4188 端口访问 /system/。LINGXING_TRANSPORT 选 api 或 mcp。API 使用 LINGXING_APP_ID、LINGXING_APP_SECRET 和领星已授权的出口 IP。
+
+MCP 先运行 npm ci --prefix ai-data-analysis。配置 LINGXING_MCP_URL 和三个只读工具名 LINGXING_MCP_SHOPS_TOOL、LINGXING_MCP_ORDERS_TOOL、LINGXING_MCP_DETAILS_TOOL，认证可使用 LINGXING_MCP_TOKEN。服务端复用 Streamable HTTP 会话。工具参数分别为 {}、领星订单列表分页参数、{order_id}，返回结构化对象或 JSON 文本，含 data 数组，列表另需 total。实际服务的工具契约需与上述适配器匹配。真实领星源目前覆盖店铺和订单，演示模型的拆单及成本假设仅用于 4187。
+
+回归命令为 node --test ai-data-analysis/demo.test.mjs ai-data-analysis/model.test.mjs ai-data-analysis/shared/regression.test.mjs。

@@ -2,6 +2,7 @@ import {join,resolve} from 'node:path';
 import {homedir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {service} from './shared/server.mjs';
+import {sharedDemo} from './shared/demo-model.mjs';
 import {collect} from './shared/collect.mjs';
 
 import {demoShops,demoProducts,demoOrders as orders} from './demo-catalog.mjs';
@@ -20,6 +21,6 @@ export async function collectDemo(client,query){
   return {...await collect(client,query),source:'虚拟领星数据',mode:'demo'};
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  service({client:demoClient,demo:true,directory:join(homedir(),'.ai-data-analysis','demo-snapshots')})
+  service({loadModel:sharedDemo,demo:true,directory:join(homedir(),'.ai-data-analysis','native-ad-demo-v1')})
     .listen(4187,'127.0.0.1',()=>console.log('AI 数据分析系统 http://127.0.0.1:4187/system/'));
 }

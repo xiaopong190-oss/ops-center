@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
+<head><script>if(location.protocol==="file:")location.replace("http://127.0.0.1:4187/system/Main.dc.html");</script>
 <meta charset="utf-8">
 <title>订单费用核对与盈亏追踪</title>
 <script src="./vendor/react.js"></script>
@@ -61,8 +61,7 @@ th{white-space:nowrap}
 </label>
 
 
-<button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid {{accent}}; background: rgba(34,211,238,0.12); color: {{accent}}; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px" onClick="{{showSyncStatus}}">
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"></path><path d="M21 3v6h-6"></path></svg>刷新订单</button>
+
 <button type="button" style="height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #C7D3E3; font-size: 13px; cursor: pointer">导出 Excel（待接入）</button>
 </div>
 </header>
@@ -609,7 +608,6 @@ class Component extends DCLogic {
       changeSummaryPeriod: e => this.setState({summaryPeriod:e.target.value}),
       changeSummaryGroup: e => this.setState({summaryGroup:e.target.value}),
       syncNotice: this.state.syncNotice,
-      showSyncStatus: () => location.reload(),
       orderQuery: this.state.orderQuery, productQuery: this.state.productQuery,
       matchNotice: query ? (pendingVisible.length ? '已找到本机待匹配订单，产品与费用等待领星同步。' : matched.length ? '已匹配 ' + matched.length + ' 笔订单，产品及基础费用见下方明细（当前筛选显示 ' + visible.length + ' 笔）' : '未找到该订单，无法带出产品及基础费用；请检查订单号。当前仅包含订单。') : '输入订单号即可筛选对应产品与费用。当前显示共用订单，顶部汇总按当前店铺及服务商统计。',
       changeOrderQuery: e => this.setState({ orderQuery: e.target.value, tab: 'orders', filter: 'all', productQuery: '' }),

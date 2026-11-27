@@ -46,3 +46,5 @@
 #global-panel a[aria-current] { color: #67e8f9; background: #13303e; }
 .global-pending, #global-panel small { color: #a0afc3; }
 [id][tabindex="-1"] { scroll-margin-top: 16px; }
+#global-panel p[role="status"] { margin:8px 10px; color:#adbed3; font-size:12px; }
+#global-panel button { margin:4px 10px; padding:6px 12px; border-radius:5px; color:#deebf8; border:1px solid #46637d; background:#192c41; cursor:pointer; }

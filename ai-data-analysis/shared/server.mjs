@@ -24,11 +24,8 @@ export function service({directory,client,demo=false}) {
     const tmp=join(directory,randomUUID()+'.tmp');
     await writeFile(tmp,JSON.stringify(value),{mode:0o600});await rename(tmp,join(directory,file));
   }
-  let loading=null;
-  async function loadMaster(){
-    let previous;
-    try{previous=await readJson('workspace.json');}catch(e){if(e.code!=='ENOENT')throw e;}
-    if(previous && (!demo || previous.demoCatalogVersion===3) && Date.now()-Date.parse(previous.syncedAt)<300000)return previous;
+  let published,initializing,syncing,lastError;
+  async function collectMaster(){
     const end=Date.now(), day=t=>new Date(t).toISOString().slice(0,10);
     const from=demo?'2026-10-01':day(end-29*86400000),to=demo?'2026-10-31':day(end);
     try{
@@ -43,18 +40,33 @@ export function service({directory,client,demo=false}) {
       }
       const master={shops,rows,from,to,...(demo?{demoCatalogVersion:3,products:client.products,performance:demoPerformance(client.products,rows)}:{}),syncedAt:new Date().toISOString(),mode:demo?'demo':'live'};
       await persist('workspace.json',master);
-      return master;
+      published=master;
+      lastError=null;
     }catch(e){
-      return {...(previous||{shops:[],rows:[],from,to,mode:demo?'demo':'live'}),error:e.message};
+      lastError=e.message;
+      published??={shops:[],rows:[],products:[],performance:[],from,to,mode:demo?'demo':'live'};
     }
   }
-  async function workspace(){
-    if(!loading)loading=loadMaster().finally(()=>{loading=null;});
-    return {...await loading,fees:await fees()};
+  function synchronize(){
+    syncing??=collectMaster().finally(()=>{syncing=null;});
+    return syncing;
   }
-  async function bootstrap(){
-    const data=JSON.stringify(await workspace()).replaceAll('<','\\u003c');
-    return '<script>window.systemData='+data+';window.trackerSourceMode=window.systemData.mode;</script>';
+  function initialize(){
+    return initializing??=(async()=>{
+      try {published=await readJson('workspace.json');}
+      catch(e){if(e.code!=='ENOENT')throw e;}
+      if(!published || (demo && published.demoCatalogVersion!==3))await synchronize();
+    })();
+  }
+  async function workspace(){
+    await initialize();
+    return {...published,...(lastError?{syncError:lastError,...(!published.syncedAt?{error:lastError}:{})}:{}),fees:await fees()};
+  }
+  async function bootstrap(ad=false){
+    const master=await workspace();
+    const ads=ad && demo?{profiles:profiles.filter(p=>master.shops.some(s=>s.sid===p.id)),workspaces:Object.fromEntries(master.shops.map(s=>[s.sid,adWorkspace(master,s.sid)]))}:null;
+    const data=JSON.stringify(master).replaceAll('<','\\u003c');
+    return '<script>window.systemData='+data+';window.trackerSourceMode=window.systemData.mode;window.adData='+JSON.stringify(ads).replaceAll('<','\\u003c')+';</script>';
   }
   async function savedRanges(){
     let files=[];
@@ -76,7 +88,7 @@ export function service({directory,client,demo=false}) {
     }
     return {scope,lines,orderCount:new Set(lines.map(r=>r.orderId)).size,orderFees,mode:master.mode,syncedAt:master.syncedAt,error:master.error};
   }
-  return http.createServer(async (req,res)=>{
+  const server=http.createServer(async (req,res)=>{
     const origin = 'http://127.0.0.1:'+req.socket.localPort;
     function send(status,value,type='application/json; charset=utf-8') {
       res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'});
@@ -91,6 +103,12 @@ export function service({directory,client,demo=false}) {
         const result=sid && adWorkspace(await workspace(),sid);
         return result?send(200,result):send(404,{error:'店铺不存在'});
       }
+      if(path==='/api/workspace/sync' && req.method==='POST'){
+        if(req.headers['sec-fetch-site']==='cross-site' || req.headers['content-type']!=='application/json')return send(403,{error:'请从全局菜单同步'});
+        await initialize();
+        await synchronize();
+        return send(lastError?502:200,{syncedAt:published.syncedAt,error:lastError});
+      }
       if(path==='/api/workspace' && req.method==='GET'){
         if(req.headers['sec-fetch-site']==='cross-site')return send(403,{error:'仅支持系统内访问'});
         return send(200,await workspace());
@@ -104,14 +122,14 @@ export function service({directory,client,demo=false}) {
       }
       if (req.method==='GET' && path.startsWith('/system/')) {
         const file=path.slice(8)||'Main.dc.html';
-        const adAsset=demo && ['demo-ads.html','ad-ui/simulation.js','ad-ui/simulation.css'].includes(file);
+        const adAsset= ['demo-ads.html','ad-ui/simulation.js','ad-ui/simulation.css'].includes(file);
         if (!adAsset && !systemFiles.has(file)) return send(404,{error:'页面不存在'});
         const type=file.endsWith('.css')?'text/css':file.endsWith('.js')?'application/javascript':'text/html';
         let asset=await readFile(new URL('../'+file,import.meta.url));
-        if(file==='Main.dc.html' || file==='advertising.html' || file==='demo-ads.html'){
-          asset=asset.toString().replace('<head>','<head>'+await bootstrap());
+        if(file==='Main.dc.html' || file==='advertising.html' || file==='demo-ads.html' || file==='tracker.html'){
+          asset=asset.toString().replace('<head>','<head>'+await bootstrap(file==='demo-ads.html'));
         }
-        if(demo && file==='advertising.html')asset=asset.replace('http://127.0.0.1:4173/?view=overview','/system/demo-ads.html');
+        if(!demo && file==='demo-ads.html')asset=asset.replace('<script type="module" src="ad-ui/simulation.js"></script>','<p>共享数据源尚未提供广告归因数据。</p>');
         return send(200,asset,type+'; charset=utf-8');
       }
       if(path==='/api/snapshots' && req.method==='GET'){
@@ -154,6 +172,8 @@ export function service({directory,client,demo=false}) {
       return send(200,{id,snapshot});
     } catch(error) {return send(502,{error:error.code?'共享快照读写失败':error.message});}
   });
+  server.once('listening',()=>initialize().catch(error=>console.error('共享数据初始化失败',error.message)));
+  return server;
 }
 if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const {LINGXING_APP_ID:appId,LINGXING_APP_SECRET:appSecret}=process.env;

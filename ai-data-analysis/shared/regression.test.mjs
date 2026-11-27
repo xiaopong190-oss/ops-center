@@ -34,11 +34,11 @@ test('空结果与分页中断',async()=>{
   client.read=async()=>({data:[],total:4});await assert.rejects(collect(client,q),/分页不完整/);
 });
 
-async function startSystem(t){
+async function startSystem(t, beforeRead=async()=>{}){
   const {demoClient}=await import('../demo.mjs');
   const dir=await mkdtemp(join(tmpdir(),'system-orders-'));
   const calls=[];
-  const client={products:demoClient.products,read:async(path,params)=>{calls.push(path);return demoClient.read(path,params);},orderDetails:ids=>demoClient.orderDetails(ids)};
+  const client={products:demoClient.products,read:async(path,params)=>{calls.push(path);await beforeRead(path,params);return demoClient.read(path,params);},orderDetails:ids=>demoClient.orderDetails(ids)};
   const server=service({directory:dir,client,demo:true});
   server.listen(0,'127.0.0.1');await once(server,'listening');
   t.after(async()=>{await new Promise(r=>server.close(r));await rm(dir,{recursive:true,force:true});});
@@ -106,4 +106,39 @@ test('两站点广告、跟踪与订单按同一商品、币种及单位成本�
   const html=await(await fetch(base+'/system/advertising.html')).text();
   assert.match(html,/src="\/system\/demo-ads.html"/);
   assert.doesNotMatch(html,/4173/);
+});
+
+test('只有全局同步读取上游，并发合并，失败保留完整版本，重试可恢复',async t=>{
+  let fail=false,hold=null;
+  const {base,read,post,calls}=await startSystem(t,async(path,params)=>{
+    if(path.endsWith('/seller/lists') && hold)await hold;
+    if(fail && params.sid===102)throw Error('测试店铺断线');
+  });
+  const first=await read('/api/workspace');
+  const count=()=>calls.filter(p=>p.endsWith('/seller/lists')).length;
+  for(const endpoint of ['/system/Main.dc.html','/system/tracker.html','/system/board','/system/advertising.html','/system/demo-ads.html','/api/simulation/profiles/101']){
+    assert.equal((await fetch(base+endpoint)).status,200);
+  }
+  assert.equal(count(),1);
+  let release;
+  hold=new Promise(resolve=>{release=resolve;});
+  const requests=[post('/api/workspace/sync',{}),post('/api/workspace/sync',{})];
+  await new Promise(r=>setTimeout(r,50));
+  assert.equal((await read('/api/workspace')).syncedAt,first.syncedAt);
+  release();hold=null;
+  const versions=await Promise.all(requests.map(async r=>(await(await r).json()).syncedAt));
+  assert.equal(count(),2);
+  assert.equal(versions[0],versions[1]);
+  assert.notEqual(versions[0],first.syncedAt);
+  const good=await read('/api/workspace');
+  fail=true;
+  assert.equal((await post('/api/workspace/sync',{})).status,502);
+  const stale=await read('/api/workspace');
+  assert.deepEqual(stale,{...good,syncError:'测试店铺断线'});
+  assert.equal(count(),3);
+  assert.equal((await post('/api/workspace/sync',{},{Origin:'https://elsewhere.example'})).status,403);
+  fail=false;
+  assert.equal((await post('/api/workspace/sync',{})).status,200);
+  assert.equal((await read('/api/workspace')).syncError,undefined);
+  assert.equal(count(),4);
 });

@@ -12,6 +12,11 @@ await build({root:app,configFile:false,publicDir:false,plugins:[react.default(),
   name:'shared-ad-demo',resolveId(id){if(id===entry)return '\0'+entry;},
   enforce:'pre',
   transform(code,id){
+    if(id.endsWith('/api/simulation-api.ts'))return `
+      export async function fetchSimulationCatalog(){return {profiles:window.adData.profiles};}
+      export async function fetchSimulationWorkspace(id){return window.adData.workspaces[id];}
+      export async function commandSimulationAction(){throw Error('当前演示没有可执行的广告动作');}
+    `;
     if(!id.endsWith('/simulation-inventory-tabs.tsx'))return;
     const label='{product ? `${product.asin} · ${product.sku}` : ad.productId}';
     if(!code.includes(label))throw Error('广告商品字段已更改');

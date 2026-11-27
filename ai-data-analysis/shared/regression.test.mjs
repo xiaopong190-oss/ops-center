@@ -94,7 +94,7 @@ test('两站点跟踪与订单按同一商品、币种及单位成本关联',asy
     assert.equal(master.performance.filter(r=>r.linkId===item.id).reduce((n,r)=>n+r.adOrders,0),1);
   }
   const html=await(await fetch(base+'/system/advertising.html')).text();
-  assert.ok(html.includes('src="http://127.0.0.1:4173/?view=overview"'));
+  assert.ok(html.includes('src="/system/ad-console?view=overview"'));
   assert.doesNotMatch(html,/demo-ads|window.adData/);
   assert.equal((await fetch(base+'/system/demo-ads.html')).status,404);
 });
@@ -132,4 +132,33 @@ test('只有全局同步读取上游，并发合并，失败保留完整版本�
   assert.equal((await post('/api/workspace/sync',{})).status,200);
   assert.equal((await read('/api/workspace')).syncError,undefined);
   assert.equal(count(),4);
+});
+
+test('原生广告账户和广告商品接口随同一版本发布，失败时保留旧版',async t=>{
+  const dir=await mkdtemp(join(tmpdir(),'native-gateway-'));
+  let generation=1,fail=false;
+  const loadModel=async()=>{
+    if(fail)throw Error('upstream failed');
+    return {demoCatalogVersion:5,from:'2026-10-01',to:'2026-10-31',rows:[],shops:[{sid:'1',profileId:'demo'}],
+      products:[{id:'sku',price:generation}],nativeAds:{overview:{profiles:[{profileId:'1'}]},catalog:{profiles:[{id:'demo'}]},
+      workspaces:{demo:{generation}}}};
+  };
+  const server=service({directory:dir,loadModel,demo:true});
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  t.after(async()=>{await new Promise(r=>server.close(r));await rm(dir,{recursive:true,force:true});});
+  const base='http://127.0.0.1:'+server.address().port;
+  const read=async path=>(await fetch(base+path)).json();
+  const sync=()=>fetch(base+'/api/workspace/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  const assertVersion=async n=>{
+    const master=await read('/api/workspace');
+    assert.equal(master.products[0].price,n);
+    assert.equal(master.nativeAds,undefined);
+    assert.equal((await read('/api/simulation/profiles/demo')).generation,n);
+    assert.equal((await read('/api/simulation/profiles')).profiles[0].id,master.shops[0].profileId);
+    assert.equal((await read('/api/profiles')).profiles[0].profileId,master.shops[0].sid);
+  };
+  generation=2;await sync();await assertVersion(2);
+  generation=3;fail=true;assert.equal((await sync()).status,502);await assertVersion(2);
+  fail=false;await sync();await assertVersion(3);
+  assert.equal((await fetch(base+'/api/simulation/profiles/constructor')).status,404);
 });

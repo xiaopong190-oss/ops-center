@@ -9,6 +9,8 @@ import {globalSource} from './source.mjs';
 
 import {demoPerformance} from '../demo-catalog.mjs';
 
+import {nativeGateway} from './native-gateway.mjs';
+
 const trackerPage = new URL('../../modules/new-product-tracker/index.html',import.meta.url);
 const systemFiles = new Set(['Main.dc.html','advertising.html','tracker.html','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
 export function service({directory,client,demo=false,loadModel}) {
@@ -59,12 +61,13 @@ export function service({directory,client,demo=false,loadModel}) {
     return initializing??=(async()=>{
       try {published=await readJson('workspace.json');}
       catch(e){if(e.code!=='ENOENT')throw e;}
-      if(!published || (demo && published.demoCatalogVersion!==(loadModel?4:3)))await synchronize();
+      if(!published || (demo && published.demoCatalogVersion!==(loadModel?5:3)))await synchronize();
     })();
   }
   async function workspace(){
     await initialize();
-    return {...published,...(lastError?{syncError:lastError,...(!published.syncedAt?{error:lastError}:{})}:{}),fees:await fees()};
+    const {nativeAds,...publicData}=published;
+    return {...publicData,...(lastError?{syncError:lastError,...(!published.syncedAt?{error:lastError}:{})}:{}),fees:await fees()};
   }
   async function bootstrap(){
     const master=await workspace();
@@ -99,7 +102,9 @@ export function service({directory,client,demo=false,loadModel}) {
     }
     try {
       if (req.headers.host !== new URL(origin).host || (req.headers.origin && req.headers.origin!==origin)) return send(403,{error:'仅支持本机同源访问'});
-      const path = new URL(req.url,origin).pathname;
+      const url=new URL(req.url,origin),path=url.pathname;
+      await initialize();
+      if(await nativeGateway(req,res,url,published,synchronize))return;
       if(path==='/api/workspace/sync' && req.method==='POST'){
         if(req.headers['sec-fetch-site']==='cross-site' || req.headers['content-type']!=='application/json')return send(403,{error:'请从全局菜单同步'});
         await initialize();

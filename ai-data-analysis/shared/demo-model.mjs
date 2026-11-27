@@ -26,6 +26,7 @@ export async function sharedDemo(read=nativeRead){
   const {profiles}=await read('simulation/profiles');
   const shops=[],products=[],rows=[],performance=[];
   const orderIds=new Set();
+  const workspaces={};
   let from,to;
   for(const [profileId,binding] of Object.entries(bindings)){
     const p=profiles.find(profile=>profile.id===profileId);
@@ -33,6 +34,7 @@ export async function sharedDemo(read=nativeRead){
     const w=await read('simulation/profiles/'+profileId);
     if(!w.simulated || w.profile.id!==profileId || w.profile.currency!==p.currency)throw Error('广告演示账户不匹配');
     if(from && (from!==w.period.start || to!==w.period.end))throw Error('广告演示统计周期不一致');
+    workspaces[profileId]=w;
     from=w.period.start;to=w.period.end;
     const scale=10**p.minorUnits, {sid,domain}=binding;
     shops.push({sid,name:p.accountName,site:p.marketplace,currency:p.currency,profileId});
@@ -70,5 +72,6 @@ export async function sharedDemo(read=nativeRead){
     shops.push({sid:account.profileId,name:account.displayName,site:account.countryCode,currency:account.currencyCode,
       profileId:account.profileId,campaigns:account.campaigns});
   }
-  return {shops,products,rows,performance,from,to,demoCatalogVersion:4,dataset:'native-ad-demo-v1'};
+  return {shops,products,rows,performance,from,to,nativeAds:{workspaces,catalog:{profiles:profiles.filter(p=>Object.hasOwn(workspaces,p.id))},
+    overview:{...overview,profiles:overview.profiles.filter(p=>p.isSyntheticFixture)}},demoCatalogVersion:5,dataset:'native-ad-demo-v1'};
 }

@@ -23,20 +23,23 @@ if (source) {
   status.textContent = [version, source.syncError].filter(Boolean).join(' · ');
   globalPanel.append(heading, status, button);
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('workspace-sync') : null;
-  function update(result) {
+  async function update(result) {
     if (result.error) {
       status.textContent = '同步失败 · ' + result.error + ' · ' + version;
     } else if (result.syncedAt && result.syncedAt !== source.syncedAt) {
-      if (location.pathname.endsWith('/advertising.html')) {
-        source.syncedAt = result.syncedAt;
-        version = '数据版本 ' + new Date(result.syncedAt).toLocaleString('zh-CN');
-        status.textContent = version;
-      } else {
-        location.reload();
-      }
+      const app=document.querySelector('iframe');
+      if(app){
+        const response=await fetch('/api/workspace');
+        if(!response.ok)throw Error('共享版本读取失败');
+        const latest=await response.json();
+        Object.assign(source,latest);
+        version='数据版本 '+new Date(latest.syncedAt).toLocaleString('zh-CN');
+        status.textContent=version;
+        app.contentWindow.location.reload();
+      }else location.reload();
     }
   }
-  if (channel) channel.onmessage = event => update(event.data);
+  if (channel) channel.onmessage = event => update(event.data).catch(error=>{status.textContent=error.message;});
   button.onclick = async () => {
     button.disabled = true;
     status.textContent = '正在同步所有店铺…';
@@ -45,7 +48,7 @@ if (source) {
       const result = await response.json();
       if (!response.ok && !result.error) throw Error('共享服务暂时不可用');
       channel?.postMessage(result);
-      update(result);
+      await update(result);
     } catch (error) {
       update({error:error.message});
     } finally {

@@ -1126,7 +1126,7 @@ function perfView(l,editorsOnly=false,previewOnly=false){
   const end=master?.to||TODAY;
   const requestedStart=state.range==='all'?master?.from:addDays(end,state.range==='12w'?-83:-27);
   const start=master && requestedStart<master.from?master.from:requestedStart;
-  const orders=(master?.rows||[]).filter(r=>r.sid===selectedShop?.sid && r.sku===l.sku && String(r.date).slice(0,10)>=start && String(r.date).slice(0,10)<=end);
+  const orders=(master?.rows||[]).filter(r=>r.sid===selectedShop?.sid && r.sku===l.sku && (!l.asin || r.asin===l.asin) && String(r.date).slice(0,10)>=start && String(r.date).slice(0,10)<=end);
   const units=orders.reduce((n,r)=>n+Number(r.quantity),0);
   const total=key=>{
     if(!selectedShop || master.error || !orders.length || orders.some(r=>r[key]==null || !Number.isFinite(Number(r[key]))))return '—';

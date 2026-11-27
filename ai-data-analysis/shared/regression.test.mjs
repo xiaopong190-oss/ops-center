@@ -38,7 +38,7 @@ async function startSystem(t){
   const {demoClient}=await import('../demo.mjs');
   const dir=await mkdtemp(join(tmpdir(),'system-orders-'));
   const calls=[];
-  const client={read:async(path,params)=>{calls.push(path);return demoClient.read(path,params);},orderDetails:ids=>demoClient.orderDetails(ids)};
+  const client={products:demoClient.products,read:async(path,params)=>{calls.push(path);return demoClient.read(path,params);},orderDetails:ids=>demoClient.orderDetails(ids)};
   const server=service({directory:dir,client,demo:true});
   server.listen(0,'127.0.0.1');await once(server,'listening');
   t.after(async()=>{await new Promise(r=>server.close(r));await rm(dir,{recursive:true,force:true});});
@@ -74,4 +74,36 @@ test('旧范围接口投影自同一订单源，服务费按店铺和订单隔�
   assert.equal((await read('/api/workspace')).fees['101:'+orderId].amount,'2.50');
   assert.equal((await read('/api/snapshots/'+range.id)).orderFees[orderId].amount,'2.50');
   assert.equal(calls.filter(p=>p.endsWith('/mws/orders')).length,2);
+});
+
+test('两站点广告、跟踪与订单按同一商品、币种及单位成本关联',async t=>{
+  const {read,base}=await startSystem(t);
+  const master=await read('/api/workspace');
+  const catalog=await read('/api/simulation/profiles');
+  assert.equal(master.products.length,2);
+  for(const item of master.products){
+    const shop=master.shops.find(s=>s.sid===item.sid);
+    const workspace=await read('/api/simulation/profiles/'+shop.sid);
+    assert.deepEqual(workspace.profile,catalog.profiles.find(p=>p.id===shop.sid));
+    assert.equal(workspace.profile.accountName,shop.name);
+    assert.equal(workspace.profile.marketplace,item.site);
+    assert.equal(workspace.profile.currency,item.currency);
+    const product=workspace.inventory.products[item.id];
+    assert.equal(product.asin,item.asin);
+    assert.equal(product.sku,item.sku);
+    assert.deepEqual(Object.keys(workspace.inventory.products),[item.id]);
+    assert.equal(new URL(item.url).pathname,'/dp/'+product.asin);
+    const lines=master.rows.filter(r=>r.sid===shop.sid && r.asin===item.asin);
+    assert.ok(lines.length);
+    for(const line of lines){
+      assert.equal(line.sku,product.sku);
+      assert.equal(line.orderCurrency,item.currency);
+      assert.equal(-line.purchase,Number((item.cogs*line.quantity).toFixed(2)));
+      assert.equal(-line.firstLeg,Number((item.head*line.quantity).toFixed(2)));
+    }
+    assert.equal(workspace.inventory.ads[item.id].metrics.orders,1);
+  }
+  const html=await(await fetch(base+'/system/advertising.html')).text();
+  assert.match(html,/src="\/system\/demo-ads.html"/);
+  assert.doesNotMatch(html,/4173/);
 });

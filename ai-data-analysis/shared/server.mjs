@@ -7,6 +7,8 @@ import {randomUUID,createHash} from 'node:crypto';
 import {collectShop,scope} from './collect.mjs';
 import {LingxingClient} from './lingxing.mjs';
 
+import {profiles,adWorkspace,demoPerformance} from './demo-advertising.mjs';
+
 const trackerPage = new URL('../../modules/new-product-tracker/index.html',import.meta.url);
 const systemFiles = new Set(['Main.dc.html','advertising.html','tracker.html','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
 export function service({directory,client,demo=false}) {
@@ -26,7 +28,7 @@ export function service({directory,client,demo=false}) {
   async function loadMaster(){
     let previous;
     try{previous=await readJson('workspace.json');}catch(e){if(e.code!=='ENOENT')throw e;}
-    if(previous && Date.now()-Date.parse(previous.syncedAt)<300000)return previous;
+    if(previous && (!demo || previous.demoCatalogVersion===3) && Date.now()-Date.parse(previous.syncedAt)<300000)return previous;
     const end=Date.now(), day=t=>new Date(t).toISOString().slice(0,10);
     const from=demo?'2026-10-01':day(end-29*86400000),to=demo?'2026-10-31':day(end);
     try{
@@ -39,7 +41,7 @@ export function service({directory,client,demo=false}) {
         const batch=await collectShop(client,{sid:shop.sid,from,to});
         rows.push(...batch.lines);
       }
-      const master={shops,rows,from,to,syncedAt:new Date().toISOString(),mode:demo?'demo':'live'};
+      const master={shops,rows,from,to,...(demo?{demoCatalogVersion:3,products:client.products,performance:demoPerformance(client.products,rows)}:{}),syncedAt:new Date().toISOString(),mode:demo?'demo':'live'};
       await persist('workspace.json',master);
       return master;
     }catch(e){
@@ -83,6 +85,12 @@ export function service({directory,client,demo=false}) {
     try {
       if (req.headers.host !== new URL(origin).host || (req.headers.origin && req.headers.origin!==origin)) return send(403,{error:'仅支持本机同源访问'});
       const path = new URL(req.url,origin).pathname;
+      if(demo && req.method==='GET' && path.startsWith('/api/simulation/profiles')){
+        if(path==='/api/simulation/profiles')return send(200,{profiles});
+        const sid=path.match(/^\/api\/simulation\/profiles\/(\d+)$/)?.[1];
+        const result=sid && adWorkspace(await workspace(),sid);
+        return result?send(200,result):send(404,{error:'店铺不存在'});
+      }
       if(path==='/api/workspace' && req.method==='GET'){
         if(req.headers['sec-fetch-site']==='cross-site')return send(403,{error:'仅支持系统内访问'});
         return send(200,await workspace());
@@ -96,12 +104,14 @@ export function service({directory,client,demo=false}) {
       }
       if (req.method==='GET' && path.startsWith('/system/')) {
         const file=path.slice(8)||'Main.dc.html';
-        if (!systemFiles.has(file)) return send(404,{error:'页面不存在'});
+        const adAsset=demo && ['demo-ads.html','ad-ui/simulation.js','ad-ui/simulation.css'].includes(file);
+        if (!adAsset && !systemFiles.has(file)) return send(404,{error:'页面不存在'});
         const type=file.endsWith('.css')?'text/css':file.endsWith('.js')?'application/javascript':'text/html';
         let asset=await readFile(new URL('../'+file,import.meta.url));
-        if(file==='Main.dc.html' || file==='advertising.html'){
+        if(file==='Main.dc.html' || file==='advertising.html' || file==='demo-ads.html'){
           asset=asset.toString().replace('<head>','<head>'+await bootstrap());
         }
+        if(demo && file==='advertising.html')asset=asset.replace('http://127.0.0.1:4173/?view=overview','/system/demo-ads.html');
         return send(200,asset,type+'; charset=utf-8');
       }
       if(path==='/api/snapshots' && req.method==='GET'){

@@ -4,23 +4,12 @@ import {fileURLToPath} from 'node:url';
 import {service} from './shared/server.mjs';
 import {collect} from './shared/collect.mjs';
 
-// The first two lines match the October hook orders in the order workspace.
-const orders = [
-  ['114-2209188-7731026','2026-10-08',101,'B0C9X1PL7A','LX-HOOK-10',4,-7.60,-3.80,'DEMO-TRACK-001'],
-  ['113-7781024-1638859','2026-10-14',101,'B0C9X1PL7A','LX-HOOK-10',2,-3.80,-1.90,'DEMO-TRACK-002'],
-  ['112-3318842-9905172','2026-10-17',102,'B0D7K2M9QX','LX-LAMP-01',1,-6.80,-3.20,null]
-].map(([amazon_order_id,purchase_date_local,sid,asin,seller_sku,quantity_ordered,cg_price,cg_transport_costs,tracking_number])=>({
-  amazon_order_id,purchase_date_local,sid,tracking_number,
-  order_status:tracking_number?'Shipped':'Unshipped',fulfillment_channel:'MFN',order_total_currency_code:'USD',
-  shipment_date_local:tracking_number?purchase_date_local:null,
-  refund_amount:0,item_list:[{asin,seller_sku,quantity_ordered,cg_price,cg_transport_costs,fba_shipment_amount:0,
-    sales_price_amount:quantity_ordered*(sid===101?12.99:29.99),commission_amount:-quantity_ordered*1.95,
-    profit:quantity_ordered*(sid===101?12.99:29.99)-quantity_ordered*1.95+cg_price+cg_transport_costs}]
-}));
+import {demoShops,demoProducts,demoOrders as orders} from './demo-catalog.mjs';
 
 export const demoClient = {
+  products:demoProducts,
   async read(path,{sid,start_date,end_date,offset,length}) {
-    if(path==='/erp/sc/data/seller/lists')return {data:[{sid:101,name:'示例店铺 A',country:'US'},{sid:102,name:'示例店铺 B',country:'US'}]};
+    if(path==='/erp/sc/data/seller/lists')return {data:demoShops.map(s=>({sid:Number(s.sid),name:s.name,country:s.site}))};
     if(path!=='/erp/sc/data/mws/orders') throw Error('模拟接口不存在');
     const rows=orders.filter(row=>row.sid===sid && row.purchase_date_local>=start_date && row.purchase_date_local<end_date);
     return {total:rows.length,data:rows.slice(offset,offset+length)};

@@ -229,12 +229,12 @@ th{white-space:nowrap}
 <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
 <sc-raw-tr style="{{r.rowStyle}}">
 <sc-raw-td style="text-align: left; padding: 12px 20px; border-bottom: 1px solid #131F33"><div style="color: #E6EDF7">{{r.id}}</div><div style="font-size:11px;color:#67E8F9;margin-top:4px">{{r.shop}}</div><div style="font-size: 11px; color: #7C8DA6; margin-top: 3px">{{r.date}}</div></sc-raw-td>
-<sc-raw-td style="text-align: left; padding: 12px 10px; border-bottom: 1px solid #131F33"><div style="color: #C7D3E3">{{r.sku}}</div><div style="font-size: 11px; color: #7C8DA6; margin-top: 3px">{{r.asin}}</div></sc-raw-td>
+<sc-raw-td style="text-align: left; padding: 12px 10px; border-bottom: 1px solid #131F33"><div style="color: #C7D3E3">{{r.sku}}</div><div style="font-size: 11px; color: #7C8DA6; margin-top: 3px">{{r.plainAsin}}<sc-if value="{{r.productUrl}}"><a href="{{r.productUrl}}" target="_blank" rel="noopener noreferrer" style="color:#77adf5">{{r.asin}}</a></sc-if></div></sc-raw-td>
 <sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #C7D3E3">{{r.qty}}</sc-raw-td>
 <sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #C7D3E3">{{r.priceF}}</sc-raw-td>
 <sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #E6EDF7">{{r.salesF}}</sc-raw-td>
 <sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #8FA3BF">{{r.feeF}}</sc-raw-td>
-<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #8FA3BF">{{r.costF}}</sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #8FA3BF">{{r.costF}}<small style="display:block">{{r.unitCost}}</small></sc-raw-td>
 <sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #8FA3BF">{{r.shipF}}</sc-raw-td>
 <sc-raw-td style="padding:8px 10px;border-bottom:1px solid #131F33;text-align:right"><input class="order-field fee-field" type="number" min="0" max="999999.99" step="0.01" title="{{r.serviceCurrency}}" value="{{r.extraFeeInput}}" onChange="{{r.changeExtraFee}}" onBlur="{{r.normalizeExtraFee}}" aria-label="服务费 {{r.serviceCurrency}} {{r.id}}"><div style="font-size:11px;color:#8FA3BF;margin-top:4px">{{r.serviceCurrency}}</div></sc-raw-td>
 <sc-raw-td style="padding:8px 10px;border-bottom:1px solid #131F33;text-align:left"><sc-raw-select class="order-field provider-field" value="{{r.provider}}" onChange="{{r.changeProvider}}" aria-label="服务商名称 {{r.id}}"><option value="">请选择服务商</option><sc-for list="{{providerOptions}}" as="p"><option value="{{p}}">{{p}}</option></sc-for></sc-raw-select></sc-raw-td>
@@ -395,7 +395,7 @@ class Component extends DCLogic {
     const accent = this.props.accent ?? '#22D3EE';
     const ORANGE = '#FB923C', AMBER = '#FCD34D', RED = '#F87171', GREEN = '#34D399';
     const source=window.systemData || {shops:[],rows:[],fees:{},error:'请从系统入口打开'};
-    const shopOptions=source.shops.map(s=>({sid:s.sid,label:s.name+' · '+s.sid}));
+    const shopOptions=source.shops.map(s=>({sid:s.sid,label:[s.name,s.site,s.sid].filter(Boolean).join(' · ')}));
     const round=n=>Math.round(n*100)/100;
     const number=v=>v==null || v==='' ? NaN:Number(v);
     let aggregateCurrency='';
@@ -410,6 +410,7 @@ class Component extends DCLogic {
     const allOrders=source.rows.map(row=>{
       const id=row.orderId,sid=row.sid,key=sid+':'+id,first=!seen.has(key);
       seen.add(key);
+      const product=source.products?.find(p=>p.sid===sid && p.sku===row.sku && p.asin===row.asin);
       const entry=source.fees[key],extra=this.state.orderExtras[key]||{},currency=row.orderCurrency;
       const qty=number(row.quantity),sales=number(row.sales),cost=-number(row.purchase),ship=-number(row.firstLeg);
       const fee=-number(row.commission)-number(row.fba),gross=number(row.profit);
@@ -417,7 +418,7 @@ class Component extends DCLogic {
       const extraFee=first?(entry && entry.currency!==currency?NaN:service):0;
       const refund=first?Math.abs(number(row.refundTotal)):0;
       const shop=shopOptions.find(s=>s.sid===sid)?.label||sid;
-      return {i:key,id,sid,key,first,currency,tracking:row.tracking,channel:row.channel,serviceCurrency:entry?.currency||currency,shop,sku:row.sku,asin:row.asin,date:String(row.date||'').slice(0,10),
+      return {i:key,id,sid,key,first,product,currency,tracking:row.tracking,channel:row.channel,serviceCurrency:entry?.currency||currency,shop,sku:row.sku,asin:row.asin,date:String(row.date||'').slice(0,10),
         qty,price:sales/qty,sales,cost,ship,fee,baseFee:cost+ship+fee,gross,extraFee,extraFeeInput:extra.extraFee??entry?.amount??'',
         fin:gross-extraFee,refund,status:refund>0?'partial':Number.isFinite(refund)?'none':'pending',reason:'',provider:extra.provider||'',
         providerReview:extra.providerReview||'pending',tracked:!!this.state.tracked[key]};
@@ -495,6 +496,7 @@ class Component extends DCLogic {
     });
     const rows = visible.map(r => ({
       ...extraFields(r),
+      productUrl:r.product?.url, plainAsin:r.product?'':r.asin, unitCost:r.product?'每件 '+money(r.product.cogs,r.currency):'',
       id: r.id, date: r.date, sku: r.sku, asin: r.asin, qty: r.qty,
       priceF: money(r.price,r.currency), salesF: money(r.sales,r.currency), feeF: money(r.fee,r.currency), costF: money(r.cost,r.currency), shipF: money(r.ship,r.currency), baseFeeF: money(r.baseFee,r.currency), grossF: money(r.gross,r.currency),
       refundF: r.refund > 0 ? '-' + money(r.refund,r.currency) : '—',

@@ -21,7 +21,10 @@ if (source) {
   button.textContent = '同步共享数据';
   let version = source.syncedAt ? '数据版本 ' + new Date(source.syncedAt).toLocaleString('zh-CN') : '尚无已同步数据';
   status.textContent = [version, source.syncError].filter(Boolean).join(' · ');
-  globalPanel.append(heading, status, button);
+  const settingsLink=document.createElement('a');
+  settingsLink.href='./connections.html';
+  settingsLink.textContent='API 与模型接入';
+  globalPanel.append(heading, status, settingsLink, button);
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('workspace-sync') : null;
   async function update(result) {
     if (result.error) {

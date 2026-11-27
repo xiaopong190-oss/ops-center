@@ -5,15 +5,15 @@ import {homedir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {randomUUID,createHash} from 'node:crypto';
 import {collectShop,scope} from './collect.mjs';
-import {globalSource} from './source.mjs';
+import {connections} from './connections.mjs';
 
 import {demoPerformance} from '../demo-catalog.mjs';
 
 import {nativeGateway} from './native-gateway.mjs';
 
 const trackerPage = new URL('../../modules/new-product-tracker/index.html',import.meta.url);
-const systemFiles = new Set(['Main.dc.html','advertising.html','tracker.html','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
-export function service({directory,client,demo=false,loadModel}) {
+const systemFiles = new Set(['Main.dc.html','advertising.html','tracker.html','connections.html','connections.js','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
+export function service({directory,providers=connections(),client=providers.source,demo=false,loadModel}) {
 
   let writingFees = false;
   const readJson=async file=>JSON.parse(await readFile(join(directory,file),'utf8'));
@@ -103,6 +103,20 @@ export function service({directory,client,demo=false,loadModel}) {
     try {
       if (req.headers.host !== new URL(origin).host || (req.headers.origin && req.headers.origin!==origin)) return send(403,{error:'仅支持本机同源访问'});
       const url=new URL(req.url,origin),path=url.pathname;
+      if(path==='/api/connections' && req.method==='GET')return send(200,{...providers.describe(),demo});
+      if(['/api/connections/check','/api/llm/responses'].includes(path)){
+        if(req.method!=='POST')return send(405,{error:'需要 POST'});
+        if(req.headers['sec-fetch-site']==='cross-site'||!req.headers['content-type']?.startsWith('application/json'))return send(403,{error:'需要同源 JSON 请求'});
+        let size=0;const chunks=[];
+        for await(const chunk of req){size+=chunk.length;if(size>32768)return send(413,{error:'请求过长'});chunks.push(chunk);}
+        let params;try{params=JSON.parse(Buffer.concat(chunks).toString());}catch{return send(400,{error:'JSON 无效'});}
+        const check=path.endsWith('/check'),id=check?params?.id:'llm';
+        const provider=providers.describe().providers.find(p=>p.id===id);
+        if(!provider || (!check && (typeof params?.input!=='string'||!params.input.trim()||params.input.length>8000)))return send(400,{error:'请检查服务名或输入文本（最多 8000 字符）'});
+        if(!provider.configured)return send(503,{error:provider.label+' 待配置',missing:provider.missing});
+        try{return send(200,check?await providers.check(id):await providers.generate(params.input));}
+        catch(e){return send(502,{error:provider.label+' 请求失败，请检查连接、权限和服务配置'+(/^OpenAI HTTP \d{3}$/.test(e.message)?' · '+e.message:'')});}
+      }
       await initialize();
       if(await nativeGateway(req,res,url,published,synchronize))return;
       if(path==='/api/workspace/sync' && req.method==='POST'){
@@ -176,7 +190,7 @@ export function service({directory,client,demo=false,loadModel}) {
   return server;
 }
 if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  service({client:globalSource(process.env),
+  service({
     directory:process.env.LINGXING_DATA_DIR || join(homedir(),'.ai-data-analysis','live-snapshots')
   }).listen(4188,'127.0.0.1',()=>console.log('AI 数据分析系统 http://127.0.0.1:4188/system/'));
 }

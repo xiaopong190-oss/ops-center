@@ -13,3 +13,9 @@
 MCP 先运行 npm ci --prefix ai-data-analysis。配置 LINGXING_MCP_URL 和三个只读工具名 LINGXING_MCP_SHOPS_TOOL、LINGXING_MCP_ORDERS_TOOL、LINGXING_MCP_DETAILS_TOOL，认证可使用 LINGXING_MCP_TOKEN。服务端复用 Streamable HTTP 会话。工具参数分别为 {}、领星订单列表分页参数、{order_id}，返回结构化对象或 JSON 文本，含 data 数组，列表另需 total。实际服务的工具契约需与上述适配器匹配。真实领星源目前覆盖店铺和订单，演示模型的拆单及成本假设仅用于 4187。
 
 回归命令为 node --test ai-data-analysis/demo.test.mjs ai-data-analysis/model.test.mjs ai-data-analysis/shared/regression.test.mjs。
+
+## 全局接入
+
+在任一模块打开左下角全局菜单，选择“API 与模型接入”。领星 API 和 MCP 可分别配置、分别验证，真实业务同步通过 LINGXING_TRANSPORT 选择一个通道。模型服务使用 OpenAI Responses API，所有模块可通过同源 POST /api/llm/responses 发送 {"input":"你的问题"}，读取返回的 text 和 model。此接口仅发送调用方提供的文本。
+
+将 connections.env.example 复制到仓库外的私有配置文件，填写需启用的服务。OPENAI_MODEL 填写当前账号具备调用权限的模型 ID。保存后用同一文件启动所需服务，例如 node --env-file=/path/to/private.env ai-data-analysis/demo.mjs 或 node --env-file=/path/to/private.env ai-data-analysis/shared/server.mjs。GET /api/connections 仅返回配置状态；POST /api/connections/check 接收 {"id":"api"}、{"id":"mcp"} 或 {"id":"llm"}。模型访问验证只读取模型信息，模型调用表单才会发起推理。

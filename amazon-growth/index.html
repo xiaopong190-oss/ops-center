@@ -12,7 +12,6 @@
     document.documentElement.setAttribute("data-ops-role", window.OPS_IS_SUPER ? "super" : "operator");
     addEventListener("DOMContentLoaded", function () {
       document.querySelectorAll(".app-switch a").forEach(function (a) {
-        if (a.classList.contains("local-asin-link")) return;
         var u = new URL(a.getAttribute("href"), location.origin);
         ["embedded", "opsUser", "opsName", "opsRole"].forEach(function (k) { if (p.has(k)) u.searchParams.set(k, p.get(k)); });
         a.href = u.pathname + u.search;
@@ -44,7 +43,6 @@
         <a href="/watchlist/">监控清单</a>
         <a href="/launch-plan/">推品计划</a>
         <a href="/keywords/">关键词库</a>
-        <a href="http://127.0.0.1:4186/" target="_blank" rel="noopener noreferrer" class="local-asin-link">ASIN 领星数据（本机）</a>
       </nav>
     </div>
     <button type="button" class="conn off" id="connBar" title="打开连接设置">

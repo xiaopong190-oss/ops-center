@@ -1,9 +1,11 @@
 # AI 数据分析系统
 
-使用 Node.js 22+，在仓库根目录运行 `node ai-data-analysis/demo.mjs`，打开 http://127.0.0.1:4187/system/ ，从左下角全局菜单切换模块。广告模块沿用原广告智控台本机预览服务（4173 端口）。
+从左下角切换新品跟踪、订单费用核对与盈亏追踪和广告智控台。新品跟踪复用 modules/new-product-tracker 中的大屏，可按运营、站点和链接查看六个业务标签。广告入口沿用 4173 本机预览。
 
-增长模块默认载入示例店铺 A（SID 101）在 2026 年 10 月的 B0C9X1PL7A，显示两笔与订单页对应的模拟订单、采购成本、头程费和模拟运单。可切换为 SID 102 和 B0D7K2M9QX 查看无运单的订单。
+使用 Node.js 22+。从仓库根目录运行 `node ai-data-analysis/demo.mjs`，打开 http://127.0.0.1:4187/system/tracker.html 。在「经营数据」展开「领星订单、成本与配送」，点击同步。示例链接预填店铺 101、ASIN B0C9X1PL7A 和 2026 年 10 月，可核对两笔模拟订单。
 
-虚拟客户端使用与真实接口相同的归集、持久化及共享读取流程。4187 服务只使用模拟数据，JSON 包含 mode=demo，保存到用户目录的 .amazon-growth/demo-snapshots。真实领星服务仍使用 4186。虚拟模式无需 API 密钥。
+真实模式从同一目录运行 `node --env-file=/path/to/order-system/.env ai-data-analysis/shared/server.mjs`，打开 http://127.0.0.1:4188/system/tracker.html 。复用订单系统的 LINGXING_APP_ID 和 LINGXING_APP_SECRET。需领星订单列表、订单详情权限及出口 IP 白名单。真实模式先新增产品链接，再为该链接填写店铺、ASIN 与下单日期。
 
-回归命令：`node --test ai-data-analysis/demo.test.mjs amazon-growth/asin-data/regression.test.mjs`。
+系统级 POST /api/sync 接受 sid、asin、from、to，GET /api/snapshots/{id} 提供最近成功快照。演示和真实环境分别保存到用户目录 .ai-data-analysis/demo-snapshots 和 live-snapshots。原始费用保留正负号和缺失值，不自动折算成人民币试算金额。产品资料保存在当前浏览器，线上运营中心的共享版本与人员权限由原系统管理。
+
+回归命令为 `node --test ai-data-analysis/demo.test.mjs ai-data-analysis/shared/regression.test.mjs`。

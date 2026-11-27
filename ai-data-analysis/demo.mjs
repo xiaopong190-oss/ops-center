@@ -1,8 +1,8 @@
 import {join,resolve} from 'node:path';
 import {homedir} from 'node:os';
 import {fileURLToPath} from 'node:url';
-import {service} from '../amazon-growth/asin-data/server.mjs';
-import {collect} from '../amazon-growth/asin-data/collect.mjs';
+import {service} from './shared/server.mjs';
+import {collect} from './shared/collect.mjs';
 
 // The first two lines match the October hook orders in the order workspace.
 const orders = [
@@ -28,6 +28,6 @@ export async function collectDemo(client,query){
   return {...await collect(client,query),source:'虚拟领星数据',mode:'demo'};
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  service({client:demoClient,collector:collectDemo,demo:true,directory:join(homedir(),'.amazon-growth','demo-snapshots')})
+  service({client:demoClient,collector:collectDemo,demo:true,directory:join(homedir(),'.ai-data-analysis','demo-snapshots')})
     .listen(4187,'127.0.0.1',()=>console.log('AI 数据分析系统 http://127.0.0.1:4187/system/'));
 }

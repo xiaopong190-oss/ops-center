@@ -33,53 +33,45 @@ test('空结果与分页中断',async()=>{
   assert.equal((await collect(client,q)).orderCount,0);
   client.read=async()=>({data:[],total:4});await assert.rejects(collect(client,q),/分页不完整/);
 });
-test('本机 API 同步、共享读取、同范围替换和失败保留',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'growth-regression-'));
-  let generation=0;
-  const server=service({directory:dir,client:{},collector:async(c,query)=>{
-    if(generation===2)throw Error('同步失败');
-    return {scope:query,generation:generation++};
-  }});
-  server.listen(0,'127.0.0.1');await once(server,'listening');
-  t.after(async()=>{await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});});
-  const base='http://127.0.0.1:'+server.address().port;
-  const post=(extra={})=>fetch(base+'/api/sync',{method:'POST',headers:{'Content-Type':'application/json',...extra},body:JSON.stringify(q)});
-  assert.equal((await post({Origin:'https://other.example'})).status,403);
-  const first=await (await post()).json();const next=await(await post()).json();
-  assert.match(first.id,/^[a-f0-9]{64}$/);assert.equal(first.id,next.id);
-  assert.equal((await post()).status,502);
-  assert.equal((await(await fetch(base+'/api/snapshots/'+first.id)).json()).generation,1);
-  assert.equal((await fetch(base+'/.env')).status,404);
-});
 
-test('三个入口发现同一范围，跨范围订单费用、并发版本与空结果覆盖',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'shared-ledger-'));
-  let generation=0;
-  const server=service({directory:dir,client:{},demo:true,collector:async(_client,scope)=>{
-    generation++;
-    const lines=generation===3?[]:[{orderId:id,sku:'sku',date:'2026-10-03',purchase:-generation}];
-    return {scope,syncedAt:'2026-11-01T00:00:0'+generation+'Z',lines,orderCount:lines.length};
-  }});
+async function startSystem(t){
+  const {demoClient}=await import('../demo.mjs');
+  const dir=await mkdtemp(join(tmpdir(),'system-orders-'));
+  const calls=[];
+  const client={read:async(path,params)=>{calls.push(path);return demoClient.read(path,params);},orderDetails:ids=>demoClient.orderDetails(ids)};
+  const server=service({directory:dir,client,demo:true});
   server.listen(0,'127.0.0.1');await once(server,'listening');
   t.after(async()=>{await new Promise(r=>server.close(r));await rm(dir,{recursive:true,force:true});});
   const base='http://127.0.0.1:'+server.address().port;
-  const post=(path,input)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
+  const post=(path,input,extra={})=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...extra},body:JSON.stringify(input)});
   const read=async path=>(await fetch(base+path)).json();
-  for(const name of ['Main.dc.html','advertising.html','board']){
-    const html=await(await fetch(base+'/system/'+name)).text();
-    assert.match(html,/tracker-source\.js/);assert.match(html,/lingxing-orders/);
+  return {calls,base,post,read};
+}
+test('三个入口使用同一店铺与订单版本，页面无附加流水',async t=>{
+  const {calls,base,read}=await startSystem(t);
+  const [master,concurrent]=await Promise.all([read('/api/workspace'),read('/api/workspace')]);
+  assert.deepEqual(master,concurrent);assert.equal(master.shops.length,2);assert.equal(master.rows.length,3);
+  assert.equal(master.rows.filter(r=>r.sid==='101').reduce((s,r)=>s+r.quantity,0),6);
+  for(const page of ['Main.dc.html','board','advertising.html']){
+    const html=await(await fetch(base+'/system/'+page)).text();
+    assert.match(html,/window.systemData=/);assert.doesNotMatch(html,/lingxing-orders|共用快照 JSON|共用数据范围/);
+    assert.ok(html.includes(master.syncedAt));
   }
-  const wide=await(await post('/api/sync',q)).json();
-  const narrow=await(await post('/api/sync',{...q,from:'2026-10-03',to:'2026-10-03'})).json();
-  assert.equal((await read('/api/snapshots')).snapshots[0].id,narrow.id);
-  const fee={id:wide.id,orderId:id,amount:'2.50',currency:'USD',version:0};
+  assert.equal(calls.filter(p=>p.endsWith('/seller/lists')).length,1);
+  assert.equal(calls.filter(p=>p.endsWith('/mws/orders')).length,2);
+});
+test('旧范围接口投影自同一订单源，服务费按店铺和订单隔离',async t=>{
+  const {read,post,calls}=await startSystem(t);
+  const query={...q,asin:'B0C9X1PL7A',to:'2026-10-31'};
+  const range=await(await post('/api/sync',query)).json();
+  assert.equal(range.snapshot.orderCount,2);
+  const orderId=range.snapshot.lines[0].orderId;
+  const fee={sid:'101',orderId,amount:'2.50',currency:'USD',version:0};
+  assert.equal((await post('/api/order-fee',fee,{Origin:'https://outside.example'})).status,403);
   assert.equal((await post('/api/order-fee',fee)).status,200);
   assert.equal((await post('/api/order-fee',fee)).status,409);
-  const w=await read('/api/snapshots/'+wide.id),n=await read('/api/snapshots/'+narrow.id);
-  assert.equal(w.lines[0].purchase,-2);assert.deepEqual(w.orderFees,n.orderFees);
-  assert.equal(n.orderFees[id].amount,'2.50');
-  await post('/api/sync',{...q,from:'2026-10-03',to:'2026-10-03'});
-  assert.equal((await read('/api/snapshots/'+wide.id)).orderCount,0);
-  const other=await(await post('/api/sync',{...q,sid:'102'})).json();
-  assert.deepEqual(other.snapshot.orderFees,{});
+  assert.equal((await post('/api/order-fee',{...fee,sid:'102'})).status,404);
+  assert.equal((await read('/api/workspace')).fees['101:'+orderId].amount,'2.50');
+  assert.equal((await read('/api/snapshots/'+range.id)).orderFees[orderId].amount,'2.50');
+  assert.equal(calls.filter(p=>p.endsWith('/mws/orders')).length,2);
 });

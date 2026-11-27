@@ -327,7 +327,13 @@ const days=(a,b)=>Math.round((Date.parse(b)-Date.parse(a))/864e5);
 const isObj=o=>o&&typeof o==='object'&&!Array.isArray(o);
 function merge(a,b){const out=Array.isArray(a)?a.slice():Object.assign({},a);if(!isObj(b))return out;for(const k of Object.keys(b)){out[k]=isObj(out[k])&&isObj(b[k])?merge(out[k],b[k]):b[k];}return out;}
 const clone=o=>JSON.parse(JSON.stringify(o));
-const acct=l=>[l.account,l.store,l.site].filter(Boolean).join(' · ');
+function shopFor(l){
+  const shops=window.systemData?.shops||[];
+  if(l.sid)return shops.find(s=>s.sid===String(l.sid));
+  const matches=shops.filter(s=>s.name===l.store && (!l.site || s.site===l.site));
+  return matches.length===1?matches[0]:null;
+}
+const acct=l=>{const shop=shopFor(l);return [l.account,shop?.name||l.store,shop?.site||l.site].filter(Boolean).join(' · ');};
 const chip=(tone,text)=>`<span class="chip t-${tone}"><span class="dot"></span>${esc(text)}</span>`;
 
 function defaults(){
@@ -618,7 +624,7 @@ function addForm(){
   const f=(id,label,ph,req,type)=>`<label class="fact" for="add-${id}">${label}<input class="in" id="add-${id}" name="${id}" type="${type||'text'}" placeholder="${esc(ph)}"${req?' required':''}></label>`;
   return `<form class="panel addbox" data-form="add">
   <div class="ph"><h2>新增链接</h2><span class="hint">一个 SKU 在一个帐号 / 店铺 / 站点下算一条链接</span></div>
-  <div class="facts">${f('sku','SKU *','如 TCQ100',true)}${f('name','品名','如 探测器')}${f('account','帐号','如 烈森拓创')}${f('store','店铺','如 HS')}${f('site','站点 *','如 US / UK / DE',true)}${f('owner','负责运营','如 stella')}${f('launchDate','计划上架日','', false,'date')}${f('issue','当前问题点','如 缺红人视频')}</div>
+  <div class="facts">${f('sku','SKU *','如 TCQ100',true)}${f('name','品名','如 探测器')}${f('account','帐号','如 烈森拓创')}${window.systemData?`<label class="fact">店铺 / 站点<select name="sid" required><option value="">选择店铺</option>${window.systemData.shops.map(s=>`<option value="${esc(s.sid)}">${esc(s.name)} · ${esc(s.site)} · ${esc(s.sid)}</option>`).join('')}</select></label>`:f('store','店铺','如 HS')+f('site','站点 *','如 US / UK / DE',true)}${f('owner','负责运营','如 stella')}${f('launchDate','计划上架日','', false,'date')}${f('issue','当前问题点','如 缺红人视频')}</div>
   <div class="acts"><button class="btn primary" type="submit">创建</button><button class="btn" type="button" data-act="add-cancel">取消</button></div></form>`;
 }
 
@@ -737,7 +743,7 @@ function stageView(L){
     <div class="detail">${detailHead(l,v==='perf'?perfHealth(l):stageOf(v,s))}${body}</div></section>`;
 }
 function detailHead(l,c){
-  const info=state.editInfo?`<div class="facts">${fact('SKU',inp(l,'sku'))}${fact('品名',inp(l,'name'))}${fact('帐号',inp(l,'account'))}${fact('店铺',inp(l,'store'))}${fact('站点',inp(l,'site'))}${fact('负责运营',inp(l,'owner'))}${fact('计划上架日',inp(l,'launchDate',{type:'date'}))}${fact('当前问题点',inp(l,'issue',{ph:'显示在总览矩阵里'}))}</div>`:'';
+  const info=state.editInfo?`<div class="facts">${fact('SKU',inp(l,'sku'))}${fact('品名',inp(l,'name'))}${fact('帐号',inp(l,'account'))}${window.systemData?fact('店铺 / 站点','<select class="in" data-shared-shop="'+esc(l.id)+'"><option value="">选择店铺</option>'+window.systemData.shops.map(s=>'<option value="'+esc(s.sid)+'" '+(shopFor(l)?.sid===s.sid?'selected':'')+'>'+esc(s.name+' · '+s.site+' · '+s.sid)+'</option>').join('')+'</select>'):fact('店铺',inp(l,'store'))+fact('站点',inp(l,'site'))}${fact('负责运营',inp(l,'owner'))}${fact('计划上架日',inp(l,'launchDate',{type:'date'}))}${fact('当前问题点',inp(l,'issue',{ph:'显示在总览矩阵里'}))}</div>`:'';
   const del=state.delAsk===l.id?`<span class="hint">删除这条链接和它所有阶段的记录？</span><button class="btn danger" data-act="del-yes">删除</button><button class="btn" data-act="del-no">取消</button>`
     :`<button class="btn" data-act="info">${state.editInfo?'收起':'编辑信息'}</button><button class="btn" data-act="del-ask">删除</button>`;
   return `<div class="panel"><div class="dh"><div style="display:flex;flex-direction:column;gap:4px;min-width:0">
@@ -1105,9 +1111,26 @@ function perfView(l,editorsOnly=false,previewOnly=false){
   const seg=(items,cur,act,label)=>`<div class="seg" role="group" aria-label="${label}">${items.map(([k,t])=>`<button data-act="${act}" data-v="${k}" class="${cur===k?'on':''}" aria-pressed="${cur===k}">${t}</button>`).join('')}</div>`;
   const kpi=(k,v,nt,cls,vcls)=>`<div class="kpi"><span class="k">${k}</span><span class="v ${vcls||''}">${v}</span><span class="n ${cls||''}">${nt}</span></div>`;
   const tacosCls=num(c.tacos)&&num(c.beTacos)?(c.tacos>c.beTacos?'bad':c.tacos>c.beTacos*0.8?'warn':'ok'):'';
-  const sourcePanel=window.trackerSourceMode ? '<lingxing-orders data-link="'+esc(l.id)+'"></lingxing-orders>' : '';
-  let h=sourcePanel+`<div class="panel"><div class="ph"><h2>经营数据</h2>${seg([['4w','近 4 周'],['12w','近 12 周'],['all','全部']],state.range,'range','时间范围')}</div>
-   ${recs.length?`<div class="kpis">
+  const master=window.systemData;
+  const selectedShop=shopFor(l);
+  const end=master?.to||TODAY;
+  const requestedStart=state.range==='all'?master?.from:addDays(end,state.range==='12w'?-83:-27);
+  const start=master && requestedStart<master.from?master.from:requestedStart;
+  const orders=(master?.rows||[]).filter(r=>r.sid===selectedShop?.sid && r.sku===l.sku && String(r.date).slice(0,10)>=start && String(r.date).slice(0,10)<=end);
+  const units=orders.reduce((n,r)=>n+Number(r.quantity),0);
+  const total=key=>{
+    if(!selectedShop || master.error || !orders.length || orders.some(r=>r[key]==null || !Number.isFinite(Number(r[key]))))return '—';
+    const currencies=new Set(orders.map(r=>r.orderCurrency));
+    return currencies.size===1 && orders[0].orderCurrency?orders[0].orderCurrency+' '+orders.reduce((n,r)=>n+Number(r[key]),0).toFixed(2):'—';
+  };
+  let h=`<div class="panel"><div class="ph"><h2>经营数据</h2>${seg([['4w','近 4 周'],['12w','近 12 周'],['all','全部']],state.range,'range','时间范围')}</div>
+   ${master?`<div class="kpis">
+    ${kpi('订单数',selectedShop&&!master.error?new Set(orders.map(r=>r.orderId)).size:'—',selectedShop?selectedShop.name:'待匹配领星店铺')}
+    ${kpi('销售件数',selectedShop&&!master.error?units:'—',start+' 至 '+end)}
+    ${kpi('销售额',total('sales'),'订单商品行合计')}
+    ${kpi('领星毛利',total('profit'),'订单原币')}
+   </div>${master.error?'<p class="hint">'+esc(master.error)+'</p>':''}`:
+   recs.length?`<div class="kpis">
     ${kpi('销售额',moneyS(S.sales),S.units+' 件 · 均价 '+money2(c.price))}
     ${kpi('净利润',moneyS(c.net),'净利率 '+pct(c.margin),'',num(c.net)?(c.net<0?'neg':'pos'):'')}
     ${kpi('CVR',pct(c.cvr,2),'访客 '+S.sessions)}
@@ -1269,6 +1292,7 @@ app.addEventListener('click',e=>{
 app.addEventListener('change',e=>{
   const t=e.target;
   if(t.dataset.import!==undefined&&LOCAL&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!isObj(o))throw 0;db._load(o);toast('已导入 '+Object.keys(o).length+' 条记录');}catch(e){toast('文件格式不对，需要本工具导出的 JSON');}};fr.readAsText(t.files[0]);t.value='';return;}
+  if(t.dataset.sharedShop){const shop=window.systemData?.shops.find(s=>s.sid===t.value);if(shop)save(t.dataset.sharedShop,{sid:shop.sid,store:shop.name,site:shop.site});return;}
   if(t.dataset.filter){state.f[t.dataset.filter]=t.value;state.sel=null;render(true);return;}
   if(t.dataset.front!==undefined){const l=state.links.find(x=>x.id===state.sel);if(!l)return;
     let v=t.value.trim();if(v&&!/^https?:\/\//i.test(v))v='https://'+v;if(v===l.content.frontUrl)return;
@@ -1302,6 +1326,7 @@ app.addEventListener('submit',e=>{
   e.preventDefault();const f=e.target;const fd=Object.fromEntries(new FormData(f).entries());
   Object.keys(fd).forEach(k=>{fd[k]=String(fd[k]).trim();});
   if(f.dataset.form==='add'){
+    if(window.systemData){const shop=shopFor(fd);if(!shop)return;fd.store=shop.name;fd.site=shop.site;}
     if(!fd.sku||!fd.site)return;
     const id=(fd.sku+'-'+(fd.store||fd.account||'x')+'-'+fd.site).toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60)+'-'+Math.random().toString(36).slice(2,6);
     const doc=Object.assign(strip(norm(id,{})),fd,{updatedAt:new Date().toISOString()});
@@ -1361,7 +1386,8 @@ const LOCAL=!(window.claude&&window.claude.use);
 function localDb(){
   const KEY=window.trackerSourceMode?'ai-tracker-'+window.trackerSourceMode:'xinpin-tracker-db';let data={};try{data=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){data={};}
   if(window.trackerSourceMode==='demo' && localStorage.getItem(KEY)===null){
-    data['links/demo-hook']={sku:'LX-HOOK-10',name:'模拟挂钩',account:'示例账户',store:'示例店铺 A',site:'US'};
+    const item=window.systemData?.rows.find(r=>r.sku==='LX-HOOK-10'),shop=window.systemData?.shops.find(s=>s.sid===item?.sid);
+    if(shop)data['links/demo-hook']={sku:item.sku,name:'模拟挂钩',sid:shop.sid,store:shop.name,site:shop.site};
     localStorage.setItem(KEY,JSON.stringify(data));
   }
   const subs=new Set();

@@ -16,21 +16,15 @@
   </button>
   <div id="global-panel" popover>
     <h2>业务模块</h2>
-    <a href="#shared-workspace" aria-current="page">订单费用核对与盈亏追踪 <small>当前</small></a>
+    <a href="#order-workspace" aria-current="page">订单费用核对与盈亏追踪 <small>当前</small></a>
     <a href="./advertising.html">广告智控台</a>
       <a href="./tracker.html">新品跟踪</a>
-    <h2>模拟演练快捷入口</h2>
+    <h2>本页快捷入口</h2>
     <a href="#order-lookup">按订单号核对费用</a>
     <a href="#period-summary">店铺 / 服务商周月汇总</a>
     <a href="#providers">服务商管理</a>
   </div>
 </nav>
-<main id="shared-workspace" class="shared-ledger" tabindex="-1">
-  <h1>订单费用核对与盈亏追踪</h1>
-  <lingxing-orders data-view="orders"></lingxing-orders>
-</main>
-<details id="practice" class="practice">
-<summary>订单核对演练 · 独立模拟数据</summary>
 <x-dc>
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -58,21 +52,17 @@ th{white-space:nowrap}
 </div>
 <div style="display: flex; flex-direction: column; gap: 2px">
 <div style="font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 0.5px">订单费用核对与盈亏追踪</div>
-<div style="font-size: 12px; color: #8FA3BF; display: flex; align-items: center; gap: 8px"><span style="width: 7px; height: 7px; border-radius: 50%; background: #34D399; display: inline-block"></span>12 笔模拟订单预览 · 正常 / 部分退款 / 全额退款 / 服务费亏损 · 未连接领星</div>
+<div style="font-size: 12px; color: #8FA3BF; display: flex; align-items: center; gap: 8px"><span style="width: 7px; height: 7px; border-radius: 50%; background: #34D399; display: inline-block"></span>{{sourceNotice}}</div>
 </div>
 </div>
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
 <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8FA3BF">店铺
-<select value="{{shopFilter}}" onChange="{{changeShop}}" aria-label="按店铺筛选" style="height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #E6EDF7; font-size: 13px"><option>全部店铺</option><option>示例店铺 A</option><option>示例店铺 B</option></select>
+<sc-raw-select value="{{shopFilter}}" onChange="{{changeShop}}" aria-label="按店铺筛选" style="height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #E6EDF7; font-size: 13px"><option>全部店铺</option><sc-for list="{{shopOptions}}" as="s"><option value="{{s.sid}}">{{s.label}}</option></sc-for></sc-raw-select>
 </label>
-<label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8FA3BF">站点
-<select disabled aria-label="示例站点 US" style="height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #E6EDF7; font-size: 13px"><option>US</option><option>UK</option><option>DE</option><option>JP</option></select>
-</label>
-<label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8FA3BF">月份
-<select disabled aria-label="示例月份 2026-10" style="height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #E6EDF7; font-size: 13px"><option>2026-10</option><option>2026-09</option><option>2026-08</option></select>
-</label>
+
+
 <button type="button" style="height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid {{accent}}; background: rgba(34,211,238,0.12); color: {{accent}}; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px" onClick="{{showSyncStatus}}">
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"></path><path d="M21 3v6h-6"></path></svg>领星待接入</button>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"></path><path d="M21 3v6h-6"></path></svg>刷新订单</button>
 <button type="button" style="height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #C7D3E3; font-size: 13px; cursor: pointer">导出 Excel（待接入）</button>
 </div>
 </header>
@@ -117,7 +107,7 @@ th{white-space:nowrap}
 <select class="order-field" style="width:110px" aria-label="汇总周期" value="{{summaryPeriod}}" onChange="{{changeSummaryPeriod}}"><option value="week">按周</option><option value="month">按月</option></select>
 <select class="order-field" style="width:156px" aria-label="汇总维度" value="{{summaryGroup}}" onChange="{{changeSummaryGroup}}"><option value="shop">按店铺</option><option value="provider">按服务商</option><option value="both">店铺 × 服务商</option></select>
 </div></div>
-<div style="padding:0 20px 14px;color:#8FA3BF;font-size:12px">{{summaryBasis}} · USD · 跟随店铺及服务商筛选，独立于明细搜索。不同币种接入后分开汇总。</div>
+<div style="padding:0 20px 14px;color:#8FA3BF;font-size:12px">{{summaryBasis}} · 按币种 · 跟随店铺及服务商筛选，独立于明细搜索。不同币种接入后分开汇总。</div>
 <div style="overflow-x:auto"><sc-raw-table style="width:100%;min-width:1100px;border-collapse:collapse;font-size:13px"><sc-raw-thead><sc-raw-tr style="text-align:right;color:#8FA3BF">
 <sc-raw-th style="padding:12px 20px;text-align:left">周期</sc-raw-th><sc-raw-th style="padding:12px;text-align:left">分组</sc-raw-th><sc-raw-th style="padding:12px">订单数</sc-raw-th><sc-raw-th style="padding:12px">销售额</sc-raw-th><sc-raw-th style="padding:12px">基础费用</sc-raw-th><sc-raw-th style="padding:12px">退款</sc-raw-th><sc-raw-th style="padding:12px">退货成本</sc-raw-th><sc-raw-th style="padding:12px">服务费</sc-raw-th><sc-raw-th style="padding:12px">暂计盈亏</sc-raw-th><sc-raw-th style="padding:12px">亏损订单金额</sc-raw-th><sc-raw-th style="padding:12px">待核实</sc-raw-th>
 </sc-raw-tr></sc-raw-thead><sc-raw-tbody><sc-for list="{{summaryRows}}" as="g"><sc-raw-tr style="text-align:right;border-top:1px solid #22324D">
@@ -130,7 +120,7 @@ th{white-space:nowrap}
 <div style="flex: 999 1 560px; min-width: 0; padding: 20px; border: 1px solid #1C2A40; border-radius: 12px; background: rgba(13,20,34,0.92); display: flex; flex-direction: column; gap: 16px">
 <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap">
 <h2 style="margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.5px">费用与盈亏拆解 <span style="font-family: 'Space Grotesk', sans-serif; color: #7C8DA6; font-weight: 500; font-size: 12px; margin-left: 6px">COST RECONCILIATION</span></h2>
-<div style="font-size: 12px; color: #8FA3BF">示例暂计 = 销售额 − 基础费用 − 服务费 − 退款（退货成本待同步）</div>
+<div style="font-size: 12px; color: #8FA3BF">暂计 = 领星商品毛利 − 服务费（退货成本待同步）</div>
 </div>
 <div style="display: flex; flex-direction: column; gap: 10px">
 <sc-for list="{{waterfall}}" as="w" hint-placeholder-count="6">
@@ -148,7 +138,7 @@ th{white-space:nowrap}
 <div style="flex: 1 1 340px; min-width: 0; padding: 20px; border: 1px solid #1C2A40; border-radius: 12px; background: rgba(13,20,34,0.92); display: flex; flex-direction: column; gap: 16px">
 <div style="display: flex; justify-content: space-between; align-items: baseline">
 <h2 style="margin: 0; font-size: 15px; font-weight: 700">售后持续追踪</h2>
-<div style="font-size: 12px; color: #8FA3BF">领星待接入 · 后台跟踪尚未启用</div>
+<div style="font-size: 12px; color: #8FA3BF">售后记录待核对</div>
 </div>
 <div style="display: flex; align-items: center; gap: 20px">
 <div style="position: relative; width: 112px; height: 112px; flex: none">
@@ -200,8 +190,7 @@ th{white-space:nowrap}
 <strong style="font-size:16px">新增待核对订单</strong>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
 <label>亚马逊订单号<input class="order-field" required pattern="[0-9]{3}-[0-9]{7}-[0-9]{7}" placeholder="123-1234567-1234567" value="{{draft.id}}" onChange="{{draftChangeId}}" aria-label="新增亚马逊订单号"></label>
-<label>领星店铺 ID<input class="order-field" required pattern="[0-9]+" placeholder="领星 sid" value="{{draft.sid}}" onChange="{{draftChangeSid}}" aria-label="新增领星店铺ID"></label>
-<label>店铺名称<input class="order-field" required maxlength="80" value="{{draft.shop}}" onChange="{{draftChangeShop}}" aria-label="新增店铺名称"></label>
+<label>领星店铺<sc-raw-select class="order-field" required value="{{draft.sid}}" onChange="{{draftChangeSid}}" aria-label="新增订单店铺"><option value="">请选择店铺</option><sc-for list="{{shopOptions}}" as="s"><option value="{{s.sid}}">{{s.label}}</option></sc-for></sc-raw-select></label>
 <label>服务商名称<sc-raw-select class="order-field" value="{{draft.provider}}" onChange="{{draftChangeProvider}}" aria-label="新增服务商名称"><option value="">请选择服务商</option><sc-for list="{{providerOptions}}" as="p"><option value="{{p}}">{{p}}</option></sc-for></sc-raw-select></label>
 <label>服务费（金额）<input class="order-field" required type="number" min="0" max="999999.99" step="0.01" value="{{draft.fee}}" onChange="{{draftChangeFee}}" aria-label="新增服务费"></label>
 <label>服务费币种<select class="order-field" value="{{draft.currency}}" onChange="{{draftChangeCurrency}}" aria-label="新增服务费币种"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option><option>JPY</option></select></label>
@@ -255,7 +244,7 @@ th{white-space:nowrap}
 <sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; font-weight: 600; color: {{r.finalColor}}">{{r.finalF}}<div style="font-size:11px;margin-top:4px;font-weight:400">{{r.resultLabel}}</div><div style="font-size:11px;color:#8FA3BF;margin-top:4px;white-space:nowrap">退款前 {{r.beforeRefundF}}</div><div style="font-size:11px;color:#FB923C;margin-top:4px;white-space:nowrap">{{r.refundImpact}}</div></sc-raw-td>
 <sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: {{r.finalColor}}">{{r.marginF}}</sc-raw-td>
 <sc-raw-td style="text-align: center; padding: 8px 20px; border-bottom: 1px solid #131F33">
-<span style="font-size:12px;color:#FCD34D;white-space:nowrap">待领星接入</span>
+<span style="font-size:12px;color:#FCD34D;white-space:nowrap">{{r.trackingLabel}}</span>
 </sc-raw-td>
 </sc-raw-tr>
 </sc-for>
@@ -264,7 +253,7 @@ th{white-space:nowrap}
 </sc-raw-table>
 </div>
 <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 14px 20px; font-size: 12px; color: #8FA3BF">
-<span>共 {{rowCount}} 单 · 源订单金额 USD；待匹配单服务费币种见输入提示 · 红色高亮为已退款订单；全部示例仅用于演示，退款仅扣一次</span>
+<span>共 {{rowCount}} 单 · 金额按订单币种显示；待匹配单服务费币种见输入提示 · 红色高亮为已退款订单；费用以领星返回值为准</span>
 <span>{{saveNotice}}</span>
 </div>
 </sc-if>
@@ -305,7 +294,7 @@ th{white-space:nowrap}
 <span style="font-size:12px;color:#8FA3BF">待同步</span>
 </sc-raw-td>
 <sc-raw-td style="padding: 8px 20px; border-bottom: 1px solid #131F33; text-align: center">
-<span style="font-size:12px;color:#FCD34D">示例 · 待核实</span>
+<span style="font-size:12px;color:#FCD34D">待核实</span>
 </sc-raw-td>
 </sc-raw-tr>
 </sc-for>
@@ -322,13 +311,12 @@ th{white-space:nowrap}
 </div>
 </div>
 </x-dc>
-</details>
 <script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#22D3EE","options":["#22D3EE","#60A5FA","#A78BFA","#34D399"]},"$preview":{"width":1440,"height":1640}}'>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
     let orderExtras = {};
-    try { orderExtras = JSON.parse(localStorage.getItem('order-profit-refund-extras-v1') || '{}') || {}; } catch {}
+    try { orderExtras = JSON.parse(localStorage.getItem('order-profit-refund-extras-v1') || '{}') || {};for(const extra of Object.values(orderExtras))delete extra.extraFee; } catch {}
     let pendingOrders = [];
     try { const saved = JSON.parse(localStorage.getItem('order-profit-pending-v1') || '[]'); if (Array.isArray(saved)) pendingOrders = saved.filter(r=>r && /^\d{3}-\d{7}-\d{7}$/.test(r.id) && /^\d+$/.test(r.sid)); } catch {}
     let providers = [];
@@ -345,7 +333,7 @@ class Component extends DCLogic {
       shopFilter: '全部店铺',
       summaryPeriod: 'week',
       summaryGroup: 'both',
-      syncNotice: '尚未接入领星：当前为示例数据，退货及结算数据待同步；没有后台持续跟踪任务。',
+      syncNotice: '退货及结算状态待核对。',
       orderQuery: '',
       productQuery: '',
       tracked: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true },
@@ -392,53 +380,52 @@ class Component extends DCLogic {
     catch { saveNotice = '浏览器无法保存，刷新后新增字段将丢失'; }
     this.setState({ orderExtras, saveNotice });
   }
+  async saveFee(r){
+    const amount=this.state.orderExtras[r.key]?.extraFee;
+    if(amount==null || amount==='' || !r.first)return;
+    try{
+      const res=await fetch('/api/order-fee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:r.sid,orderId:r.id,amount:String(amount),currency:r.serviceCurrency,version:window.systemData.fees[r.key]?.version??0})});
+      const v=await res.json();if(!res.ok)throw Error(v.error);
+      window.systemData.fees[r.key]=v;
+      const orderExtras={...this.state.orderExtras,[r.key]:{...this.state.orderExtras[r.key]}};delete orderExtras[r.key].extraFee;
+      this.setState({orderExtras,saveNotice:'服务费已保存'});
+    }catch(e){this.setState({saveNotice:e.message});}
+  }
   renderVals() {
     const accent = this.props.accent ?? '#22D3EE';
     const ORANGE = '#FB923C', AMBER = '#FCD34D', RED = '#F87171', GREEN = '#34D399';
-    const RAW = [
-      ['113-4827391-2210465','2026-10-03','LX-LAMP-01','B0D7K2M9QX',2,29.99,6.80,3.20,9.18,0,'none',''],
-      ['112-9037712-5518243','2026-10-05','LX-LAMP-02','B0D7K4R2TN',1,34.99,8.10,3.60,5.95,34.99,'full','商品与描述不符'],
-      ['114-2209188-7731026','2026-10-08','LX-HOOK-10','B0C9X1PL7A',4,12.99,1.90,0.95,12.38,0,'none',''],
-      ['111-6650213-4092817','2026-10-11','LX-MAT-03','B0CR8WQ3KD',1,45.99,11.20,6.40,10.92,15.00,'partial','运输破损 · 部分补偿'],
-      ['113-7781024-1638859','2026-10-14','LX-HOOK-10','B0C9X1PL7A',2,12.99,1.90,0.95,6.19,0,'none',''],
-      ['112-3318842-9905172','2026-10-17','LX-LAMP-01','B0D7K2M9QX',1,29.99,6.80,3.20,4.59,0,'pending','买家已申请 · 待入账'],
-      ['114-8842107-2276630','2026-10-22','LX-MAT-03','B0CR8WQ3KD',2,45.99,11.20,6.40,21.84,45.99,'partial','退一件'],
-      ['111-0937561-8812204','2026-10-26','LX-LAMP-02','B0D7K4R2TN',3,34.99,8.10,3.60,17.85,0,'none','']
-    ];
-    RAW.push(
-      ['115-7000001-1000001','2026-10-27','DEMO-LAMP-01','DEMO-ASIN-01',1,39.99,9,3,7.50,0,'none',''],
-      ['115-7000002-1000002','2026-10-28','DEMO-MAT-02','DEMO-ASIN-02',1,49.99,12,5,9,20,'partial','模拟：部分退款'],
-      ['115-7000003-1000003','2026-10-29','DEMO-HOOK-03','DEMO-ASIN-03',2,19.99,4,1.50,8,39.98,'full','模拟：全额退款'],
-      ['115-7000004-1000004','2026-10-30','DEMO-LAMP-04','DEMO-ASIN-04',1,29.99,8,3,6,0,'none','模拟：服务费导致亏损']
-    );
-    const DEMO_EXTRAS = {
-      '115-7000001-1000001':{extraFee:'4.00',provider:'示例服务商 A',providerReview:'good'},
-      '115-7000002-1000002':{extraFee:'8.00',provider:'示例服务商 B',providerReview:'average'},
-      '115-7000003-1000003':{extraFee:'5.00',provider:'示例服务商 A',providerReview:'improve'},
-      '115-7000004-1000004':{extraFee:'18.00',provider:'示例服务商 C',providerReview:'pending'}
-    };
-    const round = n => Math.round((n + Number.EPSILON) * 100) / 100;
-    const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const source=window.systemData || {shops:[],rows:[],fees:{},error:'请从系统入口打开'};
+    const shopOptions=source.shops.map(s=>({sid:s.sid,label:s.name+' · '+s.sid}));
+    const round=n=>Math.round(n*100)/100;
+    const number=v=>v==null || v==='' ? NaN:Number(v);
+    let aggregateCurrency='';
+    const money=(n,currency=aggregateCurrency)=>Number.isFinite(n)&&currency ? currency+' '+n.toFixed(2):'—';
     const ST = {
       none: { label: '无退款', color: '#5EEAD4' },
       pending: { label: '待核对', color: '#94A3B8' },
-      partial: { label: '部分退款', color: AMBER },
+      partial: { label: '已退款', color: AMBER },
       full: { label: '全额退款', color: ORANGE }
     };
-    const allOrders = RAW.map((a, i) => {
-      const [id, date, sku, asin, qty, price, uCost, uShip, fee, refund, status, reason] = a;
-      const sales = round(qty * price), cost = round(qty * uCost), ship = round(qty * uShip);
-      const baseFee = round(fee + cost + ship);
-      const gross = round(sales - baseFee);
-      const extra = {...(DEMO_EXTRAS[id] || {}),...(this.state.orderExtras[id] || {})};
-      const parsedFee = Number(extra.extraFee);
-      const extraFee = Number.isFinite(parsedFee) ? Math.round(Math.min(999999.99, Math.max(0, parsedFee)) * 100) / 100 : 0;
-      const fin = round(sales - baseFee - extraFee - refund);
-      return { shop: i % 2 === 0 ? '示例店铺 A' : '示例店铺 B', baseFee, extraFee, extraFeeInput: extra.extraFee ?? '0.00', provider: extra.provider || '', providerReview: extra.providerReview || 'pending', i, id, date, sku, asin, qty, price, sales, cost, ship, fee, gross, refund, fin, status, reason, tracked: i >= 8 || !!this.state.tracked[i] };
+    const seen=new Set();
+    const allOrders=source.rows.map(row=>{
+      const id=row.orderId,sid=row.sid,key=sid+':'+id,first=!seen.has(key);
+      seen.add(key);
+      const entry=source.fees[key],extra=this.state.orderExtras[key]||{},currency=row.orderCurrency;
+      const qty=number(row.quantity),sales=number(row.sales),cost=-number(row.purchase),ship=-number(row.firstLeg);
+      const fee=-number(row.commission)-number(row.fba),gross=number(row.profit);
+      const service=entry?Number(entry.amount):0;
+      const extraFee=first?(entry && entry.currency!==currency?NaN:service):0;
+      const refund=first?Math.abs(number(row.refundTotal)):0;
+      const shop=shopOptions.find(s=>s.sid===sid)?.label||sid;
+      return {i:key,id,sid,key,first,currency,tracking:row.tracking,channel:row.channel,serviceCurrency:entry?.currency||currency,shop,sku:row.sku,asin:row.asin,date:String(row.date||'').slice(0,10),
+        qty,price:sales/qty,sales,cost,ship,fee,baseFee:cost+ship+fee,gross,extraFee,extraFeeInput:extra.extraFee??entry?.amount??'',
+        fin:gross-extraFee,refund,status:refund>0?'partial':Number.isFinite(refund)?'none':'pending',reason:'',provider:extra.provider||'',
+        providerReview:extra.providerReview||'pending',tracked:!!this.state.tracked[key]};
     });
     const providerOptions = [...new Set([...this.state.providers,...allOrders.map(r=>r.provider),...this.state.pendingOrders.map(r=>r.provider)].map(p=>(p||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
     const providerMatches = r => this.state.providerFilter === 'all' || (this.state.providerFilter === 'unassigned' ? !r.provider.trim() : r.provider === this.state.providerFilter);
-    const all = allOrders.filter(r => (this.state.shopFilter === '全部店铺' || r.shop === this.state.shopFilter) && providerMatches(r));
+    const all = allOrders.filter(r => (this.state.shopFilter === '全部店铺' || r.sid === this.state.shopFilter) && providerMatches(r));
+    const currencies=new Set(all.map(r=>r.currency));aggregateCurrency=currencies.size===1?all[0].currency:'';
     const sum = (k) => all.reduce((s, r) => s + r[k], 0);
     const S = sum('sales'), F = sum('fee'), C = sum('cost'), L = sum('ship'), R = sum('refund'), G = sum('gross'), P = sum('fin'), E = sum('extraFee');
     const lossRows = all.filter(r => r.fin < 0);
@@ -447,17 +434,17 @@ class Component extends DCLogic {
 
     const refundLossIncrease = round(all.reduce((total,r) => total + Math.max(0,-r.fin) - Math.max(0,-round(r.fin+r.refund)),0));
     const kpis = [
-      { label: '订单数', value: String(all.length), sub: '当前店铺 · 示例数据', color: '#E6EDF7' },
+      { label: '订单数', value: String(new Set(all.map(r=>r.key)).size), sub: '当前店铺', color: '#E6EDF7' },
       { label: '销售额', value: money(S), sub: '单价 × 数量', color: accent },
       { label: '平台费用', value: money(F), sub: '佣金 + FBA 费', color: '#C7D3E3' },
       { label: '产品成本', value: money(C), sub: '采购成本', color: '#C7D3E3' },
       { label: '物流费用', value: money(L), sub: '头程 + 尾程', color: '#C7D3E3' },
-      { label: '服务费', value: money(E), sub: '按整单汇总 · 服务商费用', color: '#A78BFA' },
+      { label: '服务费', value: money(E), sub: '同一订单只计一次', color: '#A78BFA' },
       { label: '退款金额', value: money(R), sub: refundCount + ' 单发生退款', color: ORANGE },
       { label: '暂计盈亏', value: money(P), sub: '退货数据待同步 · 非最终结算', color: P >= 0 ? GREEN : RED },
       { label: '退款新增亏损', value: money(refundLossIncrease), sub: '退款后亏损额 − 退款前亏损额', color: ORANGE },
       { label: '亏损订单合计', value: money(lossTotal), sub: lossRows.length + ' 单亏损 · 当前统计范围', color: lossTotal < 0 ? RED : '#C7D3E3' },
-      { label: '利润率', value: (S ? P / S * 100 : 0).toFixed(1) + '%', sub: '实际盈亏 / 销售额', color: P >= 0 ? GREEN : RED }
+      { label: '利润率', value: aggregateCurrency&&S>0&&Number.isFinite(P)?(P/S*100).toFixed(1)+'%':'—', sub: '实际盈亏 / 销售额', color: P >= 0 ? GREEN : RED }
     ];
 
     const pct = (v) => (S ? v / S * 100 : 0).toFixed(2) + '%';
@@ -491,29 +478,29 @@ class Component extends DCLogic {
     const visible = matched.filter(r => (r.sku + ' ' + r.asin).toLowerCase().includes(productQuery)).filter(r => this.state.filter === 'all' ? true : this.state.filter === 'tracked' ? r.tracked : this.state.filter === 'loss' ? r.fin < 0 : r.refund > 0);
 
     const extraFields = r => ({
-      serviceCurrency:'USD', shop: r.shop, 
+      trackingLabel:r.tracking||r.channel||'待发货',serviceCurrency:r.serviceCurrency,shop: r.shop,
       rowStyle: "text-align:right;font-family:'JetBrains Mono',monospace;" + (r.refund > 0 ? 'background:rgba(248,113,113,0.10);box-shadow:inset 3px 0 0 #F87171;' : ''),
       refundBadge: r.refund > 0 ? '已退款' : r.status === 'pending' ? '退款待入账' : '',
       beforeRefundF: money(round(r.fin + r.refund)),
-      refundImpact: r.refund > 0 ? '退款使盈亏减少 ' + money(r.refund) : '无已入账退款',
-      resultLabel: r.fin < 0 ? '暂计亏损 · 待核实' : r.fin > 0 ? '暂计盈利 · 待核实' : '暂计持平 · 待核实',
+      refundImpact: r.refund > 0 ? '退款使盈亏减少 ' + money(r.refund,r.currency) : '无已入账退款',
+      resultLabel: r.fin < 0 ? '暂计亏损 · 待核实' : r.fin > 0 ? '暂计盈利 · 待核实' : '待核实',
       extraFeeInput: r.extraFeeInput, provider: r.provider, providerReview: r.providerReview,
       changeExtraFee: e => {
         const value = e.target.value;
-        if (value === '' || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 999999.99)) this.updateExtra(r.id, 'extraFee', value);
+        if (value === '' || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 999999.99)) this.updateExtra(r.key, 'extraFee', value);
       },
-      normalizeExtraFee: () => this.updateExtra(r.id, 'extraFee', r.extraFee.toFixed(2)),
-      changeProvider: e => this.updateExtra(r.id, 'provider', e.target.value),
-      changeReview: e => this.updateExtra(r.id, 'providerReview', e.target.value)
+      normalizeExtraFee: () => this.saveFee(r),
+      changeProvider: e => this.updateExtra(r.key, 'provider', e.target.value),
+      changeReview: e => this.updateExtra(r.key, 'providerReview', e.target.value)
     });
     const rows = visible.map(r => ({
       ...extraFields(r),
       id: r.id, date: r.date, sku: r.sku, asin: r.asin, qty: r.qty,
-      priceF: money(r.price), salesF: money(r.sales), feeF: money(r.fee), costF: money(r.cost), shipF: money(r.ship), baseFeeF: money(r.baseFee), grossF: money(r.gross),
-      refundF: r.refund > 0 ? '-' + money(r.refund) : '—',
+      priceF: money(r.price,r.currency), salesF: money(r.sales,r.currency), feeF: money(r.fee,r.currency), costF: money(r.cost,r.currency), shipF: money(r.ship,r.currency), baseFeeF: money(r.baseFee,r.currency), grossF: money(r.gross,r.currency),
+      refundF: r.refund > 0 ? '-' + money(r.refund,r.currency) : '—',
       refundColor: r.refund > 0 ? ORANGE : '#5B6B82',
-      finalF: money(r.fin), finalColor: r.fin >= 0 ? GREEN : RED,
-      marginF: (r.fin / r.sales * 100).toFixed(1) + '%',
+      finalF: money(r.fin,r.currency), finalColor: r.fin >= 0 ? GREEN : RED,
+      marginF: Number.isFinite(r.fin)&&r.sales>0?(r.fin/r.sales*100).toFixed(1)+'%':'—',
       trackedStr: r.tracked ? 'true' : 'false',
       trackLabel: r.tracked ? '跟踪中' : '+ 跟踪',
       trackStyle: 'min-width: 76px; height: 36px; padding: 0 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; border: 1px solid ' + (r.tracked ? accent : '#22324D') + '; background: ' + (r.tracked ? 'rgba(34,211,238,0.12)' : 'transparent') + '; color: ' + (r.tracked ? accent : '#8FA3BF') + ';',
@@ -521,7 +508,7 @@ class Component extends DCLogic {
     }));
 
     const pendingVisible = this.state.pendingOrders.filter(r =>
-      (this.state.shopFilter === '全部店铺' || r.shop === this.state.shopFilter) &&
+      (this.state.shopFilter === '全部店铺' || r.sid === this.state.shopFilter) &&
       providerMatches(r) && r.id.includes(query) && !productQuery &&
       ['all','tracked'].includes(this.state.filter)
     );
@@ -545,13 +532,13 @@ class Component extends DCLogic {
     for (const r of all) {
       const period = periodKey(r.date), provider = r.provider.trim() || '未填写服务商';
       const names = this.state.summaryGroup === 'shop' ? [r.shop] : this.state.summaryGroup === 'provider' ? [provider] : [r.shop, provider];
-      const key = JSON.stringify([period, ...names]);
-      if (!buckets.has(key)) buckets.set(key, {period, group:names.join(' / '), count:0, sales:0, base:0, refund:0, service:0, net:0, loss:0});
-      const g = buckets.get(key); g.count++; g.sales += r.sales; g.base += r.baseFee; g.refund += r.refund; g.service += r.extraFee; g.net += r.fin; g.loss += Math.min(r.fin,0);
+      const key = JSON.stringify([period,r.currency, ...names]);
+      if (!buckets.has(key)) buckets.set(key, {period,currency:r.currency, group:names.join(' / '), count:0, sales:0, base:0, refund:0, service:0, net:0, loss:0});
+      const g = buckets.get(key); if(r.first)g.count++; g.sales += r.sales; g.base += r.baseFee; g.refund += r.refund; g.service += r.extraFee; g.net += r.fin; g.loss += Math.min(r.fin,0);
     }
-    const summaryRows = [...buckets.values()].sort((a,b)=>a.period.localeCompare(b.period) || a.group.localeCompare(b.group)).map(g=>({...g, sales:money(g.sales), base:money(g.base), refund:money(g.refund), service:money(g.service), net:money(g.net), loss:money(g.loss), color:g.net < 0 ? RED : GREEN}));
+    const summaryRows = [...buckets.values()].sort((a,b)=>a.period.localeCompare(b.period) || a.group.localeCompare(b.group)).map(g=>({...g, sales:money(g.sales,g.currency), base:money(g.base,g.currency), refund:money(g.refund,g.currency), service:money(g.service,g.currency), net:money(g.net,g.currency), loss:money(g.loss,g.currency), color:g.net < 0 ? RED : GREEN}));
 
-    const MONTHS = ['8月', '9月', '10月', '11月'];
+    const MONTHS = [];
     const refundRows = trackedRows.map(r => {
       const st = ST[r.status];
       const isChecked = !!this.state.checked[r.i];
@@ -561,11 +548,11 @@ class Component extends DCLogic {
         id: r.id, sku: r.sku, date: r.date, reason: r.reason || '—',
         statusLabel: st.label,
         chipStyle: 'display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; border: 1px solid ' + st.color + '; color: ' + st.color + ';',
-        refundF: r.refund > 0 ? '-' + money(r.refund) : '$0.00',
+        refundF: money(-r.refund,r.currency),
         refundColor: r.refund > 0 ? ORANGE : '#8FA3BF',
-        finalF: money(r.fin), finalColor: r.fin >= 0 ? GREEN : RED,
+        finalF: money(r.fin,r.currency), finalColor: r.fin >= 0 ? GREEN : RED,
         months: MONTHS.map((m, mi) => {
-          const done = mi < 3 ? mi >= start : isChecked;
+          const done = false;
           const na = mi < start && mi < 3;
           return {
             label: m, title: na ? m + ' 未开始跟踪' : done ? m + ' 已核对' : m + ' 待核对',
@@ -608,21 +595,21 @@ class Component extends DCLogic {
       openNewOrder:()=>this.setState({showNewOrder:true,entryNotice:'',tab:'orders'}),
       closeNewOrder:()=>this.setState({showNewOrder:false}), saveNewOrder:e=>this.saveNewOrder(e),
       draftChangeId:e=>this.setState({draft:{...this.state.draft,id:e.target.value}}),
-      draftChangeSid:e=>this.setState({draft:{...this.state.draft,sid:e.target.value}}),
+      draftChangeSid:e=>this.setState({draft:{...this.state.draft,sid:e.target.value,shop:source.shops.find(s=>s.sid===e.target.value)?.name||''}}),
       draftChangeShop:e=>this.setState({draft:{...this.state.draft,shop:e.target.value}}),
       draftChangeProvider:e=>this.setState({draft:{...this.state.draft,provider:e.target.value}}),
       draftChangeFee:e=>this.setState({draft:{...this.state.draft,fee:e.target.value}}),
       draftChangeCurrency:e=>this.setState({draft:{...this.state.draft,currency:e.target.value}}),
-      summaryRows, shopFilter: this.state.shopFilter,
+      summaryRows, shopOptions, sourceNotice:source.error || ((source.mode==='demo'?'领星模拟数据':'领星订单')+' · '+source.from+' 至 '+source.to),shopFilter: this.state.shopFilter,
       summaryPeriod: this.state.summaryPeriod, summaryGroup: this.state.summaryGroup,
-      summaryBasis: '当前示例按下单日期归属，周一至周日；接入后沿用领星核算配置，晚到退款/退货回溯更新，不重复叠加',
+      summaryBasis: '按下单日期归属，周一至周日，同币种汇总',
       changeShop: e => this.setState({shopFilter:e.target.value}),
       changeSummaryPeriod: e => this.setState({summaryPeriod:e.target.value}),
       changeSummaryGroup: e => this.setState({summaryGroup:e.target.value}),
       syncNotice: this.state.syncNotice,
-      showSyncStatus: () => this.setState({syncNotice:'当前预览尚未配置领星 API，不能拉取数据或持续跟踪。接入后按店铺及订单更新，不覆盖手工服务费。'}),
+      showSyncStatus: () => location.reload(),
       orderQuery: this.state.orderQuery, productQuery: this.state.productQuery,
-      matchNotice: query ? (pendingVisible.length ? '已找到本机待匹配订单，产品与费用等待领星同步。' : matched.length ? '已匹配 ' + matched.length + ' 笔示例订单，产品及基础费用见下方明细（当前筛选显示 ' + visible.length + ' 笔）' : '未找到该订单，无法带出产品及基础费用；请检查订单号。当前仅包含示例订单。') : '输入订单号即可筛选对应产品与费用。当前显示示例数据，顶部汇总按当前店铺及服务商统计。',
+      matchNotice: query ? (pendingVisible.length ? '已找到本机待匹配订单，产品与费用等待领星同步。' : matched.length ? '已匹配 ' + matched.length + ' 笔订单，产品及基础费用见下方明细（当前筛选显示 ' + visible.length + ' 笔）' : '未找到该订单，无法带出产品及基础费用；请检查订单号。当前仅包含订单。') : '输入订单号即可筛选对应产品与费用。当前显示共用订单，顶部汇总按当前店铺及服务商统计。',
       changeOrderQuery: e => this.setState({ orderQuery: e.target.value, tab: 'orders', filter: 'all', productQuery: '' }),
       clearOrderQuery: () => this.setState({ orderQuery: '', productQuery: '', filter: 'all', providerFilter:'all', tab: 'orders' }),
       changeProductQuery: e => this.setState({ productQuery: e.target.value }),

@@ -13,11 +13,14 @@ const orders = [
   amazon_order_id,purchase_date_local,sid,tracking_number,
   order_status:tracking_number?'Shipped':'Unshipped',fulfillment_channel:'MFN',order_total_currency_code:'USD',
   shipment_date_local:tracking_number?purchase_date_local:null,
-  item_list:[{asin,seller_sku,quantity_ordered,cg_price,cg_transport_costs,fba_shipment_amount:null}]
+  refund_amount:0,item_list:[{asin,seller_sku,quantity_ordered,cg_price,cg_transport_costs,fba_shipment_amount:0,
+    sales_price_amount:quantity_ordered*(sid===101?12.99:29.99),commission_amount:-quantity_ordered*1.95,
+    profit:quantity_ordered*(sid===101?12.99:29.99)-quantity_ordered*1.95+cg_price+cg_transport_costs}]
 }));
 
 export const demoClient = {
   async read(path,{sid,start_date,end_date,offset,length}) {
+    if(path==='/erp/sc/data/seller/lists')return {data:[{sid:101,name:'示例店铺 A',country:'US'},{sid:102,name:'示例店铺 B',country:'US'}]};
     if(path!=='/erp/sc/data/mws/orders') throw Error('模拟接口不存在');
     const rows=orders.filter(row=>row.sid===sid && row.purchase_date_local>=start_date && row.purchase_date_local<end_date);
     return {total:rows.length,data:rows.slice(offset,offset+length)};
@@ -28,6 +31,6 @@ export async function collectDemo(client,query){
   return {...await collect(client,query),source:'虚拟领星数据',mode:'demo'};
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  service({client:demoClient,collector:collectDemo,demo:true,directory:join(homedir(),'.ai-data-analysis','demo-snapshots')})
+  service({client:demoClient,demo:true,directory:join(homedir(),'.ai-data-analysis','demo-snapshots')})
     .listen(4187,'127.0.0.1',()=>console.log('AI 数据分析系统 http://127.0.0.1:4187/system/'));
 }

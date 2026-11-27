@@ -18,6 +18,9 @@ export function scope(input) {
 
 export async function collect(client, query, pause = () => new Promise(resolve => setTimeout(resolve,1100))) {
   const {asin,sid,from,to} = scope(query);
+  return collectShop(client,{asin,sid,from,to},pause);
+}
+export async function collectShop(client,{asin,sid,from,to},pause=()=>new Promise(r=>setTimeout(r,1100))) {
   const end = new Date(parseDate(to) + day).toISOString().slice(0,10);
   const orders = new Map();
   let offset = 0;
@@ -29,7 +32,7 @@ export async function collect(client, query, pause = () => new Promise(resolve =
     for (const row of data) {
       if (String(row.sid) !== sid) continue;
       if (!Array.isArray(row.item_list)) throw Error('订单缺少商品明细');
-      if (row.item_list.some(item => item.asin === asin)) orders.set(row.amazon_order_id,row);
+      if (!asin || row.item_list.some(item => item.asin === asin)) orders.set(row.amazon_order_id,row);
     }
     offset += data.length;
     if (offset >= Number(total)) break;
@@ -45,10 +48,12 @@ export async function collect(client, query, pause = () => new Promise(resolve =
     const details = new Map(data.filter(row=>String(row.sid)===sid).map(row=>[row.amazon_order_id,row]));
     for (const id of batch) {
       const order = orders.get(id);
-      const items = details.get(id)?.item_list?.filter(item=>item.asin===asin);
+      const items = details.get(id)?.item_list?.filter(item=>!asin || item.asin===asin);
       if (!items?.length) throw Error('订单详情不完整，请重新同步');
       for (const item of items) {
-        lines.push({orderId:id, sku:item.seller_sku, quantity:item.quantity_ordered,
+        lines.push({orderId:id,sid,asin:item.asin,itemId:item.order_item_id??item.id, sku:item.seller_sku, quantity:item.quantity_ordered,
+          sales:item.sales_price_amount??null,commission:item.commission_amount??null,
+          refundTotal:order.refund_amount??null,
           date:order.purchase_date_local, status:order.order_status, channel:order.fulfillment_channel,
           tracking:order.tracking_number || null, shipped:order.shipment_date_local || null,
           purchase:item.cg_price ?? null, firstLeg:item.cg_transport_costs ?? null,

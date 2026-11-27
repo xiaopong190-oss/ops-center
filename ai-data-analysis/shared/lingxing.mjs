@@ -1,7 +1,8 @@
 import { createHash, createCipheriv } from 'node:crypto';
 
 const ORIGIN = 'https://openapi.lingxing.com';
-const READ_PATHS = new Set(['/erp/sc/data/mws/orderDetail', '/erp/sc/data/mws/orders']);
+const shopsPath='/erp/sc/data/seller/lists';
+const READ_PATHS = new Set(['/erp/sc/data/mws/orderDetail', '/erp/sc/data/mws/orders',shopsPath]);
 export function sign(params, appId) {
   const key = Buffer.from(appId, 'utf8');
   if (![16, 24, 32].includes(key.length)) throw new Error('App ID 长度不符合领星 AES 签名要求');
@@ -45,7 +46,7 @@ export class LingxingClient {
     const url = new URL(path,ORIGIN);
     url.search = new URLSearchParams({app_key:params.app_key,timestamp:params.timestamp,sign:sign(params,this.appId)}).toString();
     let response;
-    try { response = await this.fetchImpl(url,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(body),signal:AbortSignal.timeout(30000)}); }
+    try { response = await this.fetchImpl(url,{method:path===shopsPath?'GET':'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:path===shopsPath?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30000)}); }
     catch { throw new Error('领星业务网络请求失败'); }
     if (response.status === 429 && attempt < 3) { await this.pause(1000 * 2 ** attempt); return this.read(path,body,attempt+1); }
     if (response.status === 401 && attempt === 0) { this.token=null; return this.read(path,body,1); }

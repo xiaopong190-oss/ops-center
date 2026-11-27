@@ -18,8 +18,8 @@ if (source) {
   status.setAttribute('role', 'status');
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = '同步全部模块';
-  const version = source.syncedAt ? '数据版本 ' + new Date(source.syncedAt).toLocaleString('zh-CN') : '尚无已同步数据';
+  button.textContent = '同步共享数据';
+  let version = source.syncedAt ? '数据版本 ' + new Date(source.syncedAt).toLocaleString('zh-CN') : '尚无已同步数据';
   status.textContent = [version, source.syncError].filter(Boolean).join(' · ');
   globalPanel.append(heading, status, button);
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('workspace-sync') : null;
@@ -27,7 +27,13 @@ if (source) {
     if (result.error) {
       status.textContent = '同步失败 · ' + result.error + ' · ' + version;
     } else if (result.syncedAt && result.syncedAt !== source.syncedAt) {
-      location.reload();
+      if (location.pathname.endsWith('/advertising.html')) {
+        source.syncedAt = result.syncedAt;
+        version = '数据版本 ' + new Date(result.syncedAt).toLocaleString('zh-CN');
+        status.textContent = version;
+      } else {
+        location.reload();
+      }
     }
   }
   if (channel) channel.onmessage = event => update(event.data);

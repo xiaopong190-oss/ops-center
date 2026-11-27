@@ -76,36 +76,27 @@ test('旧范围接口投影自同一订单源，服务费按店铺和订单隔�
   assert.equal(calls.filter(p=>p.endsWith('/mws/orders')).length,2);
 });
 
-test('两站点广告、跟踪与订单按同一商品、币种及单位成本关联',async t=>{
+test('两站点跟踪与订单按同一商品、币种及单位成本关联',async t=>{
   const {read,base}=await startSystem(t);
   const master=await read('/api/workspace');
-  const catalog=await read('/api/simulation/profiles');
   assert.equal(master.products.length,2);
   for(const item of master.products){
     const shop=master.shops.find(s=>s.sid===item.sid);
-    const workspace=await read('/api/simulation/profiles/'+shop.sid);
-    assert.deepEqual(workspace.profile,catalog.profiles.find(p=>p.id===shop.sid));
-    assert.equal(workspace.profile.accountName,shop.name);
-    assert.equal(workspace.profile.marketplace,item.site);
-    assert.equal(workspace.profile.currency,item.currency);
-    const product=workspace.inventory.products[item.id];
-    assert.equal(product.asin,item.asin);
-    assert.equal(product.sku,item.sku);
-    assert.deepEqual(Object.keys(workspace.inventory.products),[item.id]);
-    assert.equal(new URL(item.url).pathname,'/dp/'+product.asin);
+    assert.equal(new URL(item.url).pathname,'/dp/'+item.asin);
     const lines=master.rows.filter(r=>r.sid===shop.sid && r.asin===item.asin);
     assert.ok(lines.length);
     for(const line of lines){
-      assert.equal(line.sku,product.sku);
+      assert.equal(line.sku,item.sku);
       assert.equal(line.orderCurrency,item.currency);
       assert.equal(-line.purchase,Number((item.cogs*line.quantity).toFixed(2)));
       assert.equal(-line.firstLeg,Number((item.head*line.quantity).toFixed(2)));
     }
-    assert.equal(workspace.inventory.ads[item.id].metrics.orders,1);
+    assert.equal(master.performance.filter(r=>r.linkId===item.id).reduce((n,r)=>n+r.adOrders,0),1);
   }
   const html=await(await fetch(base+'/system/advertising.html')).text();
-  assert.match(html,/src="\/system\/demo-ads.html"/);
-  assert.doesNotMatch(html,/4173/);
+  assert.ok(html.includes('src="http://127.0.0.1:4173/?view=overview"'));
+  assert.doesNotMatch(html,/demo-ads|window.adData/);
+  assert.equal((await fetch(base+'/system/demo-ads.html')).status,404);
 });
 
 test('只有全局同步读取上游，并发合并，失败保留完整版本，重试可恢复',async t=>{
@@ -116,7 +107,7 @@ test('只有全局同步读取上游，并发合并，失败保留完整版本�
   });
   const first=await read('/api/workspace');
   const count=()=>calls.filter(p=>p.endsWith('/seller/lists')).length;
-  for(const endpoint of ['/system/Main.dc.html','/system/tracker.html','/system/board','/system/advertising.html','/system/demo-ads.html','/api/simulation/profiles/101']){
+  for(const endpoint of ['/system/Main.dc.html','/system/tracker.html','/system/board','/system/advertising.html']){
     assert.equal((await fetch(base+endpoint)).status,200);
   }
   assert.equal(count(),1);

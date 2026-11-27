@@ -7,7 +7,7 @@ import {randomUUID,createHash} from 'node:crypto';
 import {collectShop,scope} from './collect.mjs';
 import {LingxingClient} from './lingxing.mjs';
 
-import {profiles,adWorkspace,demoPerformance} from './demo-advertising.mjs';
+import {demoPerformance} from '../demo-catalog.mjs';
 
 const trackerPage = new URL('../../modules/new-product-tracker/index.html',import.meta.url);
 const systemFiles = new Set(['Main.dc.html','advertising.html','tracker.html','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
@@ -62,11 +62,10 @@ export function service({directory,client,demo=false}) {
     await initialize();
     return {...published,...(lastError?{syncError:lastError,...(!published.syncedAt?{error:lastError}:{})}:{}),fees:await fees()};
   }
-  async function bootstrap(ad=false){
+  async function bootstrap(){
     const master=await workspace();
-    const ads=ad && demo?{profiles:profiles.filter(p=>master.shops.some(s=>s.sid===p.id)),workspaces:Object.fromEntries(master.shops.map(s=>[s.sid,adWorkspace(master,s.sid)]))}:null;
     const data=JSON.stringify(master).replaceAll('<','\\u003c');
-    return '<script>window.systemData='+data+';window.trackerSourceMode=window.systemData.mode;window.adData='+JSON.stringify(ads).replaceAll('<','\\u003c')+';</script>';
+    return '<script>window.systemData='+data+';window.trackerSourceMode=window.systemData.mode;</script>';
   }
   async function savedRanges(){
     let files=[];
@@ -97,12 +96,6 @@ export function service({directory,client,demo=false}) {
     try {
       if (req.headers.host !== new URL(origin).host || (req.headers.origin && req.headers.origin!==origin)) return send(403,{error:'仅支持本机同源访问'});
       const path = new URL(req.url,origin).pathname;
-      if(demo && req.method==='GET' && path.startsWith('/api/simulation/profiles')){
-        if(path==='/api/simulation/profiles')return send(200,{profiles});
-        const sid=path.match(/^\/api\/simulation\/profiles\/(\d+)$/)?.[1];
-        const result=sid && adWorkspace(await workspace(),sid);
-        return result?send(200,result):send(404,{error:'店铺不存在'});
-      }
       if(path==='/api/workspace/sync' && req.method==='POST'){
         if(req.headers['sec-fetch-site']==='cross-site' || req.headers['content-type']!=='application/json')return send(403,{error:'请从全局菜单同步'});
         await initialize();
@@ -122,14 +115,12 @@ export function service({directory,client,demo=false}) {
       }
       if (req.method==='GET' && path.startsWith('/system/')) {
         const file=path.slice(8)||'Main.dc.html';
-        const adAsset= ['demo-ads.html','ad-ui/simulation.js','ad-ui/simulation.css'].includes(file);
-        if (!adAsset && !systemFiles.has(file)) return send(404,{error:'页面不存在'});
+        if (!systemFiles.has(file)) return send(404,{error:'页面不存在'});
         const type=file.endsWith('.css')?'text/css':file.endsWith('.js')?'application/javascript':'text/html';
         let asset=await readFile(new URL('../'+file,import.meta.url));
-        if(file==='Main.dc.html' || file==='advertising.html' || file==='demo-ads.html' || file==='tracker.html'){
-          asset=asset.toString().replace('<head>','<head>'+await bootstrap(file==='demo-ads.html'));
+        if(file==='Main.dc.html' || file==='advertising.html' || file==='tracker.html'){
+          asset=asset.toString().replace('<head>','<head>'+await bootstrap());
         }
-        if(!demo && file==='demo-ads.html')asset=asset.replace('<script type="module" src="ad-ui/simulation.js"></script>','<p>共享数据源尚未提供广告归因数据。</p>');
         return send(200,asset,type+'; charset=utf-8');
       }
       if(path==='/api/snapshots' && req.method==='GET'){

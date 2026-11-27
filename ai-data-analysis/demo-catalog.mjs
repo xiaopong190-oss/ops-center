@@ -26,3 +26,25 @@ export const demoOrders=demoPurchases.map(order=>{
       sales_price_amount:round(q*p.price),commission_amount:-round(q*p.commission),
       profit:round(q*(p.price-p.cogs-p.head-p.fba-p.commission))}]};
 });
+
+export function demoPerformance(products,rows){
+  return products.flatMap(p=>{
+    const purchases=demoPurchases.filter(o=>o.product===p.id);
+    const attribution=new Set(purchases.filter(o=>o.ad).map(o=>o.orderId));
+    const adDate=purchases.find(o=>o.ad)?.date;
+    const days=new Map();
+    for(const row of rows.filter(r=>r.sid===p.sid && r.asin===p.asin && r.sku===p.sku)){
+      const date=row.date.slice(0,10);
+      const period=days.get(date) || {id:p.id+'-'+date,linkId:p.id,from:date,to:date,units:0,sales:0,
+        adOrders:0,adSales:0,adSpend:date===adDate?p.adSpend:0,attributed:new Set()};
+      period.units+=row.quantity;
+      period.sales+=row.sales;
+      if(attribution.has(row.orderId)){
+        period.attributed.add(row.orderId);
+        period.adSales+=row.sales;
+      }
+      days.set(date,period);
+    }
+    return [...days.values()].map(({attributed,...period})=>({...period,adOrders:attributed.size}));
+  });
+}

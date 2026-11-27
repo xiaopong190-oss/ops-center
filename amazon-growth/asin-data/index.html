@@ -12,6 +12,7 @@ a{color:#8de7ed}p,small{color:#b4c4d8}.scroll{overflow:auto}table{width:100%;bor
 </style></head><body>
 <header><h1>亚马逊增长</h1><a href="https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/" target="_blank" rel="noopener noreferrer">打开增长运营工作台 ↗</a></header>
 <h2>按 ASIN 同步领星数据</h2>
+<p id="demo-notice" hidden>虚拟领星环境 · 下方已填入订单模块的模拟数据，可调整店铺、ASIN 和日期后再次查询。</p>
 <form><label>ASIN<input name="asin" required maxlength="10" pattern="[a-zA-Z0-9]{10}" placeholder="10 位 ASIN"></label>
 <label>店铺 SID<input name="sid" required inputmode="numeric" pattern="[1-9][0-9]{0,9}"></label>
 <label>下单起始日<input name="from" type="date" required></label><label>下单截止日<input name="to" type="date" required></label>
@@ -49,7 +50,14 @@ form.onsubmit=e=>{e.preventDefault();run(async()=>{
   render(data.id,data.snapshot);
 });};
 const saved=new URLSearchParams(location.search).get('snapshot');
+const demo=document.documentElement.dataset.mode==='demo';
+document.querySelector('#demo-notice').hidden=!demo;
 if(saved && /^[a-f0-9]{64}$/.test(saved))run(async()=>render(saved,await request('/api/snapshots/'+saved)));
+else if(demo){
+ Object.assign(form.elements.asin,{value:'B0C9X1PL7A'});form.elements.sid.value='101';
+ form.elements.from.value='2026-10-01';form.elements.to.value='2026-10-31';
+ form.requestSubmit();
+}
 else {
  const d=new Date();const localDay=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
  form.elements.to.value=localDay(d);d.setDate(d.getDate()-6);form.elements.from.value=localDay(d);

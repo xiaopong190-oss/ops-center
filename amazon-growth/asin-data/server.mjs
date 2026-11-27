@@ -8,7 +8,8 @@ import {collect,scope} from './collect.mjs';
 import {LingxingClient} from './lingxing.mjs';
 
 const ui = new URL('./index.html',import.meta.url);
-export function service({directory,client,collector=collect}) {
+const systemFiles = new Set(['Main.dc.html','advertising.html','growth.html','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
+export function service({directory,client,collector=collect,demo=false}) {
   let busy = false;
   return http.createServer(async (req,res)=>{
     const origin = 'http://127.0.0.1:'+req.socket.localPort;
@@ -19,7 +20,16 @@ export function service({directory,client,collector=collect}) {
     try {
       if (req.headers.host !== new URL(origin).host || (req.headers.origin && req.headers.origin!==origin)) return send(403,{error:'仅支持本机同源访问'});
       const path = new URL(req.url,origin).pathname;
-      if (path==='/' && req.method==='GET') return send(200,await readFile(ui),'text/html; charset=utf-8');
+      if (demo && req.method==='GET' && path.startsWith('/system/')) {
+        const file=path.slice(8)||'Main.dc.html';
+        if (!systemFiles.has(file)) return send(404,{error:'页面不存在'});
+        const type=file.endsWith('.css')?'text/css':file.endsWith('.js')?'application/javascript':'text/html';
+        return send(200,await readFile(new URL('../../ai-data-analysis/'+file,import.meta.url)),type+'; charset=utf-8');
+      }
+      if (path==='/' && req.method==='GET') {
+        const page=await readFile(ui,'utf8');
+        return send(200,demo?page.replace('<html lang="zh-CN">','<html lang="zh-CN" data-mode="demo">'):page,'text/html; charset=utf-8');
+      }
       if (req.method==='GET' && /^\/api\/snapshots\/[a-f0-9]{64}$/.test(path)) {
         if (req.headers['sec-fetch-site']==='cross-site') return send(403,{error:'请从增长模块读取共享数据'});
         try {return send(200,JSON.parse(await readFile(join(directory,path.slice(-64)+'.json'),'utf8')));}

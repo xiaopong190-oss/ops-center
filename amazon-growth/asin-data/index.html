@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>亚马逊增长 · ASIN 数据</title><style>
+:root{color-scheme:dark;font:15px/1.6 system-ui,sans-serif;background:#0b1220;color:#e5edf7}
+body{max-width:1200px;padding:clamp(18px,4vw,56px);margin:auto}
+header,form,section{margin:0 0 24px}header{border-bottom:1px solid #28374b;padding-bottom:18px}
+h1{font-size:clamp(24px,4vw,36px);margin:0}h2{font-size:18px}
+form{display:flex;flex-wrap:wrap;gap:14px;align-items:end}
+label{display:grid;gap:6px;color:#b4c4d8}input,button{padding:10px 12px;border-radius:7px;border:1px solid #374b63;background:#111e30;color:inherit;font:inherit}
+button{background:#8de7ed;color:#10232b;cursor:pointer;font-weight:650}button:disabled{opacity:.6}
+a{color:#8de7ed}p,small{color:#b4c4d8}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:14px}td,th{text-align:left;border-bottom:1px solid #293a50;padding:10px}
+</style></head><body>
+<header><h1>亚马逊增长</h1><a href="https://ops-center-cloud.xiaopong190-asin-radar.workers.dev/" target="_blank" rel="noopener noreferrer">打开增长运营工作台 ↗</a></header>
+<h2>按 ASIN 同步领星数据</h2>
+<form><label>ASIN<input name="asin" required maxlength="10" pattern="[a-zA-Z0-9]{10}" placeholder="10 位 ASIN"></label>
+<label>店铺 SID<input name="sid" required inputmode="numeric" pattern="[1-9][0-9]{0,9}"></label>
+<label>下单起始日<input name="from" type="date" required></label><label>下单截止日<input name="to" type="date" required></label>
+<button>同步并生成共享快照</button></form>
+<p id="status" role="status">选择店铺和日期，查询匹配商品的订单行、成本和配送信息。</p>
+<section id="results" hidden><h2>共享快照</h2><p id="summary"></p>
+<a id="download" download="asin-snapshot.json">下载 JSON</a> · <a id="shared">本机共享视图</a>
+<p>费用保留领星原始值和正负号。订单币种单列展示，费用币种以领星核算配置为准。缺失字段显示为「未提供」。</p>
+<div class="scroll"><table><thead><tr></tr></thead><tbody></tbody></table></div></section>
+<script>
+const form=document.querySelector('form'), results=document.querySelector('#results'), statusLine=document.querySelector('#status');
+const columns={orderId:'订单号',date:'下单时间',sku:'MSKU',quantity:'数量',status:'订单状态',channel:'配送方式',tracking:'运单号',shipped:'发货时间',purchase:'采购成本',firstLeg:'头程费',fba:'FBA 发货费',orderCurrency:'订单币种'};
+for(const label of Object.values(columns)){const cell=document.createElement('th');cell.textContent=label;document.querySelector('thead tr').append(cell);}
+function render(id,data){
+  const tbody=document.querySelector('tbody');tbody.replaceChildren();
+  for(const row of data.lines){const tr=tbody.insertRow();for(const key of Object.keys(columns))tr.insertCell().textContent=row[key]??'未提供';}
+  for(const [key,value] of Object.entries(data.scope)) form.elements[key].value=value;
+  document.querySelector('#summary').textContent=[data.scope.asin,'店铺 '+data.scope.sid,data.scope.from+' 至 '+data.scope.to,data.orderCount+' 笔订单',data.lines.length+' 条商品明细','同步于 '+new Date(data.syncedAt).toLocaleString()].join(' · ');
+  document.querySelector('#download').href='/api/snapshots/'+id;
+  document.querySelector('#shared').href='/?snapshot='+id;
+  results.hidden=false;
+  statusLine.textContent=data.lines.length?'共享快照已就绪。':'查询范围内没有匹配订单。';
+}
+async function run(action){
+  const button=form.querySelector('button');button.disabled=true;results.hidden=true;
+  try{await action();}catch(e){statusLine.textContent=e.message;}finally{button.disabled=false;}
+}
+async function request(url,options){
+  const res=await fetch(url,options);
+  const value=await res.json();if(!res.ok)throw Error(value.error||'请求失败');return value;
+}
+form.onsubmit=e=>{e.preventDefault();run(async()=>{
+  statusLine.textContent='正在从领星同步订单和费用…';
+  const data=await request('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});
+  render(data.id,data.snapshot);
+});};
+const saved=new URLSearchParams(location.search).get('snapshot');
+if(saved && /^[a-f0-9]{64}$/.test(saved))run(async()=>render(saved,await request('/api/snapshots/'+saved)));
+else {
+ const d=new Date();const localDay=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+ form.elements.to.value=localDay(d);d.setDate(d.getDate()-6);form.elements.from.value=localDay(d);
+}
+</script></body></html>

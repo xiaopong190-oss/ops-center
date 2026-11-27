@@ -16,15 +16,21 @@
   </button>
   <div id="global-panel" popover>
     <h2>业务模块</h2>
-    <a href="#order-workspace" aria-current="page">订单费用核对与盈亏追踪 <small>当前</small></a>
+    <a href="#shared-workspace" aria-current="page">订单费用核对与盈亏追踪 <small>当前</small></a>
     <a href="./advertising.html">广告智控台</a>
       <a href="./tracker.html">新品跟踪</a>
-    <h2>本页快捷入口</h2>
+    <h2>模拟演练快捷入口</h2>
     <a href="#order-lookup">按订单号核对费用</a>
     <a href="#period-summary">店铺 / 服务商周月汇总</a>
     <a href="#providers">服务商管理</a>
   </div>
 </nav>
+<main id="shared-workspace" class="shared-ledger" tabindex="-1">
+  <h1>订单费用核对与盈亏追踪</h1>
+  <lingxing-orders data-view="orders"></lingxing-orders>
+</main>
+<details id="practice" class="practice">
+<summary>订单核对演练 · 独立模拟数据</summary>
 <x-dc>
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -316,6 +322,7 @@ th{white-space:nowrap}
 </div>
 </div>
 </x-dc>
+</details>
 <script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#22D3EE","options":["#22D3EE","#60A5FA","#A78BFA","#34D399"]},"$preview":{"width":1440,"height":1640}}'>
 class Component extends DCLogic {
   constructor(props) {

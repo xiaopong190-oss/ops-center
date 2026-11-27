@@ -52,7 +52,8 @@ export async function collect(client, query, pause = () => new Promise(resolve =
           date:order.purchase_date_local, status:order.order_status, channel:order.fulfillment_channel,
           tracking:order.tracking_number || null, shipped:order.shipment_date_local || null,
           purchase:item.cg_price ?? null, firstLeg:item.cg_transport_costs ?? null,
-          fba:item.fba_shipment_amount ?? null, orderCurrency:order.order_total_currency_code || null});
+          fba:item.fba_shipment_amount ?? null, profit:item.profit ?? null,
+          orderCurrency:order.order_total_currency_code || null});
       }
     }
   }

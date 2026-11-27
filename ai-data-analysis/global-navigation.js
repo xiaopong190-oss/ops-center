@@ -4,6 +4,8 @@ globalPanel.addEventListener('click', event => {
   if (!link) return;
   const destination = document.getElementById(link.hash.slice(1));
   if (!destination) return;
+  const practice = destination.closest('details');
+  if (practice) practice.open = true;
   event.preventDefault();
   globalPanel.hidePopover();
   destination.focus({ preventScroll: true });

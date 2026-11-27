@@ -46,3 +46,19 @@
 #global-panel a[aria-current] { color: #67e8f9; background: #13303e; }
 .global-pending, #global-panel small { color: #a0afc3; }
 [id][tabindex="-1"] { scroll-margin-top: 16px; }
+
+.shared-ledger,.practice {max-width:1400px;margin:24px auto;padding:0 18px;color:#e6edf7;font:15px/1.5 system-ui}
+.shared-ledger h1 {font-size:24px}
+.practice {margin-bottom:82px}
+.shared-orders {background:#101a2a;color:#e6edf7;padding:14px 20px;border:1px solid #26364b;border-radius:10px;font:14px/1.6 system-ui}
+.shared-orders summary,.practice>summary {cursor:pointer;font-weight:600}
+.shared-orders details[open]>summary {margin-bottom:12px}
+.shared-orders form {display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}
+.shared-orders select,.shared-orders input,.shared-orders button {font:inherit;background:#0c1524;color:#dce7f8;border:1px solid #36485f;border-radius:6px;padding:5px}
+.shared-orders button {cursor:pointer;color:#93e4ef}
+.shared-orders .records {overflow:auto}
+.shared-orders table {border-collapse:collapse;white-space:nowrap;font-size:13px;width:100%}
+.shared-orders td,.shared-orders th {text-align:left;padding:7px;border-bottom:1px solid #29384c}
+.shared-orders td input[type=number]{width:76px}
+.shared-orders a {color:#82dce5}
+.shared-orders .catalog {max-width:100%}

@@ -51,3 +51,35 @@ test('本机 API 同步、共享读取、同范围替换和失败保留',async t
   assert.equal((await(await fetch(base+'/api/snapshots/'+first.id)).json()).generation,1);
   assert.equal((await fetch(base+'/.env')).status,404);
 });
+
+test('三个入口发现同一范围，跨范围订单费用、并发版本与空结果覆盖',async t=>{
+  const dir=await mkdtemp(join(tmpdir(),'shared-ledger-'));
+  let generation=0;
+  const server=service({directory:dir,client:{},demo:true,collector:async(_client,scope)=>{
+    generation++;
+    const lines=generation===3?[]:[{orderId:id,sku:'sku',date:'2026-10-03',purchase:-generation}];
+    return {scope,syncedAt:'2026-11-01T00:00:0'+generation+'Z',lines,orderCount:lines.length};
+  }});
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  t.after(async()=>{await new Promise(r=>server.close(r));await rm(dir,{recursive:true,force:true});});
+  const base='http://127.0.0.1:'+server.address().port;
+  const post=(path,input)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
+  const read=async path=>(await fetch(base+path)).json();
+  for(const name of ['Main.dc.html','advertising.html','board']){
+    const html=await(await fetch(base+'/system/'+name)).text();
+    assert.match(html,/tracker-source\.js/);assert.match(html,/lingxing-orders/);
+  }
+  const wide=await(await post('/api/sync',q)).json();
+  const narrow=await(await post('/api/sync',{...q,from:'2026-10-03',to:'2026-10-03'})).json();
+  assert.equal((await read('/api/snapshots')).snapshots[0].id,narrow.id);
+  const fee={id:wide.id,orderId:id,amount:'2.50',currency:'USD',version:0};
+  assert.equal((await post('/api/order-fee',fee)).status,200);
+  assert.equal((await post('/api/order-fee',fee)).status,409);
+  const w=await read('/api/snapshots/'+wide.id),n=await read('/api/snapshots/'+narrow.id);
+  assert.equal(w.lines[0].purchase,-2);assert.deepEqual(w.orderFees,n.orderFees);
+  assert.equal(n.orderFees[id].amount,'2.50');
+  await post('/api/sync',{...q,from:'2026-10-03',to:'2026-10-03'});
+  assert.equal((await read('/api/snapshots/'+wide.id)).orderCount,0);
+  const other=await(await post('/api/sync',{...q,sid:'102'})).json();
+  assert.deepEqual(other.snapshot.orderFees,{});
+});

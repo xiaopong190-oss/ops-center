@@ -4,7 +4,7 @@
   <script>if(location.protocol==="file:")location.replace("http://127.0.0.1:4187/system/logistics.html");</script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>领星物流履约与对账 · AI 数据分析系统</title>
+  <title>领星物流履约与对账 · 立体履约工作台</title>
   <link rel="stylesheet" href="./global-navigation.css">
   <link rel="stylesheet" href="./logistics.css">
   <script defer src="./global-navigation.js"></script>
@@ -26,14 +26,14 @@
   </nav>
 
   <div class="page-shell">
+    <!-- 紧凑顶栏：品牌、数据源模式、关键计数与同步动作 -->
     <header class="top-bar" id="logistics-top" tabindex="-1">
       <div class="brand-group">
-        <div class="brand-icon" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="1" y="3" width="15" height="13" rx="1.5"></rect>
-            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-            <circle cx="5.5" cy="18.5" r="2.5"></circle>
-            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
           </svg>
         </div>
         <div class="brand-text">
@@ -45,101 +45,155 @@
         </div>
       </div>
 
+      <div class="top-metrics" aria-label="工作台摘要">
+        <span class="metric-chip">货件 <strong id="kpi-shipments" class="mono">—</strong></span>
+        <span class="metric-chip is-warn">异常 <strong id="kpi-anomalies" class="mono">—</strong></span>
+        <span class="metric-chip is-danger">阻断 <strong id="kpi-blocked" class="mono">—</strong></span>
+      </div>
+
       <div class="toolbar">
         <button type="button" id="btn-sync-live" class="btn btn-primary">同步真实领星</button>
-        <button type="button" id="btn-sync-demo" class="btn btn-secondary">加载脱敏演示数据</button>
-        <a class="ghost-link" href="./connections.html">API 与模型接入</a>
-        <a class="ghost-link" href="./">返回首页</a>
+        <button type="button" id="btn-sync-demo" class="btn btn-secondary">加载脱敏演示</button>
+        <a class="ghost-link" href="./connections.html">API 接入</a>
+        <a class="ghost-link" href="./">首页</a>
       </div>
     </header>
 
-    <div id="status-banner" class="status-banner" role="status" hidden></div>
+    <div id="status-banner" class="status-banner" role="status" aria-live="polite" hidden></div>
 
-    <section class="kpi-strip" aria-label="核心指标">
-      <div class="kpi-card">
-        <span class="kpi-label">已同步货件</span>
-        <strong class="kpi-value" id="kpi-shipments">—</strong>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-label">承运运输段</span>
-        <strong class="kpi-value" id="kpi-legs">—</strong>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-label">延迟 / 逾期异常</span>
-        <strong class="kpi-value is-warn" id="kpi-anomalies">—</strong>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-label">待补数 / 阻断结算</span>
-        <strong class="kpi-value is-danger" id="kpi-blocked">—</strong>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-label">缺陷费与冲销记录</span>
-        <strong class="kpi-value" id="kpi-fees">—</strong>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-label">月结对账单</span>
-        <strong class="kpi-value" id="kpi-statements">—</strong>
-      </div>
-    </section>
-
+    <!-- 主视图切换 -->
     <nav class="tab-bar" role="tablist" aria-label="工作台视图">
-      <button type="button" role="tab" class="tab-btn is-active" data-tab="fulfillment" aria-selected="true">履约与计价工作台</button>
-      <button type="button" role="tab" class="tab-btn" data-tab="defects" aria-selected="false">缺陷费与冲销</button>
-      <button type="button" role="tab" class="tab-btn" data-tab="settlements" aria-selected="false">自动月结对账</button>
-      <button type="button" role="tab" class="tab-btn" data-tab="ratings" aria-selected="false">物流商评级</button>
+      <button type="button" role="tab" id="tab-fulfillment" class="tab-btn is-active" data-tab="fulfillment" aria-selected="true" aria-controls="panel-fulfillment">立体履约工作台</button>
+      <button type="button" role="tab" id="tab-defects" class="tab-btn" data-tab="defects" aria-selected="false" aria-controls="panel-defects">缺陷费与冲销 <span id="tab-count-fees" class="tab-count">0</span></button>
+      <button type="button" role="tab" id="tab-settlements" class="tab-btn" data-tab="settlements" aria-selected="false" aria-controls="panel-settlements">自动月结对账 <span id="tab-count-stmts" class="tab-count">0</span></button>
+      <button type="button" role="tab" id="tab-ratings" class="tab-btn" data-tab="ratings" aria-selected="false" aria-controls="panel-ratings">物流商评级</button>
     </nav>
 
-    <!-- Tab 1: 履约与计价 -->
-    <section class="tab-panel" id="panel-fulfillment">
-      <div class="panel-section">
-        <div class="section-head">
-          <h2>同计划批次时间线（美国/目的仓当地日历日）</h2>
-          <span class="section-hint">仅按共同发运计划号归组，绝不按同日混并；点击异常货件可查看承运段</span>
+    <!-- Tab 1: 立体履约工作台 -->
+    <section class="tab-panel" id="panel-fulfillment" role="tabpanel" aria-labelledby="tab-fulfillment">
+      <!-- 首屏等距立体货运场景主视觉 -->
+      <section class="hero-stage" id="hero-stage" aria-label="选中货件立体履约视图">
+        <div class="hero-scene-wrap" id="hero-tilt-target">
+          <div class="iso-canvas-frame">
+            <canvas id="iso-freight-canvas" width="680" height="360" role="img" aria-label="等距立体货运履约示意图：起运集装箱堆场、货运卡车与目的 FBA 仓站"></canvas>
+          </div>
+          <p class="schematic-note">履约状态示意图（基于已核事件渲染，非实时 GPS 定位）</p>
         </div>
-        <div id="batches-container" class="batches-grid"></div>
-      </div>
 
-      <div class="panel-section">
-        <div class="section-head">
-          <h2>货件与运输段计价明细</h2>
-          <div class="filter-row">
-            <select id="filter-status" aria-label="到达状态筛选">
-              <option value="all">全部到达状态</option>
-              <option value="on_time">符合预期</option>
-              <option value="early">提前</option>
-              <option value="delayed">延迟</option>
-              <option value="overdue">已逾期(未到)</option>
-              <option value="in_transit">在途</option>
-              <option value="unknown">未知</option>
-            </select>
-            <input type="search" id="filter-search" placeholder="搜索货件号 / 计划号 / 物流商…" aria-label="搜索货件">
+        <!-- 首屏聚焦货件读数 -->
+        <div class="hero-readout" id="hero-readout">
+          <div class="hero-readout-head">
+            <div>
+              <span class="hero-eyebrow" id="hero-plan-label">等待选择货件</span>
+              <h2 class="hero-shipment-id mono" id="hero-shipment-id">—</h2>
+            </div>
+            <span class="status-pill is-unknown" id="hero-status-pill">未加载</span>
+          </div>
+
+          <div class="hero-deviation-box" id="hero-deviation-box">
+            <span class="deviation-caption">到达偏差（目的仓当地日历日）</span>
+            <div class="deviation-figure mono" id="hero-deviation-value">—</div>
+            <span class="deviation-sub" id="hero-deviation-sub">请先同步真实领星或加载脱敏演示数据</span>
+          </div>
+
+          <dl class="hero-dates-grid">
+            <div>
+              <dt>计划到达窗口</dt>
+              <dd class="mono" id="hero-promised">—</dd>
+            </div>
+            <div>
+              <dt>实际到达 (POD/签收)</dt>
+              <dd class="mono" id="hero-actual">—</dd>
+            </div>
+            <div>
+              <dt>目的仓与时区</dt>
+              <dd class="mono" id="hero-dest-tz">—</dd>
+            </div>
+            <div>
+              <dt>缺陷费 (已核 / 预警)</dt>
+              <dd class="mono" id="hero-defect-summary">—</dd>
+            </div>
+          </dl>
+
+          <div class="hero-actions" id="hero-actions">
+            <button type="button" id="hero-btn-evidence" class="btn btn-secondary" disabled>补录 POD / 仓时区</button>
+            <button type="button" id="hero-btn-pricing" class="btn btn-primary" disabled>维护单价 / 改价</button>
           </div>
         </div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>店铺 / FBA 货件号</th>
-                <th>计划 / 目的仓(时区)</th>
-                <th>承诺窗口与实到</th>
-                <th>状态 / 偏差</th>
-                <th>领星重量与来源</th>
-                <th>承运段与物流商</th>
-                <th>单价 / 计算价 / 生效价</th>
-                <th>缺陷费(预警 / 已核)</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="shipments-tbody"></tbody>
-          </table>
+      </section>
+
+      <!-- 主从工作区：左侧异常优先可搜索货件导航 + 右侧关联承运段与真实事件时间线 -->
+      <div class="workbench-split">
+        <aside class="shipment-rail" aria-label="货件导航列表">
+          <div class="rail-head">
+            <div class="rail-title-row">
+              <h2>货件导航</h2>
+              <span class="rail-count mono" id="rail-count">0 / 0</span>
+            </div>
+            <p class="rail-hint">异常优先排序 · 含无计划独立货件 · 支持方向键切换</p>
+            <div class="rail-filters">
+              <input type="search" id="filter-search" placeholder="搜索货件号 / 计划号 / 物流商…" aria-label="搜索货件">
+              <select id="filter-status" aria-label="按到达状态筛选">
+                <option value="all">全部状态</option>
+                <option value="delayed">延迟</option>
+                <option value="overdue">未到已逾期</option>
+                <option value="unknown">未知 / 缺事件</option>
+                <option value="in_transit">在途</option>
+                <option value="on_time">符合预期</option>
+                <option value="early">提前到达</option>
+                <option value="unplanned">仅无计划货件</option>
+              </select>
+            </div>
+          </div>
+          <div id="shipment-listbox" class="shipment-listbox" role="listbox" aria-label="可选货件列表" tabindex="0"></div>
+          <div id="rail-footer" class="rail-footer" hidden>
+            <span id="rail-page-info" class="section-hint mono"></span>
+            <button type="button" id="btn-load-more" class="btn btn-secondary btn-sm">加载下一页</button>
+          </div>
+        </aside>
+
+        <div class="detail-column">
+          <!-- 选中货件的承运段与计价 -->
+          <section class="panel-card" aria-labelledby="legs-heading">
+            <div class="card-head">
+              <h2 id="legs-heading">关联承运段与计价明细</h2>
+              <span class="section-hint" id="legs-meta">展示领星重量、单位、来源及计价范围</span>
+            </div>
+            <div id="selected-legs" class="legs-list"></div>
+          </section>
+
+          <!-- 真实事件时间线（严格区分承诺窗口与实际事件/缺失） -->
+          <section class="panel-card" aria-labelledby="timeline-heading">
+            <div class="card-head">
+              <h2 id="timeline-heading">真实事件时间线</h2>
+              <span class="section-hint">严格区分承诺窗口、签收/POD 与 FBA 接收/上架；缺失来源保持未知</span>
+            </div>
+            <ol id="selected-timeline" class="event-timeline"></ol>
+          </section>
+
+          <!-- 同批共享日期轴横向对比 -->
+          <section class="panel-card" aria-labelledby="batch-compare-heading">
+            <div class="card-head">
+              <div>
+                <h2 id="batch-compare-heading">同批共享日期轴横向对比</h2>
+                <p class="section-hint" id="batch-compare-subtitle">仅按共同发运计划归组；点击任意一票可立即切换聚焦</p>
+              </div>
+              <span class="batch-legend" aria-hidden="true">
+                <i class="swatch swatch-window"></i>承诺窗口
+                <i class="swatch swatch-ontime"></i>按期/提前
+                <i class="swatch swatch-delay"></i>逾期红延
+              </span>
+            </div>
+            <div id="batch-axis-container" class="batch-axis-container"></div>
+          </section>
         </div>
       </div>
     </section>
 
     <!-- Tab 2: 缺陷费与冲销 -->
-    <section class="tab-panel" id="panel-defects" hidden>
-      <div class="panel-section">
-        <div class="section-head">
+    <section class="tab-panel" id="panel-defects" role="tabpanel" aria-labelledby="tab-defects" hidden>
+      <div class="panel-card">
+        <div class="card-head">
           <h2>录入可追溯账单缺陷费（支持多票分摊与尾差守恒）</h2>
           <span class="section-hint">无原账单号与行号不可入账；争议或缺少承担依据自动进入待核，不扣减物流商应付</span>
         </div>
@@ -164,8 +218,8 @@
         </form>
       </div>
 
-      <div class="panel-section">
-        <div class="section-head">
+      <div class="panel-card">
+        <div class="card-head">
           <h2>缺陷费与冲销台账</h2>
         </div>
         <div class="table-wrap">
@@ -188,9 +242,9 @@
     </section>
 
     <!-- Tab 3: 自动月结对账 -->
-    <section class="tab-panel" id="panel-settlements" hidden>
-      <div class="panel-section">
-        <div class="section-head">
+    <section class="tab-panel" id="panel-settlements" role="tabpanel" aria-labelledby="tab-settlements" hidden>
+      <div class="panel-card">
+        <div class="card-head">
           <h2>自动月结出账与重跑</h2>
           <div class="filter-row">
             <input type="month" id="settlement-month" value="2026-04" aria-label="选择结算月份">
@@ -221,8 +275,8 @@
         </div>
       </div>
 
-      <div class="panel-section" id="statement-detail-section" hidden>
-        <div class="section-head">
+      <div class="panel-card" id="statement-detail-section" hidden>
+        <div class="card-head">
           <h2 id="statement-detail-title">账单溯源明细</h2>
           <button type="button" id="btn-close-detail" class="btn btn-secondary">收起明细</button>
         </div>
@@ -231,9 +285,9 @@
     </section>
 
     <!-- Tab 4: 物流商评级 -->
-    <section class="tab-panel" id="panel-ratings" hidden>
-      <div class="panel-section">
-        <div class="section-head">
+    <section class="tab-panel" id="panel-ratings" role="tabpanel" aria-labelledby="tab-ratings" hidden>
+      <div class="panel-card">
+        <div class="card-head">
           <h2>同组物流商履约评级（同线路 / 服务等级 / 计价单位 / 币种）</h2>
           <div class="filter-row">
             <button type="button" id="btn-refresh-ratings" class="btn btn-secondary">刷新评级</button>
@@ -262,10 +316,10 @@
   </div>
 
   <!-- 计价 / 改价弹窗 -->
-  <dialog id="pricing-dialog" class="modal-dialog">
+  <dialog id="pricing-dialog" class="modal-dialog" aria-labelledby="pricing-dialog-title">
     <form method="dialog" id="pricing-form" class="modal-card">
       <div class="modal-head">
-        <h3>维护单价与手动覆盖</h3>
+        <h3 id="pricing-dialog-title">维护单价与手动覆盖</h3>
         <button type="button" id="btn-close-pricing" class="btn-icon" aria-label="关闭">✕</button>
       </div>
       <div id="pricing-context" class="modal-context"></div>
@@ -287,10 +341,10 @@
   </dialog>
 
   <!-- POD 证据与目的仓时区补录弹窗 -->
-  <dialog id="evidence-dialog" class="modal-dialog">
+  <dialog id="evidence-dialog" class="modal-dialog" aria-labelledby="evidence-dialog-title">
     <form method="dialog" id="evidence-form" class="modal-card">
       <div class="modal-head">
-        <h3>补录 POD 签收证据与目的仓时区</h3>
+        <h3 id="evidence-dialog-title">补录 POD 签收证据与目的仓时区</h3>
         <button type="button" id="btn-close-evidence" class="btn-icon" aria-label="关闭">✕</button>
       </div>
       <div id="evidence-context" class="modal-context"></div>
@@ -318,4 +372,3 @@
   </dialog>
 </body>
 </html>
-

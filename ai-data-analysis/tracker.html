@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.protocol==="file:")location.replace("http://127.0.0.1:4187/system/tracker.html");</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>新品跟踪</title>
+  <link rel="stylesheet" href="./global-navigation.css">
+  <style>
+    body { margin: 0; background: #0b1220; }
+    iframe { display: block; width: 100%; height: 100dvh; border: 0; }
+  </style>
+  <script defer src="./global-navigation.js"></script>
+</head>
+<body>
+  <nav class="global-nav" aria-label="全局导航">
+    <button class="global-trigger" type="button" popovertarget="global-panel"><span aria-hidden="true">▦</span> 全局菜单</button>
+    <div id="global-panel" popover>
+      <a href="./">经营首页</a>
+      <h2>业务模块</h2>
+      <a href="./Main.dc.html">订单费用核对与盈亏追踪</a>
+      <a href="./advertising.html">广告智控台</a>
+      <a href="./tracker.html" aria-current="page">新品跟踪 <small>当前</small></a>
+    </div>
+  </nav>
+  <iframe title="新品跟踪工作区" src="./board"></iframe>
+</body>
+</html>

@@ -313,7 +313,7 @@ const now=new Date();
 const TODAY=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
 const WEEK='周'+'日一二三四五六'[now.getDay()];
 
-const state={links:[],perf:[],ships:[],shipSel:null,delShip:null,me:null,names:{},rejecting:null,shipFilter:'all',addingShip:false,loaded:false,live:false,view:'overview',sel:null,f:{owner:'',site:''},adding:false,editInfo:false,delAsk:null,range:'4w',metric:'net'};
+const state={links:[],perf:[],ships:[],shipSel:null,delShip:null,me:null,names:{},rejecting:null,shipFilter:'all',addingShip:false,loaded:false,live:false,view:window.trackerSourceMode?'perf':'overview',sel:null,f:{owner:'',site:''},adding:false,editInfo:false,delAsk:null,range:'4w',metric:'net'};
 let db=null,userCap=null,pending=false,pointerBusy=false;const namesAsked=new Set();
 
 try{const v=localStorage.getItem('xp-view');if(v&&VIEW_NAME[v])state.view=v;}catch(e){}
@@ -322,12 +322,19 @@ try{const v=localStorage.getItem('xp-view');if(v&&VIEW_NAME[v])state.view=v;}cat
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=x=>typeof x==='number'&&isFinite(x);
 const short=d=>d&&d.length>=10?d.slice(5):(d||'');
-const money=n=>'¥'+Math.round(n).toLocaleString('zh-CN');
+const currencyLabel=()=>{const p=productFor(state.links.find(l=>l.id===state.sel));return p?p.currency+' ':'¥';};
+const money=n=>currencyLabel()+Math.round(n).toLocaleString('zh-CN');
 const days=(a,b)=>Math.round((Date.parse(b)-Date.parse(a))/864e5);
 const isObj=o=>o&&typeof o==='object'&&!Array.isArray(o);
 function merge(a,b){const out=Array.isArray(a)?a.slice():Object.assign({},a);if(!isObj(b))return out;for(const k of Object.keys(b)){out[k]=isObj(out[k])&&isObj(b[k])?merge(out[k],b[k]):b[k];}return out;}
 const clone=o=>JSON.parse(JSON.stringify(o));
-const acct=l=>[l.account,l.store,l.site].filter(Boolean).join(' · ');
+function shopFor(l){
+  const shops=window.systemData?.shops||[];
+  if(l.sid)return shops.find(s=>s.sid===String(l.sid));
+  const matches=shops.filter(s=>s.name===l.store && (!l.site || s.site===l.site));
+  return matches.length===1?matches[0]:null;
+}
+const acct=l=>{const shop=shopFor(l);return [l.account,shop?.name||l.store,shop?.site||l.site].filter(Boolean).join(' · ');};
 const chip=(tone,text)=>`<span class="chip t-${tone}"><span class="dot"></span>${esc(text)}</span>`;
 
 function defaults(){
@@ -374,10 +381,10 @@ const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const addDays=(s,n)=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return iso(d);};
 const monday=s=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()-((d.getDay()+6)%7));return iso(d);};
 const pct=(x,d)=>num(x)?(x*100).toFixed(d==null?1:d)+'%':'—';
-const money2=n=>num(n)?'¥'+n.toFixed(2):'—';
+const money2=n=>num(n)?currencyLabel()+n.toFixed(2):'—';
 const moneyS=n=>num(n)?(n<0?'-':'')+money(Math.abs(n)):'—';
-function perfOf(id){return state.perf.filter(r=>r.linkId===id).sort((a,b)=>String(a.from||'').localeCompare(String(b.from||'')));}
-function rangeRecs(recs,range){if(range==='all')return recs;const cut=addDays(TODAY,range==='12w'?-84:-28);return recs.filter(r=>(r.to||r.from||'')>=cut);}
+function perfOf(id){const p=productFor(state.links.find(l=>l.id===id));if(p && window.systemData.performance)return window.systemData.performance.filter(r=>r.linkId===p.id).sort((a,b)=>a.from.localeCompare(b.from));return state.perf.filter(r=>r.linkId===id).sort((a,b)=>String(a.from||'').localeCompare(String(b.from||'')));}
+function rangeRecs(recs,range){if(range==='all')return recs;const cut=addDays(window.systemData?.to||TODAY,range==='12w'?-84:-28);return recs.filter(r=>(r.to||r.from||'')>=cut);}
 function unitEcon(l,price,rr){
   const e=Object.assign({},l.econ);const z=v=>num(v)?v:0;
   if(!num(e.head)){const ah=shipAvgHead(l.id);if(num(ah))e.head=ah;}
@@ -406,14 +413,16 @@ function perfCalc(l,recs){
   return{S,has,price,cvr,retRate,cpa,acos,tacos,adShare,ue,preAd,net,beTacos,cpaUnits,beCpa,margin,n:recs.length};
 }
 function perfHealth(l){
+  const currency=productFor(l)?.currency;
+  const formatProfit=v=>currency?currency+' '+v.toFixed(2):moneyS(v);
   const recs=rangeRecs(perfOf(l.id),'4w');
   if(!recs.length)return{tone:'wait',label:'未录入',sub:'近 4 周没有数据',c:null};
   const c=perfCalc(l,recs);
   if(!c.ue||c.ue.missing.length)return{tone:'wait',label:'缺成本数据',sub:c.ue?'待填 '+c.ue.missing.join('、'):'待填售价或销售额',c};
   const sub='TACoS '+pct(c.tacos)+' · 保本 '+pct(c.beTacos);
-  if(num(c.net)&&c.net<0)return{tone:'block',label:'亏损 '+moneyS(c.net),sub,c};
+  if(num(c.net)&&c.net<0)return{tone:'block',label:'亏损 '+formatProfit(c.net),sub,c};
   if(num(c.tacos)&&num(c.beTacos)&&c.tacos>c.beTacos*0.8)return{tone:'risk',label:'接近保本',sub,c};
-  return{tone:'done',label:'盈利 '+moneyS(c.net),sub,c};
+  return{tone:'done',label:'盈利 '+formatProfit(c.net),sub,c};
 }
 function niceTicks(lo,hi,n){
   const raw=(hi-lo)/n;if(!num(raw)||raw<=0)return [lo,hi];const e=Math.pow(10,Math.floor(Math.log10(raw)));const f=raw/e;
@@ -447,6 +456,7 @@ const axMoney=v=>Math.abs(v)>=10000?(v/10000).toFixed(Math.abs(v)%10000?1:0)+'�
 const axPct=v=>(v*100).toFixed(Math.abs(v)<0.1&&v!==0?1:0)+'%';
 function tipFor(l,r){const c=perfCalc(l,[r]);
   return `${r.from} ~ ${r.to||''}\n销售额 ${moneyS(c.S.sales)} · ${c.S.units} 件\n净利润 ${moneyS(c.net)}\nTACoS ${pct(c.tacos)} · 保本 ${pct(c.beTacos)}\nCPA ${money2(c.cpa)} · CVR ${pct(c.cvr)}\n退货率 ${pct(c.retRate)}`;}
+function productFor(l){return window.systemData?.products?.find(p=>p.id===l?.id||(p.sid===l?.sid&&p.sku===l?.sku));}
 function norm(id,raw){
   const d=merge(defaults(),raw||{});d.id=id;
   for(const key of ['logistics','content','promo','reviews','econ'])if(!isObj(d[key]))d[key]=defaults()[key];
@@ -466,6 +476,12 @@ function norm(id,raw){
   const ds=Array.isArray(d.reviews.dist)?d.reviews.dist:[];
   d.reviews.dist=[0,1,2,3,4].map(i=>num(ds[i])?ds[i]:0);
   ['bad','plan'].forEach(k=>{if(!Array.isArray(d.reviews[k]))d.reviews[k]=[];});
+  const p=productFor(d);
+  if(p){
+    Object.assign(d,{sid:p.sid,sku:p.sku,asin:p.asin,name:p.name,site:p.site,store:window.systemData.shops.find(s=>s.sid===p.sid)?.name});
+    d.content.frontUrl=p.url;
+    Object.assign(d.econ,{price:p.price,cogs:p.cogs,head:p.head,fba:p.fba,commission:p.price>0?100*p.commission/p.price:null});
+  }
   return d;
 }
 
@@ -618,7 +634,7 @@ function addForm(){
   const f=(id,label,ph,req,type)=>`<label class="fact" for="add-${id}">${label}<input class="in" id="add-${id}" name="${id}" type="${type||'text'}" placeholder="${esc(ph)}"${req?' required':''}></label>`;
   return `<form class="panel addbox" data-form="add">
   <div class="ph"><h2>新增链接</h2><span class="hint">一个 SKU 在一个帐号 / 店铺 / 站点下算一条链接</span></div>
-  <div class="facts">${f('sku','SKU *','如 TCQ100',true)}${f('name','品名','如 探测器')}${f('account','帐号','如 烈森拓创')}${f('store','店铺','如 HS')}${f('site','站点 *','如 US / UK / DE',true)}${f('owner','负责运营','如 stella')}${f('launchDate','计划上架日','', false,'date')}${f('issue','当前问题点','如 缺红人视频')}</div>
+  <div class="facts">${f('sku','SKU *','如 TCQ100',true)}${f('name','品名','如 探测器')}${f('account','帐号','如 烈森拓创')}${window.systemData?`<label class="fact">店铺 / 站点<select name="sid" required><option value="">选择店铺</option>${window.systemData.shops.map(s=>`<option value="${esc(s.sid)}">${esc(s.name)} · ${esc(s.site)} · ${esc(s.sid)}</option>`).join('')}</select></label>`:f('store','店铺','如 HS')+f('site','站点 *','如 US / UK / DE',true)}${f('owner','负责运营','如 stella')}${f('launchDate','计划上架日','', false,'date')}${f('issue','当前问题点','如 缺红人视频')}</div>
   <div class="acts"><button class="btn primary" type="submit">创建</button><button class="btn" type="button" data-act="add-cancel">取消</button></div></form>`;
 }
 
@@ -718,9 +734,9 @@ function avgRating(L){const r=L.filter(l=>num(l.reviews.rating));if(!r.length)re
 /* ---------- stage views ---------- */
 const fid=(l,p)=>'f-'+l.id+'-'+p.replace(/\./g,'-');
 function inp(l,path,o){o=o||{};const v=getPath(l,path);
-  return `<input class="in ${o.cls||''}" id="${fid(l,path)}" data-f="${path}"${o.kind?` data-kind="${o.kind}"`:''} type="${o.type||'text'}"${o.type==='number'?' step="any" inputmode="decimal"':''} value="${esc(v==null?'':v)}"${o.ph?` placeholder="${esc(o.ph)}"`:''}${o.label?` aria-label="${esc(o.label)}"`:''}>`;}
+  return `<input class="in ${o.cls||''}" id="${fid(l,path)}" data-f="${path}"${productFor(l)&&['sku','name','econ.cogs','econ.price','econ.head','econ.fba','econ.commission'].includes(path)?' readonly':''}${o.kind?` data-kind="${o.kind}"`:''} type="${o.type||'text'}"${o.type==='number'?' step="any" inputmode="decimal"':''} value="${esc(v==null?'':v)}"${o.ph?` placeholder="${esc(o.ph)}"`:''}${o.label?` aria-label="${esc(o.label)}"`:''}>`;}
 function sel(l,path,opts,label,kind){const v=String(getPath(l,path));
-  return `<select class="in" id="${fid(l,path)}" data-f="${path}"${kind?` data-kind="${kind}"`:''}${label?` aria-label="${esc(label)}"`:''}>${opts.map(([k,t])=>`<option value="${esc(k)}"${String(k)===v?' selected':''}>${esc(t)}</option>`).join('')}</select>`;}
+  return `<select class="in" id="${fid(l,path)}" data-f="${path}"${productFor(l)&&['sku','name','econ.cogs','econ.price','econ.head','econ.fba','econ.commission'].includes(path)?' readonly':''}${kind?` data-kind="${kind}"`:''}${label?` aria-label="${esc(label)}"`:''}>${opts.map(([k,t])=>`<option value="${esc(k)}"${String(k)===v?' selected':''}>${esc(t)}</option>`).join('')}</select>`;}
 const fact=(label,ctl)=>`<div class="fact"><span>${label}</span>${ctl}</div>`;
 const ent=o=>Object.entries(o);
 function rowForm(list,fields,btn){return `<form class="rowform" data-form="row" data-list="${list}">${fields}<button class="btn" type="submit">${btn||'添加'}</button></form>`;}
@@ -737,11 +753,11 @@ function stageView(L){
     <div class="detail">${detailHead(l,v==='perf'?perfHealth(l):stageOf(v,s))}${body}</div></section>`;
 }
 function detailHead(l,c){
-  const info=state.editInfo?`<div class="facts">${fact('SKU',inp(l,'sku'))}${fact('品名',inp(l,'name'))}${fact('帐号',inp(l,'account'))}${fact('店铺',inp(l,'store'))}${fact('站点',inp(l,'site'))}${fact('负责运营',inp(l,'owner'))}${fact('计划上架日',inp(l,'launchDate',{type:'date'}))}${fact('当前问题点',inp(l,'issue',{ph:'显示在总览矩阵里'}))}</div>`:'';
+  const info=state.editInfo?`<div class="facts">${fact('SKU',inp(l,'sku'))}${fact('品名',inp(l,'name'))}${fact('帐号',inp(l,'account'))}${window.systemData?fact('店铺 / 站点','<select class="in" data-shared-shop="'+esc(l.id)+'" '+(productFor(l)?'disabled':'')+'><option value="">选择店铺</option>'+window.systemData.shops.map(s=>'<option value="'+esc(s.sid)+'" '+(shopFor(l)?.sid===s.sid?'selected':'')+'>'+esc(s.name+' · '+s.site+' · '+s.sid)+'</option>').join('')+'</select>'):fact('店铺',inp(l,'store'))+fact('站点',inp(l,'site'))}${fact('负责运营',inp(l,'owner'))}${fact('计划上架日',inp(l,'launchDate',{type:'date'}))}${fact('当前问题点',inp(l,'issue',{ph:'显示在总览矩阵里'}))}</div>`:'';
   const del=state.delAsk===l.id?`<span class="hint">删除这条链接和它所有阶段的记录？</span><button class="btn danger" data-act="del-yes">删除</button><button class="btn" data-act="del-no">取消</button>`
     :`<button class="btn" data-act="info">${state.editInfo?'收起':'编辑信息'}</button><button class="btn" data-act="del-ask">删除</button>`;
   return `<div class="panel"><div class="dh"><div style="display:flex;flex-direction:column;gap:4px;min-width:0">
-    <span class="t1"><span class="sku">${esc(l.sku)}</span><span class="pn">${esc(l.name)}</span>${chip(c.tone,c.label)}</span>
+    <span class="t1"><span class="sku">${esc(l.sku)}</span>${productFor(l)?`<a href="${esc(productFor(l).url)}" target="_blank" rel="noopener noreferrer">${esc(l.asin)}</a>`:''}<span class="pn">${esc(l.name)}</span>${chip(c.tone,c.label)}</span>
     <span class="ac">${esc(acct(l))}${l.owner?' · 负责运营 '+esc(l.owner):''}${l.launchDate?' · 计划上架 '+short(l.launchDate):''}</span>
     ${l.issue&&!state.editInfo?`<span style="font-size:13px;color:var(--warn)">当前问题：${esc(l.issue)}</span>`:''}</div>
     <div class="acts">${del}</div></div>${info}</div>`;
@@ -817,7 +833,7 @@ function logisticsView(l,s){
       <div class="facts">${f('no','批次 / 票号 *',{v:'第 '+(all.length+1)+' 票',req:true})}${f('shipment','FBA 货件号',{ph:'FBA…'})}
       <label class="fact" for="ns-mode">运输方式<select class="in" id="ns-mode" name="mode"><option value="">请选择</option>${MODES.map(m=>`<option${m===last.mode?' selected':''}>${m}</option>`).join('')}</select></label>
       ${f('qty','数量（件）',{type:'number'})}${f('cartons','箱数',{ph:'如 30 箱'})}${f('route','起运港 → 目的港',{v:last.route,ph:'如 宁波 → Felixstowe'})}
-      ${f('shipDate','发货日',{type:'date',v:TODAY})}${f('etaPlanned','原定到港',{type:'date'})}${f('headFreight','头程费用（¥）',{type:'number'})}</div>
+      ${f('shipDate','发货日',{type:'date',v:TODAY})}${f('etaPlanned','原定到港',{type:'date'})}${f('headFreight','头程费用（'+currencyLabel().trim()+'）',{type:'number'})}</div>
       <div class="acts"><button class="btn primary" type="submit">添加</button><button class="btn" type="button" data-act="ship-add-cancel">取消</button></div></form>`;
   }
   h+=`<div class="panel"><div class="ph"><h2>货件时间线</h2><span class="hint">点任一行打开这票货件</span></div>${gantt(all)}</div>`;
@@ -848,8 +864,8 @@ function shipDetail(sh,st){
     ${fact('起运港 → 目的港',sinp(sh,'route'))}
     ${fact('原定到港',sinp(sh,'etaPlanned',{type:'date'}))}
     ${fact('最新到港'+(st.delay>0?` <em>延误 ${st.delay} 天</em>`:''),sinp(sh,'etaLatest',{type:'date'}))}
-    ${fact('头程费用（¥）',sinp(sh,'headFreight',{type:'number',kind:'num'}))}
-    ${fact('其它成本（¥）',sinp(sh,'otherCost',{type:'number',kind:'num'}))}
+    ${fact('头程费用（'+currencyLabel().trim()+'）',sinp(sh,'headFreight',{type:'number',kind:'num'}))}
+    ${fact('其它成本（'+currencyLabel().trim()+'）',sinp(sh,'otherCost',{type:'number',kind:'num'}))}
    </div>
    <h2>物流与到港节点</h2><div class="scrollx"><ol class="steps">
     ${sh.steps.map((x,i)=>`<li class="step s-${st.eff(i)}"><span class="track"><span class="sd"></span><span class="sb"></span></span><span class="sn">${STEPS[i]}</span>${ssel(sh,'steps.'+i+'.status',ent(STEP_ST),STEPS[i]+' 状态')}${sinp(sh,'steps.'+i+'.date',{type:'date',label:STEPS[i]+' 日期'})}</li>`).join('')}
@@ -886,7 +902,7 @@ function content(l,s){
   const rj=state.rejecting===l.id+'|mgr'||state.rejecting===l.id+'|gm'?`<form class="rowform" data-form="rej"><input class="in" id="rej-note" name="note" placeholder="退回原因，例如：主图背景不是纯白" required aria-label="退回原因"><button class="btn danger" type="submit">确认退回</button><button class="btn" type="button" data-act="rv-rej-cancel">取消</button></form>`:'';
   return `<div class="panel"><div class="ph"><h2>前台链接与确认</h2>${chip(s.content.tone,s.content.label)}</div>
     <div class="itm-r">
-      <input class="in" id="${fid(l,'content.frontUrl')}" type="url" inputmode="url" data-front value="${esc(c.frontUrl)}" placeholder="粘贴亚马逊前台链接，例如 https://www.amazon.com/dp/…" aria-label="前台链接">
+      <input class="in" id="${fid(l,'content.frontUrl')}" type="url" inputmode="url" data-front ${productFor(l)?'readonly':''} value="${esc(c.frontUrl)}" placeholder="粘贴亚马逊前台链接，例如 https://www.amazon.com/dp/…" aria-label="前台链接">
       ${okUrl(c.frontUrl)?`<a class="btn" href="${esc(c.frontUrl)}" target="_blank" rel="noopener noreferrer">打开前台</a>`:''}
     </div>
     <div class="cfs">${cfLine('主管',c.review.mgr,rs==='mgr')}${cfLine('总经理',c.review.gm,rs==='gm')}</div>
@@ -912,8 +928,8 @@ function promo(l,s){
   return `<div class="panel"><h2>方案与指标</h2><div class="facts">
     ${fact('方案状态',sel(l,'promo.status',PROMO_ST.map(x=>[x,x]),'方案状态'))}
     ${fact('审核人',inp(l,'promo.reviewer',{ph:'如 主管'}))}
-    ${fact('预算（¥）',inp(l,'promo.budget',{type:'number',kind:'num'}))}
-    ${fact('已花费（¥）'+(num(p.budget)&&num(p.spent)&&p.budget>0?` · ${Math.round(p.spent/p.budget*100)}%`:''),inp(l,'promo.spent',{type:'number',kind:'num'}))}
+    ${fact('预算（'+currencyLabel().trim()+'）',inp(l,'promo.budget',{type:'number',kind:'num'}))}
+    ${fact('已花费（'+currencyLabel().trim()+'）'+(num(p.budget)&&num(p.spent)&&p.budget>0?` · ${Math.round(p.spent/p.budget*100)}%`:''),inp(l,'promo.spent',{type:'number',kind:'num'}))}
     ${fact('ACoS 目标（%）',inp(l,'promo.acosTarget',{type:'number',kind:'num'}))}
     ${fact('ACoS 实际（%）'+(s.acosOver?' <em>超目标</em>':''),inp(l,'promo.acosActual',{type:'number',kind:'num'}))}
     ${fact('近 7 天订单',inp(l,'promo.orders7d',{type:'number',kind:'num'}))}
@@ -926,7 +942,7 @@ function promo(l,s){
   <div class="panel"><h2>执行动作</h2><div class="scrollx"><table class="tbl"><thead><tr><th style="width:64px">日期</th><th>动作</th><th style="width:90px">执行人</th><th style="width:120px">状态</th><th style="width:40px"><span hidden>删除</span></th></tr></thead><tbody>
     ${acts.length?acts.map(({x,i})=>`<tr><td class="d">${short(x.date)}</td><td>${esc(x.text)}</td><td style="color:var(--fg2)">${esc(x.who)}</td><td>${sel(l,'promo.actions.'+i+'.status',ent(ACT_ST),'动作状态')}</td><td><button class="x" data-act="row-del" data-list="promo.actions" data-i="${i}" aria-label="删除这条动作">×</button></td></tr>`).join(''):'<tr><td colspan="5" class="hint">还没有动作</td></tr>'}
   </tbody></table></div>
-  ${rowForm('promo.actions',dateIn('date')+'<input class="in" name="text" placeholder="例如：开启 SP 自动，日预算 ¥300" required aria-label="动作"><input class="in w-s" name="who" placeholder="执行人" aria-label="执行人">')}</div>`;
+  ${rowForm('promo.actions',dateIn('date')+'<input class="in" name="text" placeholder="例如：开启 SP 自动，日预算 300" required aria-label="动作"><input class="in w-s" name="who" placeholder="执行人" aria-label="执行人">')}</div>`;
 }
 
 function reviews(l,s){
@@ -1105,8 +1121,26 @@ function perfView(l,editorsOnly=false,previewOnly=false){
   const seg=(items,cur,act,label)=>`<div class="seg" role="group" aria-label="${label}">${items.map(([k,t])=>`<button data-act="${act}" data-v="${k}" class="${cur===k?'on':''}" aria-pressed="${cur===k}">${t}</button>`).join('')}</div>`;
   const kpi=(k,v,nt,cls,vcls)=>`<div class="kpi"><span class="k">${k}</span><span class="v ${vcls||''}">${v}</span><span class="n ${cls||''}">${nt}</span></div>`;
   const tacosCls=num(c.tacos)&&num(c.beTacos)?(c.tacos>c.beTacos?'bad':c.tacos>c.beTacos*0.8?'warn':'ok'):'';
+  const master=window.systemData;
+  const selectedShop=shopFor(l);
+  const end=master?.to||TODAY;
+  const requestedStart=state.range==='all'?master?.from:addDays(end,state.range==='12w'?-83:-27);
+  const start=master && requestedStart<master.from?master.from:requestedStart;
+  const orders=(master?.rows||[]).filter(r=>r.sid===selectedShop?.sid && r.sku===l.sku && (!l.asin || r.asin===l.asin) && String(r.date).slice(0,10)>=start && String(r.date).slice(0,10)<=end);
+  const units=orders.reduce((n,r)=>n+Number(r.quantity),0);
+  const total=key=>{
+    if(!selectedShop || master.error || !orders.length || orders.some(r=>r[key]==null || !Number.isFinite(Number(r[key]))))return '—';
+    const currencies=new Set(orders.map(r=>r.orderCurrency));
+    return currencies.size===1 && orders[0].orderCurrency?orders[0].orderCurrency+' '+orders.reduce((n,r)=>n+Number(r[key]),0).toFixed(2):'—';
+  };
   let h=`<div class="panel"><div class="ph"><h2>经营数据</h2>${seg([['4w','近 4 周'],['12w','近 12 周'],['all','全部']],state.range,'range','时间范围')}</div>
-   ${recs.length?`<div class="kpis">
+   ${master?`<div class="kpis">
+    ${kpi('订单数',selectedShop&&!master.error?new Set(orders.map(r=>r.orderId)).size:'—',selectedShop?selectedShop.name:'待匹配领星店铺')}
+    ${kpi('销售件数',selectedShop&&!master.error?units:'—',start+' 至 '+end)}
+    ${kpi('销售额',total('sales'),'订单商品行合计')}
+    ${kpi('领星毛利',total('profit'),'订单原币')}
+   </div>${master.error?'<p class="hint">'+esc(master.error)+'</p>':''}`:
+   recs.length?`<div class="kpis">
     ${kpi('销售额',moneyS(S.sales),S.units+' 件 · 均价 '+money2(c.price))}
     ${kpi('净利润',moneyS(c.net),'净利率 '+pct(c.margin),'',num(c.net)?(c.net<0?'neg':'pos'):'')}
     ${kpi('CVR',pct(c.cvr,2),'访客 '+S.sessions)}
@@ -1141,7 +1175,7 @@ function perfView(l,editorsOnly=false,previewOnly=false){
   if(econIssue)wf='<p class="note" role="alert">'+esc(econIssue)+'；图表继续显示预览，异常比例暂按 0–100% 边界值计算，异常金额暂按 0（售价用实际均价）；异常值未保存。当前图示不可再售比例 '+trialEcon.unsellable+'%。</p>'+wf;
   h+=`<div class="two"> 
     <div class="panel"><h2>分析</h2><p class="hint">关联右侧单件利润测算；售价、成本与目标调整即时重算。广告花费、销售件数及广告订单均使用右侧可编辑的试算输入。</p><div id="perf-analysis-output" data-perf-break-even>${be}</div></div>
-    <div class="panel"><h2>单件利润测算</h2>
+    <div class="panel"><h2>单件利润测算 ${esc(productFor(l)?.currency||'')}</h2>
       <div class="facts" id="perf-econ-inputs">${ECON.map(([k,n])=>{const ah=k==='head'?shipAvgHead(l.id):null;
         const percent=['commission','unsellable','targetMargin','trialReturnRate'].includes(k);
         const inputLink=k.startsWith('trial')?{...l,econ:{...e,[k]:trial.values[k]}}:l;
@@ -1158,7 +1192,7 @@ function perfView(l,editorsOnly=false,previewOnly=false){
   else if(m==='tacos'){series=[{kind:'line',vals:cs.map(x=>x.tacos)},{kind:'line',ref:true,vals:cs.map(x=>x.beTacos)}];legend='<span><i></i>实际 TACoS</span><span><i class="ref"></i>保本 TACoS</span>';}
   else if(m==='cvr'){series=[{kind:'line',vals:cs.map(x=>x.cvr)}];legend='<span><i></i>CVR = 订单 ÷ 访客</span>';}
   else if(m==='ret'){series=[{kind:'line',vals:cs.map(x=>x.retRate)}];legend='<span><i></i>退货率 = 退货 ÷ 订单</span>';}
-  else{series=[{kind:'line',vals:cs.map(x=>x.cpa)},{kind:'line',ref:true,vals:cs.map(x=>x.beCpa)}];axis=v=>'¥'+axMoney(v);legend='<span><i></i>CPA</span><span><i class="ref"></i>保本 CPA（含自然单）</span>';}
+  else{series=[{kind:'line',vals:cs.map(x=>x.cpa)},{kind:'line',ref:true,vals:cs.map(x=>x.beCpa)}];axis=v=>currencyLabel()+axMoney(v);legend='<span><i></i>CPA</span><span><i class="ref"></i>保本 CPA（含自然单）</span>';}
   h+=`<div class="panel"><div class="ph"><h2>趋势</h2>${seg(METRICS,m,'metric','指标')}</div>
     ${R.length?`<div class="lg">${legend}</div>`+chartSVG({labels:R.map(r=>short(r.from)),series,axis,aria:(METRICS.find(x=>x[0]===m)||['',''])[1]+' 趋势',tips:R.map(r=>tipFor(l,r))}):'<p class="hint">录入周期数据后显示趋势。</p>'}</div>`;
 
@@ -1171,15 +1205,15 @@ function perfView(l,editorsOnly=false,previewOnly=false){
   const suggested=validPeriodDate(lastDate)?addDays(lastDate,1):fallbackDate;
   const nf=validPeriodDate(suggested)&&validPeriodDate(addDays(suggested,6))?suggested:fallbackDate,nt=addDays(nf,6);
   const rowsDesc=all.slice().reverse();
-  h+=`<div class="panel"><div class="ph"><h2>周期数据</h2><span class="hint">建议每周一录上一周（周一到周日）。金额统一按人民币。</span></div>
+  h+=`<div class="panel"><div class="ph"><h2>周期数据</h2><span class="hint">${productFor(l)?'按订单日期汇总 · '+esc(productFor(l).currency):'建议每周一录上一周（周一到周日）。金额统一按人民币。'}</span></div>
    <div class="scrollx"><table class="tbl ptbl"><thead><tr><th>起始</th><th>结束</th>${PF.map(k=>`<th>${PF_NAME[k]}</th>`).join('')}<th class="c">CVR</th><th class="c">退货率</th><th class="c">CPA</th><th class="c">TACoS</th><th class="c">保本 TACoS</th><th class="c">净利润</th><th><span hidden>删除</span></th></tr></thead><tbody>
    ${rowsDesc.length?rowsDesc.map(r=>{const x=perfCalc(l,[r]);return `<tr><td class="d">${esc(r.from)}</td>
-     <td><input class="in" type="date" id="pf-${esc(r.id)}-to" data-pf="${esc(r.id)}" data-field="to" value="${esc(r.to||'')}" aria-label="结束日期"></td>
-     ${PF.map(k=>`<td><input class="in" type="number" step="any" inputmode="decimal" id="pf-${esc(r.id)}-${k}" data-pf="${esc(r.id)}" data-field="${k}" value="${num(r[k])?r[k]:''}" aria-label="${PF_NAME[k]}"></td>`).join('')}
+     <td><input class="in" type="date" id="pf-${esc(r.id)}-to" ${productFor(l)?'readonly':''} data-pf="${esc(r.id)}" data-field="to" value="${esc(r.to||'')}" aria-label="结束日期"></td>
+     ${PF.map(k=>`<td><input class="in" type="number" step="any" inputmode="decimal" id="pf-${esc(r.id)}-${k}" ${productFor(l)?'readonly':''} data-pf="${esc(r.id)}" data-field="${k}" value="${num(r[k])?r[k]:''}" aria-label="${PF_NAME[k]}"></td>`).join('')}
      <td class="c">${pct(x.cvr,2)}</td><td class="c">${pct(x.retRate)}</td><td class="c">${money2(x.cpa)}</td><td class="c ${num(x.tacos)&&num(x.beTacos)&&x.tacos>x.beTacos?'neg':''}">${pct(x.tacos)}</td><td class="c">${pct(x.beTacos)}</td><td class="c ${num(x.net)?(x.net<0?'neg':'pos'):''}">${moneyS(x.net)}</td>
-     <td><button class="x" data-act="perf-del" data-id="${esc(r.id)}" aria-label="删除 ${esc(r.from)} 这条记录">×</button></td></tr>`;}).join(''):'<tr><td colspan="17" class="hint">还没有记录</td></tr>'}
+     <td><button ${productFor(l)?'hidden disabled':''} class="x" data-act="perf-del" data-id="${esc(r.id)}" aria-label="删除 ${esc(r.from)} 这条记录">×</button></td></tr>`;}).join(''):'<tr><td colspan="17" class="hint">还没有记录</td></tr>'}
    </tbody></table></div>
-   <form class="rowform perfform" data-form="perf">
+   <form ${productFor(l)?'style="display:none"':''} class="rowform perfform" data-form="perf">
      <input class="in w-date" type="date" name="from" value="${nf}" required aria-label="起始日期">
      <input class="in w-date" type="date" name="to" value="${nt}" required aria-label="结束日期">
      ${PF.map(k=>`<input class="in" type="number" step="any" inputmode="decimal" name="${k}" placeholder="${PF_NAME[k]}" aria-label="${PF_NAME[k]}">`).join('')}
@@ -1268,6 +1302,7 @@ app.addEventListener('click',e=>{
 app.addEventListener('change',e=>{
   const t=e.target;
   if(t.dataset.import!==undefined&&LOCAL&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!isObj(o))throw 0;db._load(o);toast('已导入 '+Object.keys(o).length+' 条记录');}catch(e){toast('文件格式不对，需要本工具导出的 JSON');}};fr.readAsText(t.files[0]);t.value='';return;}
+  if(t.dataset.sharedShop){const shop=window.systemData?.shops.find(s=>s.sid===t.value);if(shop)save(t.dataset.sharedShop,{sid:shop.sid,store:shop.name,site:shop.site});return;}
   if(t.dataset.filter){state.f[t.dataset.filter]=t.value;state.sel=null;render(true);return;}
   if(t.dataset.front!==undefined){const l=state.links.find(x=>x.id===state.sel);if(!l)return;
     let v=t.value.trim();if(v&&!/^https?:\/\//i.test(v))v='https://'+v;if(v===l.content.frontUrl)return;
@@ -1301,6 +1336,7 @@ app.addEventListener('submit',e=>{
   e.preventDefault();const f=e.target;const fd=Object.fromEntries(new FormData(f).entries());
   Object.keys(fd).forEach(k=>{fd[k]=String(fd[k]).trim();});
   if(f.dataset.form==='add'){
+    if(window.systemData){const shop=shopFor(fd);if(!shop)return;fd.store=shop.name;fd.site=shop.site;}
     if(!fd.sku||!fd.site)return;
     const id=(fd.sku+'-'+(fd.store||fd.account||'x')+'-'+fd.site).toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60)+'-'+Math.random().toString(36).slice(2,6);
     const doc=Object.assign(strip(norm(id,{})),fd,{updatedAt:new Date().toISOString()});
@@ -1358,7 +1394,15 @@ app.addEventListener('submit',e=>{
    To move to a real backend, replace localDb() with an adapter that keeps this surface. */
 const LOCAL=!(window.claude&&window.claude.use);
 function localDb(){
-  const KEY='xinpin-tracker-db';let data={};try{data=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){data={};}
+  const KEY=window.trackerSourceMode?'ai-tracker-'+(window.systemData?.dataset||window.trackerSourceMode):'xinpin-tracker-db';let data={};try{data=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){data={};}
+  if(window.systemData?.products && data.catalogVersion!==window.systemData.demoCatalogVersion){
+    for(const p of window.systemData.products){
+      const tracked=Object.entries(data).some(([key,l])=>key.startsWith('links/')&&(key==='links/'+p.id||(l.sid===p.sid&&l.sku===p.sku)));
+      if(!tracked)data['links/'+p.id]={sid:p.sid,sku:p.sku};
+    }
+    data.catalogVersion=window.systemData.demoCatalogVersion;
+    localStorage.setItem(KEY,JSON.stringify(data));
+  }
   const subs=new Set();
   const flush=()=>{try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){toast('浏览器存储写入失败，数据可能没保存');}subs.forEach(f=>f());};
   const docsIn=name=>Object.keys(data).filter(k=>k.split('/').length===2&&k.split('/')[0]===name).map(k=>({id:k.split('/')[1],exists:true,data:()=>data[k]}));

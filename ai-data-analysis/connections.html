@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>全局接入</title>
+<style>
+:root{color-scheme:dark;font:16px/1.5 system-ui;color:#e3ebf5;background:#0b1220}main{max-width:780px;margin:6vh auto;padding:16px}a{color:#79cfff}section{border:1px solid #29394d;border-radius:10px;padding:16px 20px;margin:14px 0;background:#111c2b}h1{font-size:28px}h2{font-size:18px;margin:0}p,output{color:#bbcada;overflow-wrap:anywhere}button{cursor:pointer;background:#203650;color:white;border:1px solid #426184;border-radius:6px;padding:8px 14px}button:disabled{opacity:.55;cursor:default}textarea{display:block;width:100%;box-sizing:border-box;margin:8px 0 12px;padding:10px}output{display:block;white-space:pre-wrap;margin-top:8px}
+</style><script defer src="connections.js"></script></head><body><main><a href="./">返回系统</a><h1>全局接入</h1><p id="mode" role="status"></p><div id="providers"></div>
+<section><h2>模型调用</h2><p>仅将下方输入发送至已配置的 OpenAI 模型。</p><form id="model"><label for="input">输入文本</label><textarea id="input" maxlength="8000" rows="4" required></textarea><button disabled>发送至模型</button></form><output id="answer" aria-live="polite"></output></section></main></body></html>

@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.protocol==="file:")location.replace("http://127.0.0.1:4187/system/Main.dc.html");</script>
+<meta charset="utf-8">
+<title>订单费用核对与盈亏追踪</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./global-navigation.css">
+<script defer src="./global-navigation.js"></script>
+</head>
+<body>
+<nav class="global-nav" aria-label="全局导航">
+  <button id="global-trigger" class="global-trigger" type="button" popovertarget="global-panel">
+    <span aria-hidden="true">▦</span> 全局菜单
+  </button>
+  <div id="global-panel" popover>
+    <a href="./">经营首页</a>
+      <h2>业务模块</h2>
+    <a href="#order-workspace" aria-current="page">订单费用核对与盈亏追踪 <small>当前</small></a>
+    <a href="./advertising.html">广告智控台</a>
+      <a href="./tracker.html">新品跟踪</a>
+    <h2>本页快捷入口</h2>
+    <a href="#order-lookup">按订单号核对费用</a>
+    <a href="#period-summary">店铺 / 服务商周月汇总</a>
+    <a href="#providers">服务商管理</a>
+  </div>
+</nav>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#070B14}
+a{color:#67E8F9}a:hover{color:#A5F3FC}
+button,select,input{font-family:inherit}
+.order-field{box-sizing:border-box;width:100%;height:36px;padding:0 9px;border:1px solid #22324D;border-radius:6px;background:#0B1220;color:#E6EDF7;font-size:12px}
+.order-field:focus{outline:2px solid #22D3EE;outline-offset:2px}
+.fee-field{width:104px;text-align:right;font-family:'JetBrains Mono',monospace}
+.provider-field{width:144px}
+.review-field{width:106px}
+th{white-space:nowrap}
+</style>
+</helmet>
+<div style="min-height: 100vh; box-sizing: border-box; background-color: #070B14; background-image: linear-gradient(rgba(34,211,238,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.045) 1px, transparent 1px); background-size: 40px 40px; color: #E6EDF7; font-family: 'Noto Sans SC', system-ui, sans-serif; font-size: 14px; padding: 24px 16px 64px">
+<div style="max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px">
+
+<!-- 顶栏 -->
+<header id="order-workspace" tabindex="-1" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border: 1px solid #1C2A40; border-radius: 12px; background: rgba(13,20,34,0.92)">
+<div style="display: flex; align-items: center; gap: 14px">
+<div style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid {{accent}}; display: flex; align-items: center; justify-content: center; color: {{accent}}">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path><circle cx="19" cy="8" r="1.5"></circle></svg>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 0.5px">订单费用核对与盈亏追踪</div>
+<div style="font-size: 12px; color: #8FA3BF; display: flex; align-items: center; gap: 8px"><span style="width: 7px; height: 7px; border-radius: 50%; background: #34D399; display: inline-block"></span>{{sourceNotice}}</div>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8FA3BF">店铺
+<sc-raw-select value="{{shopFilter}}" onChange="{{changeShop}}" aria-label="按店铺筛选" style="height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #E6EDF7; font-size: 13px"><option>全部店铺</option><sc-for list="{{shopOptions}}" as="s"><option value="{{s.sid}}">{{s.label}}</option></sc-for></sc-raw-select>
+</label>
+
+
+
+<button type="button" style="height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #C7D3E3; font-size: 13px; cursor: pointer">导出 Excel（待接入）</button>
+</div>
+</header>
+
+<section style="padding:20px;border:1px solid #22324D;border-radius:12px;background:rgba(13,20,34,0.96);display:flex;flex-direction:column;gap:12px">
+<h2 id="order-lookup" tabindex="-1" style="margin:0;font-size:18px">按亚马逊订单号核对费用</h2>
+<div style="color:#8FA3BF;font-size:13px">订单号 → 领星匹配店铺 / 产品 → 持续更新退款、退货及费用 → 录入服务费 → 汇总盈亏</div>
+<label style="display:flex;flex-wrap:wrap;align-items:center;gap:12px"><span style="font-size:13px;color:#C7D3E3">亚马逊订单号</span><input class="order-field" style="width:min(100%,360px);height:44px" type="search" value="{{orderQuery}}" onChange="{{changeOrderQuery}}" placeholder="输入完整订单号或部分号码" aria-label="按亚马逊订单号匹配产品"><button type="button" onClick="{{clearOrderQuery}}" style="height:44px;padding:0 16px;border:1px solid #22324D;border-radius:8px;background:#0B1220;color:#C7D3E3;cursor:pointer">查看全部</button></label>
+<div role="status" style="font-size:12px;color:#67E8F9">{{matchNotice}}</div>
+<div style="font-size:12px;color:#8FA3BF">所有订单与售后数据取自领星，仅服务商、服务费、评估由本系统录入。实际盈亏 = 领星最新订单盈亏 − 服务费；退款、退货成本如已计入领星盈亏，不重复扣减。</div>
+</section>
+
+<section style="padding:18px 20px;border:1px solid #22324D;border-radius:12px;background:#0D1422;display:flex;flex-direction:column;gap:10px">
+<strong style="font-size:14px">持续跟踪 · 退款与退货费用</strong>
+<div style="color:#FCD34D;font-size:13px">{{syncNotice}}</div>
+<div style="color:#8FA3BF;font-size:12px">需同步：退款金额与状态、退货数量与状态、退货相关扣费/费用返还、库存回补及成本调整、领星结算状态和更新时间。未同步不能视为零费用或无退货。</div>
+</section>
+
+<section style="padding:18px 20px;border:1px solid #22324D;border-radius:12px;background:#0D1422;display:flex;flex-direction:column;gap:12px">
+<strong id="providers" tabindex="-1" style="font-size:16px">服务商管理</strong>
+<form onSubmit="{{addProvider}}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center"><input class="order-field" style="width:260px" maxlength="80" required value="{{newProvider}}" onChange="{{changeNewProvider}}" placeholder="集中录入服务商名称" aria-label="服务商管理名称"><button class="order-field" type="submit" style="width:auto;cursor:pointer;color:#67E8F9">＋ 添加服务商</button></form>
+<div style="display:flex;flex-wrap:wrap;gap:8px"><sc-for list="{{providerOptions}}" as="p"><span style="padding:6px 10px;border:1px solid #22324D;border-radius:6px;color:#C7D3E3;font-size:12px">{{p}}</span></sc-for></div>
+<div role="status" style="font-size:12px;color:#8FA3BF">{{providerNotice}} · 统一录入后，订单和新增订单均从下拉列表选择。当前保存在本浏览器。</div>
+</section>
+
+<!-- KPI -->
+<section aria-label="核心指标" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="8">
+<div style="position: relative; padding: 16px; border: 1px solid #1C2A40; border-radius: 12px; background: rgba(13,20,34,0.92); display: flex; flex-direction: column; gap: 8px; overflow: hidden">
+<div style="position: absolute; top: 0; left: 16px; right: 16px; height: 2px; background: {{k.color}}; opacity: 0.8"></div>
+<div style="font-size: 12px; color: #8FA3BF">{{k.label}}</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 600; color: {{k.color}}">{{k.value}}</div>
+<div style="font-size: 11px; color: #7C8DA6">{{k.sub}}</div>
+</div>
+</sc-for>
+</section>
+
+<section style="border:1px solid #22324D;border-radius:12px;background:#0D1422;overflow:hidden">
+<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:18px 20px">
+<h2 id="period-summary" tabindex="-1" style="margin:0;font-size:16px">店铺 / 服务商 · 周月汇总</h2>
+<div style="display:flex;flex-wrap:wrap;gap:8px">
+<select class="order-field" style="width:110px" aria-label="汇总周期" value="{{summaryPeriod}}" onChange="{{changeSummaryPeriod}}"><option value="week">按周</option><option value="month">按月</option></select>
+<select class="order-field" style="width:156px" aria-label="汇总维度" value="{{summaryGroup}}" onChange="{{changeSummaryGroup}}"><option value="shop">按店铺</option><option value="provider">按服务商</option><option value="both">店铺 × 服务商</option></select>
+</div></div>
+<div style="padding:0 20px 14px;color:#8FA3BF;font-size:12px">{{summaryBasis}} · 按币种 · 跟随店铺及服务商筛选，独立于明细搜索。不同币种接入后分开汇总。</div>
+<div style="overflow-x:auto"><sc-raw-table style="width:100%;min-width:1100px;border-collapse:collapse;font-size:13px"><sc-raw-thead><sc-raw-tr style="text-align:right;color:#8FA3BF">
+<sc-raw-th style="padding:12px 20px;text-align:left">周期</sc-raw-th><sc-raw-th style="padding:12px;text-align:left">分组</sc-raw-th><sc-raw-th style="padding:12px">订单数</sc-raw-th><sc-raw-th style="padding:12px">销售额</sc-raw-th><sc-raw-th style="padding:12px">基础费用</sc-raw-th><sc-raw-th style="padding:12px">退款</sc-raw-th><sc-raw-th style="padding:12px">退货成本</sc-raw-th><sc-raw-th style="padding:12px">服务费</sc-raw-th><sc-raw-th style="padding:12px">暂计盈亏</sc-raw-th><sc-raw-th style="padding:12px">亏损订单金额</sc-raw-th><sc-raw-th style="padding:12px">待核实</sc-raw-th>
+</sc-raw-tr></sc-raw-thead><sc-raw-tbody><sc-for list="{{summaryRows}}" as="g"><sc-raw-tr style="text-align:right;border-top:1px solid #22324D">
+<sc-raw-td style="padding:12px 20px;text-align:left;white-space:nowrap">{{g.period}}</sc-raw-td><sc-raw-td style="padding:12px;text-align:left">{{g.group}}</sc-raw-td><sc-raw-td style="padding:12px">{{g.count}}</sc-raw-td><sc-raw-td style="padding:12px">{{g.sales}}</sc-raw-td><sc-raw-td style="padding:12px">{{g.base}}</sc-raw-td><sc-raw-td style="padding:12px">{{g.refund}}</sc-raw-td><sc-raw-td style="padding:12px;color:#FCD34D">待同步</sc-raw-td><sc-raw-td style="padding:12px">{{g.service}}</sc-raw-td><sc-raw-td style="padding:12px;font-weight:600;color:{{g.color}}">{{g.net}}</sc-raw-td><sc-raw-td style="padding:12px;color:#F87171">{{g.loss}}</sc-raw-td><sc-raw-td style="padding:12px;color:#FCD34D">{{g.count}} 单</sc-raw-td>
+</sc-raw-tr></sc-for></sc-raw-tbody></sc-raw-table></div>
+</section>
+
+<!-- 利润瀑布 + 退款追踪概览 -->
+<section style="display: flex; flex-wrap: wrap; gap: 16px">
+<div style="flex: 999 1 560px; min-width: 0; padding: 20px; border: 1px solid #1C2A40; border-radius: 12px; background: rgba(13,20,34,0.92); display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap">
+<h2 style="margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.5px">费用与盈亏拆解 <span style="font-family: 'Space Grotesk', sans-serif; color: #7C8DA6; font-weight: 500; font-size: 12px; margin-left: 6px">COST RECONCILIATION</span></h2>
+<div style="font-size: 12px; color: #8FA3BF">暂计 = 领星商品毛利 − 服务费（退货成本待同步）</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{waterfall}}" as="w" hint-placeholder-count="6">
+<div style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 110px; align-items: center; gap: 12px">
+<div style="font-size: 13px; color: #C7D3E3">{{w.label}}</div>
+<div style="position: relative; height: 22px; border-radius: 4px; background: #0B1220; border: 1px solid #16233A">
+<div style="position: absolute; top: 2px; bottom: 2px; left: {{w.left}}; width: {{w.width}}; border-radius: 3px; background: {{w.color}}"></div>
+</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; text-align: right; color: {{w.textColor}}">{{w.value}}</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="flex: 1 1 340px; min-width: 0; padding: 20px; border: 1px solid #1C2A40; border-radius: 12px; background: rgba(13,20,34,0.92); display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<h2 style="margin: 0; font-size: 15px; font-weight: 700">售后持续追踪</h2>
+<div style="font-size: 12px; color: #8FA3BF">售后记录待核对</div>
+</div>
+<div style="display: flex; align-items: center; gap: 20px">
+<div style="position: relative; width: 112px; height: 112px; flex: none">
+<svg width="112" height="112" viewBox="0 0 112 112" role="img" aria-label="领星同步进度 {{checkedPct}}">
+<circle cx="56" cy="56" r="46" fill="none" stroke="#16233A" stroke-width="10"></circle>
+<circle cx="56" cy="56" r="46" fill="none" stroke="{{accent}}" stroke-width="10" stroke-linecap="round" stroke-dasharray="{{ringDash}}" transform="rotate(-90 56 56)"></circle>
+</svg>
+<div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 600">{{checkedCount}}/{{trackedCount}}</div>
+<div style="font-size: 11px; color: #8FA3BF">已同步</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0">
+<sc-for list="{{statusSummary}}" as="s" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px">
+<span style="display: flex; align-items: center; gap: 8px; color: #C7D3E3"><span style="width: 10px; height: 10px; border-radius: 2px; background: {{s.color}}; display: inline-block"></span>{{s.label}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #E6EDF7">{{s.count}} 单</span>
+</div>
+</sc-for>
+</div>
+</div>
+<button type="button" onClick="{{goRefunds}}" style="height: 44px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #E6EDF7; font-size: 13px; cursor: pointer">进入退款追踪清单 →</button>
+</div>
+</section>
+
+<!-- 主表 -->
+<section style="border: 1px solid #1C2A40; border-radius: 12px; background: rgba(13,20,34,0.92); display: flex; flex-direction: column">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #1C2A40">
+<div role="tablist" aria-label="视图" style="display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: #0B1220; border: 1px solid #16233A">
+<button type="button" role="tab" onClick="{{goOrders}}" style="{{tabOrdersStyle}}">订单费用核对</button>
+<button type="button" role="tab" onClick="{{goRefunds}}" style="{{tabRefundsStyle}}">退款追踪清单</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+<button type="button" onClick="{{openNewOrder}}" style="height:40px;padding:0 16px;border:1px solid #22D3EE;border-radius:8px;background:rgba(34,211,238,0.12);color:#67E8F9;cursor:pointer">＋ 新增订单</button>
+<label style="font-size:12px;color:#8FA3BF">服务商 <sc-raw-select class="order-field" style="width:164px" value="{{providerFilter}}" onChange="{{changeProviderFilter}}" aria-label="筛选服务商"><option value="all">全部服务商</option><option value="unassigned">未选择服务商</option><sc-for list="{{providerOptions}}" as="p"><option value="{{p}}">{{p}}</option></sc-for></sc-raw-select></label>
+<sc-for list="{{filters}}" as="f" hint-placeholder-count="3">
+<button type="button" onClick="{{f.pick}}" style="{{f.style}}">{{f.label}}</button>
+</sc-for>
+<label style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid #22324D; background: #0B1220; color: #8FA3BF; font-size: 13px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">搜索 SKU 或 ASIN</span>
+<input type="text" placeholder="SKU / ASIN" value="{{productQuery}}" onChange="{{changeProductQuery}}" style="width: 170px; border: none; outline: none; background: transparent; color: #E6EDF7; font-size: 13px">
+</label>
+</div>
+</div>
+
+<sc-if value="{{showNewOrder}}">
+<form onSubmit="{{saveNewOrder}}" style="padding:20px;border-bottom:1px solid #22324D;display:flex;flex-direction:column;gap:14px;background:#101A2B">
+<strong style="font-size:16px">新增待核对订单</strong>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+<label>亚马逊订单号<input class="order-field" required pattern="[0-9]{3}-[0-9]{7}-[0-9]{7}" placeholder="123-1234567-1234567" value="{{draft.id}}" onChange="{{draftChangeId}}" aria-label="新增亚马逊订单号"></label>
+<label>领星店铺<sc-raw-select class="order-field" required value="{{draft.sid}}" onChange="{{draftChangeSid}}" aria-label="新增订单店铺"><option value="">请选择店铺</option><sc-for list="{{shopOptions}}" as="s"><option value="{{s.sid}}">{{s.label}}</option></sc-for></sc-raw-select></label>
+<label>服务商名称<sc-raw-select class="order-field" value="{{draft.provider}}" onChange="{{draftChangeProvider}}" aria-label="新增服务商名称"><option value="">请选择服务商</option><sc-for list="{{providerOptions}}" as="p"><option value="{{p}}">{{p}}</option></sc-for></sc-raw-select></label>
+<label>服务费（金额）<input class="order-field" required type="number" min="0" max="999999.99" step="0.01" value="{{draft.fee}}" onChange="{{draftChangeFee}}" aria-label="新增服务费"></label>
+<label>服务费币种<select class="order-field" value="{{draft.currency}}" onChange="{{draftChangeCurrency}}" aria-label="新增服务费币种"><option>USD</option><option>CNY</option><option>GBP</option><option>EUR</option><option>JPY</option></select></label>
+</div>
+<div style="font-size:12px;color:#FCD34D">保存到本机待匹配清单。产品、下单日期、费用、退款及盈亏等待领星取数；尚未发送到 API，不计入周/月金额汇总。</div>
+<div role="status" style="color:#FCD34D;font-size:13px">{{entryNotice}}</div>
+<div style="display:flex;gap:10px"><button type="submit" class="order-field" style="width:auto;color:#67E8F9;cursor:pointer">保存订单</button><button type="button" class="order-field" style="width:auto;cursor:pointer" onClick="{{closeNewOrder}}">取消</button></div>
+</form>
+</sc-if>
+<div role="status" style="padding:12px 20px;color:#8FA3BF;font-size:12px">本机待领星匹配 {{pendingCount}} 单（不计入金额汇总） · {{entryNotice}}</div>
+
+<sc-if value="{{isOrders}}" hint-placeholder-val="{{ true }}">
+<div style="overflow-x: auto">
+<sc-raw-table style="width: 100%; min-width: 1940px; border-collapse: collapse; font-size: 13px">
+<sc-raw-thead>
+<sc-raw-tr style="color: #8FA3BF; font-size: 12px; text-align: right">
+<sc-raw-th style="text-align: left; padding: 12px 20px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.id.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按亚马逊订单号 / 日期排序">亚马逊订单号 / 日期{{sortColumns.id.indicator}}</button></sc-raw-th>
+<sc-raw-th style="text-align: left; padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.sku.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按产品 SKU / ASIN排序">产品 SKU / ASIN{{sortColumns.sku.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.qty.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按数量排序">数量{{sortColumns.qty.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.priceF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按单价排序">单价{{sortColumns.priceF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.salesF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按销售额排序">销售额{{sortColumns.salesF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.feeF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按平台费用排序">平台费用{{sortColumns.feeF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.costF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按产品成本排序">产品成本{{sortColumns.costF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.shipF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按物流排序">物流{{sortColumns.shipF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding:12px 10px;font-weight:500;border-bottom:1px solid #1C2A40;text-align:right"><button type="button" onClick="{{sortColumns.extraFeeInput.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按服务费排序">服务费{{sortColumns.extraFeeInput.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding:12px 10px;font-weight:500;border-bottom:1px solid #1C2A40;text-align:left"><button type="button" onClick="{{sortColumns.provider.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按服务商名称排序">服务商名称{{sortColumns.provider.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding:12px 10px;font-weight:500;border-bottom:1px solid #1C2A40;text-align:left"><button type="button" onClick="{{sortColumns.providerReview.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按服务商评估排序">服务商评估{{sortColumns.providerReview.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.baseFeeF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按基础费用合计排序">基础费用合计{{sortColumns.baseFeeF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.refundF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按退款排序">退款{{sortColumns.refundF.indicator}}</button></sc-raw-th><sc-raw-th style="padding:12px 10px;border-bottom:1px solid #1C2A40;font-weight:500">退货状态 / 成本</sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.finalF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按暂计盈亏排序">暂计盈亏{{sortColumns.finalF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.marginF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按利润率排序">利润率{{sortColumns.marginF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="text-align: center; padding: 12px 20px; font-weight: 500; border-bottom: 1px solid #1C2A40">持续跟踪</sc-raw-th>
+</sc-raw-tr>
+</sc-raw-thead>
+<sc-raw-tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+<sc-raw-tr style="{{r.rowStyle}}">
+<sc-raw-td style="text-align: left; padding: 12px 20px; border-bottom: 1px solid #131F33"><div style="color: #E6EDF7">{{r.id}}</div><div style="font-size:11px;color:#67E8F9;margin-top:4px">{{r.shop}}</div><div style="font-size: 11px; color: #7C8DA6; margin-top: 3px">{{r.date}}</div></sc-raw-td>
+<sc-raw-td style="text-align: left; padding: 12px 10px; border-bottom: 1px solid #131F33"><div style="color: #C7D3E3">{{r.sku}}</div><div style="font-size: 11px; color: #7C8DA6; margin-top: 3px">{{r.plainAsin}}<sc-if value="{{r.productUrl}}"><a href="{{r.productUrl}}" target="_blank" rel="noopener noreferrer" style="color:#77adf5">{{r.asin}}</a></sc-if></div></sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #C7D3E3">{{r.qty}}</sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #C7D3E3">{{r.priceF}}</sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #E6EDF7">{{r.salesF}}</sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #8FA3BF">{{r.feeF}}</sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #8FA3BF">{{r.costF}}<small style="display:block">{{r.unitCost}}</small></sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #8FA3BF">{{r.shipF}}</sc-raw-td>
+<sc-raw-td style="padding:8px 10px;border-bottom:1px solid #131F33;text-align:right"><input class="order-field fee-field" type="number" min="0" max="999999.99" step="0.01" title="{{r.serviceCurrency}}" value="{{r.extraFeeInput}}" onChange="{{r.changeExtraFee}}" onBlur="{{r.normalizeExtraFee}}" aria-label="服务费 {{r.serviceCurrency}} {{r.id}}"><div style="font-size:11px;color:#8FA3BF;margin-top:4px">{{r.serviceCurrency}}</div></sc-raw-td>
+<sc-raw-td style="padding:8px 10px;border-bottom:1px solid #131F33;text-align:left"><sc-raw-select class="order-field provider-field" value="{{r.provider}}" onChange="{{r.changeProvider}}" aria-label="服务商名称 {{r.id}}"><option value="">请选择服务商</option><sc-for list="{{providerOptions}}" as="p"><option value="{{p}}">{{p}}</option></sc-for></sc-raw-select></sc-raw-td>
+<sc-raw-td style="padding:8px 10px;border-bottom:1px solid #131F33;text-align:left"><select class="order-field review-field" value="{{r.providerReview}}" onChange="{{r.changeReview}}" aria-label="服务商评估 {{r.id}}"><option value="pending">待评估</option><option value="excellent">优秀</option><option value="good">良好</option><option value="average">一般</option><option value="improve">需改进</option></select></sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #C7D3E3">{{r.baseFeeF}}</sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: {{r.refundColor}}">{{r.refundF}}<div style="font-size:11px;margin-top:4px">{{r.refundBadge}}</div></sc-raw-td><sc-raw-td style="padding:12px 10px;border-bottom:1px solid #131F33;color:#FCD34D;font-size:12px;white-space:nowrap">待领星同步<div style="font-size:11px;color:#8FA3BF;margin-top:4px">费用未确认</div></sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; font-weight: 600; color: {{r.finalColor}}">{{r.finalF}}<div style="font-size:11px;margin-top:4px;font-weight:400">{{r.resultLabel}}</div><div style="font-size:11px;color:#8FA3BF;margin-top:4px;white-space:nowrap">退款前 {{r.beforeRefundF}}</div><div style="font-size:11px;color:#FB923C;margin-top:4px;white-space:nowrap">{{r.refundImpact}}</div></sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: {{r.finalColor}}">{{r.marginF}}</sc-raw-td>
+<sc-raw-td style="text-align: center; padding: 8px 20px; border-bottom: 1px solid #131F33">
+<span style="font-size:12px;color:#FCD34D;white-space:nowrap">{{r.trackingLabel}}</span>
+</sc-raw-td>
+</sc-raw-tr>
+</sc-for>
+<sc-if value="{{noRows}}"><sc-raw-tr><sc-raw-td colspan="17" style="padding:32px;text-align:center;color:#8FA3BF">没有符合条件的订单。请检查订单号或调整筛选条件。</sc-raw-td></sc-raw-tr></sc-if>
+</sc-raw-tbody>
+</sc-raw-table>
+</div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 14px 20px; font-size: 12px; color: #8FA3BF">
+<span>共 {{rowCount}} 单 · 金额按订单币种显示；待匹配单服务费币种见输入提示 · 红色高亮为已退款订单；费用以领星返回值为准</span>
+<span>{{saveNotice}}</span>
+</div>
+</sc-if>
+
+<sc-if value="{{isRefunds}}" hint-placeholder-val="{{ false }}">
+<div style="overflow-x: auto">
+<sc-raw-table style="width: 100%; min-width: 1820px; border-collapse: collapse; font-size: 13px">
+<sc-raw-thead>
+<sc-raw-tr style="color: #8FA3BF; font-size: 12px; text-align: left">
+<sc-raw-th style="padding: 12px 20px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.id.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按订单号排序">订单号{{sortColumns.id.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.sku.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按SKU排序">SKU{{sortColumns.sku.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.date.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按下单日期排序">下单日期{{sortColumns.date.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40"><button type="button" onClick="{{sortColumns.statusLabel.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按退款状态排序">退款状态{{sortColumns.statusLabel.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40; text-align: right"><button type="button" onClick="{{sortColumns.refundF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按退款金额排序">退款金额{{sortColumns.refundF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40">退款原因</sc-raw-th><sc-raw-th style="padding:12px 10px;border-bottom:1px solid #1C2A40;font-weight:500">退货状态 / 成本</sc-raw-th>
+<sc-raw-th style="padding:12px 10px;font-weight:500;border-bottom:1px solid #1C2A40;text-align:right"><button type="button" onClick="{{sortColumns.extraFeeInput.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按服务费排序">服务费{{sortColumns.extraFeeInput.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding:12px 10px;font-weight:500;border-bottom:1px solid #1C2A40;text-align:left"><button type="button" onClick="{{sortColumns.provider.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按服务商名称排序">服务商名称{{sortColumns.provider.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding:12px 10px;font-weight:500;border-bottom:1px solid #1C2A40;text-align:left"><button type="button" onClick="{{sortColumns.providerReview.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按服务商评估排序">服务商评估{{sortColumns.providerReview.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40; text-align: right"><button type="button" onClick="{{sortColumns.finalF.pick}}" style="padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap" aria-label="按暂计盈亏排序">暂计盈亏{{sortColumns.finalF.indicator}}</button></sc-raw-th>
+<sc-raw-th style="padding: 12px 10px; font-weight: 500; border-bottom: 1px solid #1C2A40">领星更新时间</sc-raw-th>
+<sc-raw-th style="padding: 12px 20px; font-weight: 500; border-bottom: 1px solid #1C2A40; text-align: center">数据状态</sc-raw-th>
+</sc-raw-tr>
+</sc-raw-thead>
+<sc-raw-tbody>
+<sc-for list="{{refundRows}}" as="r" hint-placeholder-count="5">
+<sc-raw-tr style="{{r.rowStyle}}">
+<sc-raw-td style="padding: 12px 20px; border-bottom: 1px solid #131F33; font-family: 'JetBrains Mono', monospace; color: #E6EDF7">{{r.id}}</sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; font-family: 'JetBrains Mono', monospace; color: #C7D3E3">{{r.sku}}</sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; font-family: 'JetBrains Mono', monospace; color: #8FA3BF">{{r.date}}</sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33"><span style="{{r.chipStyle}}">{{r.statusLabel}}</span></sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; font-family: 'JetBrains Mono', monospace; text-align: right; color: {{r.refundColor}}">{{r.refundF}}<div style="font-size:11px;margin-top:4px">{{r.refundBadge}}</div></sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; color: #C7D3E3">{{r.reason}}</sc-raw-td><sc-raw-td style="padding:12px 10px;border-bottom:1px solid #131F33;color:#FCD34D;font-size:12px;white-space:nowrap">待领星同步<div style="font-size:11px;color:#8FA3BF;margin-top:4px">费用未确认</div></sc-raw-td>
+<sc-raw-td style="padding:8px 10px;border-bottom:1px solid #131F33;text-align:right"><input class="order-field fee-field" type="number" min="0" max="999999.99" step="0.01" title="{{r.serviceCurrency}}" value="{{r.extraFeeInput}}" onChange="{{r.changeExtraFee}}" onBlur="{{r.normalizeExtraFee}}" aria-label="服务费 {{r.serviceCurrency}} {{r.id}}"><div style="font-size:11px;color:#8FA3BF;margin-top:4px">{{r.serviceCurrency}}</div></sc-raw-td>
+<sc-raw-td style="padding:8px 10px;border-bottom:1px solid #131F33;text-align:left"><sc-raw-select class="order-field provider-field" value="{{r.provider}}" onChange="{{r.changeProvider}}" aria-label="服务商名称 {{r.id}}"><option value="">请选择服务商</option><sc-for list="{{providerOptions}}" as="p"><option value="{{p}}">{{p}}</option></sc-for></sc-raw-select></sc-raw-td>
+<sc-raw-td style="padding:8px 10px;border-bottom:1px solid #131F33;text-align:left"><select class="order-field review-field" value="{{r.providerReview}}" onChange="{{r.changeReview}}" aria-label="服务商评估 {{r.id}}"><option value="pending">待评估</option><option value="excellent">优秀</option><option value="good">良好</option><option value="average">一般</option><option value="improve">需改进</option></select></sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33; font-family: 'JetBrains Mono', monospace; text-align: right; font-weight: 600; color: {{r.finalColor}}">{{r.finalF}}<div style="font-size:11px;margin-top:4px;font-weight:400">{{r.resultLabel}}</div><div style="font-size:11px;color:#8FA3BF;margin-top:4px;white-space:nowrap">退款前 {{r.beforeRefundF}}</div><div style="font-size:11px;color:#FB923C;margin-top:4px;white-space:nowrap">{{r.refundImpact}}</div></sc-raw-td>
+<sc-raw-td style="padding: 12px 10px; border-bottom: 1px solid #131F33">
+<span style="font-size:12px;color:#8FA3BF">待同步</span>
+</sc-raw-td>
+<sc-raw-td style="padding: 8px 20px; border-bottom: 1px solid #131F33; text-align: center">
+<span style="font-size:12px;color:#FCD34D">待核实</span>
+</sc-raw-td>
+</sc-raw-tr>
+</sc-for>
+</sc-raw-tbody>
+</sc-raw-table>
+</div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 14px 20px; font-size: 12px; color: #8FA3BF">
+<span>跟踪中 {{trackedCount}} 单 · 接入后持续更新领星退款、退货、结算及成本调整</span>
+<span>{{saveNotice}}</span>
+</div>
+</sc-if>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#22D3EE","options":["#22D3EE","#60A5FA","#A78BFA","#34D399"]},"$preview":{"width":1440,"height":1640}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    let orderExtras = {};
+    try { orderExtras = JSON.parse(localStorage.getItem('order-profit-refund-extras-v1') || '{}') || {};for(const extra of Object.values(orderExtras))delete extra.extraFee; } catch {}
+    let pendingOrders = [];
+    try { const saved = JSON.parse(localStorage.getItem('order-profit-pending-v1') || '[]'); if (Array.isArray(saved)) pendingOrders = saved.filter(r=>r && /^\d{3}-\d{7}-\d{7}$/.test(r.id) && /^\d+$/.test(r.sid)); } catch {}
+    let providers = [];
+    try { const saved = JSON.parse(localStorage.getItem('order-profit-providers-v1') || '[]'); if (Array.isArray(saved)) providers = saved.filter(p=>typeof p==='string' && p.trim()); } catch {}
+    this.state = {
+      providers, newProvider:'', providerNotice:'集中管理服务商名单', providerFilter:'all',
+      sortKey:'', sortDirection:'asc',
+      pendingOrders, showNewOrder:false, entryNotice:'',
+      draft:{id:'',sid:'',shop:'',provider:'',fee:'0.00',currency:'USD'},
+      orderExtras,
+      saveNotice: '新增字段自动保存到当前浏览器',
+      tab: 'orders',
+      filter: 'all',
+      shopFilter: '全部店铺',
+      summaryPeriod: 'week',
+      summaryGroup: 'both',
+      syncNotice: '退货及结算状态待核对。',
+      orderQuery: '',
+      productQuery: '',
+      tracked: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true },
+      checked: {}
+    };
+  }
+  addProvider(event) {
+    event.preventDefault();
+    const name = this.state.newProvider.trim().replace(/\s+/g,' ');
+    if (!name || name.length > 80) { this.setState({providerNotice:'请输入1至80字的服务商名称。'}); return; }
+    if (this.renderVals().providerOptions.some(p=>p.toLowerCase() === name.toLowerCase())) { this.setState({providerNotice:'该服务商已存在，请直接从下拉列表选择。'}); return; }
+    const providers=[...this.state.providers,name];
+    try { localStorage.setItem('order-profit-providers-v1',JSON.stringify(providers)); }
+    catch { this.setState({providerNotice:'保存失败，浏览器存储不可用。'}); return; }
+    this.setState({providers,newProvider:'',providerNotice:'服务商已添加，所有订单下拉列表已更新。'});
+  }
+  saveNewOrder(event) {
+    event.preventDefault();
+    const d = this.state.draft;
+    const id = d.id.trim(), sid = d.sid.trim(), shop = d.shop.trim();
+    const fee = Number(d.fee);
+    if (!/^\d{3}-\d{7}-\d{7}$/.test(id) || !/^\d+$/.test(sid) || !shop || d.fee === '' || !Number.isFinite(fee) || fee < 0 || fee > 999999.99) {
+      this.setState({entryNotice:'请填写正确的订单号、领星店铺 ID、店铺名称和非负服务费。'}); return;
+    }
+    const current = this.renderVals();
+    if (this.state.pendingOrders.some(r=>r.id===id && r.sid===sid) || current.sourceIds.includes(id)) {
+      this.setState({entryNotice:'该店铺订单已存在，请直接修改现有记录。'}); return;
+    }
+    const pendingOrders = [...this.state.pendingOrders,{id,sid,shop,provider:d.provider.trim(),fee:fee.toFixed(2),currency:d.currency}];
+    try { localStorage.setItem('order-profit-pending-v1',JSON.stringify(pendingOrders)); }
+    catch { this.setState({entryNotice:'保存失败：浏览器存储不可用，请重试。'}); return; }
+    this.setState({pendingOrders,showNewOrder:false,entryNotice:'订单已保存到本机，等待领星匹配；未开始后台同步。',orderQuery:id,productQuery:'',shopFilter:'全部店铺',filter:'all',tab:'orders',draft:{id:'',sid:'',shop:'',provider:'',fee:'0.00',currency:'USD'}});
+  }
+  updatePending(key, field, value) {
+    const pendingOrders = this.state.pendingOrders.map(r=>r.sid+':'+r.id===key ? {...r,[field]:value} : r);
+    try { localStorage.setItem('order-profit-pending-v1',JSON.stringify(pendingOrders)); }
+    catch { this.setState({entryNotice:'修改未保存，浏览器存储不可用。'}); return; }
+    this.setState({pendingOrders});
+  }
+  updateExtra(id, field, value) {
+    const orderExtras = { ...this.state.orderExtras, [id]: { ...this.state.orderExtras[id], [field]: value } };
+    let saveNotice = '新增字段已保存到当前浏览器';
+    try { localStorage.setItem('order-profit-refund-extras-v1', JSON.stringify(orderExtras)); }
+    catch { saveNotice = '浏览器无法保存，刷新后新增字段将丢失'; }
+    this.setState({ orderExtras, saveNotice });
+  }
+  async saveFee(r){
+    const amount=this.state.orderExtras[r.key]?.extraFee;
+    if(amount==null || amount==='' || !r.first)return;
+    try{
+      const res=await fetch('/api/order-fee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:r.sid,orderId:r.id,amount:String(amount),currency:r.serviceCurrency,version:window.systemData.fees[r.key]?.version??0})});
+      const v=await res.json();if(!res.ok)throw Error(v.error);
+      window.systemData.fees[r.key]=v;
+      const orderExtras={...this.state.orderExtras,[r.key]:{...this.state.orderExtras[r.key]}};delete orderExtras[r.key].extraFee;
+      this.setState({orderExtras,saveNotice:'服务费已保存'});
+    }catch(e){this.setState({saveNotice:e.message});}
+  }
+  renderVals() {
+    const accent = this.props.accent ?? '#22D3EE';
+    const ORANGE = '#FB923C', AMBER = '#FCD34D', RED = '#F87171', GREEN = '#34D399';
+    const source=window.systemData || {shops:[],rows:[],fees:{},error:'请从系统入口打开'};
+    const shopOptions=source.shops.map(s=>({sid:s.sid,label:[s.name,s.site,s.sid].filter(Boolean).join(' · ')}));
+    const round=n=>Math.round(n*100)/100;
+    const number=v=>v==null || v==='' ? NaN:Number(v);
+    let aggregateCurrency='';
+    const money=(n,currency=aggregateCurrency)=>Number.isFinite(n)&&currency ? currency+' '+n.toFixed(2):'—';
+    const ST = {
+      none: { label: '无退款', color: '#5EEAD4' },
+      pending: { label: '待核对', color: '#94A3B8' },
+      partial: { label: '已退款', color: AMBER },
+      full: { label: '全额退款', color: ORANGE }
+    };
+    const seen=new Set();
+    const allOrders=source.rows.map(row=>{
+      const id=row.orderId,sid=row.sid,key=sid+':'+id,first=!seen.has(key);
+      seen.add(key);
+      const product=source.products?.find(p=>p.sid===sid && p.sku===row.sku && p.asin===row.asin);
+      const entry=source.fees[key],extra=this.state.orderExtras[key]||{},currency=row.orderCurrency;
+      const qty=number(row.quantity),sales=number(row.sales),cost=-number(row.purchase),ship=-number(row.firstLeg);
+      const fee=-number(row.commission)-number(row.fba),gross=number(row.profit);
+      const service=entry?Number(entry.amount):0;
+      const extraFee=first?(entry && entry.currency!==currency?NaN:service):0;
+      const refund=first?Math.abs(number(row.refundTotal)):0;
+      const shop=shopOptions.find(s=>s.sid===sid)?.label||sid;
+      return {i:key,id,sid,key,first,product,currency,tracking:row.tracking,channel:row.channel,serviceCurrency:entry?.currency||currency,shop,sku:row.sku,asin:row.asin,date:String(row.date||'').slice(0,10),
+        qty,price:sales/qty,sales,cost,ship,fee,baseFee:cost+ship+fee,gross,extraFee,extraFeeInput:extra.extraFee??entry?.amount??'',
+        fin:gross-extraFee,refund,status:refund>0?'partial':Number.isFinite(refund)?'none':'pending',reason:'',provider:extra.provider||'',
+        providerReview:extra.providerReview||'pending',tracked:!!this.state.tracked[key]};
+    });
+    const providerOptions = [...new Set([...this.state.providers,...allOrders.map(r=>r.provider),...this.state.pendingOrders.map(r=>r.provider)].map(p=>(p||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
+    const providerMatches = r => this.state.providerFilter === 'all' || (this.state.providerFilter === 'unassigned' ? !r.provider.trim() : r.provider === this.state.providerFilter);
+    const all = allOrders.filter(r => (this.state.shopFilter === '全部店铺' || r.sid === this.state.shopFilter) && providerMatches(r));
+    const currencies=new Set(all.map(r=>r.currency));aggregateCurrency=currencies.size===1?all[0].currency:'';
+    const sum = (k) => all.reduce((s, r) => s + r[k], 0);
+    const S = sum('sales'), F = sum('fee'), C = sum('cost'), L = sum('ship'), R = sum('refund'), G = sum('gross'), P = sum('fin'), E = sum('extraFee');
+    const lossRows = all.filter(r => r.fin < 0);
+    const lossTotal = round(lossRows.reduce((total, r) => total + r.fin, 0));
+    const refundCount = all.filter(r => r.refund > 0).length;
+
+    const refundLossIncrease = round(all.reduce((total,r) => total + Math.max(0,-r.fin) - Math.max(0,-round(r.fin+r.refund)),0));
+    const kpis = [
+      { label: '订单数', value: String(new Set(all.map(r=>r.key)).size), sub: '当前店铺', color: '#E6EDF7' },
+      { label: '销售额', value: money(S), sub: '单价 × 数量', color: accent },
+      { label: '平台费用', value: money(F), sub: '佣金 + FBA 费', color: '#C7D3E3' },
+      { label: '产品成本', value: money(C), sub: '采购成本', color: '#C7D3E3' },
+      { label: '物流费用', value: money(L), sub: '头程 + 尾程', color: '#C7D3E3' },
+      { label: '服务费', value: money(E), sub: '同一订单只计一次', color: '#A78BFA' },
+      { label: '退款金额', value: money(R), sub: refundCount + ' 单发生退款', color: ORANGE },
+      { label: '暂计盈亏', value: money(P), sub: '退货数据待同步 · 非最终结算', color: P >= 0 ? GREEN : RED },
+      { label: '退款新增亏损', value: money(refundLossIncrease), sub: '退款后亏损额 − 退款前亏损额', color: ORANGE },
+      { label: '亏损订单合计', value: money(lossTotal), sub: lossRows.length + ' 单亏损 · 当前统计范围', color: lossTotal < 0 ? RED : '#C7D3E3' },
+      { label: '利润率', value: aggregateCurrency&&S>0&&Number.isFinite(P)?(P/S*100).toFixed(1)+'%':'—', sub: '实际盈亏 / 销售额', color: P >= 0 ? GREEN : RED }
+    ];
+
+    const pct = (v) => (S ? v / S * 100 : 0).toFixed(2) + '%';
+    let cursor = S;
+    const step = (label, v, color) => { cursor -= v; return { label, value: '-' + money(v), left: pct(cursor), width: pct(v), color, textColor: '#C7D3E3' }; };
+    const waterfall = [
+      { label: '销售额', value: money(S), left: '0%', width: '100%', color: accent, textColor: '#E6EDF7' },
+      step('平台费用', F, '#475569'),
+      step('产品成本', C, '#64748B'),
+      step('物流', L, '#7C8DA6'),
+      step('服务费', E, '#A78BFA'),
+      step('退款', R, ORANGE),
+      { label: '暂计盈亏', value: money(P), left: '0%', width: pct(Math.max(P, 0)), color: P >= 0 ? GREEN : RED, textColor: P >= 0 ? GREEN : RED }
+    ];
+
+    const trackedRows = all.filter(r => r.tracked);
+    const checkedCount = trackedRows.filter(r => this.state.checked[r.i]).length;
+    const trackedCount = trackedRows.length;
+    const C2 = 2 * Math.PI * 46;
+    const frac = trackedCount ? checkedCount / trackedCount : 0;
+    const statusSummary = ['full', 'partial', 'pending', 'none'].map(k => ({ label: ST[k].label, color: ST[k].color, count: trackedRows.filter(r => r.status === k).length }));
+
+    const pill = (on) => 'height: 40px; padding: 0 14px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid ' + (on ? accent : '#22324D') + '; background: ' + (on ? 'rgba(34,211,238,0.12)' : '#0B1220') + '; color: ' + (on ? accent : '#C7D3E3') + ';';
+    const tabStyle = (on) => 'height: 40px; padding: 0 16px; border-radius: 7px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; background: ' + (on ? '#16233A' : 'transparent') + '; color: ' + (on ? '#E6EDF7' : '#8FA3BF') + ';' + (on ? ' box-shadow: inset 0 -2px 0 ' + accent + ';' : '');
+
+    const filterDefs = [['all', '全部'], ['tracked', '跟踪中'], ['refunded', '有退款'], ['loss', '仅看亏损']];
+    const filters = filterDefs.map(([k, label]) => ({ label, style: pill(this.state.filter === k), pick: () => this.setState({ filter: k }) }));
+    const query = this.state.orderQuery.trim();
+    const productQuery = this.state.productQuery.trim().toLowerCase();
+    const matched = all.filter(r => r.id.includes(query));
+    const visible = matched.filter(r => (r.sku + ' ' + r.asin).toLowerCase().includes(productQuery)).filter(r => this.state.filter === 'all' ? true : this.state.filter === 'tracked' ? r.tracked : this.state.filter === 'loss' ? r.fin < 0 : r.refund > 0);
+
+    const extraFields = r => ({
+      trackingLabel:r.tracking||r.channel||'待发货',serviceCurrency:r.serviceCurrency,shop: r.shop,
+      rowStyle: "text-align:right;font-family:'JetBrains Mono',monospace;" + (r.refund > 0 ? 'background:rgba(248,113,113,0.10);box-shadow:inset 3px 0 0 #F87171;' : ''),
+      refundBadge: r.refund > 0 ? '已退款' : r.status === 'pending' ? '退款待入账' : '',
+      beforeRefundF: money(round(r.fin + r.refund)),
+      refundImpact: r.refund > 0 ? '退款使盈亏减少 ' + money(r.refund,r.currency) : '无已入账退款',
+      resultLabel: r.fin < 0 ? '暂计亏损 · 待核实' : r.fin > 0 ? '暂计盈利 · 待核实' : '待核实',
+      extraFeeInput: r.extraFeeInput, provider: r.provider, providerReview: r.providerReview,
+      changeExtraFee: e => {
+        const value = e.target.value;
+        if (value === '' || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 999999.99)) this.updateExtra(r.key, 'extraFee', value);
+      },
+      normalizeExtraFee: () => this.saveFee(r),
+      changeProvider: e => this.updateExtra(r.key, 'provider', e.target.value),
+      changeReview: e => this.updateExtra(r.key, 'providerReview', e.target.value)
+    });
+    const rows = visible.map(r => ({
+      ...extraFields(r),
+      productUrl:r.product?.url, plainAsin:r.product?'':r.asin, unitCost:r.product?'每件 '+money(r.product.cogs,r.currency):'',
+      id: r.id, date: r.date, sku: r.sku, asin: r.asin, qty: r.qty,
+      priceF: money(r.price,r.currency), salesF: money(r.sales,r.currency), feeF: money(r.fee,r.currency), costF: money(r.cost,r.currency), shipF: money(r.ship,r.currency), baseFeeF: money(r.baseFee,r.currency), grossF: money(r.gross,r.currency),
+      refundF: r.refund > 0 ? '-' + money(r.refund,r.currency) : '—',
+      refundColor: r.refund > 0 ? ORANGE : '#5B6B82',
+      finalF: money(r.fin,r.currency), finalColor: r.fin >= 0 ? GREEN : RED,
+      marginF: Number.isFinite(r.fin)&&r.sales>0?(r.fin/r.sales*100).toFixed(1)+'%':'—',
+      trackedStr: r.tracked ? 'true' : 'false',
+      trackLabel: r.tracked ? '跟踪中' : '+ 跟踪',
+      trackStyle: 'min-width: 76px; height: 36px; padding: 0 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; border: 1px solid ' + (r.tracked ? accent : '#22324D') + '; background: ' + (r.tracked ? 'rgba(34,211,238,0.12)' : 'transparent') + '; color: ' + (r.tracked ? accent : '#8FA3BF') + ';',
+      toggle: () => this.setState({ tracked: { ...this.state.tracked, [r.i]: !r.tracked } })
+    }));
+
+    const pendingVisible = this.state.pendingOrders.filter(r =>
+      (this.state.shopFilter === '全部店铺' || r.sid === this.state.shopFilter) &&
+      providerMatches(r) && r.id.includes(query) && !productQuery &&
+      ['all','tracked'].includes(this.state.filter)
+    );
+    for (const r of pendingVisible) {
+      const key=r.sid+':'+r.id;
+      rows.push({id:r.id,shop:r.shop+' · sid '+r.sid,date:'下单日期待同步',sku:'产品待领星匹配',asin:'—',qty:'—',priceF:'—',salesF:'—',feeF:'—',costF:'—',shipF:'—',baseFeeF:'—',refundF:'待同步',refundBadge:'',refundColor:AMBER,finalF:'待同步',finalColor:AMBER,marginF:'—',resultLabel:'未纳入盈亏计算',beforeRefundF:'待同步',refundImpact:'售后待同步',rowStyle:"text-align:right;font-family:'JetBrains Mono',monospace;background:rgba(252,211,77,0.04)",serviceCurrency:r.currency,extraFeeInput:r.fee,provider:r.provider,providerReview:r.providerReview || 'pending',
+        changeProvider:e=>this.updatePending(key,'provider',e.target.value),
+        changeReview:e=>this.updatePending(key,'providerReview',e.target.value),
+        changeExtraFee:e=>{const value=e.target.value;if(value==='' || (Number.isFinite(Number(value)) && Number(value)>=0 && Number(value)<=999999.99)) this.updatePending(key,'fee',value);},
+        normalizeExtraFee:()=>this.updatePending(key,'fee',(Number(r.fee)||0).toFixed(2))
+      });
+    }
+    const buckets = new Map();
+    const periodKey = date => {
+      if (this.state.summaryPeriod === 'month') return date.slice(0, 7);
+      const monday = new Date(date + 'T00:00:00Z');
+      monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+      const sunday = new Date(monday); sunday.setUTCDate(sunday.getUTCDate() + 6);
+      return monday.toISOString().slice(0,10) + ' ~ ' + sunday.toISOString().slice(0,10);
+    };
+    for (const r of all) {
+      const period = periodKey(r.date), provider = r.provider.trim() || '未填写服务商';
+      const names = this.state.summaryGroup === 'shop' ? [r.shop] : this.state.summaryGroup === 'provider' ? [provider] : [r.shop, provider];
+      const key = JSON.stringify([period,r.currency, ...names]);
+      if (!buckets.has(key)) buckets.set(key, {period,currency:r.currency, group:names.join(' / '), count:0, sales:0, base:0, refund:0, service:0, net:0, loss:0});
+      const g = buckets.get(key); if(r.first)g.count++; g.sales += r.sales; g.base += r.baseFee; g.refund += r.refund; g.service += r.extraFee; g.net += r.fin; g.loss += Math.min(r.fin,0);
+    }
+    const summaryRows = [...buckets.values()].sort((a,b)=>a.period.localeCompare(b.period) || a.group.localeCompare(b.group)).map(g=>({...g, sales:money(g.sales,g.currency), base:money(g.base,g.currency), refund:money(g.refund,g.currency), service:money(g.service,g.currency), net:money(g.net,g.currency), loss:money(g.loss,g.currency), color:g.net < 0 ? RED : GREEN}));
+
+    const MONTHS = [];
+    const refundRows = trackedRows.map(r => {
+      const st = ST[r.status];
+      const isChecked = !!this.state.checked[r.i];
+      const start = r.i % 2 === 0 ? 1 : 2;
+      return {
+        ...extraFields(r),
+        id: r.id, sku: r.sku, date: r.date, reason: r.reason || '—',
+        statusLabel: st.label,
+        chipStyle: 'display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; border: 1px solid ' + st.color + '; color: ' + st.color + ';',
+        refundF: money(-r.refund,r.currency),
+        refundColor: r.refund > 0 ? ORANGE : '#8FA3BF',
+        finalF: money(r.fin,r.currency), finalColor: r.fin >= 0 ? GREEN : RED,
+        months: MONTHS.map((m, mi) => {
+          const done = false;
+          const na = mi < start && mi < 3;
+          return {
+            label: m, title: na ? m + ' 未开始跟踪' : done ? m + ' 已核对' : m + ' 待核对',
+            style: 'display: inline-flex; align-items: center; justify-content: center; min-width: 38px; height: 24px; border-radius: 4px; font-size: 11px; font-family: \'JetBrains Mono\', monospace; ' + (na ? 'border: 1px dashed #22324D; color: #5B6B82;' : done ? 'background: rgba(34,211,238,0.14); color: ' + accent + '; border: 1px solid transparent;' : 'border: 1px solid #94A3B8; color: #C7D3E3;')
+          };
+        }),
+        checkedStr: isChecked ? 'true' : 'false',
+        checkLabel: isChecked ? '✓ 已核对' : '标记已核对',
+        checkStyle: 'min-width: 96px; height: 36px; padding: 0 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; border: 1px solid ' + (isChecked ? GREEN : '#22324D') + '; background: ' + (isChecked ? 'rgba(52,211,153,0.12)' : 'transparent') + '; color: ' + (isChecked ? GREEN : '#C7D3E3') + ';',
+        check: () => this.setState({ checked: { ...this.state.checked, [r.i]: !isChecked } })
+      };
+    });
+
+    const numericKeys = new Set(['qty','priceF','salesF','feeF','costF','shipF','baseFeeF','extraFeeInput','refundF','finalF','marginF']);
+    const sortRows = list => {
+      const key=this.state.sortKey;
+      if (!key) return;
+      const direction=this.state.sortDirection === 'asc' ? 1 : -1;
+      const value = r => {
+        const raw=r[key];
+        if (raw === undefined || raw === null || raw === '' || raw === '—' || String(raw).includes('待同步')) return null;
+        if (!numericKeys.has(key)) return String(raw);
+        const number=Number(String(raw).replace(/[$,%]/g,'')); return Number.isFinite(number) ? number : null;
+      };
+      list.sort((a,b)=>{const x=value(a),y=value(b);if(x===null)return y===null?0:1;if(y===null)return -1;return direction*(typeof x==='number'?x-y:x.localeCompare(y,'zh-CN',{numeric:true}));});
+    };
+    sortRows(rows);sortRows(refundRows);
+    const sortColumns = {};
+    for (const key of ['id','date','sku','qty','priceF','salesF','feeF','costF','shipF','baseFeeF','extraFeeInput','provider','providerReview','refundF','finalF','marginF','statusLabel']) {
+      sortColumns[key]={indicator:this.state.sortKey===key ? this.state.sortDirection==='asc'?' ↑':' ↓':' ↕',pick:()=>this.setState({sortKey:key,sortDirection:this.state.sortKey===key && this.state.sortDirection==='asc'?'desc':'asc'})};
+    }
+    return {
+      providerOptions, newProvider:this.state.newProvider, providerNotice:this.state.providerNotice,
+      changeNewProvider:e=>this.setState({newProvider:e.target.value}), addProvider:e=>this.addProvider(e),
+      providerFilter:this.state.providerFilter, changeProviderFilter:e=>this.setState({providerFilter:e.target.value}), sortColumns,
+      accent, kpis, waterfall, filters, rows, refundRows, statusSummary, saveNotice: this.state.saveNotice,
+      rowCount: rows.length, trackedCount, checkedCount,
+      sourceIds:allOrders.map(r=>r.id), pendingCount:this.state.pendingOrders.length,
+      showNewOrder:this.state.showNewOrder, draft:this.state.draft, entryNotice:this.state.entryNotice,
+      openNewOrder:()=>this.setState({showNewOrder:true,entryNotice:'',tab:'orders'}),
+      closeNewOrder:()=>this.setState({showNewOrder:false}), saveNewOrder:e=>this.saveNewOrder(e),
+      draftChangeId:e=>this.setState({draft:{...this.state.draft,id:e.target.value}}),
+      draftChangeSid:e=>this.setState({draft:{...this.state.draft,sid:e.target.value,shop:source.shops.find(s=>s.sid===e.target.value)?.name||''}}),
+      draftChangeShop:e=>this.setState({draft:{...this.state.draft,shop:e.target.value}}),
+      draftChangeProvider:e=>this.setState({draft:{...this.state.draft,provider:e.target.value}}),
+      draftChangeFee:e=>this.setState({draft:{...this.state.draft,fee:e.target.value}}),
+      draftChangeCurrency:e=>this.setState({draft:{...this.state.draft,currency:e.target.value}}),
+      summaryRows, shopOptions, sourceNotice:source.error || ((source.dataset?'共享演示订单':source.mode==='demo'?'领星模拟数据':'领星订单')+' · '+source.from+' 至 '+source.to),shopFilter: this.state.shopFilter,
+      summaryPeriod: this.state.summaryPeriod, summaryGroup: this.state.summaryGroup,
+      summaryBasis: '按下单日期归属，周一至周日，同币种汇总',
+      changeShop: e => this.setState({shopFilter:e.target.value}),
+      changeSummaryPeriod: e => this.setState({summaryPeriod:e.target.value}),
+      changeSummaryGroup: e => this.setState({summaryGroup:e.target.value}),
+      syncNotice: this.state.syncNotice,
+      orderQuery: this.state.orderQuery, productQuery: this.state.productQuery,
+      matchNotice: query ? (pendingVisible.length ? '已找到本机待匹配订单，产品与费用等待领星同步。' : matched.length ? '已匹配 ' + matched.length + ' 笔订单，产品及基础费用见下方明细（当前筛选显示 ' + visible.length + ' 笔）' : '未找到该订单，无法带出产品及基础费用；请检查订单号。当前仅包含订单。') : '输入订单号即可筛选对应产品与费用。当前显示共用订单，顶部汇总按当前店铺及服务商统计。',
+      changeOrderQuery: e => this.setState({ orderQuery: e.target.value, tab: 'orders', filter: 'all', productQuery: '' }),
+      clearOrderQuery: () => this.setState({ orderQuery: '', productQuery: '', filter: 'all', providerFilter:'all', tab: 'orders' }),
+      changeProductQuery: e => this.setState({ productQuery: e.target.value }),
+      noRows: rows.length === 0,
+      checkedPct: Math.round(frac * 100) + '%',
+      ringDash: (C2 * frac).toFixed(1) + ' ' + C2.toFixed(1),
+      isOrders: this.state.tab === 'orders', isRefunds: this.state.tab === 'refunds',
+      tabOrdersStyle: tabStyle(this.state.tab === 'orders'), tabRefundsStyle: tabStyle(this.state.tab === 'refunds'),
+      goOrders: () => this.setState({ tab: 'orders' }),
+      goRefunds: () => this.setState({ tab: 'refunds' })
+    };
+  }
+}
+</script>
+</body>
+</html>

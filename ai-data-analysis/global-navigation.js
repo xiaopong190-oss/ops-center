@@ -10,6 +10,39 @@ globalPanel.addEventListener('click', event => {
   destination.scrollIntoView({ block: 'start' });
 });
 
+const fullscreenButton = document.createElement('button');
+fullscreenButton.type = 'button';
+const fullscreenLabel = document.createElement('span');
+const escapeHint = document.createElement('kbd');
+escapeHint.textContent = 'Esc 退出';
+fullscreenButton.className = 'fullscreen-toggle';
+fullscreenButton.append(fullscreenLabel, escapeHint);
+globalPanel.prepend(fullscreenButton);
+
+function updateFullscreenButton() {
+  fullscreenButton.disabled = !document.fullscreenEnabled;
+  fullscreenLabel.textContent = fullscreenButton.disabled ? '浏览器未开放全屏' :
+    document.fullscreenElement ? '退出全屏' : '进入全屏';
+  escapeHint.hidden = fullscreenButton.disabled;
+}
+updateFullscreenButton();
+document.addEventListener('fullscreenchange', updateFullscreenButton);
+fullscreenButton.addEventListener('click', async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+    globalPanel.hidePopover();
+  } catch {
+    fullscreenLabel.textContent = '全屏切换失败，点击重试';
+  }
+});
+// Browsers also handle Escape natively when focus is inside a module iframe.
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.fullscreenElement) {
+    document.exitFullscreen().catch(updateFullscreenButton);
+  }
+});
+
 const source = window.systemData;
 if (source) {
   const heading = document.createElement('h2');

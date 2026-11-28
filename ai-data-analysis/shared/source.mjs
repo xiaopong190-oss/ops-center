@@ -14,6 +14,9 @@ export function globalSource(env){
     '/erp/sc/data/mws/orderDetail':env.LINGXING_MCP_DETAILS_TOOL
   };
   if(Object.values(names).some(n=>!n))throw Error('请配置领星 MCP 的三个只读工具名');
+  if(env.LINGXING_MCP_FBA_SHIPMENTS_TOOL)names['/erp/sc/data/fba_report/shipmentList']=env.LINGXING_MCP_FBA_SHIPMENTS_TOOL;
+  if(env.LINGXING_MCP_FBA_DISPATCH_LIST_TOOL)names['/erp/sc/routing/storage/shipment/getInboundShipmentList']=env.LINGXING_MCP_FBA_DISPATCH_LIST_TOOL;
+  if(env.LINGXING_MCP_FBA_DETAILS_TOOL)names['/erp/sc/routing/storage/shipment/getInboundShipmentListMwsDetail']=env.LINGXING_MCP_FBA_DETAILS_TOOL;
   const url=new URL(env.LINGXING_MCP_URL);
   if(url.protocol!=='https:' && !(url.protocol==='http:' && ['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw Error('MCP 远程连接需使用 HTTPS');
   async function connect(){
@@ -36,7 +39,15 @@ export function mcpReader(names,connect){
       const result=await client.callTool({name:names[path],arguments:args});
       if(result.isError)throw Error('领星 MCP 工具调用失败');
       const reply=result.structuredContent??JSON.parse(result.content.find(c=>c.type==='text')?.text||'null');
-      if(!Array.isArray(reply?.data) || (reply.code!=null && String(reply.code)!=='0'))throw Error('领星 MCP 工具响应无效');
+      const codeBad=reply?.code!=null && String(reply.code)!=='0';
+      const dataOk=path==='/erp/sc/data/fba_report/shipmentList'
+        ? Boolean(reply?.data && typeof reply.data==='object' && !Array.isArray(reply.data) && Array.isArray(reply.data.list))
+        : path==='/erp/sc/routing/storage/shipment/getInboundShipmentList'
+          ? Boolean(Array.isArray(reply?.data) || (reply?.data && typeof reply.data==='object' && Array.isArray(reply.data.list)))
+          : path==='/erp/sc/routing/storage/shipment/getInboundShipmentListMwsDetail'
+            ? Boolean(reply?.data && typeof reply.data==='object' && !Array.isArray(reply.data))
+            : Array.isArray(reply?.data);
+      if(!dataOk || codeBad)throw Error('领星 MCP 工具响应无效');
       return reply;
     }catch(error){
       const previous=session;

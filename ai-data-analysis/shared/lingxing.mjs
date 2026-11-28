@@ -2,7 +2,14 @@ import { createHash, createCipheriv } from 'node:crypto';
 
 const ORIGIN = 'https://openapi.lingxing.com';
 const shopsPath='/erp/sc/data/seller/lists';
-const READ_PATHS = new Set(['/erp/sc/data/mws/orderDetail', '/erp/sc/data/mws/orders',shopsPath]);
+const READ_PATHS = new Set([
+  '/erp/sc/data/mws/orderDetail',
+  '/erp/sc/data/mws/orders',
+  shopsPath,
+  '/erp/sc/routing/storage/shipment/getInboundShipmentList',
+  '/erp/sc/routing/storage/shipment/getInboundShipmentListMwsDetailList',
+  '/erp/sc/data/fba_report/shipmentList'
+]);
 export function sign(params, appId) {
   const key = Buffer.from(appId, 'utf8');
   if (![16, 24, 32].includes(key.length)) throw new Error('App ID 长度不符合领星 AES 签名要求');

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <script>if(location.protocol==="file:")location.replace("http://127.0.0.1:4187/system/logistics.html");</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>领星物流履约与对账 · AI 数据分析系统</title>
+  <link rel="stylesheet" href="./global-navigation.css">
+  <link rel="stylesheet" href="./logistics.css">
+  <script defer src="./global-navigation.js"></script>
+  <script type="module" src="./logistics.js"></script>
+</head>
+<body>
+  <nav class="global-nav" aria-label="全局导航">
+    <button id="global-trigger" class="global-trigger" type="button" popovertarget="global-panel">
+      <span aria-hidden="true">▦</span> 全局菜单
+    </button>
+    <div id="global-panel" popover>
+      <a href="./">经营首页</a>
+      <h2>业务模块</h2>
+      <a href="./Main.dc.html">订单费用核对与盈亏追踪</a>
+      <a href="./advertising.html">广告智控台</a>
+      <a href="./tracker.html">新品跟踪</a>
+      <a href="./logistics.html" aria-current="page">领星物流履约与对账 <small>当前</small></a>
+    </div>
+  </nav>
+
+  <div class="page-shell">
+    <header class="top-bar" id="logistics-top" tabindex="-1">
+      <div class="brand-group">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1" y="3" width="15" height="13" rx="1.5"></rect>
+            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <div class="title-row">
+            <h1>领星物流履约与对账</h1>
+            <span id="mode-badge" class="mode-badge is-demo">检测模式中…</span>
+          </div>
+          <p class="meta-line" id="logistics-meta" role="status">正在读取物流工作台状态…</p>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button type="button" id="btn-sync-live" class="btn btn-primary">同步真实领星</button>
+        <button type="button" id="btn-sync-demo" class="btn btn-secondary">加载脱敏演示数据</button>
+        <a class="ghost-link" href="./connections.html">API 与模型接入</a>
+        <a class="ghost-link" href="./">返回首页</a>
+      </div>
+    </header>
+
+    <div id="status-banner" class="status-banner" role="status" hidden></div>
+
+    <section class="kpi-strip" aria-label="核心指标">
+      <div class="kpi-card">
+        <span class="kpi-label">已同步货件</span>
+        <strong class="kpi-value" id="kpi-shipments">—</strong>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">承运运输段</span>
+        <strong class="kpi-value" id="kpi-legs">—</strong>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">延迟 / 逾期异常</span>
+        <strong class="kpi-value is-warn" id="kpi-anomalies">—</strong>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">待补数 / 阻断结算</span>
+        <strong class="kpi-value is-danger" id="kpi-blocked">—</strong>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">缺陷费与冲销记录</span>
+        <strong class="kpi-value" id="kpi-fees">—</strong>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">月结对账单</span>
+        <strong class="kpi-value" id="kpi-statements">—</strong>
+      </div>
+    </section>
+
+    <nav class="tab-bar" role="tablist" aria-label="工作台视图">
+      <button type="button" role="tab" class="tab-btn is-active" data-tab="fulfillment" aria-selected="true">履约与计价工作台</button>
+      <button type="button" role="tab" class="tab-btn" data-tab="defects" aria-selected="false">缺陷费与冲销</button>
+      <button type="button" role="tab" class="tab-btn" data-tab="settlements" aria-selected="false">自动月结对账</button>
+      <button type="button" role="tab" class="tab-btn" data-tab="ratings" aria-selected="false">物流商评级</button>
+    </nav>
+
+    <!-- Tab 1: 履约与计价 -->
+    <section class="tab-panel" id="panel-fulfillment">
+      <div class="panel-section">
+        <div class="section-head">
+          <h2>同计划批次时间线（美国/目的仓当地日历日）</h2>
+          <span class="section-hint">仅按共同发运计划号归组，绝不按同日混并；点击异常货件可查看承运段</span>
+        </div>
+        <div id="batches-container" class="batches-grid"></div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-head">
+          <h2>货件与运输段计价明细</h2>
+          <div class="filter-row">
+            <select id="filter-status" aria-label="到达状态筛选">
+              <option value="all">全部到达状态</option>
+              <option value="on_time">符合预期</option>
+              <option value="early">提前</option>
+              <option value="delayed">延迟</option>
+              <option value="overdue">已逾期(未到)</option>
+              <option value="in_transit">在途</option>
+              <option value="unknown">未知</option>
+            </select>
+            <input type="search" id="filter-search" placeholder="搜索货件号 / 计划号 / 物流商…" aria-label="搜索货件">
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>店铺 / FBA 货件号</th>
+                <th>计划 / 目的仓(时区)</th>
+                <th>承诺窗口与实到</th>
+                <th>状态 / 偏差</th>
+                <th>领星重量与来源</th>
+                <th>承运段与物流商</th>
+                <th>单价 / 计算价 / 生效价</th>
+                <th>缺陷费(预警 / 已核)</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="shipments-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: 缺陷费与冲销 -->
+    <section class="tab-panel" id="panel-defects" hidden>
+      <div class="panel-section">
+        <div class="section-head">
+          <h2>录入可追溯账单缺陷费（支持多票分摊与尾差守恒）</h2>
+          <span class="section-hint">无原账单号与行号不可入账；争议或缺少承担依据自动进入待核，不扣减物流商应付</span>
+        </div>
+        <form id="defect-form" class="inline-form">
+          <label>原账单号<input name="sourceBillNo" required placeholder="BILL-2026-05-001"></label>
+          <label>行号<input name="sourceLineNo" required placeholder="L01"></label>
+          <label>币种<input name="currency" required value="USD" maxlength="3"></label>
+          <label>总金额<input name="totalAmount" required placeholder="40.00"></label>
+          <label>发生日<input name="occurredDate" type="date" required value="2026-05-05"></label>
+          <label>入账月<input name="bookingMonth" placeholder="2026-05" pattern="\d{4}-\d{2}"></label>
+          <label>物流商 ID<input name="carrierId" placeholder="CARRIER-SLOW"></label>
+          <label>关联货件(店铺:货件号,逗号分隔)<input name="targetShipments" required placeholder="101:FBA18USPLAN05"></label>
+          <label>承担依据<input name="responsibilityBasis" placeholder="尾程超时签收确认函"></label>
+          <label>状态
+            <select name="status">
+              <option value="verified">已核扣款</option>
+              <option value="pending_review">待核查</option>
+              <option value="disputed">有争议(不扣应付)</option>
+            </select>
+          </label>
+          <button type="submit" class="btn btn-primary">入账 / 分摊</button>
+        </form>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-head">
+          <h2>缺陷费与冲销台账</h2>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>原账单 / 行号</th>
+                <th>发生日 / 入账月</th>
+                <th>物流商</th>
+                <th>金额(币种)</th>
+                <th>状态与承担依据</th>
+                <th>分摊货件明细</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="defects-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: 自动月结对账 -->
+    <section class="tab-panel" id="panel-settlements" hidden>
+      <div class="panel-section">
+        <div class="section-head">
+          <h2>自动月结出账与重跑</h2>
+          <div class="filter-row">
+            <input type="month" id="settlement-month" value="2026-04" aria-label="选择结算月份">
+            <button type="button" id="btn-run-settlement" class="btn btn-primary">生成 / 重算月结账单</button>
+          </div>
+        </div>
+        <p class="section-hint">口径：按实际妥投业务月归集运费，按费用入账月列缺陷与冲销。草稿可重算，已确认账单冻结，跨月变更自动生成引用原账单的调整单。</p>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>账单号 / 类型</th>
+                <th>账期</th>
+                <th>物流商</th>
+                <th>币种</th>
+                <th>状态</th>
+                <th>计算运费</th>
+                <th>改价差额</th>
+                <th>生效运费</th>
+                <th>已核缺陷扣款</th>
+                <th>应付合计</th>
+                <th>待核项</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="statements-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel-section" id="statement-detail-section" hidden>
+        <div class="section-head">
+          <h2 id="statement-detail-title">账单溯源明细</h2>
+          <button type="button" id="btn-close-detail" class="btn btn-secondary">收起明细</button>
+        </div>
+        <div id="statement-detail-body"></div>
+      </div>
+    </section>
+
+    <!-- Tab 4: 物流商评级 -->
+    <section class="tab-panel" id="panel-ratings" hidden>
+      <div class="panel-section">
+        <div class="section-head">
+          <h2>同组物流商履约评级（同线路 / 服务等级 / 计价单位 / 币种）</h2>
+          <div class="filter-row">
+            <button type="button" id="btn-refresh-ratings" class="btn btn-secondary">刷新评级</button>
+          </div>
+        </div>
+        <p class="section-hint">权重初值：准时率 60% + 单价竞争力 25%（同组中位单价 / 实际加权单价，上限 1）+ 无责任缺陷率 15%。A≥90、B≥80、C≥70、其余 D；已妥投样本 &lt; 5 或缺基准显示样本不足。</p>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>同组口径</th>
+                <th>物流商</th>
+                <th>等级 / 总分</th>
+                <th>准时率(分母/覆盖率)</th>
+                <th>未到逾期</th>
+                <th>加权单价 / 组中位</th>
+                <th>无缺陷率(责任票)</th>
+                <th>得分拆解</th>
+              </tr>
+            </thead>
+            <tbody id="ratings-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 计价 / 改价弹窗 -->
+  <dialog id="pricing-dialog" class="modal-dialog">
+    <form method="dialog" id="pricing-form" class="modal-card">
+      <div class="modal-head">
+        <h3>维护单价与手动覆盖</h3>
+        <button type="button" id="btn-close-pricing" class="btn-icon" aria-label="关闭">✕</button>
+      </div>
+      <div id="pricing-context" class="modal-context"></div>
+      <input type="hidden" name="legId">
+      <input type="hidden" name="expectedVersion">
+      <div class="modal-fields">
+        <label>单价（同单位）<input name="unitPrice" required placeholder="2.40"></label>
+        <label>币种<input name="currency" required value="USD" maxlength="3"></label>
+        <label>手动覆盖最终价（留空则按计算价生效）<input name="manualOverrideAmount" placeholder="28.00"></label>
+        <label>覆盖原因（覆盖时必填）<input name="overrideReason" placeholder="协议折扣 / 账单核减"></label>
+        <label>操作人<input name="operator" required value="finance-ops"></label>
+      </div>
+      <div id="pricing-audit-list" class="audit-box"></div>
+      <div class="modal-actions">
+        <button type="button" id="btn-cancel-pricing" class="btn btn-secondary">取消</button>
+        <button type="submit" class="btn btn-primary">保存计价</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
+

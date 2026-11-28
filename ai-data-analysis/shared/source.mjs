@@ -14,6 +14,8 @@ export function globalSource(env){
     '/erp/sc/data/mws/orderDetail':env.LINGXING_MCP_DETAILS_TOOL
   };
   if(Object.values(names).some(n=>!n))throw Error('请配置领星 MCP 的三个只读工具名');
+  if(env.LINGXING_MCP_FBA_SHIPMENTS_TOOL)names['/erp/sc/routing/storage/shipment/getInboundShipmentList']=env.LINGXING_MCP_FBA_SHIPMENTS_TOOL;
+  if(env.LINGXING_MCP_FBA_DETAILS_TOOL)names['/erp/sc/routing/storage/shipment/getInboundShipmentListMwsDetailList']=env.LINGXING_MCP_FBA_DETAILS_TOOL;
   const url=new URL(env.LINGXING_MCP_URL);
   if(url.protocol!=='https:' && !(url.protocol==='http:' && ['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw Error('MCP 远程连接需使用 HTTPS');
   async function connect(){

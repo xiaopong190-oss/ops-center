@@ -10,10 +10,12 @@ import {connections} from './connections.mjs';
 import {demoPerformance} from '../demo-catalog.mjs';
 
 import {nativeGateway} from './native-gateway.mjs';
+import {createLogisticsRouter} from '../logistics/router.mjs';
 
 const trackerPage = new URL('../../modules/new-product-tracker/index.html',import.meta.url);
-const systemFiles = new Set(['home.html','home.css','home.js','Main.dc.html','advertising.html','tracker.html','connections.html','connections.js','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
+const systemFiles = new Set(['home.html','home.css','home.js','Main.dc.html','advertising.html','tracker.html','logistics.html','logistics.css','logistics.js','connections.html','connections.js','global-navigation.css','global-navigation.js','support.js','vendor/react.js','vendor/react-dom.js']);
 export function service({directory,providers=connections(),client=providers.source,demo=false,loadModel}) {
+  const logistics=createLogisticsRouter({directory,client,providers,demo});
 
   let writingFees = false;
   const readJson=async file=>JSON.parse(await readFile(join(directory,file),'utf8'));
@@ -118,6 +120,7 @@ export function service({directory,providers=connections(),client=providers.sour
         catch(e){return send(502,{error:provider.label+' 请求失败，请检查连接、权限和服务配置'+(/^OpenAI HTTP \d{3}$/.test(e.message)?' · '+e.message:'')});}
       }
       await initialize();
+      if(await logistics.handle(req,res,url,send))return;
       if(await nativeGateway(req,res,url,published,synchronize))return;
       if(path==='/api/workspace/sync' && req.method==='POST'){
         if(req.headers['sec-fetch-site']==='cross-site' || req.headers['content-type']!=='application/json')return send(403,{error:'请从全局菜单同步'});
@@ -144,7 +147,7 @@ export function service({directory,providers=connections(),client=providers.sour
         if (!systemFiles.has(file)) return send(404,{error:'页面不存在'});
         const type=file.endsWith('.css')?'text/css':file.endsWith('.js')?'application/javascript':'text/html';
         let asset=await readFile(new URL('../'+file,import.meta.url));
-        if(file==='home.html' || file==='Main.dc.html' || file==='advertising.html' || file==='tracker.html'){
+        if(file==='home.html' || file==='Main.dc.html' || file==='advertising.html' || file==='tracker.html' || file==='logistics.html'){
           asset=asset.toString().replace('<head>','<head>'+await bootstrap());
         }
         return send(200,asset,type+'; charset=utf-8');
@@ -190,6 +193,7 @@ export function service({directory,providers=connections(),client=providers.sour
     } catch(error) {return send(502,{error:error.code?'共享快照读写失败':error.message});}
   });
   server.once('listening',()=>initialize().catch(error=>console.error('共享数据初始化失败',error.message)));
+  server.once('close',()=>logistics.close());
   return server;
 }
 if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {

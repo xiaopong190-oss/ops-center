@@ -243,21 +243,26 @@ export function createDemoLogisticsClient() {
         return { code: 0, data: DEMO_SHOPS };
       }
       if (path === FBA_SHIPMENT_LIST_PATH) {
-        const sid = Number(params.sid);
-        const filtered = shipments.filter(s => s.sid === sid);
+        const sid = String(params.sid ?? '');
+        const filtered = shipments.filter(s => String(s.sid) === sid);
         const offset = Number(params.offset || 0);
         const length = Number(params.length || 200);
         return {
           code: 0,
           total: filtered.length,
-          data: filtered.slice(offset, offset + length)
+          data: {
+            list: filtered.slice(offset, offset + length),
+            total: filtered.length
+          }
         };
       }
       if (path === FBA_SHIPMENT_DETAIL_PATH) {
-        const sns = new Set(params.shipment_sn_arr || []);
+        const sn = String(params.shipment_sn || '');
+        const found = details.find(d => d.shipment_sn === sn);
+        if (!found) throw new Error(`未找到发货单详情: ${sn}`);
         return {
           code: 0,
-          data: details.filter(d => sns.has(d.shipment_sn))
+          data: found
         };
       }
       throw new Error(`演示物流客户端不支持路径: ${path}`);

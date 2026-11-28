@@ -129,22 +129,18 @@ export function evaluateArrival({
   const end = isValidIsoDate(promisedEnd) ? promisedEnd : start;
   const tzValid = isValidTimezone(destTimezone);
 
-  // Determine actual delivery timestamp & source without fabricating events
-  let deliveredTs = actualDeliveredAt || null;
-  let source = actualEventSource || 'unknown';
-  if (!deliveredTs) {
-    if (signedAt) {
-      deliveredTs = signedAt;
-      source = 'signed';
-    } else if (firstReceivedAt) {
-      deliveredTs = firstReceivedAt;
-      source = 'first_received';
-    } else if (putawayAt) {
-      deliveredTs = putawayAt;
-      source = 'putaway';
-    } else {
-      source = 'unknown';
-    }
+  // Determine actual delivery timestamp & source strictly from signed / carrier_pod events.
+  // NEVER treat firstReceivedAt or putawayAt as actual delivery; when signed/POD is missing,
+  // keep actual arrival unknown (actualLocalDay = null, actualEventSource = 'unknown').
+  let deliveredTs = null;
+  let source = 'unknown';
+  const explicitSource = actualEventSource || null;
+  if (actualDeliveredAt && (!explicitSource || explicitSource === 'signed' || explicitSource === 'carrier_pod')) {
+    deliveredTs = actualDeliveredAt;
+    source = explicitSource || 'carrier_pod';
+  } else if (signedAt) {
+    deliveredTs = signedAt;
+    source = 'signed';
   }
 
   if (!start || !end || !tzValid || calendarDayDiff(start, end) < 0) {
@@ -197,6 +193,19 @@ export function evaluateArrival({
       deviationDays: diffEnd, // positive
       actualLocalDay,
       actualEventSource: source,
+      promisedStart: start,
+      promisedEnd: end
+    };
+  }
+
+  // Signed/POD is missing, but FBA receiving/putaway event exists -> actual arrival remains unknown
+  // (do not fabricate delivery from receiving/putaway, and do not misreport as in_transit/overdue).
+  if (firstReceivedAt || putawayAt) {
+    return {
+      status: 'unknown',
+      deviationDays: null,
+      actualLocalDay: null,
+      actualEventSource: 'unknown',
       promisedStart: start,
       promisedEnd: end
     };
@@ -702,7 +711,157 @@ export function computeCarrierRatings(records, config = DEFAULT_CONFIG, samplePe
  * Normalize a Lingxing FBA shipment list record + optional detail record.
  * Saves source_field_path, source_id, raw_value, unit, timezone, collected_at, mapping_version.
  */
-export function mapLingxingShipment(rawShipment, rawDetail, { sid, collectedAt = new Date().toISOString() }) {
+export function normalizeIsoDate(str) {
+  if (typeof str !== 'string') return null;
+  const trimmed = str.trim();
+  const candidate = trimmed.length >= 10 ? trimmed.slice(0, 10) : trimmed;
+  return isValidIsoDate(candidate) ? candidate : null;
+}
+
+/**
+ * Expand official Lingxing box_list entries:
+ *   box_list[].{ box_num, cg_box_weight, box_codes, box_skus[].shipment_id }
+ * as well as legacy box entries { box_no, weight, weight_unit, owner_shipment_id }.
+ * Filters boxes belonging to other FBA shipments when box_skus[].shipment_id is unambiguous,
+ * and flags ambiguity when a single box spans multiple shipments or lacks ownership in a multi-shipment dispatch.
+ */
+export function normalizeLingxingBoxes(rawBoxes, { targetShipmentId, dispatchShipmentCount = 1 } = {}) {
+  if (!Array.isArray(rawBoxes) || rawBoxes.length === 0) return { boxes: null, declaredBoxCount: null, ambiguousReason: null };
+
+  const expanded = [];
+  let declaredTotalForShipment = 0;
+  let hasBoxNum = false;
+
+  for (const box of rawBoxes) {
+    if (!box || typeof box !== 'object') continue;
+
+    // Official shape: box_skus[].shipment_id
+    const isOfficialBox = (
+      box.cg_box_weight !== undefined ||
+      box.box_codes !== undefined ||
+      box.box_num !== undefined ||
+      Array.isArray(box.box_skus)
+    );
+
+    if (!isOfficialBox) {
+      expanded.push(box);
+      continue;
+    }
+
+    let ownerShipmentId = box.owner_shipment_id ? String(box.owner_shipment_id).trim() : null;
+    if (Array.isArray(box.box_skus) && box.box_skus.length > 0) {
+      const skuShipmentIds = [...new Set(
+        box.box_skus
+          .map(sku => sku?.shipment_id ?? sku?.fba_shipment_id)
+          .filter(v => v != null && String(v).trim() !== '')
+          .map(v => String(v).trim())
+      )];
+      if (skuShipmentIds.length > 1) {
+        return { boxes: null, declaredBoxCount: null, ambiguousReason: '单箱混装多个 FBA 货件，归属不明确，已隔离待补数' };
+      }
+      if (skuShipmentIds.length === 1) {
+        ownerShipmentId = skuShipmentIds[0];
+      }
+    }
+
+    if (ownerShipmentId && targetShipmentId && ownerShipmentId !== String(targetShipmentId)) {
+      // Belongs cleanly to another FBA shipment in the same dispatch order -> skip
+      continue;
+    }
+    if (!ownerShipmentId && dispatchShipmentCount > 1) {
+      return { boxes: null, declaredBoxCount: null, ambiguousReason: '多货件一单中存在未标明 shipment_id 的箱记录，归属不明确' };
+    }
+
+    const boxNum = box.box_num != null ? Number(box.box_num) : null;
+    if (boxNum != null) {
+      if (!Number.isInteger(boxNum) || boxNum <= 0) {
+        return { boxes: null, declaredBoxCount: null, ambiguousReason: `箱数 box_num 非法: ${box.box_num}` };
+      }
+      hasBoxNum = true;
+      declaredTotalForShipment += boxNum;
+    }
+
+    const rawCodes = Array.isArray(box.box_codes)
+      ? box.box_codes
+      : typeof box.box_codes === 'string' && box.box_codes.trim()
+        ? box.box_codes.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+    if (rawCodes.length === 0) {
+      return { boxes: null, declaredBoxCount: null, ambiguousReason: '箱号 box_codes 缺失，无法去重汇总箱重' };
+    }
+    if (boxNum != null && rawCodes.length !== boxNum) {
+      return {
+        boxes: null,
+        declaredBoxCount: null,
+        ambiguousReason: `箱号数量(${rawCodes.length})与箱数 box_num(${boxNum})不一致，箱数不完整`
+      };
+    }
+
+    const weightVal = box.cg_box_weight ?? box.weight;
+    const unitVal = box.weight_unit ?? box.unit ?? 'kg';
+    for (const code of rawCodes) {
+      expanded.push({
+        box_no: String(code).trim(),
+        weight: weightVal,
+        weight_unit: unitVal,
+        owner_shipment_id: ownerShipmentId || targetShipmentId || null
+      });
+    }
+  }
+
+  return {
+    boxes: expanded.length > 0 ? expanded : null,
+    declaredBoxCount: hasBoxNum ? declaredTotalForShipment : null,
+    ambiguousReason: null
+  };
+}
+
+/**
+ * Extract official Lingxing actual_expenses_list.chargeable_weight (unit: kg).
+ */
+export function extractChargeableWeight(rawDetail, rawShipment, targetShipmentId) {
+  const expenses = rawDetail?.actual_expenses_list ?? rawShipment?.actual_expenses_list ?? null;
+  if (!expenses) return null;
+
+  if (!Array.isArray(expenses) && typeof expenses === 'object') {
+    if (expenses.chargeable_weight != null && expenses.chargeable_weight !== '') {
+      return { weight: expenses.chargeable_weight, unit: expenses.weight_unit || 'kg', level: 'dispatch_order' };
+    }
+    return null;
+  }
+
+  if (Array.isArray(expenses) && expenses.length > 0) {
+    // Prefer entries explicitly tagged with targetShipmentId
+    const matched = expenses.filter(e =>
+      e && (e.shipment_id || e.fba_shipment_id) &&
+      String(e.shipment_id || e.fba_shipment_id).trim() === String(targetShipmentId) &&
+      e.chargeable_weight != null && e.chargeable_weight !== ''
+    );
+    if (matched.length > 0) {
+      let sum = 0n;
+      for (const e of matched) {
+        sum += parseDecimal(e.chargeable_weight, { allowNegative: false, allowZero: false });
+      }
+      return { weight: formatScaled(sum, 3, true), unit: matched[0].weight_unit || 'kg', level: 'shipment_expense' };
+    }
+    // Otherwise dispatch-order-level chargeable_weight entries (no shipment_id)
+    const dispatchEntries = expenses.filter(e =>
+      e && !e.shipment_id && !e.fba_shipment_id &&
+      e.chargeable_weight != null && e.chargeable_weight !== ''
+    );
+    if (dispatchEntries.length > 0) {
+      let sum = 0n;
+      for (const e of dispatchEntries) {
+        sum += parseDecimal(e.chargeable_weight, { allowNegative: false, allowZero: false });
+      }
+      return { weight: formatScaled(sum, 3, true), unit: dispatchEntries[0].weight_unit || 'kg', level: 'dispatch_order' };
+    }
+  }
+  return null;
+}
+
+export function mapLingxingShipment(rawShipment, rawDetail, { sid, collectedAt = new Date().toISOString(), dispatchShipmentCount = 1 } = {}) {
   const shopSid = String(sid ?? rawShipment.sid ?? rawShipment.store_id ?? '').trim();
   const fbaShipmentId = String(rawShipment.shipment_id ?? rawShipment.fba_shipment_id ?? rawShipment.shipmentId ?? '').trim();
   if (!shopSid || !fbaShipmentId) {
@@ -710,42 +869,134 @@ export function mapLingxingShipment(rawShipment, rawDetail, { sid, collectedAt =
   }
 
   const shipmentSn = rawDetail?.shipment_sn ?? rawShipment.shipment_sn ?? rawShipment.dispatch_no ?? null;
-  const planId = rawShipment.plan_id ?? rawShipment.inbound_plan_id ?? rawDetail?.plan_id ?? null;
+  const planId = rawShipment.sta_inbound_plan_id ?? rawShipment.plan_id ?? rawShipment.inbound_plan_id ?? rawDetail?.sta_inbound_plan_id ?? rawDetail?.plan_id ?? null;
   const batchGroupId = rawShipment.batch_group_id ?? null;
   const destFc = rawShipment.destination_fulfillment_center_id ?? rawShipment.dest_fc ?? rawDetail?.destination_fulfillment_center_id ?? '';
-  const destCountry = rawShipment.country_code ?? rawShipment.dest_country ?? (destFc ? 'US' : '');
-  const destTimezone = rawShipment.dest_timezone ?? rawDetail?.dest_timezone ?? (destCountry === 'US' ? 'America/Los_Angeles' : 'UTC');
-  const routeLane = rawShipment.route_lane ?? (destCountry ? `CN-${destCountry}` : 'CN-US');
+  // NEVER default missing country/timezone to US or America/Los_Angeles
+  const destCountry = rawShipment.country_code ?? rawShipment.dest_country ?? rawDetail?.country_code ?? rawDetail?.dest_country ?? null;
+  const destTimezone = rawShipment.dest_timezone ?? rawDetail?.dest_timezone ?? null;
+  const routeLane = rawShipment.route_lane ?? rawDetail?.route_lane ?? (destCountry ? `CN-${destCountry}` : null);
   const serviceLevel = rawShipment.service_level ?? rawShipment.transport_type_name ?? 'STANDARD';
 
   const sourceVersion = Number(rawShipment.source_version ?? rawShipment.version ?? 0) || 0;
   const sourceUpdatedAt = rawShipment.last_update_time ?? rawShipment.update_time ?? rawShipment.gmt_modified ?? collectedAt;
 
-  // Weight resolution (box-level preferred when present)
-  const boxes = rawDetail?.box_list ?? rawShipment.box_list ?? null;
-  const declaredBoxCount = rawDetail?.box_count ?? rawShipment.box_count ?? null;
-  const directWeight = rawDetail?.weight ?? rawShipment.weight ?? rawShipment.total_weight ?? null;
-  const directUnit = rawDetail?.weight_unit ?? rawShipment.weight_unit ?? null;
-  const weightInfo = resolveWeight({
-    directWeight,
-    directUnit,
-    boxes,
-    declaredBoxCount,
-    targetShipmentId: fbaShipmentId
-  });
+  const effectiveDispatchCount = Math.max(
+    Number(dispatchShipmentCount) || 1,
+    Array.isArray(rawDetail?.fba_shipment_ids) ? rawDetail.fba_shipment_ids.length : 1,
+    Number(rawDetail?.shipment_count) || 1
+  );
 
-  // Promised arrival window (frozen at dispatch; single promised date => start === end)
-  const promisedStart = rawShipment.promised_arrival_start ?? rawDetail?.promised_arrival_start ?? rawShipment.promised_arrival_date ?? null;
-  const promisedEnd = rawShipment.promised_arrival_end ?? rawDetail?.promised_arrival_end ?? promisedStart;
+  // Weight resolution priority:
+  // 1. Official or legacy box_list (deduplicated by box_codes/box_no, scoped by box_skus[].shipment_id)
+  // 2. Shipment-level direct weight or shipment-scoped actual_expenses_list.chargeable_weight
+  // 3. Dispatch-order-level weight / actual_expenses_list.chargeable_weight (blocked if dispatchShipmentCount > 1)
+  const rawBoxes = rawDetail?.box_list ?? rawShipment.box_list ?? null;
+  const boxNorm = normalizeLingxingBoxes(rawBoxes, { targetShipmentId: fbaShipmentId, dispatchShipmentCount: effectiveDispatchCount });
+  const declaredBoxCount = boxNorm.declaredBoxCount ?? rawDetail?.box_count ?? rawShipment.box_count ?? null;
 
-  // Distinct arrival events (never conflate or fabricate)
+  let chargeable = null;
+  let chargeableError = null;
+  try {
+    chargeable = extractChargeableWeight(rawDetail, rawShipment, fbaShipmentId);
+  } catch (e) {
+    chargeableError = e.message;
+  }
+
+  const hasShipmentDirectWeight = rawShipment.weight != null || rawShipment.total_weight != null;
+  const hasDetailDirectWeight = rawDetail?.weight != null;
+  const hasBoxes = Array.isArray(boxNorm.boxes) && boxNorm.boxes.length > 0;
+  const weightFromDispatchOrderOnly = !hasBoxes && !boxNorm.ambiguousReason && !hasShipmentDirectWeight && (
+    (chargeable && chargeable.level === 'dispatch_order') || hasDetailDirectWeight
+  );
+
+  let weightInfo;
+  if (boxNorm.ambiguousReason) {
+    weightInfo = {
+      weightScaled: null,
+      weightFormatted: null,
+      unit: null,
+      source: 'box_sum',
+      settlementBlocked: true,
+      blockReason: boxNorm.ambiguousReason
+    };
+  } else if (hasBoxes) {
+    weightInfo = resolveWeight({
+      directWeight: null,
+      directUnit: rawShipment.weight_unit ?? rawDetail?.weight_unit ?? 'kg',
+      boxes: boxNorm.boxes,
+      declaredBoxCount,
+      targetShipmentId: fbaShipmentId
+    });
+  } else if (hasShipmentDirectWeight) {
+    weightInfo = resolveWeight({
+      directWeight: rawShipment.weight ?? rawShipment.total_weight,
+      directUnit: rawShipment.weight_unit ?? rawDetail?.weight_unit ?? null
+    });
+  } else if (chargeableError) {
+    weightInfo = {
+      weightScaled: null,
+      weightFormatted: null,
+      unit: 'kg',
+      source: 'actual_expenses_chargeable_weight',
+      settlementBlocked: true,
+      blockReason: `计费重非法: ${chargeableError}`
+    };
+  } else if (chargeable) {
+    weightInfo = resolveWeight({
+      directWeight: chargeable.weight,
+      directUnit: chargeable.unit
+    });
+    if (!weightInfo.settlementBlocked) {
+      weightInfo = { ...weightInfo, source: chargeable.level === 'dispatch_order' ? 'dispatch_order' : 'actual_expenses_chargeable_weight' };
+    }
+  } else {
+    weightInfo = resolveWeight({
+      directWeight: rawDetail?.weight ?? null,
+      directUnit: rawDetail?.weight_unit ?? rawShipment.weight_unit ?? null
+    });
+  }
+
+  if (weightFromDispatchOrderOnly) {
+    if (effectiveDispatchCount > 1) {
+      weightInfo = {
+        weightScaled: null,
+        weightFormatted: null,
+        unit: weightInfo.unit,
+        source: 'dispatch_order_ambiguous',
+        settlementBlocked: true,
+        blockReason: '仅发货单级有重量且对应多个 FBA 货件，禁止重复计费，请补齐单票重量或明确分摊'
+      };
+    } else if (!weightInfo.settlementBlocked) {
+      weightInfo = { ...weightInfo, source: 'dispatch_order' };
+    }
+  }
+
+  // Promised arrival window:
+  // Official STA fields: sta_delivery_start_date / sta_delivery_end_date;
+  // Fallback: promised_arrival_start / promised_arrival_end / expected_arrival_date (single date => start === end).
+  const rawExpectedDate = rawDetail?.expected_arrival_date ?? rawShipment.expected_arrival_date ?? null;
+  const rawStaStart = rawShipment.sta_delivery_start_date ?? rawDetail?.sta_delivery_start_date ?? null;
+  const rawStaEnd = rawShipment.sta_delivery_end_date ?? rawDetail?.sta_delivery_end_date ?? null;
+  const promisedStart = normalizeIsoDate(
+    rawStaStart ?? rawShipment.promised_arrival_start ?? rawDetail?.promised_arrival_start ?? rawShipment.promised_arrival_date ?? rawExpectedDate
+  );
+  const promisedEnd = normalizeIsoDate(
+    rawStaEnd ?? rawShipment.promised_arrival_end ?? rawDetail?.promised_arrival_end ?? rawExpectedDate
+  ) ?? promisedStart;
+
+  // Distinct arrival events (never conflate receiving/putaway with actual delivery)
   const signedAt = rawDetail?.signed_at ?? rawShipment.signed_at ?? null;
   const firstReceivedAt = rawDetail?.first_received_at ?? rawShipment.first_received_at ?? null;
   const putawayAt = rawDetail?.putaway_at ?? rawShipment.putaway_at ?? null;
-  const actualDeliveredAt = rawDetail?.actual_delivered_at ?? rawShipment.actual_delivered_at ?? signedAt ?? firstReceivedAt ?? putawayAt ?? null;
-  const actualEventSource = rawDetail?.actual_event_source ?? rawShipment.actual_event_source ?? (
-    signedAt ? 'signed' : firstReceivedAt ? 'first_received' : putawayAt ? 'putaway' : 'unknown'
-  );
+  const explicitDeliveredAt = rawDetail?.actual_delivered_at ?? rawShipment.actual_delivered_at ?? null;
+  const explicitEventSource = rawDetail?.actual_event_source ?? rawShipment.actual_event_source ?? null;
+  const actualDeliveredAt = (explicitDeliveredAt && (!explicitEventSource || explicitEventSource === 'signed' || explicitEventSource === 'carrier_pod'))
+    ? explicitDeliveredAt
+    : (signedAt ?? null);
+  const actualEventSource = actualDeliveredAt
+    ? (explicitDeliveredAt ? (explicitEventSource || 'carrier_pod') : 'signed')
+    : 'unknown';
 
   // Legs (supports multi-carrier per dispatch order & multi-shipment per dispatch order)
   const rawLegs = Array.isArray(rawDetail?.logistics_list) && rawDetail.logistics_list.length > 0
@@ -766,16 +1017,27 @@ export function mapLingxingShipment(rawShipment, rawDetail, { sid, collectedAt =
         }];
 
   const legs = rawLegs.map((leg, idx) => {
-    const legWeight = leg.weight != null
-      ? resolveWeight({ directWeight: leg.weight, directUnit: leg.weight_unit || weightInfo.unit })
-      : (rawLegs.length === 1 ? weightInfo : {
-          weightScaled: null,
-          weightFormatted: null,
-          unit: weightInfo.unit,
-          source: 'missing',
-          settlementBlocked: true,
-          blockReason: '多运输段缺少分段重量，禁止复用整单重量'
-        });
+    const legHasOwnWeight = leg.weight != null && (!weightFromDispatchOrderOnly || (leg.owner_shipment_id && String(leg.owner_shipment_id) === fbaShipmentId));
+    let legWeight;
+    if (weightFromDispatchOrderOnly && effectiveDispatchCount > 1 && !(leg.owner_shipment_id && String(leg.owner_shipment_id) === fbaShipmentId)) {
+      legWeight = weightInfo;
+    } else if (legHasOwnWeight) {
+      legWeight = resolveWeight({ directWeight: leg.weight, directUnit: leg.weight_unit || weightInfo.unit });
+      if (weightFromDispatchOrderOnly && !legWeight.settlementBlocked) {
+        legWeight = { ...legWeight, source: 'dispatch_order' };
+      }
+    } else if (rawLegs.length === 1) {
+      legWeight = weightInfo;
+    } else {
+      legWeight = {
+        weightScaled: null,
+        weightFormatted: null,
+        unit: weightInfo.unit,
+        source: 'missing',
+        settlementBlocked: true,
+        blockReason: '多运输段缺少分段重量，禁止复用整单重量'
+      };
+    }
 
     const scope = leg.pricing_scope || (rawLegs.length > 1 ? 'leg_weight' : 'shipment');
     const blocked = legWeight.settlementBlocked || (rawLegs.length > 1 && scope === 'whole_shipment');
@@ -803,7 +1065,7 @@ export function mapLingxingShipment(rawShipment, rawDetail, { sid, collectedAt =
       provenance: {
         sourceFieldPath: rawDetail?.logistics_list ? 'detail.logistics_list' : 'shipment.logistics_list',
         sourceId: String(leg.logistics_record_id ?? fbaShipmentId),
-        rawValue: { weight: leg.weight ?? directWeight, unit: leg.weight_unit ?? directUnit },
+        rawValue: { weight: leg.weight ?? weightInfo.weightFormatted ?? null, unit: leg.weight_unit ?? weightInfo.unit ?? null },
         unit: legWeight.unit,
         timezone: destTimezone,
         collectedAt,
@@ -848,9 +1110,14 @@ export function mapLingxingShipment(rawShipment, rawDetail, { sid, collectedAt =
       sourceFieldPath: 'FBAShipmentList+getInboundShipmentListMwsDetail',
       sourceId: fbaShipmentId,
       rawValue: {
-        weight: directWeight,
-        weight_unit: directUnit,
+        weight: rawShipment.weight ?? rawDetail?.weight ?? null,
+        weight_unit: rawShipment.weight_unit ?? rawDetail?.weight_unit ?? null,
+        chargeable_weight: chargeable?.weight ?? null,
         box_count: declaredBoxCount,
+        sta_inbound_plan_id: rawShipment.sta_inbound_plan_id ?? rawDetail?.sta_inbound_plan_id ?? null,
+        sta_delivery_start_date: rawStaStart,
+        sta_delivery_end_date: rawStaEnd,
+        expected_arrival_date: rawExpectedDate,
         promised_arrival_start: promisedStart,
         promised_arrival_end: promisedEnd,
         signed_at: signedAt,

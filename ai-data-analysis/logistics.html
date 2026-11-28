@@ -285,6 +285,37 @@
       </div>
     </form>
   </dialog>
+
+  <!-- POD 证据与目的仓时区补录弹窗 -->
+  <dialog id="evidence-dialog" class="modal-dialog">
+    <form method="dialog" id="evidence-form" class="modal-card">
+      <div class="modal-head">
+        <h3>补录 POD 签收证据与目的仓时区</h3>
+        <button type="button" id="btn-close-evidence" class="btn-icon" aria-label="关闭">✕</button>
+      </div>
+      <div id="evidence-context" class="modal-context"></div>
+      <input type="hidden" name="sid">
+      <input type="hidden" name="fbaShipmentId">
+      <div class="modal-fields">
+        <label>目的仓时区 (IANA)<input name="destTimezone" placeholder="America/Los_Angeles"></label>
+        <label>目的国家代码<input name="destCountry" placeholder="US" maxlength="3"></label>
+        <label>实际 POD 时间 (ISO)<input name="actualDeliveredAt" placeholder="2026-04-22T18:00:00Z"></label>
+        <label>POD 来源
+          <select name="actualEventSource">
+            <option value="carrier_pod">承运商 POD (carrier_pod)</option>
+            <option value="signed">签收单 (signed)</option>
+          </select>
+        </label>
+        <label>可追溯凭证编号/链接（必填）<input name="evidenceRef" required placeholder="UPS-POD-20260422-001"></label>
+        <label>操作人<input name="operator" required value="ops-auditor"></label>
+      </div>
+      <div id="evidence-history-list" class="audit-box"></div>
+      <div class="modal-actions">
+        <button type="button" id="btn-cancel-evidence" class="btn btn-secondary">取消</button>
+        <button type="submit" class="btn btn-primary">保存证据</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>
 

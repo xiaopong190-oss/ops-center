@@ -2,13 +2,15 @@ import { createHash, createCipheriv } from 'node:crypto';
 
 const ORIGIN = 'https://openapi.lingxing.com';
 const shopsPath='/erp/sc/data/seller/lists';
+const FBA_LIST_PATH='/erp/sc/data/fba_report/shipmentList';
+const FBA_DISPATCH_LIST_PATH='/erp/sc/routing/storage/shipment/getInboundShipmentList';
+const FBA_DETAIL_PATH='/erp/sc/routing/storage/shipment/getInboundShipmentListMwsDetail';
+const LOGISTICS_PATHS = new Set([FBA_LIST_PATH, FBA_DISPATCH_LIST_PATH, FBA_DETAIL_PATH]);
 const READ_PATHS = new Set([
   '/erp/sc/data/mws/orderDetail',
   '/erp/sc/data/mws/orders',
   shopsPath,
-  '/erp/sc/routing/storage/shipment/getInboundShipmentList',
-  '/erp/sc/routing/storage/shipment/getInboundShipmentListMwsDetailList',
-  '/erp/sc/data/fba_report/shipmentList'
+  ...LOGISTICS_PATHS
 ]);
 export function sign(params, appId) {
   const key = Buffer.from(appId, 'utf8');
@@ -51,7 +53,10 @@ export class LingxingClient {
     const token = await this.tokenValue();
     const params = {...body,access_token:token,app_key:this.appId,timestamp:String(Math.floor(this.now()/1000))};
     const url = new URL(path,ORIGIN);
-    url.search = new URLSearchParams({app_key:params.app_key,timestamp:params.timestamp,sign:sign(params,this.appId)}).toString();
+    const query = LOGISTICS_PATHS.has(path)
+      ? {access_token:params.access_token,app_key:params.app_key,timestamp:params.timestamp,sign:sign(params,this.appId)}
+      : {app_key:params.app_key,timestamp:params.timestamp,sign:sign(params,this.appId)};
+    url.search = new URLSearchParams(query).toString();
     let response;
     try { response = await this.fetchImpl(url,{method:path===shopsPath?'GET':'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:path===shopsPath?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30000)}); }
     catch { throw new Error('领星业务网络请求失败'); }
@@ -61,7 +66,22 @@ export class LingxingClient {
     const result=await response.json();
     if (String(result.code) === '3001008' && attempt < 3) { await this.pause(1100 * 2 ** attempt); return this.read(path,body,attempt+1); }
     if (String(result.code) !== '0') throw new Error(`领星业务返回错误码 ${String(result.code).replace(/[^\w-]/g,'').slice(0,32)}`);
-    if (!Array.isArray(result.data)) throw new Error('领星响应结构变化，已停止同步');
+    if (path === FBA_LIST_PATH) {
+      if (!result.data || typeof result.data !== 'object' || Array.isArray(result.data) || !Array.isArray(result.data.list)) {
+        throw new Error('领星货件列表响应结构变化（缺少 data.list），已停止同步');
+      }
+    } else if (path === FBA_DISPATCH_LIST_PATH) {
+      const ok = Array.isArray(result.data) || (result.data && typeof result.data === 'object' && Array.isArray(result.data.list));
+      if (!ok) {
+        throw new Error('领星发货单列表响应结构变化（缺少 data 或 data.list），已停止同步');
+      }
+    } else if (path === FBA_DETAIL_PATH) {
+      if (!result.data || typeof result.data !== 'object' || Array.isArray(result.data)) {
+        throw new Error('领星发货单详情响应结构变化（data 应为对象），已停止同步');
+      }
+    } else if (!Array.isArray(result.data)) {
+      throw new Error('领星响应结构变化，已停止同步');
+    }
     return result;
   }
   orderDetails(ids) {

@@ -90,6 +90,9 @@ function renderOverview() {
       ? '脱敏演示模式'
       : o.liveConfigured ? '待同步(已配置真实领星)' : '脱敏演示可用(未配置真实凭据)';
 
+  const demoBtn = document.getElementById('btn-sync-demo');
+  if (demoBtn) demoBtn.hidden = !o.demo;
+
   const syncText = o.lastSyncedAt ? `最近同步 ${new Date(o.lastSyncedAt).toLocaleString('zh-CN')}` : '尚未同步';
   meta.textContent = `结算时区 ${o.config?.settlementTimezone || 'Asia/Shanghai'} · ${syncText}`;
 
@@ -212,13 +215,18 @@ function renderShipments() {
           <div>已核 <strong>${escHtml(verifiedFee)}</strong></div>
         </td>
         <td>
-          <button type="button" class="btn btn-secondary btn-sm btn-edit-pricing"
-            data-leg-id="${escHtml(leg.id)}"
-            data-shipment="${escHtml(s.fbaShipmentId)}"
-            data-weight="${escHtml(leg.weightFormatted || '')}"
-            data-unit="${escHtml(leg.weightUnit || '')}"
-            data-carrier="${escHtml(leg.carrierName)}"
-            ${leg.settlementBlocked ? 'disabled' : ''}>计价 / 改价</button>
+          <div class="filter-row">
+            <button type="button" class="btn btn-secondary btn-sm btn-edit-pricing"
+              data-leg-id="${escHtml(leg.id)}"
+              data-shipment="${escHtml(s.fbaShipmentId)}"
+              data-weight="${escHtml(leg.weightFormatted || '')}"
+              data-unit="${escHtml(leg.weightUnit || '')}"
+              data-carrier="${escHtml(leg.carrierName)}"
+              ${leg.settlementBlocked ? 'disabled' : ''}>计价 / 改价</button>
+            <button type="button" class="btn btn-secondary btn-sm btn-edit-evidence"
+              data-sid="${escHtml(s.sid)}"
+              data-shipment="${escHtml(s.fbaShipmentId)}">POD / 时区</button>
+          </div>
         </td>
       </tr>`);
     }
@@ -227,6 +235,37 @@ function renderShipments() {
 
   for (const btn of tbody.querySelectorAll('.btn-edit-pricing')) {
     btn.addEventListener('click', () => openPricingModal(btn.dataset.legId));
+  }
+  for (const btn of tbody.querySelectorAll('.btn-edit-evidence')) {
+    btn.addEventListener('click', () => openEvidenceModal(btn.dataset.sid, btn.dataset.shipment));
+  }
+}
+
+async function openEvidenceModal(sid, fbaShipmentId) {
+  const s = state.shipments.find(x => x.sid === sid && x.fbaShipmentId === fbaShipmentId);
+  if (!s) return;
+  const dialog = document.getElementById('evidence-dialog');
+  const form = document.getElementById('evidence-form');
+  form.elements.sid.value = sid;
+  form.elements.fbaShipmentId.value = fbaShipmentId;
+  form.elements.destTimezone.value = s.destTimezone || '';
+  form.elements.destCountry.value = s.destCountry || '';
+  form.elements.actualDeliveredAt.value = s.actualDeliveredAt || '';
+  form.elements.evidenceRef.value = '';
+  document.getElementById('evidence-context').innerHTML =
+    `货件 <strong class="mono">${escHtml(fbaShipmentId)}</strong> · 店铺 ${escHtml(sid)} · 目的仓 ${escHtml(s.destFc || '—')} · 当前时区 ${escHtml(s.destTimezone || '缺失')}`;
+  const histBox = document.getElementById('evidence-history-list');
+  histBox.textContent = '加载补录历史…';
+  dialog.showModal();
+  try {
+    const { history } = await api(`/api/logistics/shipments/evidence?sid=${encodeURIComponent(sid)}&fbaShipmentId=${encodeURIComponent(fbaShipmentId)}`);
+    histBox.innerHTML = history.length
+      ? '<strong>补录历史：</strong>' + history.map(h =>
+          `<div>${escHtml(h.created_at)} · ${escHtml(h.operator)} · 时区 ${escHtml(h.dest_timezone || '—')} · POD ${escHtml(h.actual_delivered_at || '—')} (${escHtml(h.actual_event_source || '—')}) · 凭证 ${escHtml(h.evidence_ref)}</div>`
+        ).join('')
+      : '暂无补录记录';
+  } catch (err) {
+    histBox.textContent = `历史读取失败: ${err.message}`;
   }
 }
 
@@ -456,6 +495,34 @@ function bindEvents() {
   const dialog = document.getElementById('pricing-dialog');
   document.getElementById('btn-close-pricing').addEventListener('click', () => dialog.close());
   document.getElementById('btn-cancel-pricing').addEventListener('click', () => dialog.close());
+
+  const evDialog = document.getElementById('evidence-dialog');
+  document.getElementById('btn-close-evidence').addEventListener('click', () => evDialog.close());
+  document.getElementById('btn-cancel-evidence').addEventListener('click', () => evDialog.close());
+  document.getElementById('evidence-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      await api('/api/logistics/shipments/evidence', {
+        method: 'POST',
+        body: JSON.stringify({
+          sid: fd.get('sid'),
+          fbaShipmentId: fd.get('fbaShipmentId'),
+          destTimezone: String(fd.get('destTimezone')).trim() || null,
+          destCountry: String(fd.get('destCountry')).trim() || null,
+          actualDeliveredAt: String(fd.get('actualDeliveredAt')).trim() || null,
+          actualEventSource: fd.get('actualEventSource'),
+          evidenceRef: String(fd.get('evidenceRef')).trim(),
+          operator: String(fd.get('operator')).trim() || 'ops-auditor'
+        })
+      });
+      evDialog.close();
+      showBanner('POD 证据与目的仓时区已保存并记录审计');
+      await refreshAll();
+    } catch (err) {
+      showBanner(`补录失败：${err.message}`, true);
+    }
+  });
 
   document.getElementById('pricing-form').addEventListener('submit', async e => {
     e.preventDefault();

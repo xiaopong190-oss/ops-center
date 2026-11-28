@@ -6,7 +6,8 @@ import {
   DEFAULT_CONFIG,
   evaluateArrival,
   computeFreightPricing,
-  allocateDefectFee
+  allocateDefectFee,
+  isValidTimezone
 } from './domain.mjs';
 import {
   currencyDecimals,
@@ -78,8 +79,8 @@ export class LogisticsStore {
         shipment_name TEXT,
         dest_fc TEXT,
         dest_country TEXT,
-        dest_timezone TEXT NOT NULL DEFAULT 'UTC',
-        route_lane TEXT NOT NULL DEFAULT 'CN-US',
+        dest_timezone TEXT,
+        route_lane TEXT,
         service_level TEXT NOT NULL DEFAULT 'STANDARD',
         shipped_at TEXT,
         promised_start TEXT,
@@ -109,6 +110,7 @@ export class LogisticsStore {
       CREATE INDEX IF NOT EXISTS idx_shipments_batch ON shipments(batch_group_id);
       CREATE INDEX IF NOT EXISTS idx_shipments_delivered ON shipments(actual_delivered_at);
       CREATE INDEX IF NOT EXISTS idx_shipments_plan ON shipments(sid, plan_id);
+      CREATE INDEX IF NOT EXISTS idx_shipments_sn ON shipments(sid, shipment_sn);
 
       CREATE TABLE IF NOT EXISTS shipment_legs (
         id TEXT PRIMARY KEY,
@@ -119,7 +121,7 @@ export class LogisticsStore {
         carrier_id TEXT NOT NULL,
         carrier_name TEXT NOT NULL,
         tracking_no TEXT,
-        route_lane TEXT NOT NULL DEFAULT 'CN-US',
+        route_lane TEXT,
         service_level TEXT NOT NULL DEFAULT 'STANDARD',
         pricing_scope TEXT NOT NULL DEFAULT 'shipment',
         weight_scaled TEXT,
@@ -258,6 +260,20 @@ export class LogisticsStore {
         finished_at TEXT,
         error TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS shipment_evidence_log (
+        id TEXT PRIMARY KEY,
+        sid TEXT NOT NULL,
+        fba_shipment_id TEXT NOT NULL,
+        dest_timezone TEXT,
+        dest_country TEXT,
+        actual_delivered_at TEXT,
+        actual_event_source TEXT,
+        evidence_ref TEXT NOT NULL,
+        operator TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_evidence_shipment ON shipment_evidence_log(sid, fba_shipment_id, created_at);
     `);
 
     const row = this.db.prepare('SELECT version FROM schema_migrations WHERE version = ?').get(SCHEMA_VERSION);
@@ -346,9 +362,9 @@ export class LogisticsStore {
         batch_group_id = excluded.batch_group_id,
         shipment_name = excluded.shipment_name,
         dest_fc = excluded.dest_fc,
-        dest_country = excluded.dest_country,
+        dest_country = COALESCE(shipments.dest_country, excluded.dest_country),
         dest_timezone = COALESCE(shipments.dest_timezone, excluded.dest_timezone),
-        route_lane = excluded.route_lane,
+        route_lane = COALESCE(shipments.route_lane, excluded.route_lane),
         service_level = excluded.service_level,
         shipped_at = COALESCE(excluded.shipped_at, shipments.shipped_at),
         promised_start = COALESCE(shipments.promised_start, excluded.promised_start),
@@ -356,8 +372,8 @@ export class LogisticsStore {
         signed_at = COALESCE(excluded.signed_at, shipments.signed_at),
         first_received_at = COALESCE(excluded.first_received_at, shipments.first_received_at),
         putaway_at = COALESCE(excluded.putaway_at, shipments.putaway_at),
-        actual_delivered_at = COALESCE(excluded.actual_delivered_at, shipments.actual_delivered_at),
-        actual_event_source = CASE WHEN excluded.actual_delivered_at IS NOT NULL THEN excluded.actual_event_source ELSE shipments.actual_event_source END,
+        actual_delivered_at = COALESCE(shipments.actual_delivered_at, excluded.actual_delivered_at),
+        actual_event_source = CASE WHEN shipments.actual_delivered_at IS NOT NULL THEN shipments.actual_event_source WHEN excluded.actual_delivered_at IS NOT NULL THEN excluded.actual_event_source ELSE shipments.actual_event_source END,
         weight_scaled = excluded.weight_scaled,
         weight_formatted = excluded.weight_formatted,
         weight_unit = excluded.weight_unit,
@@ -452,7 +468,7 @@ export class LogisticsStore {
         insertedOrUpdated += 1;
 
         for (const leg of s.legs) {
-          const legId = `${leg.sid}:${leg.shipmentSn}:${leg.logisticsRecordId}`;
+          const legId = `${leg.sid}:${leg.fbaShipmentId}:${leg.shipmentSn}:${leg.logisticsRecordId}`;
           upsertLeg.run(
             legId, leg.sid, leg.fbaShipmentId, leg.shipmentSn, leg.logisticsRecordId,
             leg.carrierId, leg.carrierName, leg.trackingNo, leg.routeLane, leg.serviceLevel, leg.pricingScope,
@@ -503,6 +519,46 @@ export class LogisticsStore {
         }
       }
 
+      // Cross-page / cross-sync guard: if multiple FBA shipments share the same (sid, shipment_sn)
+      // and only dispatch-order-level weight exists, block settlement on all of them to forbid double-billing.
+      const affectedSns = new Set();
+      for (const s of normalizedShipments) {
+        if (s.shipmentSn && (s.weightSource === 'dispatch_order' || s.weightSource === 'dispatch_order_ambiguous')) {
+          affectedSns.add(`${s.sid}\0${s.shipmentSn}`);
+        }
+      }
+      if (affectedSns.size > 0) {
+        const countBySn = this.db.prepare(
+          'SELECT COUNT(DISTINCT fba_shipment_id) AS cnt FROM shipments WHERE sid = ? AND shipment_sn = ?'
+        );
+        const blockDispatchShipments = this.db.prepare(`
+          UPDATE shipments
+          SET weight_scaled = NULL,
+              weight_formatted = NULL,
+              weight_source = 'dispatch_order_ambiguous',
+              settlement_blocked = 1,
+              block_reason = '仅发货单级有重量且对应多个 FBA 货件，禁止重复计费，请补齐单票重量或明确分摊'
+          WHERE sid = ? AND shipment_sn = ? AND weight_source IN ('dispatch_order', 'dispatch_order_ambiguous')
+        `);
+        const blockDispatchLegs = this.db.prepare(`
+          UPDATE shipment_legs
+          SET weight_scaled = NULL,
+              weight_formatted = NULL,
+              weight_source = 'dispatch_order_ambiguous',
+              settlement_blocked = 1,
+              block_reason = '仅发货单级有重量且对应多个 FBA 货件，禁止重复计费，请补齐单票重量或明确分摊'
+          WHERE sid = ? AND shipment_sn = ? AND weight_source IN ('dispatch_order', 'dispatch_order_ambiguous')
+        `);
+        for (const pair of affectedSns) {
+          const [pairSid, pairSn] = pair.split('\0');
+          const { cnt } = countBySn.get(pairSid, pairSn);
+          if (Number(cnt) > 1) {
+            blockDispatchShipments.run(pairSid, pairSn);
+            blockDispatchLegs.run(pairSid, pairSn);
+          }
+        }
+      }
+
       if (cursor) {
         this.saveCursor(cursor.sid, cursor.windowKey, cursor);
       }
@@ -534,6 +590,16 @@ export class LogisticsStore {
       const err = new Error(leg.block_reason || '该运输段重量待补数或存在歧义，暂不可计价');
       err.statusCode = 400;
       throw err;
+    }
+    if (leg.weight_source === 'dispatch_order' || leg.weight_source === 'dispatch_order_ambiguous') {
+      const snCnt = this.db.prepare(
+        'SELECT COUNT(DISTINCT fba_shipment_id) AS cnt FROM shipments WHERE sid = ? AND shipment_sn = ?'
+      ).get(leg.sid, leg.shipment_sn);
+      if (Number(snCnt.cnt) > 1) {
+        const err = new Error('仅发货单级有重量且对应多个 FBA 货件，禁止重复计费');
+        err.statusCode = 400;
+        throw err;
+      }
     }
 
     const legCountRow = this.db.prepare(
@@ -641,6 +707,116 @@ export class LogisticsStore {
         before: r.before_json ? JSON.parse(r.before_json) : null,
         after: JSON.parse(r.after_json)
       }));
+  }
+
+  /**
+   * Record traceable POD evidence and/or destination warehouse timezone for a shipment
+   * when the upstream Lingxing API does not supply signed_at or dest_timezone.
+   */
+  recordShipmentFulfillmentEvidence({
+    sid,
+    fbaShipmentId,
+    destTimezone = null,
+    destCountry = null,
+    actualDeliveredAt = null,
+    actualEventSource = 'carrier_pod',
+    evidenceRef,
+    operator = 'operator'
+  }) {
+    const shopSid = String(sid ?? '').trim();
+    const shipId = String(fbaShipmentId ?? '').trim();
+    if (!shopSid || !shipId) {
+      const err = new Error('缺少店铺 SID 或 FBA 货件号');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!evidenceRef || !String(evidenceRef).trim()) {
+      const err = new Error('补录 POD 或目的仓时区必须提供可追溯凭证来源（evidenceRef）');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!destTimezone && !actualDeliveredAt && !destCountry) {
+      const err = new Error('请至少填写目的仓时区、国家或实际 POD 签收时间');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (destTimezone && !isValidTimezone(destTimezone)) {
+      const err = new Error(`无效的 IANA 时区: ${destTimezone}`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (actualDeliveredAt) {
+      if (!Number.isFinite(Date.parse(actualDeliveredAt))) {
+        const err = new Error(`无效的 POD 时间格式: ${actualDeliveredAt}`);
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!['carrier_pod', 'signed'].includes(actualEventSource)) {
+        const err = new Error('POD 来源仅允许 carrier_pod 或 signed');
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
+    const now = new Date().toISOString();
+    return this.transaction(() => {
+      const existing = this.db.prepare('SELECT * FROM shipments WHERE sid = ? AND fba_shipment_id = ?').get(shopSid, shipId);
+      if (!existing) {
+        const err = new Error('未找到对应的 FBA 货件');
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const nextTz = destTimezone ? destTimezone.trim() : existing.dest_timezone;
+      const nextCountry = destCountry ? String(destCountry).trim().toUpperCase() : existing.dest_country;
+      const nextLane = existing.route_lane || (nextCountry ? `CN-${nextCountry}` : null);
+      const nextDelivered = actualDeliveredAt || existing.actual_delivered_at;
+      const nextSource = actualDeliveredAt ? actualEventSource : existing.actual_event_source;
+      const nextSigned = (actualDeliveredAt && actualEventSource === 'signed') ? actualDeliveredAt : existing.signed_at;
+
+      this.db.prepare(`
+        UPDATE shipments
+        SET dest_timezone = ?,
+            dest_country = ?,
+            route_lane = ?,
+            signed_at = ?,
+            actual_delivered_at = ?,
+            actual_event_source = ?
+        WHERE sid = ? AND fba_shipment_id = ?
+      `).run(nextTz, nextCountry, nextLane, nextSigned, nextDelivered, nextSource, shopSid, shipId);
+
+      if (nextLane && !existing.route_lane) {
+        this.db.prepare('UPDATE shipment_legs SET route_lane = COALESCE(route_lane, ?) WHERE sid = ? AND fba_shipment_id = ?')
+          .run(nextLane, shopSid, shipId);
+      }
+
+      const evId = randomUUID();
+      this.db.prepare(`
+        INSERT INTO shipment_evidence_log (
+          id, sid, fba_shipment_id, dest_timezone, dest_country,
+          actual_delivered_at, actual_event_source, evidence_ref, operator, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        evId, shopSid, shipId,
+        destTimezone ? destTimezone.trim() : null,
+        destCountry ? String(destCountry).trim().toUpperCase() : null,
+        actualDeliveredAt || null,
+        actualDeliveredAt ? actualEventSource : null,
+        String(evidenceRef).trim(),
+        String(operator),
+        now
+      );
+
+      const updated = this.listShipments({ sid: shopSid }).items.find(i => i.fbaShipmentId === shipId);
+      const evidence = this.db.prepare('SELECT * FROM shipment_evidence_log WHERE id = ?').get(evId);
+      return { shipment: updated, evidence };
+    });
+  }
+
+  getShipmentEvidenceHistory(sid, fbaShipmentId) {
+    return this.db.prepare(
+      'SELECT * FROM shipment_evidence_log WHERE sid = ? AND fba_shipment_id = ? ORDER BY created_at DESC'
+    ).all(String(sid), String(fbaShipmentId));
   }
 
   /**
@@ -1099,7 +1275,7 @@ export class LogisticsStore {
   }
 }
 
-export function openLogisticsStore(directory) {
-  return new LogisticsStore(join(directory, 'logistics.db'));
+export function openLogisticsStore(directory, dbName = 'logistics.db') {
+  return new LogisticsStore(join(directory, dbName));
 }
 

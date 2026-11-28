@@ -37,12 +37,18 @@ async function readJsonBody(req, maxBytes = 1024 * 1024) {
 }
 
 export function createLogisticsRouter({ directory, client = null, providers = null, demo = false, enableScheduler = true }) {
-  const store = openLogisticsStore(directory);
+  // Physically isolate demo ledger from live ledger
+  const store = openLogisticsStore(directory, demo ? 'logistics-demo.db' : 'logistics-live.db');
   const scheduler = enableScheduler ? startMonthlyScheduler(store) : null;
   let activeSync = null;
 
   function resolveClient(requestedMode) {
-    const useDemo = requestedMode === 'demo' || (demo && requestedMode !== 'live');
+    if (!demo && requestedMode === 'demo') {
+      const err = new Error('真实服务模式禁止写入演示数据，请切换到演示实例或配置真实领星凭据');
+      err.statusCode = 403;
+      throw err;
+    }
+    const useDemo = demo && requestedMode !== 'live';
     if (useDemo) {
       return { effectiveClient: createDemoLogisticsClient(), dataMode: 'demo' };
     }
@@ -137,6 +143,35 @@ export function createLogisticsRouter({ directory, client = null, providers = nu
           now: url.searchParams.get('now') || undefined
         });
         send(200, result);
+        return true;
+      }
+
+      // POST /api/logistics/shipments/evidence (record traceable POD & destination timezone)
+      if (path === '/api/logistics/shipments/evidence' && req.method === 'POST') {
+        const body = await readJsonBody(req);
+        const result = store.recordShipmentFulfillmentEvidence({
+          sid: body.sid,
+          fbaShipmentId: body.fbaShipmentId,
+          destTimezone: body.destTimezone || null,
+          destCountry: body.destCountry || null,
+          actualDeliveredAt: body.actualDeliveredAt || null,
+          actualEventSource: body.actualEventSource || 'carrier_pod',
+          evidenceRef: body.evidenceRef,
+          operator: body.operator || 'operator'
+        });
+        send(200, result);
+        return true;
+      }
+
+      // GET /api/logistics/shipments/evidence?sid=...&fbaShipmentId=...
+      if (path === '/api/logistics/shipments/evidence' && req.method === 'GET') {
+        const sid = url.searchParams.get('sid');
+        const fbaShipmentId = url.searchParams.get('fbaShipmentId');
+        if (!sid || !fbaShipmentId) {
+          send(400, { error: '缺少 sid 或 fbaShipmentId 参数' });
+          return true;
+        }
+        send(200, { history: store.getShipmentEvidenceHistory(sid, fbaShipmentId) });
         return true;
       }
 

@@ -15,6 +15,7 @@ import { runMonthlySettlement, confirmStatement, listStatements, exportStatement
 import { queryCarrierRatings } from './rating.mjs';
 import { service } from '../shared/server.mjs';
 import { demoClient } from '../demo.mjs';
+import { LingxingClient } from '../shared/lingxing.mjs';
 
 async function withTempStore(t) {
   const dir = await mkdtemp(join(tmpdir(), 'logistics-test-'));
@@ -83,7 +84,7 @@ test('场景2：注入第五票 USD 40 缺陷费并重放幂等，次月冲销�
     carrierName: '远洋慢递物流',
     responsibilityBasis: '尾程延迟30天签收赔付确认单',
     status: 'verified',
-    targets: [{ sid: '101', fbaShipmentId: 'FBA18USPLAN05', legId: '101:SP20260315005:REC-SP20260315005-1', weight: 1 }]
+    targets: [{ sid: '101', fbaShipmentId: 'FBA18USPLAN05', legId: '101:FBA18USPLAN05:SP20260315005:REC-SP20260315005-1', weight: 1 }]
   };
 
   const first = store.recordDefectFee(feePayload);
@@ -153,7 +154,7 @@ test('场景3：12.345 kg × USD 2.40/kg 手改至 28.00，重启及重复同步
     last_update_time: '2026-04-01T10:00:00Z'
   };
   store.upsertShipmentsPage([mapLingxingShipment(baseRaw, null, { sid: '101' })]);
-  const legId = '101:SP-PRICE-01:SP-PRICE-01-L1';
+  const legId = '101:FBA-PRICE-01:SP-PRICE-01:SP-PRICE-01-L1';
 
   const saved = store.saveLegPricing({
     legId,
@@ -246,14 +247,34 @@ test('场景4：日历边界（提前一天、窗口两端、晚一天、闰日�
   });
   assert.equal(leap2.deviationDays, 2);
 
-  // Cross-year (2025-12-31 -> 2026-01-01 => +1 day)
+  // Cross-year (2025-12-31 -> 2026-01-01 => +1 day) using signed/POD event
   const crossYear = evaluateArrival({
     promisedStart: '2025-12-31', promisedEnd: '2025-12-31', destTimezone: 'UTC',
-    firstReceivedAt: '2026-01-01T01:00:00Z'
+    signedAt: '2026-01-01T01:00:00Z'
   });
   assert.equal(crossYear.status, 'delayed');
   assert.equal(crossYear.deviationDays, 1);
-  assert.equal(crossYear.actualEventSource, 'first_received');
+  assert.equal(crossYear.actualEventSource, 'signed');
+
+  // Receiving / putaway WITHOUT signedAt or carrier_pod MUST keep actual arrival unknown
+  const receivedOnly = evaluateArrival({
+    promisedStart: '2026-04-01', promisedEnd: '2026-04-05', destTimezone: tz,
+    firstReceivedAt: '2026-04-03T18:00:00Z',
+    putawayAt: '2026-04-04T18:00:00Z'
+  });
+  assert.equal(receivedOnly.status, 'unknown');
+  assert.equal(receivedOnly.actualLocalDay, null);
+  assert.equal(receivedOnly.actualEventSource, 'unknown');
+  assert.equal(receivedOnly.deviationDays, null);
+
+  // Explicit carrier_pod is accepted as actual delivery
+  const carrierPod = evaluateArrival({
+    promisedStart: '2026-04-01', promisedEnd: '2026-04-05', destTimezone: tz,
+    actualDeliveredAt: '2026-04-03T18:00:00Z',
+    actualEventSource: 'carrier_pod'
+  });
+  assert.equal(carrierPod.status, 'on_time');
+  assert.equal(carrierPod.actualEventSource, 'carrier_pod');
 
   // DST Spring-Forward (2026-03-08 23h day in America/Los_Angeles)
   const dstSpring = evaluateArrival({
@@ -369,6 +390,32 @@ test('场景5：非法值拒绝、混箱只计一次、跨店重号隔离、多�
   assert.equal(batches.length, 1);
   assert.equal(batches[0].planId, 'PLAN-X');
   assert.equal(batches[0].shipments[0].legs.length, 2);
+
+  // Multi-FBA-shipment on one dispatch order (shipment_sn) with ONLY dispatch-order-level weight:
+  // Even when synced across separate pages, MUST block settlement & forbid double-billing!
+  const sharedDetail = { shipment_sn: 'SN-SHARED-99', weight: '200.0', weight_unit: 'kg', carrier_id: 'C-1', carrier_name: '承运商1' };
+  const multiShip1 = mapLingxingShipment(
+    { sid: 101, shipment_id: 'FBA-SH-1', shipment_sn: 'SN-SHARED-99', source_version: 1, last_update_time: '2026-04-02T00:00:00Z' },
+    sharedDetail,
+    { sid: '101', dispatchShipmentCount: 1 } // arrives on page 1 alone
+  );
+  const multiShip2 = mapLingxingShipment(
+    { sid: 101, shipment_id: 'FBA-SH-2', shipment_sn: 'SN-SHARED-99', source_version: 1, last_update_time: '2026-04-02T00:00:00Z' },
+    sharedDetail,
+    { sid: '101', dispatchShipmentCount: 1 } // arrives on page 2 later
+  );
+  store.upsertShipmentsPage([multiShip1]);
+  store.upsertShipmentsPage([multiShip2]);
+
+  const sharedItems = store.listShipments({ sid: '101' }).items.filter(s => s.shipmentSn === 'SN-SHARED-99');
+  assert.equal(sharedItems.length, 2);
+  for (const s of sharedItems) {
+    assert.equal(s.settlementBlocked, true, `${s.fbaShipmentId} 仅发货单级有重量且多货件一单时必须阻断结算`);
+    assert.equal(s.legs[0].settlementBlocked, true);
+    assert.throws(() => store.saveLegPricing({
+      legId: s.legs[0].id, unitPrice: '2.00', currency: 'USD', expectedVersion: 0
+    }), /禁止重复计费/);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -502,10 +549,12 @@ test('场景7：极限测试（10,000票、重复乱序分页、429重试、中�
           throw new Error('模拟网络中断');
         }
         const slice = allRows.slice(params.offset, params.offset + params.length);
-        return { code: 0, total: TOTAL, data: slice };
+        return { code: 0, total: TOTAL, data: { list: slice, total: TOTAL } };
       }
       if (path === FBA_SHIPMENT_DETAIL_PATH) {
-        return { code: 0, data: [] };
+        assert.equal(typeof params.shipment_sn, 'string');
+        assert.equal(params.shipment_sn_arr, undefined);
+        return { code: 0, data: { shipment_sn: params.shipment_sn } };
       }
       throw new Error(`unexpected path ${path}`);
     }
@@ -556,13 +605,13 @@ test('场景7：极限测试（10,000票、重复乱序分页、429重试、中�
     for (let i = 0; i < TOTAL; i++) {
       const sn = `SN10K${String(i).padStart(6, '0')}`;
       const id = `FBA10K${String(i).padStart(6, '0')}`;
-      insertPrice.run(`201:${sn}:${sn}-L1`, id, i % 2 === 0 ? 'CARRIER-MEGA-A' : 'CARRIER-MEGA-B', nowIso);
+      insertPrice.run(`201:${id}:${sn}:${sn}-L1`, id, i % 2 === 0 ? 'CARRIER-MEGA-A' : 'CARRIER-MEGA-B', nowIso);
     }
   });
   const bulkPriceMs = Math.round(performance.now() - tPrice0);
 
   // Concurrent pricing override test: two updates with expectedVersion=1 -> second MUST fail with 409
-  const targetLeg = '201:SN10K000000:SN10K000000-L1';
+  const targetLeg = '201:FBA10K000000:SN10K000000:SN10K000000-L1';
   const okUpdate = store.saveLegPricing({
     legId: targetLeg, unitPrice: '2.00', priceUnit: 'kg', currency: 'USD',
     manualOverrideAmount: '19.50', overrideReason: '并发测试1', operator: 'op1', expectedVersion: 1
@@ -698,5 +747,394 @@ test('场景8：端到端（首页进入、工作台、同步、改价、月结�
   scheduler.stop();
   assert.ok(scheduler.initialRun, '服务启动应自动补跑上月(2026-04)月结任务');
   assert.equal(scheduler.initialRun.periodMonth, '2026-04');
+});
+
+// ---------------------------------------------------------------------------
+// 9. Official Lingxing detail shape E2E fixture:
+//    expected_arrival_date, box_list[].{box_num, cg_box_weight, box_codes, box_skus[].shipment_id},
+//    actual_expenses_list.chargeable_weight (kg), and NO US/LA default when country/timezone missing
+// ---------------------------------------------------------------------------
+test('场景9：领星官方详情字段端到端夹具（expected_arrival_date、box_list、chargeable_weight、缺失国家时区不默认美国/洛杉矶）', async t => {
+  const { store } = await withTempStore(t);
+
+  const officialShipments = [
+    // Official shipmentList rows WITHOUT shipment_sn, using sta_inbound_plan_id & sta_delivery_start/end_date!
+    {
+      sid: '301',
+      shipment_id: 'FBA-OFF-A',
+      sta_inbound_plan_id: 'STA-PLAN-US-01',
+      sta_delivery_start_date: '2026-04-13',
+      sta_delivery_end_date: '2026-04-15',
+      destination_fulfillment_center_id: 'ONT8',
+      country_code: 'US',
+      dest_timezone: 'America/Los_Angeles',
+      signed_at: '2026-04-15T18:00:00Z',
+      last_update_time: '2026-04-16T00:00:00Z'
+    },
+    {
+      sid: '301',
+      shipment_id: 'FBA-OFF-B',
+      sta_inbound_plan_id: 'STA-PLAN-US-01',
+      sta_delivery_start_date: '2026-04-13',
+      sta_delivery_end_date: '2026-04-15',
+      destination_fulfillment_center_id: 'ONT8',
+      country_code: 'US',
+      dest_timezone: 'America/Los_Angeles',
+      signed_at: '2026-04-17T18:00:00Z',
+      last_update_time: '2026-04-18T00:00:00Z'
+    },
+    {
+      sid: '301',
+      shipment_id: 'FBA-OFF-C',
+      destination_fulfillment_center_id: 'LGB8',
+      country_code: 'US',
+      dest_timezone: 'America/Los_Angeles',
+      signed_at: '2026-04-20T18:00:00Z',
+      last_update_time: '2026-04-21T00:00:00Z'
+    },
+    {
+      sid: '301',
+      shipment_id: 'FBA-OFF-D1',
+      country_code: 'US',
+      dest_timezone: 'America/Los_Angeles',
+      last_update_time: '2026-04-21T00:00:00Z'
+    },
+    {
+      sid: '301',
+      shipment_id: 'FBA-OFF-D2',
+      country_code: 'US',
+      dest_timezone: 'America/Los_Angeles',
+      last_update_time: '2026-04-21T00:00:00Z'
+    },
+    // Real shipment lacking BOTH signed_at AND dest_timezone/country -> must start unknown, then settle after POD+TZ supplement!
+    {
+      sid: '301',
+      shipment_id: 'FBA-OFF-NOTZ',
+      sta_inbound_plan_id: 'STA-PLAN-US-02',
+      sta_delivery_start_date: '2026-04-20',
+      sta_delivery_end_date: '2026-04-22',
+      destination_fulfillment_center_id: 'ONT8',
+      last_update_time: '2026-04-22T19:00:00Z'
+    }
+  ];
+
+  // Dispatch order list linking shipment_sn <-> FBA shipment_id(s) via real association keys
+  const officialDispatchList = [
+    { shipment_sn: 'SP-OFF-001', relate_list: [{ shipment_id: 'FBA-OFF-A' }, { shipment_id: 'FBA-OFF-B' }] },
+    { shipment_sn: 'SP-OFF-002', shipment_id: 'FBA-OFF-C' },
+    { shipment_sn: 'SP-OFF-003', relate_list: [{ shipment_id: 'FBA-OFF-D1' }, { shipment_id: 'FBA-OFF-D2' }] },
+    { shipment_sn: 'SP-OFF-004', shipment_id: 'FBA-OFF-NOTZ' }
+  ];
+
+  const officialDetails = [
+    {
+      shipment_sn: 'SP-OFF-001',
+      expected_arrival_date: '2026-04-15 00:00:00',
+      carrier_id: 'CARRIER-OFFICIAL',
+      carrier_name: '官方承运商',
+      box_list: [
+        {
+          box_num: 2,
+          cg_box_weight: '12.5',
+          box_codes: ['BOXA1', 'BOXA2'],
+          box_skus: [
+            { shipment_id: 'FBA-OFF-A', sku: 'SKU-1' },
+            { shipment_id: 'FBA-OFF-A', sku: 'SKU-2' }
+          ]
+        },
+        {
+          box_num: 1,
+          cg_box_weight: '8.25',
+          box_codes: ['BOXB1'],
+          box_skus: [{ shipment_id: 'FBA-OFF-B', sku: 'SKU-3' }]
+        }
+      ]
+    },
+    {
+      shipment_sn: 'SP-OFF-002',
+      expected_arrival_date: '2026-04-20',
+      carrier_id: 'CARRIER-OFFICIAL',
+      carrier_name: '官方承运商',
+      actual_expenses_list: { chargeable_weight: '42.6' }
+    },
+    {
+      shipment_sn: 'SP-OFF-003',
+      expected_arrival_date: '2026-04-22',
+      carrier_id: 'CARRIER-OFFICIAL',
+      carrier_name: '官方承运商',
+      actual_expenses_list: { chargeable_weight: '100.0' }
+    },
+    {
+      shipment_sn: 'SP-OFF-004',
+      expected_arrival_date: '2026-04-22',
+      carrier_id: 'CARRIER-OFFICIAL',
+      carrier_name: '官方承运商',
+      actual_expenses_list: { chargeable_weight: '15.0' }
+    }
+  ];
+
+  const seenRequests = [];
+  const officialFetch = async (urlObj, init) => {
+    const url = typeof urlObj === 'string' ? new URL(urlObj) : urlObj;
+    const path = url.pathname;
+    if (path === '/api/auth-server/oauth/access-token') {
+      return { ok: true, status: 200, json: async () => ({ code: '200', data: { access_token: 'tok-test', expires_in: 7200 } }) };
+    }
+    const body = init?.body ? JSON.parse(init.body) : {};
+    seenRequests.push({ method: init?.method, path, body });
+    if (path === '/erp/sc/data/seller/lists') {
+      assert.equal(url.searchParams.get('access_token'), null, '非物流接口保持不在 query 传 access_token');
+      return { ok: true, status: 200, json: async () => ({ code: 0, data: [{ sid: 301, name: '官方契约测试店' }] }) };
+    }
+    if (path === '/erp/sc/data/fba_report/shipmentList') {
+      assert.equal(url.searchParams.get('access_token'), 'tok-test', '物流货件列表 query 需携带 access_token');
+      assert.ok(url.searchParams.get('app_key') && url.searchParams.get('timestamp') && url.searchParams.get('sign'));
+      assert.equal(typeof body.sid, 'string', '货件列表请求参数 sid 必须为字符串');
+      return { ok: true, status: 200, json: async () => ({ code: 0, total: officialShipments.length, data: { list: officialShipments, total: officialShipments.length } }) };
+    }
+    if (path === '/erp/sc/routing/storage/shipment/getInboundShipmentList') {
+      assert.equal(url.searchParams.get('access_token'), 'tok-test', '物流发货单列表 query 需携带 access_token');
+      assert.ok(url.searchParams.get('app_key') && url.searchParams.get('timestamp') && url.searchParams.get('sign'));
+      assert.equal(typeof body.sids, 'string', '发货单列表店铺参数必须为字符串 sids');
+      assert.equal(body.sid, undefined, '发货单列表不可误用 sid 代替 sids');
+      return { ok: true, status: 200, json: async () => ({ code: 0, total: officialDispatchList.length, data: { list: officialDispatchList, total: officialDispatchList.length } }) };
+    }
+    if (path === '/erp/sc/routing/storage/shipment/getInboundShipmentListMwsDetail') {
+      assert.equal(url.searchParams.get('access_token'), 'tok-test', '物流发货单详情 query 需携带 access_token');
+      assert.ok(url.searchParams.get('app_key') && url.searchParams.get('timestamp') && url.searchParams.get('sign'));
+      assert.equal(typeof body.shipment_sn, 'string', '发货单详情必须逐个传入字符串 shipment_sn');
+      assert.equal(body.shipment_sn_arr, undefined, '不可使用旧版 shipment_sn_arr');
+      const found = officialDetails.find(d => d.shipment_sn === body.shipment_sn);
+      return { ok: true, status: 200, json: async () => ({ code: 0, data: found }) };
+    }
+    throw new Error(`unexpected path ${path}`);
+  };
+
+  // Verify via real LingxingClient (including AES signing, exact paths, POST method, and response shape validation)
+  const lxClient = new LingxingClient({ appId: '0123456789abcdef', appSecret: 'test-secret', fetchImpl: officialFetch, pause: async () => {} });
+  await syncAllShops({ client: lxClient, store, startDate: '2026-04-01', endDate: '2026-04-30', dataMode: 'live' });
+
+  // Verify exact request paths: shipmentList -> getInboundShipmentList (when shipment_sn absent) -> single shipment_sn detail calls
+  assert.ok(seenRequests.some(r => r.method === 'POST' && r.path === '/erp/sc/data/fba_report/shipmentList'));
+  assert.ok(seenRequests.some(r => r.method === 'POST' && r.path === '/erp/sc/routing/storage/shipment/getInboundShipmentList'));
+  const detailCalls = seenRequests.filter(r => r.method === 'POST' && r.path === '/erp/sc/routing/storage/shipment/getInboundShipmentListMwsDetail');
+  assert.deepEqual(detailCalls.map(r => r.body.shipment_sn).sort(), ['SP-OFF-001', 'SP-OFF-002', 'SP-OFF-003', 'SP-OFF-004']);
+
+  // Verify LingxingClient rejects incompatible response shapes (array data on detail, missing data.list on list)
+  const badClient = new LingxingClient({
+    appId: '0123456789abcdef',
+    appSecret: 'test-secret',
+    fetchImpl: async urlObj => {
+      const p = (typeof urlObj === 'string' ? new URL(urlObj) : urlObj).pathname;
+      if (p === '/api/auth-server/oauth/access-token') {
+        return { ok: true, status: 200, json: async () => ({ code: '200', data: { access_token: 't', expires_in: 7200 } }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ code: 0, data: [] }) };
+    },
+    pause: async () => {}
+  });
+  await assert.rejects(badClient.read(FBA_SHIPMENT_LIST_PATH, { sid: 301 }), /缺少 data\.list/);
+  await assert.rejects(badClient.read(FBA_SHIPMENT_DETAIL_PATH, { shipment_sn: 'SP-1' }), /data 应为对象/);
+  const { items } = store.listShipments({ sid: '301' });
+  const byId = new Map(items.map(i => [i.fbaShipmentId, i]));
+
+  // 1. box_list official extraction, STA plan & delivery window mapping
+  const offA = byId.get('FBA-OFF-A');
+  assert.equal(offA.planId, 'STA-PLAN-US-01');
+  assert.equal(offA.batchGroupId, 'PLAN:301:STA-PLAN-US-01');
+  assert.equal(offA.weightFormatted, '25'); // 2 boxes * 12.5 kg
+  assert.equal(offA.weightUnit, 'kg');
+  assert.equal(offA.promisedStart, '2026-04-13');
+  assert.equal(offA.promisedEnd, '2026-04-15');
+  assert.equal(offA.arrival.status, 'on_time');
+  assert.equal(offA.settlementBlocked, false);
+
+  const offB = byId.get('FBA-OFF-B');
+  assert.equal(offB.planId, 'STA-PLAN-US-01');
+  assert.equal(offB.batchGroupId, 'PLAN:301:STA-PLAN-US-01');
+  assert.equal(offB.weightFormatted, '8.25');
+  assert.equal(offB.weightUnit, 'kg');
+  assert.equal(offB.promisedStart, '2026-04-13');
+  assert.equal(offB.promisedEnd, '2026-04-15');
+  assert.equal(offB.arrival.status, 'delayed');
+  assert.equal(offB.arrival.deviationDays, 2);
+
+  // 2. actual_expenses_list.chargeable_weight (single shipment)
+  const offC = byId.get('FBA-OFF-C');
+  assert.equal(offC.weightFormatted, '42.6');
+  assert.equal(offC.weightUnit, 'kg');
+  assert.equal(offC.promisedStart, '2026-04-20');
+  assert.equal(offC.arrival.status, 'on_time');
+  assert.equal(offC.settlementBlocked, false);
+
+  // Price & settle A, B, C end-to-end
+  for (const s of [offA, offB, offC]) {
+    store.saveLegPricing({ legId: s.legs[0].id, unitPrice: '2.00', currency: 'USD', expectedVersion: 0 });
+  }
+  const settle = runMonthlySettlement(store, '2026-04');
+  const stmt = settle.statements.find(x => x.carrierId === 'CARRIER-OFFICIAL' && x.currency === 'USD');
+  // (25 + 8.25 + 42.6) * 2.00 = 75.85 * 2 = 151.70
+  assert.equal(stmt.netPayableAmount, '151.70');
+
+  // 3. Multi-shipment sharing dispatch-only actual_expenses_list.chargeable_weight -> blocked!
+  assert.equal(byId.get('FBA-OFF-D1').settlementBlocked, true);
+  assert.equal(byId.get('FBA-OFF-D2').settlementBlocked, true);
+
+  // 4. Missing country, timezone & signed_at -> NO default US / America/Los_Angeles, starts unknown & excluded from settlement
+  const noTz = byId.get('FBA-OFF-NOTZ');
+  assert.equal(noTz.destCountry, null);
+  assert.equal(noTz.destTimezone, null);
+  assert.equal(noTz.routeLane, null);
+  assert.equal(noTz.promisedStart, '2026-04-20');
+  assert.equal(noTz.promisedEnd, '2026-04-22');
+  assert.equal(noTz.arrival.status, 'unknown');
+  assert.equal(noTz.arrival.deviationDays, null);
+
+  // Reject evidence without traceable reference or invalid timezone
+  assert.throws(() => store.recordShipmentFulfillmentEvidence({
+    sid: '301', fbaShipmentId: 'FBA-OFF-NOTZ', destTimezone: 'America/Los_Angeles', evidenceRef: ''
+  }), /可追溯凭证/);
+  assert.throws(() => store.recordShipmentFulfillmentEvidence({
+    sid: '301', fbaShipmentId: 'FBA-OFF-NOTZ', destTimezone: 'Invalid/Zone', evidenceRef: 'POD-1'
+  }), /无效的 IANA 时区/);
+
+  // Record traceable POD + warehouse timezone -> completes fulfillment evaluation & enables monthly settlement!
+  const evRes = store.recordShipmentFulfillmentEvidence({
+    sid: '301',
+    fbaShipmentId: 'FBA-OFF-NOTZ',
+    destTimezone: 'America/Los_Angeles',
+    destCountry: 'US',
+    actualDeliveredAt: '2026-04-22T18:00:00Z',
+    actualEventSource: 'carrier_pod',
+    evidenceRef: 'UPS-POD-20260422-8899',
+    operator: 'ops-lead'
+  });
+  assert.equal(evRes.shipment.arrival.status, 'on_time');
+  assert.equal(evRes.shipment.arrival.actualEventSource, 'carrier_pod');
+  assert.equal(store.getShipmentEvidenceHistory('301', 'FBA-OFF-NOTZ').length, 1);
+
+  // Price FBA-OFF-NOTZ (15 kg * 2.00 = 30.00) and rerun 2026-04 draft settlement -> 151.70 + 30.00 = 181.70!
+  store.saveLegPricing({ legId: noTz.legs[0].id, unitPrice: '2.00', currency: 'USD', expectedVersion: 0 });
+  const settleAfterPod = runMonthlySettlement(store, '2026-04');
+  const stmtAfterPod = settleAfterPod.statements.find(x => x.carrierId === 'CARRIER-OFFICIAL' && x.currency === 'USD');
+  assert.equal(stmtAfterPod.netPayableAmount, '181.70');
+});
+
+// ---------------------------------------------------------------------------
+// 10. Live vs Demo physical isolation & rejection of demo writes in live mode
+// ---------------------------------------------------------------------------
+test('场景10：真实模式拒绝演示同步写入，演示账簿与真实账簿物理隔离（同店铺同单号互不串单）', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'logistics-isolation-'));
+  const liveClient = {
+    async read(path, params) {
+      if (path === '/erp/sc/data/seller/lists') return { code: 0, data: [{ sid: 101, name: '真实旗舰店' }] };
+      if (path === FBA_SHIPMENT_LIST_PATH) {
+        return {
+          code: 0,
+          total: 1,
+          data: {
+            total: 1,
+            list: [{
+              sid: 101,
+              shipment_id: 'FBA18USPLAN01', // Same sid + fba_shipment_id as demo!
+              shipment_sn: 'SP-LIVE-001',
+              country_code: 'US',
+              dest_timezone: 'America/Los_Angeles',
+              signed_at: '2026-04-01T18:00:00Z',
+              last_update_time: '2026-04-02T00:00:00Z'
+            }]
+          }
+        };
+      }
+      if (path === FBA_SHIPMENT_DETAIL_PATH) {
+        return {
+          code: 0,
+          data: {
+            shipment_sn: params.shipment_sn,
+            expected_arrival_date: '2026-04-01',
+            actual_expenses_list: { chargeable_weight: '999.0' },
+            carrier_id: 'CARRIER-LIVE',
+            carrier_name: '真实承运商'
+          }
+        };
+      }
+      if (path === '/erp/sc/data/mws/orders') return { code: 0, total: 0, data: [] };
+      throw new Error(`unexpected ${path}`);
+    },
+    async orderDetails() { return { code: 0, data: [] }; }
+  };
+
+  const liveServer = service({ directory: dir, client: liveClient, demo: false });
+  const demoServer = service({ directory: dir, client: demoClient, demo: true });
+  liveServer.listen(0, '127.0.0.1');
+  demoServer.listen(0, '127.0.0.1');
+  await Promise.all([once(liveServer, 'listening'), once(demoServer, 'listening')]);
+  t.after(async () => {
+    await Promise.all([
+      new Promise(r => liveServer.close(r)),
+      new Promise(r => demoServer.close(r))
+    ]);
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  });
+
+  const liveBase = `http://127.0.0.1:${liveServer.address().port}`;
+  const demoBase = `http://127.0.0.1:${demoServer.address().port}`;
+  const post = (base, p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+  // Live mode MUST reject demo sync request with 403
+  const rejectRes = await post(liveBase, '/api/logistics/sync', { mode: 'demo' });
+  assert.equal(rejectRes.status, 403);
+
+  // Sync live & demo separately in the SAME data directory with overlapping sid=101, FBA18USPLAN01
+  assert.equal((await post(liveBase, '/api/logistics/sync', { mode: 'live' })).status, 200);
+  assert.equal((await post(demoBase, '/api/logistics/sync', { mode: 'demo' })).status, 200);
+
+  const liveShips = (await (await fetch(liveBase + '/api/logistics/shipments')).json()).items;
+  const demoShips = (await (await fetch(demoBase + '/api/logistics/shipments')).json()).items;
+  assert.equal(liveShips.length, 1);
+  assert.equal(liveShips[0].weightFormatted, '999');
+  assert.equal(liveShips[0].dataMode, 'live');
+  assert.equal(demoShips.find(s => s.fbaShipmentId === 'FBA18USPLAN01').weightFormatted, '120.5');
+  assert.equal(demoShips.find(s => s.fbaShipmentId === 'FBA18USPLAN01').dataMode, 'demo');
+
+  // Record a demo defect fee on (101, FBA18USPLAN01) and run monthly settlement on BOTH servers
+  assert.equal((await post(demoBase, '/api/logistics/defect-fees', {
+    sourceBillNo: 'DEMO-BILL-999',
+    sourceLineNo: 'L1',
+    currency: 'USD',
+    occurredDate: '2026-04-05',
+    bookingMonth: '2026-04',
+    totalAmount: '88.00',
+    carrierId: 'CARRIER-LIVE',
+    responsibilityBasis: '演示测试费用',
+    status: 'verified',
+    targets: [{ sid: '101', fbaShipmentId: 'FBA18USPLAN01', weight: 1 }]
+  })).status, 200);
+
+  // Price live shipment and settle both
+  assert.equal((await post(liveBase, '/api/logistics/pricing', {
+    legId: liveShips[0].legs[0].id,
+    unitPrice: '1.00',
+    currency: 'USD',
+    expectedVersion: 0
+  })).status, 200);
+
+  const liveSettle = await (await post(liveBase, '/api/logistics/settlements/run', { periodMonth: '2026-04' })).json();
+  const demoSettle = await (await post(demoBase, '/api/logistics/settlements/run', { periodMonth: '2026-04' })).json();
+  const liveStmt = liveSettle.statements.find(s => s.carrierId === 'CARRIER-LIVE' && s.currency === 'USD');
+  const demoFeeStmt = demoSettle.statements.find(s => s.carrierId === 'CARRIER-LIVE' && s.currency === 'USD');
+
+  assert.equal(liveStmt.freightAmount, '999.00');
+  assert.equal(liveStmt.defectDeductionAmount, '0.00', '演示费用绝对不可写入正式月结账单');
+  assert.equal(liveStmt.netPayableAmount, '999.00');
+  assert.equal(demoFeeStmt.defectDeductionAmount, '88.00');
+
+  // Ratings also strictly use their own ledger
+  const liveRatings = (await (await fetch(liveBase + '/api/logistics/ratings')).json()).ratings;
+  const demoRatings = (await (await fetch(demoBase + '/api/logistics/ratings')).json()).ratings;
+  assert.equal(liveRatings.length, 1);
+  assert.equal(liveRatings[0].carrierId, 'CARRIER-LIVE');
+  assert.equal(liveRatings[0].defectShipmentCount, 0);
+  assert.ok(demoRatings.some(r => r.carrierId === 'CARRIER-APEX'));
 });
 

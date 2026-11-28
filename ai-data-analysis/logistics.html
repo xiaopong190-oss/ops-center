@@ -52,9 +52,9 @@
       </div>
 
       <div class="toolbar">
+        <button type="button" id="btn-carrier-dir" class="btn btn-secondary">服务商名录</button>
         <button type="button" id="btn-sync-live" class="btn btn-primary">同步真实领星</button>
         <button type="button" id="btn-sync-demo" class="btn btn-secondary">加载脱敏演示</button>
-        <a class="ghost-link" href="./connections.html">API 接入</a>
         <a class="ghost-link" href="./">首页</a>
       </div>
     </header>
@@ -367,6 +367,61 @@
       <div class="modal-actions">
         <button type="button" id="btn-cancel-evidence" class="btn btn-secondary">取消</button>
         <button type="submit" class="btn btn-primary">保存证据</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 物流服务商名录弹窗 -->
+  <dialog id="carrier-dir-dialog" class="modal-dialog" aria-labelledby="carrier-dir-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="carrier-dir-title">物流服务商名录</h3>
+        <button type="button" id="btn-close-carrier-dir" class="btn-icon" aria-label="关闭">✕</button>
+      </div>
+      <form id="carrier-create-form" class="modal-fields">
+        <label>服务商名称（必填，自动去重）<input name="name" required maxlength="80" placeholder="例如：顺丰跨境 / 极速空派物流"></label>
+        <label>备注（可选）<input name="note" maxlength="120" placeholder="美西海卡 / 协议承运商"></label>
+        <label>操作人<input name="operator" required value="ops-admin"></label>
+        <div style="display:flex;align-items:end">
+          <button type="submit" class="btn btn-primary" style="width:100%">新增服务商</button>
+        </div>
+      </form>
+      <div id="carrier-dir-feedback" class="lookup-feedback" hidden></div>
+      <div id="carrier-dir-list" class="audit-box" style="max-height:240px"></div>
+    </div>
+  </dialog>
+
+  <!-- 运输段绑定服务商 & 按运单号拉取名称弹窗 -->
+  <dialog id="carrier-bind-dialog" class="modal-dialog" aria-labelledby="carrier-bind-title">
+    <form method="dialog" id="carrier-bind-form" class="modal-card">
+      <div class="modal-head">
+        <h3 id="carrier-bind-title">绑定物流服务商与运单号</h3>
+        <button type="button" id="btn-close-carrier-bind" class="btn-icon" aria-label="关闭">✕</button>
+      </div>
+      <div id="carrier-bind-context" class="modal-context"></div>
+      <input type="hidden" name="legId">
+      <input type="hidden" name="sid">
+      <input type="hidden" name="bindingSource" value="manual">
+      <div class="modal-fields">
+        <label style="grid-column:1 / -1">
+          物流运单号（无原单号时可在此补录）
+          <div class="lookup-row">
+            <input name="manualTrackingNo" placeholder="输入或确认运单号，如 APEX-900101">
+            <button type="button" id="btn-lookup-carrier" class="btn btn-secondary">按运单号拉取名称</button>
+          </div>
+        </label>
+        <div id="carrier-lookup-result" class="lookup-feedback" style="grid-column:1 / -1" hidden></div>
+        <label style="grid-column:1 / -1">
+          绑定有效服务商
+          <select name="carrierId" id="carrier-bind-select"></select>
+        </label>
+        <label>备注 / 归属依据<input name="note" placeholder="纸质面单核对 / 承运商确认"></label>
+        <label>操作人<input name="operator" required value="ops-admin"></label>
+      </div>
+      <div id="carrier-bind-audit" class="audit-box"></div>
+      <div class="modal-actions">
+        <button type="button" id="btn-cancel-carrier-bind" class="btn btn-secondary">取消</button>
+        <button type="submit" class="btn btn-primary">保存绑定</button>
       </div>
     </form>
   </dialog>

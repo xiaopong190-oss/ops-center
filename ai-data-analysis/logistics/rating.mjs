@@ -11,11 +11,15 @@ export function queryCarrierRatings(store, { periodFrom = null, periodTo = null,
       s.sid, s.fba_shipment_id, s.dest_timezone, s.route_lane AS s_lane, s.service_level AS s_service,
       s.promised_start, s.promised_end, s.signed_at, s.first_received_at, s.putaway_at,
       s.actual_delivered_at, s.actual_event_source,
-      l.id AS leg_id, l.carrier_id, l.carrier_name, l.route_lane AS l_lane, l.service_level AS l_service,
+      l.id AS leg_id,
+      COALESCE(b.carrier_id, l.carrier_id) AS carrier_id,
+      COALESCE(b.carrier_name, l.carrier_name) AS carrier_name,
+      l.route_lane AS l_lane, l.service_level AS l_service,
       l.weight_formatted, l.weight_unit,
       p.currency AS p_currency, p.effective_amount AS p_effective_amount
     FROM shipments s
     JOIN shipment_legs l ON l.sid = s.sid AND l.fba_shipment_id = s.fba_shipment_id
+    LEFT JOIN leg_carrier_bindings b ON b.leg_id = l.id
     LEFT JOIN leg_pricing p ON p.leg_id = l.id
   `).all();
 

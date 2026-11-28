@@ -623,3 +623,36 @@ input, select {
     transition: none !important;
   }
 }
+
+.lookup-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.lookup-row input {
+  flex: 1;
+  min-width: 0;
+}
+.lookup-feedback {
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-sub);
+  color: var(--text-soft);
+}
+.lookup-feedback.is-ok {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(52, 211, 153, 0.12);
+  color: #a7f3d0;
+}
+.lookup-feedback.is-warn {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+}
+.lookup-feedback.is-err {
+  border-color: rgba(244, 63, 94, 0.55);
+  background: rgba(244, 63, 94, 0.12);
+  color: #fecdd3;
+}

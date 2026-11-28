@@ -29,6 +29,7 @@ let state = {
   shipmentOffset: 0,
   loadingMore: false,
   batches: [],
+  carriers: [],
   fees: [],
   statements: [],
   ratings: [],
@@ -148,10 +149,11 @@ function mergeShipmentsDedup(existing, incoming) {
 
 async function refreshAll() {
   try {
-    const [overview, shipmentsRes, batchesRes, feesRes, stmtsRes, ratingsRes] = await Promise.all([
+    const [overview, shipmentsRes, batchesRes, carriersRes, feesRes, stmtsRes, ratingsRes] = await Promise.all([
       api('/api/logistics/overview'),
       api(`/api/logistics/shipments?limit=${SHIPMENT_PAGE_SIZE}&offset=0`),
       api('/api/logistics/batches'),
+      api('/api/logistics/carriers'),
       api('/api/logistics/defect-fees'),
       api('/api/logistics/settlements'),
       api('/api/logistics/ratings')
@@ -165,6 +167,7 @@ async function refreshAll() {
       shipmentOffset: (shipmentsRes.items || []).length,
       loadingMore: false,
       batches: batchesRes.batches || [],
+      carriers: carriersRes.carriers || [],
       fees: feesRes.fees || [],
       statements: stmtsRes.statements || [],
       ratings: ratingsRes.ratings || []
@@ -750,22 +753,31 @@ function renderSelectedLegs(s) {
            ${p.sourceWeightChanged ? `<span class="pill pill-red">源重变更 ${escHtml(p.previousWeightFormatted)}→${escHtml(leg.weightFormatted)}</span>` : ''}`
         : '<span class="pill pill-muted">尚未维护单价</span>';
 
+    const bindingTrace = leg.carrierBinding
+      ? `<div class="leg-sub"><span class="pill pill-cyan">人工归属</span> 原领星：${escHtml(leg.sourceCarrierName || '未指定')}${leg.carrierBinding.manualTrackingNo ? ' · 人工补录单号' : ''}</div>`
+      : '';
+
     return `<div class="leg-card">
       <div>
         <div class="leg-title">${escHtml(leg.carrierName)} <span class="section-hint mono">(${escHtml(leg.carrierId)})</span></div>
-        <div class="leg-sub mono">运单 ${escHtml(leg.trackingNo || '—')} · 记录 ${escHtml(leg.logisticsRecordId)}</div>
+        <div class="leg-sub mono">运单 ${escHtml(leg.trackingNo || '缺失')} · 记录 ${escHtml(leg.logisticsRecordId)}</div>
+        ${bindingTrace}
       </div>
       <div class="mono">
         <div>${leg.weightFormatted ? `${escHtml(leg.weightFormatted)} ${escHtml(leg.weightUnit || '')}` : '重量缺失'}</div>
         <div class="leg-sub">来源 ${escHtml(leg.weightSource)} · 范围 ${escHtml(leg.pricingScope)}</div>
       </div>
       <div>${pricingHtml}</div>
-      <div>
+      <div class="filter-row">
+        <button type="button" class="btn btn-secondary btn-sm btn-leg-bind" data-leg-id="${escHtml(leg.id)}">绑定服务商</button>
         <button type="button" class="btn btn-secondary btn-sm btn-leg-price" data-leg-id="${escHtml(leg.id)}" ${leg.settlementBlocked ? 'disabled' : ''}>计价 / 改价</button>
       </div>
     </div>`;
   }).join('');
 
+  for (const btn of root.querySelectorAll('.btn-leg-bind')) {
+    btn.addEventListener('click', () => openCarrierBindModal(btn.dataset.legId));
+  }
   for (const btn of root.querySelectorAll('.btn-leg-price')) {
     btn.addEventListener('click', () => openPricingModal(btn.dataset.legId));
   }
@@ -1013,6 +1025,75 @@ async function openEvidenceModal(sid, fbaShipmentId) {
       : '暂无补录记录';
   } catch (err) {
     histBox.textContent = `历史读取失败: ${err.message}`;
+  }
+}
+
+function renderCarrierDirectoryList() {
+  const box = document.getElementById('carrier-dir-list');
+  if (!state.carriers.length) {
+    box.textContent = '暂无物流服务商，请在上方新增或先同步领星数据。';
+    return;
+  }
+  box.innerHTML = '<strong>当前服务商名录（共 ' + state.carriers.length + ' 家）：</strong>' + state.carriers.map(c => {
+    const tag = c.source === 'manual' ? '手工新增' : c.source === 'manual_linked_source' ? '复用领星源ID' : '领星同步源';
+    return `<div style="margin-top:4px"><strong style="color:var(--text)">${escHtml(c.name)}</strong> <span class="mono">(${escHtml(c.id)})</span> · <span class="pill pill-cyan">${tag}</span>${c.note ? ` · ${escHtml(c.note)}` : ''}</div>`;
+  }).join('');
+}
+
+function openCarrierDirectoryModal() {
+  const fb = document.getElementById('carrier-dir-feedback');
+  fb.hidden = true;
+  renderCarrierDirectoryList();
+  document.getElementById('carrier-dir-dialog').showModal();
+}
+
+async function openCarrierBindModal(legId) {
+  let targetLeg = null;
+  let targetShipment = null;
+  for (const s of state.shipments) {
+    const found = s.legs.find(l => l.id === legId);
+    if (found) { targetLeg = found; targetShipment = s; break; }
+  }
+  if (!targetLeg) return;
+
+  const dialog = document.getElementById('carrier-bind-dialog');
+  const form = document.getElementById('carrier-bind-form');
+  form.elements.legId.value = legId;
+  form.elements.sid.value = targetShipment.sid;
+  form.elements.bindingSource.value = 'manual';
+  form.elements.manualTrackingNo.value = targetLeg.trackingNo || '';
+  form.elements.note.value = targetLeg.carrierBinding?.note || '';
+
+  const fb = document.getElementById('carrier-lookup-result');
+  fb.hidden = true;
+
+  const select = document.getElementById('carrier-bind-select');
+  const opts = [
+    `<option value="">恢复领星原服务商（${escHtml(targetLeg.sourceCarrierName || targetLeg.sourceCarrierId)}）</option>`,
+    ...state.carriers.map(c =>
+      `<option value="${escHtml(c.id)}" ${c.id === targetLeg.carrierId ? 'selected' : ''}>${escHtml(c.name)} (${escHtml(c.id)})</option>`
+    )
+  ];
+  select.innerHTML = opts.join('');
+  if (targetLeg.carrierBinding?.carrierId) {
+    select.value = targetLeg.carrierBinding.carrierId;
+  }
+
+  document.getElementById('carrier-bind-context').innerHTML =
+    `货件 <strong class="mono">${escHtml(targetShipment.fbaShipmentId)}</strong> · 店铺 ${escHtml(targetShipment.sid)} · 原领星服务商 <strong>${escHtml(targetLeg.sourceCarrierName || '未指定')}</strong> (<span class="mono">${escHtml(targetLeg.sourceCarrierId)}</span>) · 原单号 <span class="mono">${escHtml(targetLeg.sourceTrackingNo || '无')}</span>`;
+
+  const auditBox = document.getElementById('carrier-bind-audit');
+  auditBox.textContent = '加载绑定历史…';
+  dialog.showModal();
+  try {
+    const { audit } = await api(`/api/logistics/carriers/audit?legId=${encodeURIComponent(legId)}`);
+    auditBox.innerHTML = audit.length
+      ? '<strong>归属审计历史：</strong>' + audit.map(a =>
+          `<div>${escHtml(a.created_at)} · ${escHtml(a.action)} · ${escHtml(a.operator)} · 目标 ${escHtml(a.after?.carrier_name || '恢复源服务商')} ${a.note ? `· ${escHtml(a.note)}` : ''}</div>`
+        ).join('')
+      : '暂无人工绑定记录';
+  } catch (err) {
+    auditBox.textContent = `审计读取失败: ${err.message}`;
   }
 }
 
@@ -1290,6 +1371,99 @@ function bindEvents() {
   const evDialog = document.getElementById('evidence-dialog');
   document.getElementById('btn-close-evidence').addEventListener('click', () => evDialog.close());
   document.getElementById('btn-cancel-evidence').addEventListener('click', () => evDialog.close());
+
+  const carrierDirDialog = document.getElementById('carrier-dir-dialog');
+  document.getElementById('btn-carrier-dir').addEventListener('click', openCarrierDirectoryModal);
+  document.getElementById('btn-close-carrier-dir').addEventListener('click', () => carrierDirDialog.close());
+  document.getElementById('carrier-create-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const fb = document.getElementById('carrier-dir-feedback');
+    try {
+      const res = await api('/api/logistics/carriers', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: String(fd.get('name')).trim(),
+          note: String(fd.get('note')).trim() || null,
+          operator: String(fd.get('operator')).trim() || 'ops-admin'
+        })
+      });
+      fb.hidden = false;
+      fb.className = 'lookup-feedback is-ok';
+      fb.textContent = res.carrier.reusedSourceId
+        ? `已加入名录并复用已有领星源 ID：${res.carrier.id}（${res.carrier.name}）`
+        : `已新增服务商：${res.carrier.name}（${res.carrier.id}）`;
+      e.target.reset();
+      await refreshAll();
+      renderCarrierDirectoryList();
+    } catch (err) {
+      fb.hidden = false;
+      fb.className = 'lookup-feedback is-err';
+      fb.textContent = err.message;
+    }
+  });
+
+  const bindDialog = document.getElementById('carrier-bind-dialog');
+  document.getElementById('btn-close-carrier-bind').addEventListener('click', () => bindDialog.close());
+  document.getElementById('btn-cancel-carrier-bind').addEventListener('click', () => bindDialog.close());
+  document.getElementById('btn-lookup-carrier').addEventListener('click', async () => {
+    const form = document.getElementById('carrier-bind-form');
+    const trackingNo = String(form.elements.manualTrackingNo.value || '').trim();
+    const sid = form.elements.sid.value;
+    const fb = document.getElementById('carrier-lookup-result');
+    if (!trackingNo) {
+      fb.hidden = false;
+      fb.className = 'lookup-feedback is-warn';
+      fb.textContent = '请先输入要查询的运单号';
+      return;
+    }
+    try {
+      const res = await api('/api/logistics/carriers/lookup', {
+        method: 'POST',
+        body: JSON.stringify({ trackingNo, sid })
+      });
+      fb.hidden = false;
+      if (res.status === 'matched' && res.carrier) {
+        fb.className = 'lookup-feedback is-ok';
+        fb.textContent = res.message;
+        form.elements.carrierId.value = res.carrier.id;
+        form.elements.bindingSource.value = 'tracking_lookup';
+      } else if (res.status === 'cross_shop' || res.status === 'conflict') {
+        fb.className = 'lookup-feedback is-err';
+        fb.textContent = res.message;
+      } else {
+        fb.className = 'lookup-feedback is-warn';
+        fb.textContent = res.message;
+      }
+    } catch (err) {
+      fb.hidden = false;
+      fb.className = 'lookup-feedback is-err';
+      fb.textContent = err.message;
+    }
+  });
+  document.getElementById('carrier-bind-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const selectedCarrierId = String(fd.get('carrierId') || '').trim();
+    try {
+      await api('/api/logistics/carriers/bind', {
+        method: 'POST',
+        body: JSON.stringify({
+          legId: fd.get('legId'),
+          carrierId: selectedCarrierId || null,
+          manualTrackingNo: String(fd.get('manualTrackingNo') || '').trim() || null,
+          bindingSource: fd.get('bindingSource') || 'manual',
+          note: String(fd.get('note') || '').trim() || null,
+          operator: String(fd.get('operator') || '').trim() || 'ops-admin'
+        })
+      });
+      bindDialog.close();
+      showBanner(selectedCarrierId ? '已保存运输段服务商绑定' : '已恢复该运输段为领星原服务商');
+      await refreshAll();
+    } catch (err) {
+      showBanner(`服务商绑定失败：${err.message}`, true);
+    }
+  });
   document.getElementById('evidence-form').addEventListener('submit', async e => {
     e.preventDefault();
     const fd = new FormData(e.target);

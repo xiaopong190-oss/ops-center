@@ -274,6 +274,44 @@ export class LogisticsStore {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_evidence_shipment ON shipment_evidence_log(sid, fba_shipment_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS carriers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        normalized_name TEXT NOT NULL UNIQUE,
+        source TEXT NOT NULL DEFAULT 'manual',
+        note TEXT,
+        created_by TEXT NOT NULL DEFAULT 'operator',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS leg_carrier_bindings (
+        leg_id TEXT PRIMARY KEY REFERENCES shipment_legs(id),
+        carrier_id TEXT NOT NULL,
+        carrier_name TEXT NOT NULL,
+        manual_tracking_no TEXT,
+        binding_source TEXT NOT NULL DEFAULT 'manual',
+        note TEXT,
+        operator TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bindings_carrier ON leg_carrier_bindings(carrier_id);
+      CREATE INDEX IF NOT EXISTS idx_bindings_tracking ON leg_carrier_bindings(manual_tracking_no);
+
+      CREATE TABLE IF NOT EXISTS carrier_binding_audit_log (
+        id TEXT PRIMARY KEY,
+        leg_id TEXT NOT NULL,
+        sid TEXT NOT NULL,
+        fba_shipment_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        before_json TEXT,
+        after_json TEXT,
+        operator TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_carrier_binding_audit_leg ON carrier_binding_audit_log(leg_id, created_at);
     `);
 
     const row = this.db.prepare('SELECT version FROM schema_migrations WHERE version = ?').get(SCHEMA_VERSION);
@@ -580,7 +618,12 @@ export class LogisticsStore {
     operator = 'operator',
     expectedVersion = null
   }) {
-    const leg = this.db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+    const leg = this.db.prepare(`
+      SELECT l.*, COALESCE(b.carrier_id, l.carrier_id) AS eff_carrier_id
+      FROM shipment_legs l
+      LEFT JOIN leg_carrier_bindings b ON b.leg_id = l.id
+      WHERE l.id = ?
+    `).get(legId);
     if (!leg) {
       const err = new Error('未找到对应的物流运输段');
       err.statusCode = 404;
@@ -668,7 +711,7 @@ export class LogisticsStore {
           version = excluded.version,
           updated_at = excluded.updated_at
       `).run(
-        legId, leg.sid, leg.fba_shipment_id, leg.carrier_id, calc.currency, calc.weightUnit,
+        legId, leg.sid, leg.fba_shipment_id, leg.eff_carrier_id || leg.carrier_id, calc.currency, calc.weightUnit,
         calc.unitPriceScaled, calc.unitPriceFormatted, calc.weightScaled,
         calc.calculatedMinor, calc.calculatedAmount,
         calc.effectiveMinor, calc.effectiveAmount,
@@ -817,6 +860,461 @@ export class LogisticsStore {
     return this.db.prepare(
       'SELECT * FROM shipment_evidence_log WHERE sid = ? AND fba_shipment_id = ? ORDER BY created_at DESC'
     ).all(String(sid), String(fbaShipmentId));
+  }
+
+  // -------------------------------------------------------------------------
+  // Carrier Directory, Leg Carrier Bindings & Exact Tracking-Number Lookup
+  // -------------------------------------------------------------------------
+
+  static normalizeCarrierName(rawName) {
+    if (typeof rawName !== 'string') {
+      const err = new Error('物流服务商名称不能为空');
+      err.statusCode = 400;
+      throw err;
+    }
+    const cleaned = rawName.trim().replace(/\s+/g, ' ');
+    if (!cleaned || cleaned.length > 80) {
+      const err = new Error('物流服务商名称长度须为 1 至 80 个字符');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (/[\x00-\x1f\x7f]/.test(cleaned)) {
+      const err = new Error('物流服务商名称包含非法控制字符');
+      err.statusCode = 400;
+      throw err;
+    }
+    return { name: cleaned, normalizedName: cleaned.toLowerCase() };
+  }
+
+  /**
+   * Manually add a carrier to the persistent SQLite directory.
+   * - Validates name & enforces case/whitespace-insensitive uniqueness.
+   * - Reuses existing Lingxing source carrier_id when the same carrier name already exists
+   *   in shipment_legs (prevents splitting the same carrier into two IDs!).
+   */
+  createCarrier({ name, carrierId = null, note = null, operator = 'operator' }) {
+    const { name: cleanedName, normalizedName } = LogisticsStore.normalizeCarrierName(name);
+    const now = new Date().toISOString();
+
+    return this.transaction(() => {
+      const dupName = this.db.prepare('SELECT * FROM carriers WHERE normalized_name = ?').get(normalizedName);
+      if (dupName) {
+        const err = new Error(`物流服务商「${cleanedName}」已存在（ID: ${dupName.id}）`);
+        err.statusCode = 409;
+        throw err;
+      }
+
+      // Reuse existing Lingxing source carrier_id if same name already appears in synced legs
+      const sourceMatch = this.db.prepare(`
+        SELECT carrier_id, carrier_name
+        FROM shipment_legs
+        WHERE carrier_id != 'UNASSIGNED'
+          AND LOWER(TRIM(carrier_name)) = ?
+        LIMIT 1
+      `).get(normalizedName);
+
+      let resolvedId;
+      let reusedSourceId = false;
+      if (sourceMatch) {
+        resolvedId = sourceMatch.carrier_id;
+        reusedSourceId = true;
+      } else if (carrierId && String(carrierId).trim()) {
+        const cid = String(carrierId).trim();
+        if (!/^[A-Za-z0-9._:-]{2,64}$/.test(cid) || cid === 'UNASSIGNED') {
+          const err = new Error('自定义服务商 ID 须为 2-64 位字母、数字或 . _ : -');
+          err.statusCode = 400;
+          throw err;
+        }
+        resolvedId = cid;
+      } else {
+        resolvedId = `CARRIER-M-${randomUUID().slice(0, 8).toUpperCase()}`;
+      }
+
+      const dupId = this.db.prepare('SELECT * FROM carriers WHERE id = ?').get(resolvedId);
+      if (dupId) {
+        const err = new Error(`服务商 ID「${resolvedId}」已存在于名录（${dupId.name}）`);
+        err.statusCode = 409;
+        throw err;
+      }
+
+      this.db.prepare(`
+        INSERT INTO carriers (id, name, normalized_name, source, note, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        resolvedId,
+        cleanedName,
+        normalizedName,
+        reusedSourceId ? 'manual_linked_source' : 'manual',
+        note ? String(note).trim() : null,
+        String(operator),
+        now,
+        now
+      );
+
+      const saved = this.db.prepare('SELECT * FROM carriers WHERE id = ?').get(resolvedId);
+      return {
+        carrier: {
+          id: saved.id,
+          name: saved.name,
+          source: saved.source,
+          reusedSourceId,
+          inDirectory: true,
+          note: saved.note,
+          createdBy: saved.created_by,
+          createdAt: saved.created_at
+        }
+      };
+    });
+  }
+
+  /**
+   * Unified carrier list: persistent manual directory + distinct synced Lingxing source carriers
+   * (deduplicated by carrier_id and normalized name so the same carrier never splits).
+   */
+  listCarriers() {
+    const dirRows = this.db.prepare('SELECT * FROM carriers ORDER BY created_at DESC, name ASC').all();
+    const byId = new Map();
+    const byNormName = new Set();
+
+    for (const r of dirRows) {
+      byId.set(r.id, {
+        id: r.id,
+        name: r.name,
+        source: r.source,
+        inDirectory: true,
+        note: r.note,
+        createdBy: r.created_by,
+        createdAt: r.created_at
+      });
+      byNormName.add(r.normalized_name);
+    }
+
+    const legCarriers = this.db.prepare(`
+      SELECT carrier_id, MIN(carrier_name) AS carrier_name
+      FROM shipment_legs
+      WHERE carrier_id IS NOT NULL AND carrier_id != '' AND carrier_id != 'UNASSIGNED'
+      GROUP BY carrier_id
+      ORDER BY carrier_id ASC
+    `).all();
+
+    for (const lc of legCarriers) {
+      const norm = String(lc.carrier_name || lc.carrier_id).trim().replace(/\s+/g, ' ').toLowerCase();
+      if (byId.has(lc.carrier_id) || byNormName.has(norm)) continue;
+      byId.set(lc.carrier_id, {
+        id: lc.carrier_id,
+        name: lc.carrier_name || lc.carrier_id,
+        source: 'lingxing_source',
+        inDirectory: false,
+        note: null,
+        createdBy: null,
+        createdAt: null
+      });
+      byNormName.add(norm);
+    }
+
+    return [...byId.values()];
+  }
+
+  findConfirmedStatementForLeg(legId) {
+    const confirmed = this.db.prepare(`
+      SELECT id, period_month, carrier_id, carrier_name, currency, snapshot_json
+      FROM monthly_statements
+      WHERE status = 'confirmed' AND statement_type = 'regular'
+      ORDER BY period_month DESC
+    `).all();
+    for (const stmt of confirmed) {
+      try {
+        const snap = JSON.parse(stmt.snapshot_json);
+        if (Array.isArray(snap.freightLines) && snap.freightLines.some(l => l.legId === legId)) {
+          return stmt;
+        }
+      } catch { /* ignore malformed snapshot */ }
+    }
+    return null;
+  }
+
+  /**
+   * Bind (or clear) a manual carrier and optional manual tracking number on a transport leg.
+   * - Preserves original Lingxing source carrier & tracking number on shipment_legs.
+   * - Updates leg_pricing.carrier_id to keep pricing & draft settlement aligned.
+   * - Financial guard: if the leg is already included in a CONFIRMED statement's freight lines,
+   *   rejects any rebind/unbind that would change the settlement carrier (preventing double payable
+   *   across A and B), while still allowing tracking number/note maintenance under the same carrier.
+   */
+  bindLegCarrier({
+    legId,
+    carrierId,
+    manualTrackingNo = null,
+    bindingSource = 'manual',
+    note = null,
+    operator = 'operator'
+  }) {
+    if (!legId || !String(legId).trim()) {
+      const err = new Error('缺少运输段 legId');
+      err.statusCode = 400;
+      throw err;
+    }
+    const cleanTracking = manualTrackingNo != null && String(manualTrackingNo).trim() !== ''
+      ? String(manualTrackingNo).trim()
+      : null;
+    if (cleanTracking && (cleanTracking.length > 80 || /[\x00-\x1f\x7f]/.test(cleanTracking))) {
+      const err = new Error('运单号格式无效（最长 80 字符且不可含控制字符）');
+      err.statusCode = 400;
+      throw err;
+    }
+    const now = new Date().toISOString();
+
+    return this.transaction(() => {
+      const leg = this.db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+      if (!leg) {
+        const err = new Error('未找到对应的物流运输段');
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const prevBinding = this.db.prepare('SELECT * FROM leg_carrier_bindings WHERE leg_id = ?').get(legId) || null;
+      const confirmedStmt = this.findConfirmedStatementForLeg(legId);
+
+      // Clear binding if carrierId is null or empty string
+      if (carrierId === null || carrierId === '') {
+        if (confirmedStmt && leg.carrier_id !== confirmedStmt.carrier_id) {
+          const err = new Error(
+            `该运输段已计入已确认账单 ${confirmedStmt.id}（账期 ${confirmedStmt.period_month}，结算主体 ${confirmedStmt.carrier_name}/${confirmedStmt.carrier_id}），禁止解除绑定变更结算主体，以免重复应付`
+          );
+          err.statusCode = 409;
+          throw err;
+        }
+        this.db.prepare('DELETE FROM leg_carrier_bindings WHERE leg_id = ?').run(legId);
+        // Restore leg_pricing.carrier_id to original source carrier_id
+        this.db.prepare('UPDATE leg_pricing SET carrier_id = ?, updated_at = ? WHERE leg_id = ?')
+          .run(leg.carrier_id, now, legId);
+
+        this.db.prepare(`
+          INSERT INTO carrier_binding_audit_log (
+            id, leg_id, sid, fba_shipment_id, action, before_json, after_json, operator, note, created_at
+          ) VALUES (?, ?, ?, ?, 'unbind', ?, NULL, ?, ?, ?)
+        `).run(
+          randomUUID(), legId, leg.sid, leg.fba_shipment_id,
+          prevBinding ? JSON.stringify(prevBinding) : null,
+          String(operator), note ? String(note).trim() : '恢复源服务商', now
+        );
+
+        return {
+          legId,
+          binding: null,
+          effectiveCarrierId: leg.carrier_id,
+          effectiveCarrierName: leg.carrier_name,
+          effectiveTrackingNo: leg.tracking_no,
+          sourceCarrierId: leg.carrier_id,
+          sourceCarrierName: leg.carrier_name,
+          sourceTrackingNo: leg.tracking_no
+        };
+      }
+
+      // Resolve target carrier from unified directory (manual directory OR existing source carrier)
+      const allCarriers = this.listCarriers();
+      const target = allCarriers.find(c => c.id === String(carrierId).trim());
+      if (!target) {
+        const err = new Error(`未找到物流服务商 ID: ${carrierId}，请先在服务商名录中新增`);
+        err.statusCode = 404;
+        throw err;
+      }
+
+      if (confirmedStmt && target.id !== confirmedStmt.carrier_id) {
+        const err = new Error(
+          `该运输段已计入已确认账单 ${confirmedStmt.id}（账期 ${confirmedStmt.period_month}，结算主体 ${confirmedStmt.carrier_name}/${confirmedStmt.carrier_id}），禁止改绑为其他结算主体（${target.name}/${target.id}），以免 A/B 重复应付`
+        );
+        err.statusCode = 409;
+        throw err;
+      }
+
+      const effectiveManualTracking = cleanTracking !== null
+        ? cleanTracking
+        : (prevBinding?.manual_tracking_no ?? null);
+      const source = ['manual', 'tracking_lookup'].includes(bindingSource) ? bindingSource : 'manual';
+
+      this.db.prepare(`
+        INSERT INTO leg_carrier_bindings (
+          leg_id, carrier_id, carrier_name, manual_tracking_no, binding_source, note, operator, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(leg_id) DO UPDATE SET
+          carrier_id = excluded.carrier_id,
+          carrier_name = excluded.carrier_name,
+          manual_tracking_no = excluded.manual_tracking_no,
+          binding_source = excluded.binding_source,
+          note = excluded.note,
+          operator = excluded.operator,
+          updated_at = excluded.updated_at
+      `).run(
+        legId, target.id, target.name, effectiveManualTracking,
+        source, note ? String(note).trim() : null, String(operator), now
+      );
+
+      // Keep leg_pricing.carrier_id aligned with effective carrier
+      this.db.prepare('UPDATE leg_pricing SET carrier_id = ?, updated_at = ? WHERE leg_id = ?')
+        .run(target.id, now, legId);
+
+      const saved = this.db.prepare('SELECT * FROM leg_carrier_bindings WHERE leg_id = ?').get(legId);
+      this.db.prepare(`
+        INSERT INTO carrier_binding_audit_log (
+          id, leg_id, sid, fba_shipment_id, action, before_json, after_json, operator, note, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        randomUUID(), legId, leg.sid, leg.fba_shipment_id,
+        source === 'tracking_lookup' ? 'lookup_bind' : 'bind',
+        prevBinding ? JSON.stringify(prevBinding) : null,
+        JSON.stringify(saved),
+        String(operator), note ? String(note).trim() : null, now
+      );
+
+      return {
+        legId,
+        binding: {
+          carrierId: saved.carrier_id,
+          carrierName: saved.carrier_name,
+          manualTrackingNo: saved.manual_tracking_no,
+          bindingSource: saved.binding_source,
+          note: saved.note,
+          operator: saved.operator,
+          updatedAt: saved.updated_at
+        },
+        effectiveCarrierId: saved.carrier_id,
+        effectiveCarrierName: saved.carrier_name,
+        effectiveTrackingNo: saved.manual_tracking_no || leg.tracking_no,
+        sourceCarrierId: leg.carrier_id,
+        sourceCarrierName: leg.carrier_name,
+        sourceTrackingNo: leg.tracking_no
+      };
+    });
+  }
+
+  getCarrierBindingAudit(legId) {
+    return this.db.prepare(
+      'SELECT * FROM carrier_binding_audit_log WHERE leg_id = ? ORDER BY created_at DESC'
+    ).all(String(legId)).map(r => ({
+      ...r,
+      before: r.before_json ? JSON.parse(r.before_json) : null,
+      after: r.after_json ? JSON.parse(r.after_json) : null
+    }));
+  }
+
+  /**
+   * Exact tracking-number carrier lookup (NEVER guesses by tracking number prefix/pattern).
+   * Explicitly distinguishes:
+   * - matched: single unambiguous carrier in same shop (or globally if sid omitted)
+   * - cross_shop: exact match exists ONLY in another shop (sid mismatch)
+   * - conflict: exact match maps to multiple different carriers
+   * - not_found: no exact record with known carrier found
+   */
+  lookupCarrierByTrackingNo({ trackingNo, sid = null }) {
+    const clean = typeof trackingNo === 'string' ? trackingNo.trim() : '';
+    if (!clean) {
+      const err = new Error('请输入要查询的运单号');
+      err.statusCode = 400;
+      throw err;
+    }
+    const normTracking = clean.toLowerCase();
+
+    const rows = this.db.prepare(`
+      SELECT
+        l.id AS leg_id, l.sid, l.fba_shipment_id, l.shipment_sn,
+        l.carrier_id AS src_carrier_id, l.carrier_name AS src_carrier_name, l.tracking_no AS src_tracking_no,
+        b.carrier_id AS bind_carrier_id, b.carrier_name AS bind_carrier_name, b.manual_tracking_no
+      FROM shipment_legs l
+      LEFT JOIN leg_carrier_bindings b ON b.leg_id = l.id
+      WHERE LOWER(TRIM(COALESCE(l.tracking_no, ''))) = ?
+         OR LOWER(TRIM(COALESCE(b.manual_tracking_no, ''))) = ?
+    `).all(normTracking, normTracking);
+
+    const resolvedMatches = [];
+    for (const r of rows) {
+      const cid = r.bind_carrier_id || r.src_carrier_id;
+      const cname = r.bind_carrier_name || r.src_carrier_name;
+      if (!cid || cid === 'UNASSIGNED') continue;
+      const matchedVia = (r.bind_carrier_id && r.manual_tracking_no && r.manual_tracking_no.trim().toLowerCase() === normTracking)
+        ? 'manual_binding'
+        : r.bind_carrier_id
+          ? 'manual_binding'
+          : 'lingxing_leg';
+      resolvedMatches.push({
+        sid: r.sid,
+        fbaShipmentId: r.fba_shipment_id,
+        shipmentSn: r.shipment_sn,
+        legId: r.leg_id,
+        carrierId: cid,
+        carrierName: cname,
+        source: matchedVia
+      });
+    }
+
+    if (resolvedMatches.length === 0) {
+      return {
+        status: 'not_found',
+        trackingNo: clean,
+        message: '未在已同步记录中找到该运单号对应的物流商（不按号段猜测）',
+        carrier: null,
+        candidates: []
+      };
+    }
+
+    const reqSid = sid != null && String(sid).trim() !== '' ? String(sid).trim() : null;
+    const inShop = reqSid ? resolvedMatches.filter(m => m.sid === reqSid) : resolvedMatches;
+    const otherShop = reqSid ? resolvedMatches.filter(m => m.sid !== reqSid) : [];
+
+    // If sid specified and NO matches in current shop, but matches exist in another shop -> cross_shop
+    if (reqSid && inShop.length === 0 && otherShop.length > 0) {
+      const otherSids = [...new Set(otherShop.map(m => m.sid))];
+      return {
+        status: 'cross_shop',
+        trackingNo: clean,
+        message: `该运单号仅在其他店铺（${otherSids.join(', ')}）存在记录，存在跨店风险，未自动套用`,
+        carrier: null,
+        matchedSids: otherSids,
+        candidates: otherShop
+      };
+    }
+
+    // Check if matches within scope disagree on carrier_id
+    const distinctCarriers = new Map();
+    for (const m of inShop) {
+      if (!distinctCarriers.has(m.carrierId)) {
+        distinctCarriers.set(m.carrierId, { id: m.carrierId, name: m.carrierName, source: m.source });
+      }
+    }
+
+    // Also flag conflict if no sid was provided and matches span multiple shops with different carriers or multiple shops
+    const distinctSidsInScope = [...new Set(inShop.map(m => m.sid))];
+    if (distinctCarriers.size > 1) {
+      return {
+        status: 'conflict',
+        trackingNo: clean,
+        message: `该运单号匹配到 ${distinctCarriers.size} 个不同物流商（存在冲突），请手动核对后选择`,
+        carrier: null,
+        candidates: inShop
+      };
+    }
+    if (!reqSid && distinctSidsInScope.length > 1) {
+      return {
+        status: 'cross_shop',
+        trackingNo: clean,
+        message: `该运单号跨多个店铺（${distinctSidsInScope.join(', ')}），请指定店铺或手动确认`,
+        carrier: null,
+        matchedSids: distinctSidsInScope,
+        candidates: inShop
+      };
+    }
+
+    const winner = [...distinctCarriers.values()][0];
+    return {
+      status: 'matched',
+      trackingNo: clean,
+      matchSource: winner.source === 'manual_binding' ? '已保存人工绑定记录' : '领星同步运输段记录',
+      matchSourceCode: winner.source,
+      message: `已精确匹配物流商：${winner.name}（来源：${winner.source === 'manual_binding' ? '人工绑定记录' : '领星同步记录'}）`,
+      carrier: { id: winner.id, name: winner.name },
+      matchedCount: inShop.length,
+      candidates: inShop
+    };
   }
 
   /**
@@ -1059,7 +1557,12 @@ export class LogisticsStore {
     if (planId) { conds.push('s.plan_id = ?'); params.push(String(planId)); }
     if (batchGroupId) { conds.push('s.batch_group_id = ?'); params.push(String(batchGroupId)); }
     if (carrierId) {
-      conds.push('EXISTS (SELECT 1 FROM shipment_legs l WHERE l.sid = s.sid AND l.fba_shipment_id = s.fba_shipment_id AND l.carrier_id = ?)');
+      conds.push(`EXISTS (
+        SELECT 1 FROM shipment_legs l
+        LEFT JOIN leg_carrier_bindings b ON b.leg_id = l.id
+        WHERE l.sid = s.sid AND l.fba_shipment_id = s.fba_shipment_id
+          AND COALESCE(b.carrier_id, l.carrier_id) = ?
+      )`);
       params.push(String(carrierId));
     }
     const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
@@ -1074,6 +1577,9 @@ export class LogisticsStore {
 
     const legStmt = this.db.prepare(`
       SELECT l.*,
+        b.carrier_id AS b_carrier_id, b.carrier_name AS b_carrier_name,
+        b.manual_tracking_no AS b_manual_tracking_no, b.binding_source AS b_binding_source,
+        b.note AS b_note, b.operator AS b_operator, b.updated_at AS b_updated_at,
         p.currency AS p_currency, p.unit_price_scaled AS p_unit_price_scaled, p.unit_price_formatted AS p_unit_price_formatted,
         p.calculated_minor AS p_calculated_minor, p.calculated_amount AS p_calculated_amount,
         p.effective_minor AS p_effective_minor, p.effective_amount AS p_effective_amount,
@@ -1083,6 +1589,7 @@ export class LogisticsStore {
         p.source_weight_changed AS p_source_weight_changed, p.previous_weight_formatted AS p_previous_weight_formatted,
         p.version AS p_version, p.updated_at AS p_updated_at
       FROM shipment_legs l
+      LEFT JOIN leg_carrier_bindings b ON b.leg_id = l.id
       LEFT JOIN leg_pricing p ON p.leg_id = l.id
       WHERE l.sid = ? AND l.fba_shipment_id = ?
       ORDER BY l.id ASC
@@ -1110,15 +1617,31 @@ export class LogisticsStore {
       });
       if (status && status !== 'all' && arrival.status !== status) continue;
 
-      const legs = legStmt.all(s.sid, s.fba_shipment_id).map(l => ({
+      const legs = legStmt.all(s.sid, s.fba_shipment_id).map(l => {
+        const effectiveCarrierId = l.b_carrier_id || l.carrier_id;
+        const effectiveCarrierName = l.b_carrier_name || l.carrier_name;
+        const effectiveTrackingNo = l.b_manual_tracking_no || l.tracking_no;
+        return {
         id: l.id,
         sid: l.sid,
         fbaShipmentId: l.fba_shipment_id,
         shipmentSn: l.shipment_sn,
         logisticsRecordId: l.logistics_record_id,
-        carrierId: l.carrier_id,
-        carrierName: l.carrier_name,
-        trackingNo: l.tracking_no,
+        carrierId: effectiveCarrierId,
+        carrierName: effectiveCarrierName,
+        trackingNo: effectiveTrackingNo,
+        sourceCarrierId: l.carrier_id,
+        sourceCarrierName: l.carrier_name,
+        sourceTrackingNo: l.tracking_no,
+        carrierBinding: l.b_carrier_id ? {
+          carrierId: l.b_carrier_id,
+          carrierName: l.b_carrier_name,
+          manualTrackingNo: l.b_manual_tracking_no,
+          bindingSource: l.b_binding_source,
+          note: l.b_note,
+          operator: l.b_operator,
+          updatedAt: l.b_updated_at
+        } : null,
         routeLane: l.route_lane,
         serviceLevel: l.service_level,
         pricingScope: l.pricing_scope,
@@ -1146,7 +1669,8 @@ export class LogisticsStore {
           version: l.p_version,
           updatedAt: l.p_updated_at
         } : null
-      }));
+      };
+      });
 
       const feeAllocs = feeStmt.all(s.sid, s.fba_shipment_id);
       const verifiedByCurrency = new Map();

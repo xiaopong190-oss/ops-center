@@ -42,6 +42,15 @@ export function createLogisticsRouter({ directory, client = null, providers = nu
   const scheduler = enableScheduler ? startMonthlyScheduler(store) : null;
   let activeSync = null;
 
+  function isLiveConfigured() {
+    const desc = providers?.describe?.();
+    const selectedProvider = desc?.providers?.find(p => p.id === desc.selected);
+    if (selectedProvider?.configured && providers?.source) return true;
+    // Allow explicitly injected non-default test client only when !demo and it is distinct from providers.source
+    if (!demo && client && client !== providers?.source) return true;
+    return false;
+  }
+
   function resolveClient(requestedMode) {
     if (!demo && requestedMode === 'demo') {
       const err = new Error('真实服务模式禁止写入演示数据，请切换到演示实例或配置真实领星凭据');
@@ -52,14 +61,15 @@ export function createLogisticsRouter({ directory, client = null, providers = nu
     if (useDemo) {
       return { effectiveClient: createDemoLogisticsClient(), dataMode: 'demo' };
     }
-    // Try live client if configured
-    if (client && !demo) {
-      return { effectiveClient: client, dataMode: 'live' };
-    }
+    // Strictly call Lingxing via shared providers.source when configured
     const desc = providers?.describe?.();
     const selectedProvider = desc?.providers?.find(p => p.id === desc.selected);
     if (selectedProvider?.configured && providers?.source) {
       return { effectiveClient: providers.source, dataMode: 'live' };
+    }
+    // Fallback for unit/integration tests that inject a mock client directly (not providers.source)
+    if (!demo && client && client !== providers?.source) {
+      return { effectiveClient: client, dataMode: 'live' };
     }
     return { effectiveClient: null, dataMode: 'unconfigured' };
   }
@@ -83,9 +93,7 @@ export function createLogisticsRouter({ directory, client = null, providers = nu
       if (path === '/api/logistics/overview' && req.method === 'GET') {
         const stats = store.getStats();
         const cfg = store.getConfig();
-        const desc = providers?.describe?.() || null;
-        const selectedProvider = desc?.providers?.find(p => p.id === desc.selected);
-        const liveConfigured = Boolean((!demo && client) || selectedProvider?.configured);
+        const liveConfigured = isLiveConfigured();
         send(200, {
           ...stats,
           demo,
@@ -172,6 +180,62 @@ export function createLogisticsRouter({ directory, client = null, providers = nu
           return true;
         }
         send(200, { history: store.getShipmentEvidenceHistory(sid, fbaShipmentId) });
+        return true;
+      }
+
+      // GET /api/logistics/carriers
+      if (path === '/api/logistics/carriers' && req.method === 'GET') {
+        send(200, { carriers: store.listCarriers() });
+        return true;
+      }
+
+      // POST /api/logistics/carriers (manual add to persistent carrier directory)
+      if (path === '/api/logistics/carriers' && req.method === 'POST') {
+        const body = await readJsonBody(req);
+        const result = store.createCarrier({
+          name: body.name,
+          carrierId: body.carrierId || null,
+          note: body.note || null,
+          operator: body.operator || 'operator'
+        });
+        send(200, result);
+        return true;
+      }
+
+      // POST /api/logistics/carriers/bind (bind or clear manual carrier + optional trackingNo on a leg)
+      if (path === '/api/logistics/carriers/bind' && req.method === 'POST') {
+        const body = await readJsonBody(req);
+        const result = store.bindLegCarrier({
+          legId: body.legId,
+          carrierId: body.carrierId ?? null,
+          manualTrackingNo: body.manualTrackingNo ?? null,
+          bindingSource: body.bindingSource || 'manual',
+          note: body.note || null,
+          operator: body.operator || 'operator'
+        });
+        send(200, result);
+        return true;
+      }
+
+      // GET /api/logistics/carriers/audit?legId=...
+      if (path === '/api/logistics/carriers/audit' && req.method === 'GET') {
+        const legId = url.searchParams.get('legId');
+        if (!legId) {
+          send(400, { error: '缺少 legId 参数' });
+          return true;
+        }
+        send(200, { audit: store.getCarrierBindingAudit(legId) });
+        return true;
+      }
+
+      // POST /api/logistics/carriers/lookup (exact tracking-number carrier lookup; never guesses by prefix)
+      if (path === '/api/logistics/carriers/lookup' && req.method === 'POST') {
+        const body = await readJsonBody(req);
+        const result = store.lookupCarrierByTrackingNo({
+          trackingNo: body.trackingNo,
+          sid: body.sid ?? null
+        });
+        send(200, result);
         return true;
       }
 

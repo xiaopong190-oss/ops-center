@@ -41,6 +41,11 @@ export function buildSettlementSnapshots(store, periodMonth, { settlementTimezon
 
   const legStmt = store.db.prepare(`
     SELECT l.*,
+      COALESCE(b.carrier_id, l.carrier_id) AS eff_carrier_id,
+      COALESCE(b.carrier_name, l.carrier_name) AS eff_carrier_name,
+      COALESCE(NULLIF(TRIM(b.manual_tracking_no), ''), l.tracking_no) AS eff_tracking_no,
+      l.carrier_id AS src_carrier_id,
+      l.carrier_name AS src_carrier_name,
       p.currency AS p_currency, p.unit_price_formatted AS p_unit_price_formatted,
       p.calculated_minor AS p_calculated_minor, p.calculated_amount AS p_calculated_amount,
       p.effective_minor AS p_effective_minor, p.effective_amount AS p_effective_amount,
@@ -48,6 +53,7 @@ export function buildSettlementSnapshots(store, periodMonth, { settlementTimezon
       p.is_overridden AS p_is_overridden, p.override_reason AS p_override_reason,
       p.source_weight_changed AS p_source_weight_changed, p.version AS p_version
     FROM shipment_legs l
+    LEFT JOIN leg_carrier_bindings b ON b.leg_id = l.id
     LEFT JOIN leg_pricing p ON p.leg_id = l.id
     WHERE l.sid = ? AND l.fba_shipment_id = ?
   `);
@@ -78,10 +84,12 @@ export function buildSettlementSnapshots(store, periodMonth, { settlementTimezon
   for (const s of deliveredInPeriod) {
     const legs = legStmt.all(s.sid, s.fba_shipment_id);
     for (const l of legs) {
+      const effCarrierId = l.eff_carrier_id || l.carrier_id;
+      const effCarrierName = l.eff_carrier_name || l.carrier_name;
       if (l.settlement_blocked || !l.weight_scaled || !l.weight_unit) {
         // Record pending blocked item under carrier's existing or USD fallback bucket if needed
         const cur = l.p_currency || 'USD';
-        const b = ensureBucket(l.carrier_id, l.carrier_name, cur);
+        const b = ensureBucket(effCarrierId, effCarrierName, cur);
         b.pendingItems.push({
           type: 'blocked_weight',
           sid: s.sid,
@@ -93,7 +101,7 @@ export function buildSettlementSnapshots(store, periodMonth, { settlementTimezon
         continue;
       }
       if (l.p_version == null || !l.p_currency) {
-        const b = ensureBucket(l.carrier_id, l.carrier_name, 'USD');
+        const b = ensureBucket(effCarrierId, effCarrierName, 'USD');
         b.pendingItems.push({
           type: 'missing_pricing',
           sid: s.sid,
@@ -105,7 +113,7 @@ export function buildSettlementSnapshots(store, periodMonth, { settlementTimezon
         continue;
       }
 
-      const b = ensureBucket(l.carrier_id, l.carrier_name, l.p_currency);
+      const b = ensureBucket(effCarrierId, effCarrierName, l.p_currency);
       const calcMinor = BigInt(l.p_calculated_minor);
       const deltaMinor = BigInt(l.p_override_delta_minor);
       const effMinor = BigInt(l.p_effective_minor);
@@ -120,8 +128,11 @@ export function buildSettlementSnapshots(store, periodMonth, { settlementTimezon
         shipmentSn: l.shipment_sn,
         legId: l.id,
         logisticsRecordId: l.logistics_record_id,
-        carrierId: l.carrier_id,
-        carrierName: l.carrier_name,
+        carrierId: effCarrierId,
+        carrierName: effCarrierName,
+        sourceCarrierId: l.src_carrier_id,
+        sourceCarrierName: l.src_carrier_name,
+        trackingNo: l.eff_tracking_no,
         deliveredLocalDay: s.deliveredLocalDay,
         weight: l.weight_formatted,
         weightUnit: l.weight_unit,
@@ -368,6 +379,19 @@ export function runMonthlySettlement(store, periodMonth, { triggerType = 'manual
           } else {
             statements.push(existing);
           }
+        }
+      }
+
+      // Remove stale DRAFT regular statements in this period whose carrier/currency no longer has any activity
+      // (e.g. after rebinding a leg's carrier before confirmation). Confirmed statements are NEVER touched!
+      const activeKeys = new Set(snapshots.map(s => `${s.carrierId}|${s.currency}`));
+      const existingDrafts = store.db.prepare(`
+        SELECT id, carrier_id, currency FROM monthly_statements
+        WHERE period_month = ? AND statement_type = 'regular' AND status = 'draft'
+      `).all(periodMonth);
+      for (const d of existingDrafts) {
+        if (!activeKeys.has(`${d.carrier_id}|${d.currency}`)) {
+          store.db.prepare('DELETE FROM monthly_statements WHERE id = ? AND status = \'draft\'').run(d.id);
         }
       }
 
